@@ -17,6 +17,8 @@
 #     (power_on/brake_release/unlock_protective_stop/restart_safety) beim Boot
 #   - optional: ur-state-manager.service: klont+baut ur-state-manager und startet
 #     den State-Manager (prepare/recover/ensure_ready/power_off) beim Boot
+#   - optional: arm-controllers.service: laedt Extra-Controller (--inactive) +
+#     ur_controller_mode_manager beim Boot (nutzt den ur-state-manager-Workspace)
 #
 # NICHT enthalten (bewusst): robot.yaml wird NICHT angefasst (handgepflegt).
 #   Fuer das Greifer-3D-Modell muss robot.yaml weiterhin platform.extras.urdf +
@@ -60,6 +62,12 @@ UR_DASH_ROBOT_IP="192.168.131.40"
 USM_WRAPPER="${BIN_DIR}/ur-state-manager.sh"
 USM_UNIT="ur-state-manager.service"
 USM_UNIT_PATH="/etc/systemd/system/${USM_UNIT}"
+
+# arm-controllers: laedt die Extra-Controller (--inactive) + Mode-Manager beim Boot.
+# Nutzt denselben ur-state-manager-Workspace (kein eigener Build).
+ARM_CTRL_WRAPPER="${BIN_DIR}/arm-controllers.sh"
+ARM_CTRL_UNIT="arm-controllers.service"
+ARM_CTRL_UNIT_PATH="/etc/systemd/system/${ARM_CTRL_UNIT}"
 
 OLD_UNIT="clearpath-set-update-rate.service"
 OLD_FILES=("${BIN_DIR}/set-update-rate.py" "${BIN_DIR}/wait-for-clearpath.sh")
@@ -694,17 +702,61 @@ else
     echo ">>> ur-state-manager: uebersprungen."
 fi
 
+# --- arm-controllers Boot-Service (optional) -------------------------------
+# Laedt die Extra-Controller (ft/tcp_pose/speed_scaling aktiv; freedrive/forward/
+# passthrough --inactive) in den manipulators-CM und startet den Mode-Manager.
+# Braucht den gebauten ur-state-manager-Workspace (siehe oben).
+DO_ARM_CTRL=1
+if [ -f "$ARM_CTRL_UNIT_PATH" ]; then
+    confirm ">>> arm-controllers.service ist bereits installiert. Aktualisieren?" || DO_ARM_CTRL=0
+else
+    confirm ">>> arm-controllers beim Boot starten (Extra-Controller + Mode-Manager)?" || DO_ARM_CTRL=0
+fi
+if [ "$DO_ARM_CTRL" -eq 1 ]; then
+    echo ">>> Installiere ${ARM_CTRL_WRAPPER} + ${ARM_CTRL_UNIT}"
+    cat > "$ARM_CTRL_WRAPPER" <<EOF
+#!/usr/bin/env bash
+# Laedt Extra-Controller (--inactive) + startet ur_controller_mode_manager.
+source /etc/clearpath/setup.bash
+source ${USM_WS}/install/setup.bash
+exec ros2 launch ur_state_manager arm_controllers.launch.py
+EOF
+    chmod 0755 "$ARM_CTRL_WRAPPER"
+
+    cat > "$ARM_CTRL_UNIT_PATH" <<EOF
+[Unit]
+Description=UR arm controllers (extra controllers --inactive + mode manager)
+# Nach dem manipulators-controller_manager (Spawner wartet ohnehin mit Timeout).
+After=clearpath-manipulators.service
+Wants=clearpath-manipulators.service
+
+[Service]
+User=${REAL_USER}
+ExecStart=${ARM_CTRL_WRAPPER}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    chmod 0644 "$ARM_CTRL_UNIT_PATH"
+else
+    echo ">>> arm-controllers: uebersprungen."
+fi
+
 # --- aktivieren ------------------------------------------------------------
 echo ">>> systemd neu einlesen + Services aktivieren"
 systemctl daemon-reload
 systemctl enable "$UNIT_NAME" "$RG6_UNIT"
 [ -f "$UR_DASH_UNIT_PATH" ] && systemctl enable "$UR_DASH_UNIT"
 [ -f "$USM_UNIT_PATH" ] && systemctl enable "$USM_UNIT"
+[ -f "$ARM_CTRL_UNIT_PATH" ] && systemctl enable "$ARM_CTRL_UNIT"
 
 echo ">>> Unit-Syntax pruefen"
 VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH")
 [ -f "$UR_DASH_UNIT_PATH" ] && VERIFY_UNITS+=("$UR_DASH_UNIT_PATH")
 [ -f "$USM_UNIT_PATH" ] && VERIFY_UNITS+=("$USM_UNIT_PATH")
+[ -f "$ARM_CTRL_UNIT_PATH" ] && VERIFY_UNITS+=("$ARM_CTRL_UNIT_PATH")
 systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    Units OK."
 
 # --- Patches jetzt einmal anwenden -----------------------------------------
@@ -722,6 +774,8 @@ echo "  rg6-bringup.service            : startet rg6_control + joint_state_broad
 echo "  ur-dashboard.service           : startet ur_robot_driver dashboard_client"
 [ -f "$USM_UNIT_PATH" ] && \
 echo "  ur-state-manager.service       : startet ur_state_manager (prepare/recover)"
+[ -f "$ARM_CTRL_UNIT_PATH" ] && \
+echo "  arm-controllers.service        : laedt Extra-Controller + Mode-Manager"
 echo
 echo "Damit ALLES greift, einmal neu starten:"
 echo "  sudo systemctl restart clearpath-robot.service   # oder reboot"
@@ -733,6 +787,8 @@ echo "  journalctl -u rg6-bringup.service -b"
 echo "  journalctl -u ur-dashboard.service -b"
 [ -f "$USM_UNIT_PATH" ] && \
 echo "  journalctl -u ur-state-manager.service -b"
+[ -f "$ARM_CTRL_UNIT_PATH" ] && \
+echo "  journalctl -u arm-controllers.service -b"
 echo
 echo "Hinweis: robot.yaml wird NICHT angefasst. Fuer das Greifer-3D-Modell dort"
 echo "  weiterhin platform.extras.urdf + system.ros2.workspaces pflegen."
