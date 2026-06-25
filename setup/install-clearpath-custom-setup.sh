@@ -4,14 +4,19 @@
 #
 # Macht in einem Rutsch:
 #   - Boot-Service clearpath-custom-setup: patcht bei JEDEM Boot die generierten
-#     Configs (update_rate=125, foxglove asset_uri_allowlist, io_and_status_controller)
+#     Configs (foxglove asset_uri_allowlist, realsense mesh uris)
 #   - UDEV-Regeln (/etc/udev/rules.d/99-husky.rules), netplan (/etc/netplan/01-netcfg.yaml),
 #     systemd-networkd deaktivieren (NetworkManager)
 #   - optional: GRUB-Boot beschleunigen (Menue verstecken, GRUB_TIMEOUT=0)
 #   - optional: UR-Kinematik-Kalibrierung (ros-jazzy-ur-calibration -> YAML;
 #     robot.yaml-Pfad muss man selbst eintragen)
 #   - onrobot-rg6 per git klonen + bauen (colcon)
-#   - rg6-bringup.service: spawnt io_and_status_controller + rg6_control beim Boot
+#   - rg6-bringup.service: startet rg6_control + joint_state_broadcaster beim Boot
+#     (io_and_status_controller wird von Clearpath aus der robot.yaml gespawnt)
+#   - optional: ur-dashboard.service: startet den ur_robot_driver dashboard_client
+#     (power_on/brake_release/unlock_protective_stop/restart_safety) beim Boot
+#   - optional: ur-state-manager.service: klont+baut ur-state-manager und startet
+#     den State-Manager (prepare/recover/ensure_ready/power_off) beim Boot
 #
 # NICHT enthalten (bewusst): robot.yaml wird NICHT angefasst (handgepflegt).
 #   Fuer das Greifer-3D-Modell muss robot.yaml weiterhin platform.extras.urdf +
@@ -29,17 +34,32 @@ set -euo pipefail
 
 # ---- Konfiguration ---------------------------------------------------------
 RG6_REPO_URL="https://github.com/CLAIRLab-HAW/onrobot-rg6.git"   # onrobot-rg6 (CLAIRLab-HAW)
-UPDATE_RATE_VALUE=125
+USM_REPO_URL="https://github.com/CLAIRLab-HAW/ur-state-manager.git"   # ur-state-manager (CLAIRLab-HAW)
 BIN_DIR="/usr/local/bin"
 PY_PATH="${BIN_DIR}/clearpath-custom-setup.py"
 UNIT_NAME="clearpath-custom-setup.service"
 UNIT_PATH="/etc/systemd/system/${UNIT_NAME}"
-CONTROL_YAML="/etc/clearpath/manipulators/config/control.yaml"
 FOXGLOVE_YAML="/etc/clearpath/platform/config/foxglove_bridge.yaml"
 
 RG6_WRAPPER="${BIN_DIR}/rg6-bringup.sh"
 RG6_UNIT="rg6-bringup.service"
 RG6_UNIT_PATH="/etc/systemd/system/${RG6_UNIT}"
+
+# UR dashboard_client: Clearpath startet ihn im headless-Setup NICHT mit, liefert
+# aber power_on/brake_release/unlock_protective_stop/restart_safety/get_*_mode.
+# Kein Build noetig (kommt aus ros-jazzy-ur-robot-driver). robot_ip = UR-Control-Box.
+UR_DASH_WRAPPER="${BIN_DIR}/ur-dashboard.sh"
+UR_DASH_UNIT="ur-dashboard.service"
+UR_DASH_UNIT_PATH="/etc/systemd/system/${UR_DASH_UNIT}"
+UR_DASH_NS="/a200_0553/manipulators"
+UR_DASH_ROBOT_IP="192.168.131.40"
+
+# ur-state-manager: prepare/recover/ensure_ready/power_off-Services fuer den Arm.
+# Wird (wie onrobot-rg6) geklont+gebaut und per Boot-Service gestartet. Braucht den
+# dashboard_client (ur-dashboard.service) -> startet das Launch mit start_dashboard_client:=false.
+USM_WRAPPER="${BIN_DIR}/ur-state-manager.sh"
+USM_UNIT="ur-state-manager.service"
+USM_UNIT_PATH="/etc/systemd/system/${USM_UNIT}"
 
 OLD_UNIT="clearpath-set-update-rate.service"
 OLD_FILES=("${BIN_DIR}/set-update-rate.py" "${BIN_DIR}/wait-for-clearpath.sh")
@@ -83,6 +103,7 @@ confirm() {
 REAL_USER="${SUDO_USER:-robot}"
 USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
 RG6_WS="${USER_HOME}/onrobot-rg6"
+USM_WS="${USER_HOME}/ur-state-manager"
 
 if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
     echo "FEHLER: Bitte oben im Skript RG6_REPO_URL auf die Git-URL von onrobot-rg6 setzen."
@@ -112,19 +133,20 @@ cat > "$PY_PATH" <<'PY_EOF'
 bevor die Sub-Services sie einlesen.
 
 Patches:
-  1. controller_manager 'update_rate' -> 125
-     in /etc/clearpath/manipulators/config/control.yaml
-     (gegen 500-Hz-Overruns; gelesen von clearpath-manipulators.service)
-
-  2. foxglove_bridge 'asset_uri_allowlist' -> korrekt einfach-escapte Regex
+  1. foxglove_bridge 'asset_uri_allowlist' -> korrekt einfach-escapte Regex
      in /etc/clearpath/platform/config/foxglove_bridge.yaml
      (Clearpath generiert hier eine DOPPELT-escapte Regex, die als YAML-Param
       jeden package://-Mesh ablehnt -> URDF ohne Geometrie in Foxglove.
       Gelesen von der foxglove_bridge unter clearpath-platform.service)
 
-Jeder Edit ist chirurgisch (nur die Zielzeile), idempotent, mit .bak-Backup und
-atomarem Schreiben. Fehlt eine Datei/ein Key, wird die jeweilige Aenderung
-uebersprungen (Warnung), die andere aber trotzdem ausgefuehrt.
+  2. Sensor-Mesh-URIs file:// -> package:// (fix_realsense_mesh_uris)
+
+Jeder Edit ist chirurgisch, idempotent, mit .bak-Backup und atomarem Schreiben.
+Fehlt eine Datei/ein Key, wird die jeweilige Aenderung uebersprungen (Warnung).
+
+Hinweis: 'update_rate' (125) und 'io_and_status_controller' werden NICHT mehr
+hier gepatcht -> beide laufen ueber robot.yaml arm-level 'ros_parameters'
+(clearpath_common PR #347).
 """
 
 import os
@@ -136,10 +158,7 @@ import tempfile
 TAG = "clearpath-custom-setup"
 
 # ---- Konfiguration ---------------------------------------------------------
-CONTROL_YAML = "/etc/clearpath/manipulators/config/control.yaml"
 FOXGLOVE_YAML = "/etc/clearpath/platform/config/foxglove_bridge.yaml"
-
-UPDATE_RATE_VALUE = 125
 
 # Korrekte, EINFACH-escapte Regex (wie im funktionierenden Template
 # clearpath_diagnostics/config/foxglove_bridge.yaml). In YAML-Single-Quotes
@@ -218,84 +237,6 @@ def set_scalar_line(path, key, new_value_str, label):
     return True
 
 
-def _atomic_write(path, lines):
-    """Schreibt lines atomar nach path (temp + os.replace, Mode erhalten)."""
-    dir_name = os.path.dirname(path) or "."
-    fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.writelines(lines)
-        shutil.copymode(path, tmp)
-        os.replace(tmp, path)
-    except Exception:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise
-
-
-def ensure_io_and_status_controller(path, label):
-    """Fuegt den UR GPIOController 'io_and_status_controller' in die control.yaml ein.
-
-    - Typ unter controller_manager -> ros__parameters (Einrueckung = update_rate-Zeile)
-    - Params-Block (tf_prefix) als Sibling unter dem Top-Level-Key (Einrueckung =
-      controller_manager-Zeile), am Dateiende angehaengt.
-    Idempotent: ist 'io_and_status_controller' schon drin, passiert nichts.
-    """
-    if not os.path.isfile(path):
-        log(f"WARN: {label}: Datei nicht gefunden, uebersprungen: {path}", err=True)
-        return False
-
-    with open(path, "r") as f:
-        lines = f.readlines()
-
-    if any("io_and_status_controller" in ln for ln in lines):
-        log(f"{label}: bereits vorhanden, keine Aenderung.")
-        return False
-
-    # Einrueckungen aus vorhandenen Ankern ableiten
-    cm_indent = "  "
-    rate_indent = "      "
-    for ln in lines:
-        m = re.match(r"^(?P<ind>[^\S\n]*)controller_manager[^\S\n]*:", ln)
-        if m:
-            cm_indent = m.group("ind")
-        m = re.match(r"^(?P<ind>[^\S\n]*)update_rate[^\S\n]*:", ln)
-        if m:
-            rate_indent = m.group("ind")
-
-    # 1) Typ-Eintrag direkt nach der update_rate-Zeile (gleiche Einrueckung)
-    out = []
-    inserted_type = False
-    for ln in lines:
-        out.append(ln)
-        if not inserted_type and re.match(
-                r"^[^\S\n]*update_rate[^\S\n]*:", ln):
-            out.append(f"{rate_indent}io_and_status_controller:\n")
-            out.append(f"{rate_indent}  type: 'ur_controllers/GPIOController'\n")
-            inserted_type = True
-
-    if not inserted_type:
-        log(f"WARN: {label}: 'update_rate'-Anker nicht gefunden, Typ nicht "
-            f"eingefuegt, uebersprungen.", err=True)
-        return False
-
-    # 2) Params-Block als Sibling unter dem Top-Level-Key (am Dateiende)
-    if out and not out[-1].endswith("\n"):
-        out[-1] += "\n"
-    out.append(f"{cm_indent}io_and_status_controller:\n")
-    out.append(f"{cm_indent}  ros__parameters:\n")
-    out.append(f"{cm_indent}    tf_prefix: 'arm_0_'\n")
-
-    backup = path + ".bak"
-    if not os.path.exists(backup):
-        shutil.copy2(path, backup)
-        log(f"{label}: Backup erstellt: {backup}")
-
-    _atomic_write(path, out)
-    log(f"{label}: io_and_status_controller eingefuegt.")
-    return True
-
-
 def fix_realsense_mesh_uris(label):
     """Clearpaths Sensor-Xacros referenzieren Meshes als
     'file://$(find realsense2_description)/...'. Die foxglove_bridge serviert aber
@@ -341,15 +282,13 @@ def fix_realsense_mesh_uris(label):
 
 def main():
     log("Start.")
-    # 1) update_rate
-    set_scalar_line(CONTROL_YAML, "update_rate", str(UPDATE_RATE_VALUE),
-                    "update_rate")
-    # 2) foxglove asset_uri_allowlist
+    # Hinweis: 'update_rate' (125) und 'io_and_status_controller' werden NICHT mehr
+    # hier gepatcht -> beide laufen ueber robot.yaml arm-level 'ros_parameters'
+    # (clearpath_common PR #347), verifiziert 2026-06.
+    # 1) foxglove asset_uri_allowlist
     set_scalar_line(FOXGLOVE_YAML, "asset_uri_allowlist", FOXGLOVE_ALLOWLIST,
                     "foxglove asset_uri_allowlist")
-    # 3) io_and_status_controller in die control.yaml (Typ + tf_prefix)
-    ensure_io_and_status_controller(CONTROL_YAML, "io_and_status_controller")
-    # 4) Sensor-Meshes file:// -> package:// (foxglove_bridge serviert nur package://)
+    # 2) Sensor-Meshes file:// -> package:// (foxglove_bridge serviert nur package://)
     fix_realsense_mesh_uris("sensor mesh package://")
     log("Fertig.")
     return 0
@@ -358,7 +297,6 @@ def main():
 if __name__ == "__main__":
     sys.exit(main())
 PY_EOF
-sed -i "s/^UPDATE_RATE_VALUE = .*/UPDATE_RATE_VALUE = ${UPDATE_RATE_VALUE}/" "$PY_PATH"
 chmod 0755 "$PY_PATH"
 
 echo ">>> Installiere ${UNIT_PATH}"
@@ -369,10 +307,9 @@ Description=Custom Clearpath setup: patcht generierte Configs vor dem Start der 
 # clearpath-robot.service ExecStartPre (/usr/sbin/clearpath-robot-generate).
 After=clearpath-robot.service
 Wants=clearpath-robot.service
-# VOR den Consumern, die die gepatchten Dateien einlesen:
-#   - clearpath-manipulators.service liest control.yaml (update_rate)
-#   - clearpath-platform.service startet die foxglove_bridge (asset_uri_allowlist)
-Before=clearpath-manipulators.service
+# VOR dem Consumer der gepatchten Dateien:
+#   - clearpath-platform.service startet die foxglove_bridge (asset_uri_allowlist +
+#     Sensor-Meshes). control.yaml wird nicht mehr gepatcht -> kein Before manipulators.
 Before=clearpath-platform.service
 
 [Service]
@@ -628,7 +565,8 @@ fi
 echo ">>> Installiere ${RG6_WRAPPER} + ${RG6_UNIT}"
 cat > "$RG6_WRAPPER" <<EOF
 #!/usr/bin/env bash
-# Startet io_and_status_controller (Spawner) + rg6_control im manipulators-Namespace.
+# Startet rg6_control + joint_state_broadcaster im manipulators-Namespace.
+# (io_and_status_controller spawnt Clearpath selbst aus der robot.yaml-ros_parameters.)
 source /etc/clearpath/setup.bash
 source ${RG6_WS}/install/setup.bash
 exec ros2 launch rg6_control rg6_bringup.launch.py
@@ -637,7 +575,7 @@ chmod 0755 "$RG6_WRAPPER"
 
 cat > "$RG6_UNIT_PATH" <<EOF
 [Unit]
-Description=OnRobot RG6 bringup (io_and_status_controller + rg6_control)
+Description=OnRobot RG6 bringup (rg6_control + joint_state_broadcaster)
 After=clearpath-manipulators.service
 Wants=clearpath-manipulators.service
 
@@ -652,16 +590,125 @@ WantedBy=multi-user.target
 EOF
 chmod 0644 "$RG6_UNIT_PATH"
 
+# --- UR dashboard_client als Boot-Service (optional) -----------------------
+# Liefert die Dashboard-Services (power_on/brake_release/unlock_protective_stop/
+# restart_safety/get_robot_mode/get_safety_mode). Eigener Service, kein Build:
+# 'ros2 run ur_robot_driver dashboard_client' verbindet sich auf <ip>:29999.
+# __node:=dashboard_client wird gepinnt -> Services landen deterministisch unter
+# ${UR_DASH_NS}/dashboard_client/* (passt zum ur_state_manager-Default).
+DO_DASH=1
+if [ -f "$UR_DASH_UNIT_PATH" ]; then
+    confirm ">>> ur-dashboard.service ist bereits installiert. Aktualisieren?" || DO_DASH=0
+else
+    confirm ">>> UR dashboard_client als Boot-Service installieren (power_on/brake_release/unlock/restart_safety)?" || DO_DASH=0
+fi
+if [ "$DO_DASH" -eq 1 ]; then
+    echo ">>> Installiere ${UR_DASH_WRAPPER} + ${UR_DASH_UNIT}"
+    cat > "$UR_DASH_WRAPPER" <<EOF
+#!/usr/bin/env bash
+# Startet den ur_robot_driver dashboard_client im manipulators-Namespace.
+# Verbindet sich auf den UR Dashboard-Server (${UR_DASH_ROBOT_IP}:29999) und legt
+# die Services ${UR_DASH_NS}/dashboard_client/* an.
+source /etc/clearpath/setup.bash
+exec ros2 run ur_robot_driver dashboard_client --ros-args \\
+    -r __ns:=${UR_DASH_NS} \\
+    -r __node:=dashboard_client \\
+    -p robot_ip:=${UR_DASH_ROBOT_IP}
+EOF
+    chmod 0755 "$UR_DASH_WRAPPER"
+
+    cat > "$UR_DASH_UNIT_PATH" <<EOF
+[Unit]
+Description=UR dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
+After=clearpath-manipulators.service
+Wants=clearpath-manipulators.service
+
+[Service]
+User=${REAL_USER}
+ExecStart=${UR_DASH_WRAPPER}
+# dashboard_client beendet sich, wenn die Control-Box (29999) noch nicht bereit
+# ist -> automatisch erneut versuchen.
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    chmod 0644 "$UR_DASH_UNIT_PATH"
+else
+    echo ">>> UR dashboard_client: uebersprungen."
+fi
+
+# --- ur-state-manager klonen + bauen + Boot-Service (optional) -------------
+# prepare/recover/ensure_ready/power_off-Services fuer den Arm. Wie onrobot-rg6:
+# als realer Nutzer klonen+bauen, dann per systemd starten. Braucht den
+# dashboard_client (ur-dashboard.service) -> Launch mit start_dashboard_client:=false.
+DO_USM=1
+if [ -d "${USM_WS}/.git" ]; then
+    confirm ">>> ur-state-manager existiert in ${USM_WS}. git pull + neu bauen + Service aktualisieren?" || DO_USM=0
+else
+    confirm ">>> ur-state-manager installieren (prepare/recover-Services; klont+baut + Boot-Service)?" || DO_USM=0
+fi
+if [ "$DO_USM" -eq 1 ]; then
+    echo ">>> ur-state-manager nach ${USM_WS} (Nutzer ${REAL_USER})"
+    if [ -d "${USM_WS}/.git" ]; then
+        sudo -u "$REAL_USER" git -C "$USM_WS" pull --ff-only || echo "    WARN: git pull fehlgeschlagen, nutze vorhandenen Stand"
+    else
+        sudo -u "$REAL_USER" git clone "$USM_REPO_URL" "$USM_WS"
+    fi
+    echo ">>> Baue Workspace (colcon)"
+    sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
+        "source /etc/clearpath/setup.bash && cd '$USM_WS' && colcon build --packages-select ur_state_manager" \
+        || echo "    WARN: colcon build fehlgeschlagen - ur-state-manager.service laeuft erst nach erfolgreichem Build."
+
+    echo ">>> Installiere ${USM_WRAPPER} + ${USM_UNIT}"
+    cat > "$USM_WRAPPER" <<EOF
+#!/usr/bin/env bash
+# Startet den ur_state_manager (prepare/recover/ensure_ready/power_off).
+# start_dashboard_client:=false -> der dashboard_client laeuft via ur-dashboard.service.
+source /etc/clearpath/setup.bash
+source ${USM_WS}/install/setup.bash
+exec ros2 launch ur_state_manager ur_state_manager.launch.py start_dashboard_client:=false
+EOF
+    chmod 0755 "$USM_WRAPPER"
+
+    cat > "$USM_UNIT_PATH" <<EOF
+[Unit]
+Description=UR state manager (prepare/recover/ensure_ready/power_off fuer den UR5)
+# Nach dem dashboard_client starten (liefert die Dashboard-Services). Ist
+# ur-dashboard.service nicht installiert, ist das After= ein No-op.
+After=clearpath-manipulators.service ur-dashboard.service
+Wants=clearpath-manipulators.service
+
+[Service]
+User=${REAL_USER}
+ExecStart=${USM_WRAPPER}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    chmod 0644 "$USM_UNIT_PATH"
+else
+    echo ">>> ur-state-manager: uebersprungen."
+fi
+
 # --- aktivieren ------------------------------------------------------------
 echo ">>> systemd neu einlesen + Services aktivieren"
 systemctl daemon-reload
 systemctl enable "$UNIT_NAME" "$RG6_UNIT"
+[ -f "$UR_DASH_UNIT_PATH" ] && systemctl enable "$UR_DASH_UNIT"
+[ -f "$USM_UNIT_PATH" ] && systemctl enable "$USM_UNIT"
 
 echo ">>> Unit-Syntax pruefen"
-systemd-analyze verify "$UNIT_PATH" "$RG6_UNIT_PATH" && echo "    Units OK."
+VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH")
+[ -f "$UR_DASH_UNIT_PATH" ] && VERIFY_UNITS+=("$UR_DASH_UNIT_PATH")
+[ -f "$USM_UNIT_PATH" ] && VERIFY_UNITS+=("$USM_UNIT_PATH")
+systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    Units OK."
 
 # --- Patches jetzt einmal anwenden -----------------------------------------
-if [ -f "$CONTROL_YAML" ] || [ -f "$FOXGLOVE_YAML" ]; then
+if [ -f "$FOXGLOVE_YAML" ]; then
     echo ">>> Wende Config-Patches jetzt einmalig an"
     "$PY_PATH" || true
 fi
@@ -670,7 +717,11 @@ echo
 echo "=============================================================="
 echo "Installation abgeschlossen."
 echo "  clearpath-custom-setup.service : patcht Configs bei jedem Boot"
-echo "  rg6-bringup.service            : startet io_and_status_controller + rg6_control"
+echo "  rg6-bringup.service            : startet rg6_control + joint_state_broadcaster"
+[ -f "$UR_DASH_UNIT_PATH" ] && \
+echo "  ur-dashboard.service           : startet ur_robot_driver dashboard_client"
+[ -f "$USM_UNIT_PATH" ] && \
+echo "  ur-state-manager.service       : startet ur_state_manager (prepare/recover)"
 echo
 echo "Damit ALLES greift, einmal neu starten:"
 echo "  sudo systemctl restart clearpath-robot.service   # oder reboot"
@@ -678,6 +729,10 @@ echo
 echo "Logs:"
 echo "  journalctl -t clearpath-custom-setup -b"
 echo "  journalctl -u rg6-bringup.service -b"
+[ -f "$UR_DASH_UNIT_PATH" ] && \
+echo "  journalctl -u ur-dashboard.service -b"
+[ -f "$USM_UNIT_PATH" ] && \
+echo "  journalctl -u ur-state-manager.service -b"
 echo
 echo "Hinweis: robot.yaml wird NICHT angefasst. Fuer das Greifer-3D-Modell dort"
 echo "  weiterhin platform.extras.urdf + system.ros2.workspaces pflegen."
