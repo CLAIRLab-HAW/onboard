@@ -600,6 +600,10 @@ cat > "$RG6_UNIT_PATH" <<EOF
 Description=OnRobot RG6 bringup (rg6_control + joint_state_broadcaster)
 After=clearpath-manipulators.service
 Wants=clearpath-manipulators.service
+# Mit-Neustart: bei einem Restart von clearpath-manipulators wird der
+# controller_manager neu gespawnt und der joint_state_broadcaster verworfen ->
+# dieser Service muss ihn neu laden. PartOf propagiert Stop UND Restart.
+PartOf=clearpath-manipulators.service
 
 [Service]
 User=${REAL_USER}
@@ -701,6 +705,11 @@ Description=UR state manager (prepare/recover/ensure_ready/power_off fuer den UR
 # ur-dashboard.service nicht installiert, ist das After= ein No-op.
 After=clearpath-manipulators.service ur-dashboard.service
 Wants=clearpath-manipulators.service
+# Mit-Neustart: startet clearpath-manipulators (Treiber/controller_manager) neu,
+# muss auch dieser Node neu starten - sonst zeigen der robot_state_helper und der
+# Adapter auf stale io_and_status_controller-Topics/-Services. PartOf propagiert
+# Stop UND Restart der genannten Unit (einseitig).
+PartOf=clearpath-manipulators.service
 
 [Service]
 User=${REAL_USER}
@@ -743,6 +752,10 @@ Description=UR arm controllers (extra controllers --inactive + mode manager)
 # Nach dem manipulators-controller_manager (Spawner wartet ohnehin mit Timeout).
 After=clearpath-manipulators.service
 Wants=clearpath-manipulators.service
+# Mit-Neustart: bei einem Restart von clearpath-manipulators wird der
+# controller_manager neu gespawnt und die Extra-Controller (--inactive) sind weg
+# -> dieser Service muss sie neu laden. PartOf propagiert Stop UND Restart.
+PartOf=clearpath-manipulators.service
 
 [Service]
 User=${REAL_USER}
