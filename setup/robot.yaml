@@ -1,0 +1,169 @@
+serial_number: a200-0553
+version: 0
+system:
+  username: robot
+  hosts:
+    - hostname: cpr-a200-0553
+      ip: 192.168.131.10
+  ros2:
+    namespace: a200_0553
+    middleware:
+      implementation: rmw_zenoh_cpp # alternative: rmw_fastrtps_cpp
+    workspaces:
+      - /home/robot/onrobot-rg6/install/setup.bash # path to custom WS
+platform:
+  mcu:
+    protocol: proton
+  enable_ekf: true
+  enable_foxglove_bridge: true
+  wireless:
+    enable_wireless_watcher: true
+  controller: logitech
+  extras:
+    urdf:
+      path: /home/robot/onrobot-rg6/src/rg6_description/urdf/clearpath_extras.urdf.xacro
+    ros_parameters:
+      joy_node:
+        dev: /dev/input/js0 # needed due to custom BT receiver
+  battery:
+    model: HE2411
+    configuration: S1P4
+  drivetrain:
+    control: diff_4wd
+    wheels:
+      front: indoor
+      rear: indoor
+  attachments:
+    - name: front_bumper
+      type: a200.bumper
+      model: default
+      parent: front_bumper_mount
+      xyz: [0.0, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      enabled: true
+      extension: 0.0
+    - name: rear_bumper
+      type: a200.bumper
+      model: default
+      parent: rear_bumper_mount
+      xyz: [0.0, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      enabled: true
+      extension: 0.0
+    - name: top_plate
+      type: a200.top_plate
+      model: large
+      parent: default_mount
+      xyz: [0.0, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      enabled: true
+#links:
+#  box:
+#    - name: user_bay_cover
+#      parent: top_plate_link
+#      xyz: [0.0, 0.0, 0.00735]
+#      rpy: [0.0, 0.0, 0.0]
+#      size: [0.4, 0.4, 0.002]
+#  cylinder: []
+#  frame: []
+#  mesh: []
+#  sphere: []
+#mounts:
+#  bracket:
+#    - parent: top_plate_mount_d1
+#      xyz: [0.0, 0.0, 0.0]
+#      rpy: [0.0, 0.0, 0.0]
+#      model: horizontal
+#  fath_pivot:
+#    - parent: sensor_arch_mount
+#      xyz: [0.0, 0.0, -0.021]
+#      rpy: [3.1415, 0.0, 0.0]
+#      angle: 0.0
+#  riser: []
+#  sick: []
+#  post: []
+#  disk: []
+manipulators:
+  moveit:
+    enable: true
+  arms:
+    - model: universal_robots
+      parent: top_plate_front_mount
+      xyz: [-0.12, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      ur_type: ur5
+      robot_ip: 192.168.131.40
+      headless_mode: true
+      kinematics_parameters_file: "/home/robot/ur5_a200_0553_calibration.yaml" # "$(find ur_description)/config/ur5/default_kinematics.yaml"
+      poses:
+        - name: ee_up_packed
+          joints: [2.6862428188323975, -2.6695182959186, 0.03133762627840042, -4.5593735615359705, -1.547995392476217, -0.03170234361757451]
+      ros_parameters:
+        controller_manager:
+          update_rate: 125 # CB3 RTDE max = 125 Hz; Clearpath-Default 500 -> FATAL
+          io_and_status_controller:
+            type: ur_controllers/GPIOController
+        io_and_status_controller:
+          tf_prefix: arm_0_
+sensors:
+  camera:
+    - model: intel_realsense
+      urdf_enabled: true
+      launch_enabled: true
+      parent: rg6_onrobot_rg6_base_link
+      xyz: [0.023, 0.0, 0.125]
+      rpy: [0.0, -1.5708, -3.14]
+      ros_parameters:
+        intel_realsense:
+          camera_name: camera_0
+          device_type: d435
+          serial_no: "011422072138"
+          enable_color: true
+          rgb_camera.color_profile: 640,480,30
+          enable_depth: true
+          depth_module.depth_profile: 640,480,15
+          pointcloud.enable: true
+  gps: []
+  imu:
+    - model: redshift_um7
+      urdf_enabled: true
+      launch_enabled: true
+      parent: base_link
+      xyz: [0.0, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      ros_parameters:
+        um7_driver:
+          port: /dev/clearpath/um7_
+          frame_id: imu_0_link
+          tf_ned_to_enu: true
+#  lidar2d:
+#    - model: hokuyo_ust
+#      urdf_enabled: true
+#      launch_enabled: true
+#      parent: bracket_0_mount
+#      xyz: [0.0, 0.0, 0.0]
+#      rpy: [0.0, 0.0, 0.0]
+#      ros_parameters:
+#        urg_node:
+#          laser_frame_id: lidar2d_0_laser
+#          ip_address: 192.168.131.20
+#          ip_port: 10940
+#          angle_min: -2.356
+#          angle_max: 2.356
+#  lidar3d:
+#    - model: velodyne_lidar
+#      urdf_enabled: true
+#      launch_enabled: true
+#      parent: sensor_arch_mount
+#      xyz: [0.0, 0.0, 0.0]
+#      rpy: [0.0, 0.0, 0.0]
+#      ros_parameters:
+#        velodyne_driver_node:
+#          frame_id: lidar3d_0_laser
+#          device_ip: 192.168.131.25
+#          port: 2368
+#          model: VLP16
+#        velodyne_transform_node:
+#          model: VLP16
+#          fixed_frame: lidar3d_0_laser
+#          target_frame: lidar3d_0_laser
