@@ -122,7 +122,7 @@ sensors:
           device_type: d435
           serial_no: "011422072138"
           enable_color: true
-          rgb_camera.color_profile: 640,480,15
+          rgb_camera.color_profile: 640,480,30
           enable_depth: true
           depth_module.depth_profile: 640,480,15
           pointcloud.enable: true
