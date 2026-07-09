@@ -74,6 +74,14 @@ ARM_CTRL_WRAPPER="${BIN_DIR}/arm-controllers.sh"
 ARM_CTRL_UNIT="arm-controllers.service"
 ARM_CTRL_UNIT_PATH="/etc/systemd/system/${ARM_CTRL_UNIT}"
 
+# joint-states (Phase 2): robot-weiter joint_state_aggregator (/a200_0553/joint_states)
+# + Relays der sauberen Arm-/Greifer-Quell-Topics zurueck auf den platform/joint_states-
+# Bus (fuer RSP + move_group). Nutzt den onrobot-rg6-Workspace (rg6_control
+# joint_states.launch.py), kein eigener Build.
+JS_WRAPPER="${BIN_DIR}/joint-states.sh"
+JS_UNIT="joint-states.service"
+JS_UNIT_PATH="/etc/systemd/system/${JS_UNIT}"
+
 # robot.yaml: Das Git-Repo ist die Single Source of Truth. Beim Boot wird die
 # robot.yaml VOR der Config-Generierung (clearpath-robot.service) aus dem Repo
 # nachgezogen. Ohne Netz/bei Fehler bleibt die vorhandene Datei erhalten.
@@ -162,6 +170,12 @@ Patches:
       Gelesen von der foxglove_bridge unter clearpath-platform.service)
 
   2. Sensor-Mesh-URIs file:// -> package:// (fix_realsense_mesh_uris)
+
+  3. Arm-JSB joint_states -> manipulators/joint_states (move_arm_joint_states,
+     Phase 2) in /opt/ros/*/share/clearpath_manipulators/launch/control.launch.py.
+     Loest die Arm-Gelenke aus dem platform-Namespace; ein Relay + Aggregator
+     (rg6_control joint_states.launch.py, joint-states.service) haelt den
+     platform/joint_states-Bus fuer RSP+move_group vollstaendig.
 
 Jeder Edit ist chirurgisch, idempotent, mit .bak-Backup und atomarem Schreiben.
 Fehlt eine Datei/ein Key, wird die jeweilige Aenderung uebersprungen (Warnung).
@@ -302,6 +316,58 @@ def fix_realsense_mesh_uris(label):
     return bool(changed)
 
 
+def move_arm_joint_states(label):
+    """Phase 2: Arm-JSB-Publisher-Remap von platform/ -> manipulators/joint_states.
+
+    clearpath_manipulators/control.launch.py remappt den joint_states-Output des
+    manipulators-ros2_control_node per
+        ('joint_states', PathJoinSubstitution(['/', namespace, 'platform', 'joint_states']))
+    nach /<ns>/platform/joint_states. Damit advertised der Arm-JSB faelschlich im
+    platform-Namespace. Hier die Tokenfolge 'platform','joint_states' ->
+    'manipulators','joint_states' -> /<ns>/manipulators/joint_states.
+
+    dynamic_joint_states bleibt bewusst auf platform: die Zeile
+    'platform','dynamic_joint_states' wird NICHT getroffen (nach dem Komma steht
+    dort 'dynamic_joint_states', nicht 'joint_states'). Trifft die apt-Stock-Datei
+    unter /opt/ros/*/share -> idempotent bei jedem Boot (uebersteht apt-Updates).
+    Ein Relay (rg6_control joint_states.launch.py) spiegelt manipulators/joint_states
+    zurueck auf platform/joint_states fuer RSP/move_group (Live-TF/MoveIt unangetastet).
+    """
+    import glob
+    files = glob.glob(
+        "/opt/ros/*/share/clearpath_manipulators/launch/control.launch.py")
+    rx = re.compile(r"(['\"])platform\1(\s*,\s*)(['\"])joint_states\3")
+    changed = []
+    for path in files:
+        try:
+            with open(path) as f:
+                content = f.read()
+        except OSError:
+            continue
+        new_content, n = rx.subn(r"\1manipulators\1\2\3joint_states\3", content)
+        if n == 0:
+            continue  # schon gepatcht oder Muster nicht (mehr) vorhanden
+        backup = path + ".bak"
+        if not os.path.exists(backup):
+            try:
+                shutil.copy2(path, backup)
+            except OSError:
+                pass
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w") as f:
+                f.write(new_content)
+            os.replace(tmp, path)
+            changed.append(f"{os.path.basename(path)} ({n}x)")
+        except OSError as e:
+            log(f"{label}: kann {path} nicht schreiben: {e}", err=True)
+    if changed:
+        log(f"{label}: Arm joint_states -> manipulators in: {', '.join(changed)}")
+    else:
+        log(f"{label}: bereits manipulators (oder Muster nicht gefunden) - keine Aenderung.")
+    return bool(changed)
+
+
 def main():
     log("Start.")
     # Hinweis: 'update_rate' (125) und 'io_and_status_controller' werden NICHT mehr
@@ -312,6 +378,9 @@ def main():
                     "foxglove asset_uri_allowlist")
     # 2) Sensor-Meshes file:// -> package:// (foxglove_bridge serviert nur package://)
     fix_realsense_mesh_uris("sensor mesh package://")
+    # 3) Phase 2: Arm-JSB joint_states raus aus dem platform-Namespace ->
+    #    manipulators/joint_states (Relay + Aggregator via joint-states.service).
+    move_arm_joint_states("arm joint_states -> manipulators")
     log("Fertig.")
     return 0
 
@@ -329,10 +398,12 @@ Description=Custom Clearpath setup: patcht generierte Configs vor dem Start der 
 # clearpath-robot.service ExecStartPre (/usr/sbin/clearpath-robot-generate).
 After=clearpath-robot.service
 Wants=clearpath-robot.service
-# VOR dem Consumer der gepatchten Dateien:
+# VOR den Consumern der gepatchten Dateien:
 #   - clearpath-platform.service startet die foxglove_bridge (asset_uri_allowlist +
-#     Sensor-Meshes). control.yaml wird nicht mehr gepatcht -> kein Before manipulators.
-Before=clearpath-platform.service
+#     Sensor-Meshes).
+#   - clearpath-manipulators.service liest control.launch.py -> der Arm-JSB-
+#     joint_states-Patch (move_arm_joint_states, Phase 2) MUSS davor greifen.
+Before=clearpath-platform.service clearpath-manipulators.service
 
 [Service]
 Type=oneshot
@@ -771,6 +842,45 @@ else
     echo ">>> arm-controllers: uebersprungen."
 fi
 
+# --- joint-states Aggregation + Legacy-Bus-Relays (Phase 2) ----------------
+# Startet rg6_control/joint_states.launch.py: joint_state_aggregator
+# (-> /a200_0553/joint_states, vollstaendig, fuer rosbag/Foxglove) + zwei
+# topic_tools relays (manipulators/joint_states und manipulators/endeffectors/
+# joint_states -> platform/joint_states, damit RSP+move_group unveraendert laufen).
+# Voraussetzung: Arm-JSB-Remap ist auf manipulators/joint_states umgestellt
+# (Patch move_arm_joint_states im clearpath-custom-setup.py) und der Greifer
+# publiziert auf manipulators/endeffectors/joint_states (rg6_bringup js_topic).
+echo ">>> Installiere ${JS_WRAPPER} + ${JS_UNIT}"
+cat > "$JS_WRAPPER" <<EOF
+#!/usr/bin/env bash
+# Robot-weite joint_states-Aggregation + Legacy-Bus-Relays (siehe joint_states.launch.py).
+source /etc/clearpath/setup.bash
+source ${RG6_WS}/install/setup.bash
+exec ros2 launch rg6_control joint_states.launch.py
+EOF
+chmod 0755 "$JS_WRAPPER"
+
+cat > "$JS_UNIT_PATH" <<EOF
+[Unit]
+Description=Robot-weite joint_states-Aggregation + Legacy-Bus-Relays (Phase 2)
+# Braucht die Quell-Topics: Raeder (clearpath-platform) + Arm/Greifer
+# (clearpath-manipulators + rg6-bringup). NUR Ordering (After), KEIN PartOf: die
+# Subscriptions reconnecten von selbst, wenn eine Quelle spaeter/erneut hochkommt
+# -> ein Arm-Neustart soll das Aggregat/den Relay nicht mit-bouncen.
+After=clearpath-platform.service clearpath-manipulators.service rg6-bringup.service
+Wants=clearpath-platform.service
+
+[Service]
+User=${REAL_USER}
+ExecStart=${JS_WRAPPER}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 0644 "$JS_UNIT_PATH"
+
 # --- robot.yaml aus dem Repo deployen + Boot-Update-Service -----------------
 # Das Git-Repo ist die SSOT. Wrapper laedt robot.yaml aus dem Repo, validiert
 # (nicht-leer + gueltiges YAML) und installiert sie nur bei Abweichung (Backup).
@@ -871,13 +981,13 @@ fi
 # --- aktivieren ------------------------------------------------------------
 echo ">>> systemd neu einlesen + Services aktivieren"
 systemctl daemon-reload
-systemctl enable "$UNIT_NAME" "$RG6_UNIT" "$ROBOT_YAML_UNIT"
+systemctl enable "$UNIT_NAME" "$RG6_UNIT" "$JS_UNIT" "$ROBOT_YAML_UNIT"
 [ -f "$UR_DASH_UNIT_PATH" ] && systemctl enable "$UR_DASH_UNIT"
 [ -f "$USM_UNIT_PATH" ] && systemctl enable "$USM_UNIT"
 [ -f "$ARM_CTRL_UNIT_PATH" ] && systemctl enable "$ARM_CTRL_UNIT"
 
 echo ">>> Unit-Syntax pruefen"
-VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$ROBOT_YAML_UNIT_PATH")
+VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH" "$ROBOT_YAML_UNIT_PATH")
 [ -f "$UR_DASH_UNIT_PATH" ] && VERIFY_UNITS+=("$UR_DASH_UNIT_PATH")
 [ -f "$USM_UNIT_PATH" ] && VERIFY_UNITS+=("$USM_UNIT_PATH")
 [ -f "$ARM_CTRL_UNIT_PATH" ] && VERIFY_UNITS+=("$ARM_CTRL_UNIT_PATH")
@@ -895,6 +1005,7 @@ echo "Installation abgeschlossen."
 echo "  clearpath-custom-setup.service : patcht Configs bei jedem Boot"
 echo "  robot-yaml-update.service      : zieht robot.yaml aus dem Repo (SSOT) vor der Generierung"
 echo "  rg6-bringup.service            : startet rg6_control + joint_state_broadcaster"
+echo "  joint-states.service           : joint_state_aggregator + Legacy-Bus-Relays (Phase 2)"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  ur-dashboard.service           : startet ur_robot_driver dashboard_client"
 [ -f "$USM_UNIT_PATH" ] && \
@@ -909,6 +1020,7 @@ echo "Logs:"
 echo "  journalctl -t clearpath-custom-setup -b"
 echo "  journalctl -t robot-yaml-update -b"
 echo "  journalctl -u rg6-bringup.service -b"
+echo "  journalctl -u joint-states.service -b"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  journalctl -u ur-dashboard.service -b"
 [ -f "$USM_UNIT_PATH" ] && \
