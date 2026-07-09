@@ -11,7 +11,7 @@
 #   - optional: UR-Kinematik-Kalibrierung (ros-jazzy-ur-calibration -> YAML;
 #     robot.yaml-Pfad muss man selbst eintragen)
 #   - onrobot-rg6 per git klonen + bauen (colcon)
-#   - rg6-bringup.service: startet rg6_control + joint_state_broadcaster beim Boot
+#   - rg6-bringup.service: startet rg6_control + joint_state_broadcaster + urscript_interface beim Boot
 #     (io_and_status_controller wird von Clearpath aus der robot.yaml gespawnt)
 #   - optional: ur-dashboard.service: startet den ur_robot_driver dashboard_client
 #     (power_on/brake_release/unlock_protective_stop/restart_safety) beim Boot
@@ -368,6 +368,40 @@ def move_arm_joint_states(label):
     return bool(changed)
 
 
+def run_rg6_moveit_patch(label):
+    """RG6 in die frisch generierte MoveIt-Config einhaengen.
+
+    Delegiert an das selbst-enthaltene Tool aus dem onrobot-rg6-Repo
+    (rg6_moveit_patch: robot.srdf + manipulators/config/moveit.yaml, idempotent).
+    Muss NACH clearpath-robot-generate und VOR clearpath-manipulators laufen -
+    genau das Fenster dieses Services. Fehlt das Tool (Repo nicht installiert),
+    wird nur gewarnt."""
+    import glob
+    import subprocess
+    candidates = (
+        glob.glob("/home/*/onrobot-rg6/install/rg6_control/lib/rg6_control/rg6_moveit_patch")
+        + glob.glob("/home/*/onrobot-rg6/src/rg6_control/scripts/rg6_moveit_patch")
+    )
+    if not candidates:
+        log(f"{label}: rg6_moveit_patch nicht gefunden (onrobot-rg6 gebaut?) - "
+            "MoveIt ohne Greifer.", err=True)
+        return False
+    tool = sorted(candidates)[0]
+    try:
+        out = subprocess.run(
+            [tool, "--setup-path", "/etc/clearpath"],
+            capture_output=True, text=True, timeout=60)
+        for line in (out.stdout + out.stderr).splitlines():
+            log(f"{label}: {line}")
+        if out.returncode != 0:
+            log(f"{label}: Exit-Code {out.returncode}.", err=True)
+            return False
+        return True
+    except (OSError, subprocess.TimeoutExpired) as e:
+        log(f"{label}: Aufruf fehlgeschlagen: {e}", err=True)
+        return False
+
+
 def main():
     log("Start.")
     # Hinweis: 'update_rate' (125) und 'io_and_status_controller' werden NICHT mehr
@@ -381,6 +415,9 @@ def main():
     # 3) Phase 2: Arm-JSB joint_states raus aus dem platform-Namespace ->
     #    manipulators/joint_states (Relay + Aggregator via joint-states.service).
     move_arm_joint_states("arm joint_states -> manipulators")
+    # 4) RG6 in MoveIt: robot.srdf (Gruppe 'gripper' + EE) und moveit.yaml
+    #    (GripperCommand-Controller + joint_limits) patchen (onrobot-rg6-Tool).
+    run_rg6_moveit_patch("rg6 moveit")
     log("Fertig.")
     return 0
 
@@ -654,7 +691,7 @@ if [ "$DO_RG6" -eq 1 ]; then
     # rg6_control = Treiber/Broadcaster. (onrobot_rg6_visualization wurde in
     # rg6_description gemergt.)
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
-        "source /etc/clearpath/setup.bash && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_control" \
+        "source /etc/clearpath/setup.bash && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_msgs rg6_control" \
         || echo "    WARN: colcon build fehlgeschlagen - rg6-bringup wird erst nach erfolgreichem Build laufen."
 else
     echo ">>> onrobot-rg6: uebersprungen (vorhandener Stand bleibt)."
@@ -1010,7 +1047,7 @@ echo "=============================================================="
 echo "Installation abgeschlossen."
 echo "  clearpath-custom-setup.service : patcht Configs bei jedem Boot"
 echo "  robot-yaml-update.service      : zieht robot.yaml aus dem Repo (SSOT) vor der Generierung"
-echo "  rg6-bringup.service            : startet rg6_control + joint_state_broadcaster"
+echo "  rg6-bringup.service            : startet rg6_control + joint_state_broadcaster + urscript_interface"
 echo "  joint-states.service           : joint_state_aggregator + Legacy-Bus-Relays (Phase 2)"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  ur-dashboard.service           : startet ur_robot_driver dashboard_client"
