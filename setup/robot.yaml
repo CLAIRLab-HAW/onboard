@@ -25,6 +25,9 @@ platform:
     ros_parameters:
       joy_node:
         dev: /dev/input/js0 # needed due to custom BT receiver
+      controller_manager:
+        update_rate: 10 # mcu is slow so we give more time
+        # cycle_time_error_threshold: 0.1
   battery:
     model: HE2411
     configuration: S1P4
