@@ -925,10 +925,14 @@ if [ "$DO_WD" -eq 1 ]; then
 # Watchdog: erkennt "Arm erreichbar, aber ur_robot_driver NICHT verbunden"
 # (robot_program_running publisht nicht -> ros2_control-HW-Interface einmalig beim
 # Start gescheitert, weil der Arm da noch stromlos war; ros2_control retryt die
-# HW-Aktivierung NICHT). Einziger Ausweg: den Treiber-Prozess neu starten - EINMAL,
-# mit Cooldown gegen Restart-Schleifen. Laeuft als root (systemctl restart), die
-# ROS-Pruefung als $RUN_USER, damit sie denselben ROS-Graphen sieht.
+# HW-Aktivierung NICHT). Recovery: Treiber neu starten UND den Arm bestromen
+# (power_on + brake_release) + ExternalControl neu starten (resend_robot_program,
+# headless). So wird ein spaetes Einschalten vollstaendig automatisch aufgefangen -
+# kein manueller Eingriff mehr noetig. Protective-/Safety-Stops (safety_mode !=
+# NORMAL) werden NICHT auto-gecleart (bleiben manuell) - nur geloggt.
 # Aufruf: manipulators-watchdog.sh <ROBOT_IP> <TOPIC> <RUN_USER> <RUN_HOME>
+#   TOPIC = .../io_and_status_controller/robot_program_running (Namespace wird
+#   daraus abgeleitet; Dashboard- + Resend-Services unter demselben Namespace).
 set -uo pipefail
 
 ROBOT_IP="${1:?ROBOT_IP fehlt}"
@@ -936,11 +940,22 @@ TOPIC="${2:?TOPIC fehlt}"
 RUN_USER="${3:?RUN_USER fehlt}"
 RUN_HOME="${4:?RUN_HOME fehlt}"
 SERVICE="clearpath-manipulators.service"
-COOLDOWN="${WD_COOLDOWN:-180}"     # s: nach einem Restart so lange nicht erneut
-ECHO_TIMEOUT="${WD_ECHO_TIMEOUT:-8}"  # s: so lange auf eine Nachricht warten
+DASH_SVC="ur-dashboard.service"
+COOLDOWN="${WD_COOLDOWN:-180}"         # s: nach einer Recovery so lange nicht erneut
+ECHO_TIMEOUT="${WD_ECHO_TIMEOUT:-8}"   # s: so lange auf eine Topic-Nachricht warten
+POWER_TIMEOUT="${WD_POWER_TIMEOUT:-25}"  # Iterationen: auf power_on/brake_release-Moduswechsel warten
+RPR_WAIT="${WD_RPR_WAIT:-15}"           # Iterationen: rpr=true-Bestaetigung nach resend
 STATE="/run/manipulators-watchdog.state"
 TAG="manipulators-watchdog"
 log() { echo "${TAG}: $*"; }
+
+# Namespace aus dem Topic ableiten (.../io_and_status_controller/robot_program_running).
+NS="${TOPIC%/io_and_status_controller/*}"
+DASH_NS="${NS}/dashboard_client"
+RESEND_SVC="${NS}/io_and_status_controller/resend_robot_program"
+
+# ROS-Befehl als RUN_USER im selben Graphen ausfuehren.
+ros_cmd() { sudo -u "$RUN_USER" env HOME="$RUN_HOME" bash -lc "source /etc/clearpath/setup.bash && $*"; }
 
 # 1) Arm ueberhaupt erreichbar? Nein -> bewusst nichts tun (Arm noch aus; der
 #    Watchdog soll NUR beim spaeten Einschalten anspringen, nicht dauernd).
@@ -948,30 +963,113 @@ if ! ping -c1 -W1 "$ROBOT_IP" >/dev/null 2>&1; then
     exit 0
 fi
 
-# 2) Publisht robot_program_running? (als RUN_USER -> gleicher ROS-Graph.)
-#    IRGENDEINE Nachricht (true ODER false) = Treiber lebt -> auto_recover/prepare
-#    uebernimmt, Watchdog haelt sich raus. KEINE Nachricht = Treiber tot -> Restart.
-if sudo -u "$RUN_USER" env HOME="$RUN_HOME" bash -lc \
-    "source /etc/clearpath/setup.bash && timeout ${ECHO_TIMEOUT} ros2 topic echo --once '${TOPIC}'" \
-    >/dev/null 2>&1; then
+# 2) Publisht robot_program_running? IRGENDEINE Nachricht (true ODER false) = Treiber
+#    lebt -> auto_recover/prepare uebernimmt, Watchdog haelt sich raus. KEINE Nachricht
+#    = Treiber tot (HW-Interface gescheitert ODER Arm POWER_OFF, ExternalControl nicht
+#    laufend) -> Recovery.
+if ros_cmd "timeout ${ECHO_TIMEOUT} ros2 topic echo --once '${TOPIC}'" >/dev/null 2>&1; then
     exit 0    # Treiber verbunden -> ok
 fi
 
-# 3) Treiber publisht nicht, Arm aber erreichbar -> HW-Interface tot. Cooldown
-#    pruefen (/run wird beim Boot geleert -> pro Boot frisch), dann EINMAL neu starten.
+# 3) Cooldown pruefen (/run wird beim Boot geleert -> pro Boot frisch).
 now="$(date +%s)"
 if [ -f "$STATE" ]; then
     last="$(cat "$STATE" 2>/dev/null || echo 0)"
     [ -n "$last" ] || last=0
     if [ "$(( now - last ))" -lt "$COOLDOWN" ]; then
-        log "Treiber verbindet nicht, aber letzter Restart < ${COOLDOWN}s her -> warte."
+        log "Treiber verbindet nicht, aber letzte Recovery < ${COOLDOWN}s her -> warte."
         exit 0
     fi
 fi
 
-log "Arm erreichbar (${ROBOT_IP}), aber ${TOPIC} publisht nicht -> ${SERVICE} neu starten (spaetes Einschalten nach Kaltstart)."
+log "Arm erreichbar (${ROBOT_IP}), aber ${TOPIC} publisht nicht -> Recovery (spaetes Einschalten nach Kaltstart): ${SERVICE} neu starten, dann bestromen + ExternalControl neu starten."
 echo "$now" > "$STATE"
-systemctl restart "$SERVICE"
+
+# --- Helfer: Modus-/Safety-Abfrage und Trigger-Aufrufe (alle via Dashboard) ---
+robot_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_robot_mode' ur_dashboard_msgs/srv/GetRobotMode" 2>&1 | grep -oE 'Robotmode: [A-Z_]+' | head -1; }
+safety_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_safety_mode' ur_dashboard_msgs/srv/GetSafetyMode" 2>&1 | grep -oE 'Safetymode: [A-Z_]+' | head -1; }
+call_trigger() {  # $1 Service-Pfad, $2 Timeout(s); 0 = success=True
+    local svc="$1" t="${2:-12}"
+    ros_cmd "timeout ${t} ros2 service call '${svc}' std_srvs/srv/Trigger" 2>&1 | grep -q 'success=True'
+}
+
+# 3a) Treiber neu starten (blockierend): der alte ros2_control_node ignoriert SIGTERM
+#     und braucht bis zu 90s bis SIGKILL; systemctl restart blockiert diese Zeit, damit
+#     ist beim Weitergehen der NEUE Controller-Manager oben (kein Treffer auf den
+#     sterbenden alten CM). TimeoutStartSec des watchdog-Service muss das abdecken
+#     (siehe Unit, dort =240s).
+systemctl restart "$SERVICE" || log "systemctl restart ${SERVICE} lief nicht sauber - versuche Recovery trotzdem weiter."
+
+# 3b) ur-dashboard.service sicherstellen (power_on/brake_release brauchen den
+#     Dashboard-Client; unabhaengig von manipulators, bleibt beim Restart oben).
+if [ "$(systemctl is-active "$DASH_SVC" 2>/dev/null)" != "active" ]; then
+    log "${DASH_SVC} nicht aktiv -> starte es."
+    systemctl start "$DASH_SVC" || true
+    sleep 3
+fi
+
+# 3c) Arm bestromen (power_on). Beides geht ans Dashboard (unabhaengig vom manipulators-CM).
+if ! call_trigger "${DASH_NS}/power_on" 15; then
+    log "power_on fehlgeschlagen/Timeout - breche Recovery ab (naechster Timer-Lauf)."
+    exit 0
+fi
+for i in $(seq 1 "${POWER_TIMEOUT}"); do
+    [ "$(robot_mode)" != "Robotmode: POWER_OFF" ] && break
+    sleep 1
+done
+log "nach power_on: $(robot_mode)."
+
+# 3d) Safety-Check: Safety-Stop wird NICHT auto-gecleart (manuell). Nur loggen + Ende.
+sm="$(safety_mode)"
+if [ "$sm" != "Safetymode: NORMAL" ]; then
+    log "Safety-Modus ist '${sm:-unbekannt}' (kein NORMAL) -> Protective-/Safety-Stop. NICHT auto-gecleart, manuelle Begutachtung noetig. brake_release/resend uebersprungen."
+    exit 0
+fi
+
+# 3e) Bremsen loesen (brake_release).
+if ! call_trigger "${DASH_NS}/brake_release" 15; then
+    log "brake_release fehlgeschlagen/Timeout."
+    exit 0
+fi
+for i in $(seq 1 "${POWER_TIMEOUT}"); do
+    [ "$(robot_mode)" = "Robotmode: RUNNING" ] && break
+    sleep 1
+done
+log "nach brake_release: $(robot_mode)."
+
+# 3f) ExternalControl direkt neu starten (resend_robot_program) - mit Retries, weil
+#     der neue manipulators-CM ein paar Sekunden braucht, bis io_and_status_controller
+#     aktiv ist, und Service-Discovery unter rmw_zenoh zaehe sein kann. Direkter Aufruf
+#     statt ros2-service-list-Poll (letzterer ist unter rmw_zenoh unzuverlaessig).
+#     Laeuft der ur_state_manager mit, resettet dessen auto_recover parallel; ein
+#     doppelter resend ist idempotent (Programm laeuft schon -> Erfolg ohne Wirkung).
+sent=""
+for attempt in 1 2 3 4 5 6; do
+    if call_trigger "${RESEND_SVC}" 20; then
+        log "resend_robot_program gesendet (Versuch ${attempt})."
+        sent=1; break
+    fi
+    log "resend Versuch ${attempt} fehlgeschlagen; erneut."
+    sleep 3
+done
+if [ -z "$sent" ]; then
+    log "resend_robot_program nach 6 Versuchen fehlgeschlagen - ExternalControl nicht neu gestartet. Naechster Timer-Lauf (Cooldown ${COOLDOWN}s)."
+    exit 0
+fi
+
+# 3g) rpr=true bestaetigen (Topic-Echo, zuverlaessig; kurz - resend hat das Programm
+#     gestartet, rpr wird schnell true).
+ok=""
+for i in $(seq 1 "${RPR_WAIT}"); do
+    v="$(ros_cmd "timeout 6 ros2 topic echo --once '${TOPIC}'" 2>&1 | grep -oE 'data: (true|false)' | head -1)"
+    [ "$v" = "data: true" ] && { ok=1; break; }
+    sleep 1
+done
+if [ -n "$ok" ]; then
+    log "Recovery erfolgreich: ${TOPIC} -> data: true."
+else
+    log "resend gesendet, aber ${TOPIC} noch kein 'true' (${v:-keine Nachricht}). Naechster Timer-Lauf prueft erneut (Cooldown ${COOLDOWN}s)."
+fi
 WD_EOF
     chmod 0755 "$WD_WRAPPER"
 
@@ -987,6 +1085,12 @@ Type=oneshot
 # LAeuft als root (Default) -> darf systemctl restart. Die ROS-Pruefung im Wrapper
 # wechselt selbst per 'sudo -u' auf ${REAL_USER}.
 ExecStart=${WD_WRAPPER} ${WD_ROBOT_IP} ${WD_PROGRAM_TOPIC} ${REAL_USER} ${USER_HOME}
+# Recovery blockiert beim systemctl restart (alter ros2_control_node braucht bis zu 90s
+# bis SIGKILL) + Dashboard-Aufrufe + Polls. systemd-Default-Timeout (90s) wuerde den
+# oneshot mittendrin killen -> grosszuegig.
+TimeoutStartSec=300
+# Script-echo-Zeilen unter journalctl -t manipulators-watchdog sammelbar.
+SyslogIdentifier=manipulators-watchdog
 EOF
     chmod 0644 "$WD_UNIT_PATH"
 
