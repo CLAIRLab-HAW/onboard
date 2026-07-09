@@ -398,6 +398,12 @@ Description=Custom Clearpath setup: patcht generierte Configs vor dem Start der 
 # clearpath-robot.service ExecStartPre (/usr/sbin/clearpath-robot-generate).
 After=clearpath-robot.service
 Wants=clearpath-robot.service
+# Mit-Neustart: clearpath-robot.service generiert in ExecStartPre
+# (clearpath-robot-generate) die Configs NEU -> die Patches werden
+# ueberschrieben. PartOf sorgt dafuer, dass dieser Service bei JEDEM
+# Restart von clearpath-robot.service (nicht nur beim Boot) erneut
+# laeuft und die Configs wieder patcht. Propagiert Stop UND Restart.
+PartOf=clearpath-robot.service
 # VOR den Consumern der gepatchten Dateien:
 #   - clearpath-platform.service startet die foxglove_bridge (asset_uri_allowlist +
 #     Sensor-Meshes).
