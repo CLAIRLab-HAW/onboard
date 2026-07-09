@@ -19,6 +19,10 @@
 #     den State-Manager (prepare/recover/ensure_ready/power_off) beim Boot
 #   - optional: arm-controllers.service: laedt Extra-Controller (--inactive) +
 #     ur_controller_mode_manager beim Boot (nutzt den ur-state-manager-Workspace)
+#   - optional: manipulators-watchdog.timer: startet clearpath-manipulators.service
+#     neu, wenn der Arm erst LANGE nach dem Boot bestromt wird (ros2_control retryt
+#     die einmalig gescheiterte HW-Aktivierung nicht -> Treiber bleibt tot). Prueft
+#     "Arm pingbar, aber robot_program_running publisht nicht" und startet EINMAL neu.
 #   - robot.yaml aus dem Git-Repo (SSOT) nach /etc/clearpath/robot.yaml deployen +
 #     robot-yaml-update.service: aktualisiert robot.yaml bei JEDEM Boot aus dem Repo
 #     (VOR der Config-Generierung durch clearpath-robot.service). Ohne Netz/bei
@@ -81,6 +85,22 @@ ARM_CTRL_UNIT_PATH="/etc/systemd/system/${ARM_CTRL_UNIT}"
 JS_WRAPPER="${BIN_DIR}/joint-states.sh"
 JS_UNIT="joint-states.service"
 JS_UNIT_PATH="/etc/systemd/system/${JS_UNIT}"
+
+# manipulators-watchdog: deckt die eine Luecke ab, die auf ROS-Ebene NICHT loesbar
+# ist. Wird der UR erst LANGE NACH dem Boot bestromt, scheitert die einmalige
+# ros2_control-HW-Aktivierung des ur_robot_driver (Arm war stromlos) - und
+# ros2_control retryt sie NICHT. Folge: io_and_status_controller publisht
+# robot_program_running gar nicht mehr, Dashboard/State-Manager haben keine
+# Eingabe, der Arm bleibt "Stopped". Einziger Ausweg = Treiber-Prozess neu starten.
+# Dieser Timer erkennt "Arm pingbar, aber robot_program_running publisht nicht" und
+# startet clearpath-manipulators.service EINMAL neu (mit Cooldown gegen Schleifen).
+WD_WRAPPER="${BIN_DIR}/manipulators-watchdog.sh"
+WD_UNIT="manipulators-watchdog.service"
+WD_UNIT_PATH="/etc/systemd/system/${WD_UNIT}"
+WD_TIMER="manipulators-watchdog.timer"
+WD_TIMER_PATH="/etc/systemd/system/${WD_TIMER}"
+WD_ROBOT_IP="192.168.131.40"
+WD_PROGRAM_TOPIC="/a200_0553/manipulators/io_and_status_controller/robot_program_running"
 
 # robot.yaml: Das Git-Repo ist die Single Source of Truth. Beim Boot wird die
 # robot.yaml VOR der Config-Generierung (clearpath-robot.service) aus dem Repo
@@ -885,6 +905,110 @@ else
     echo ">>> arm-controllers: uebersprungen."
 fi
 
+# --- manipulators-watchdog: Treiber-Reconnect bei spaetem Einschalten -------
+# Siehe Variablen-Kommentar oben. Behebt den Fall "Arm zu lange stromlos ->
+# ur_robot_driver einmalig gescheitert -> bleibt tot", den auto_recover
+# konstruktionsbedingt NICHT abdecken kann (falsche Ebene: der Watcher braucht die
+# tote Treiber-Verbindung fuer seine eigenen Eingaben und kann keinen Prozess neu
+# starten). Timer-getrieben; Wrapper laeuft als root (fuer systemctl restart), die
+# ROS-Pruefung als ${REAL_USER} (gleicher ROS-Graph).
+DO_WD=1
+if [ -f "$WD_UNIT_PATH" ]; then
+    confirm ">>> manipulators-watchdog ist bereits installiert. Aktualisieren?" || DO_WD=0
+else
+    confirm ">>> manipulators-watchdog installieren (Treiber-Neustart, wenn der Arm spaet eingeschaltet wird)?" || DO_WD=0
+fi
+if [ "$DO_WD" -eq 1 ]; then
+    echo ">>> Installiere ${WD_WRAPPER} + ${WD_UNIT} + ${WD_TIMER}"
+    cat > "$WD_WRAPPER" <<'WD_EOF'
+#!/usr/bin/env bash
+# Watchdog: erkennt "Arm erreichbar, aber ur_robot_driver NICHT verbunden"
+# (robot_program_running publisht nicht -> ros2_control-HW-Interface einmalig beim
+# Start gescheitert, weil der Arm da noch stromlos war; ros2_control retryt die
+# HW-Aktivierung NICHT). Einziger Ausweg: den Treiber-Prozess neu starten - EINMAL,
+# mit Cooldown gegen Restart-Schleifen. Laeuft als root (systemctl restart), die
+# ROS-Pruefung als $RUN_USER, damit sie denselben ROS-Graphen sieht.
+# Aufruf: manipulators-watchdog.sh <ROBOT_IP> <TOPIC> <RUN_USER> <RUN_HOME>
+set -uo pipefail
+
+ROBOT_IP="${1:?ROBOT_IP fehlt}"
+TOPIC="${2:?TOPIC fehlt}"
+RUN_USER="${3:?RUN_USER fehlt}"
+RUN_HOME="${4:?RUN_HOME fehlt}"
+SERVICE="clearpath-manipulators.service"
+COOLDOWN="${WD_COOLDOWN:-180}"     # s: nach einem Restart so lange nicht erneut
+ECHO_TIMEOUT="${WD_ECHO_TIMEOUT:-8}"  # s: so lange auf eine Nachricht warten
+STATE="/run/manipulators-watchdog.state"
+TAG="manipulators-watchdog"
+log() { echo "${TAG}: $*"; }
+
+# 1) Arm ueberhaupt erreichbar? Nein -> bewusst nichts tun (Arm noch aus; der
+#    Watchdog soll NUR beim spaeten Einschalten anspringen, nicht dauernd).
+if ! ping -c1 -W1 "$ROBOT_IP" >/dev/null 2>&1; then
+    exit 0
+fi
+
+# 2) Publisht robot_program_running? (als RUN_USER -> gleicher ROS-Graph.)
+#    IRGENDEINE Nachricht (true ODER false) = Treiber lebt -> auto_recover/prepare
+#    uebernimmt, Watchdog haelt sich raus. KEINE Nachricht = Treiber tot -> Restart.
+if sudo -u "$RUN_USER" env HOME="$RUN_HOME" bash -lc \
+    "source /etc/clearpath/setup.bash && timeout ${ECHO_TIMEOUT} ros2 topic echo --once '${TOPIC}'" \
+    >/dev/null 2>&1; then
+    exit 0    # Treiber verbunden -> ok
+fi
+
+# 3) Treiber publisht nicht, Arm aber erreichbar -> HW-Interface tot. Cooldown
+#    pruefen (/run wird beim Boot geleert -> pro Boot frisch), dann EINMAL neu starten.
+now="$(date +%s)"
+if [ -f "$STATE" ]; then
+    last="$(cat "$STATE" 2>/dev/null || echo 0)"
+    [ -n "$last" ] || last=0
+    if [ "$(( now - last ))" -lt "$COOLDOWN" ]; then
+        log "Treiber verbindet nicht, aber letzter Restart < ${COOLDOWN}s her -> warte."
+        exit 0
+    fi
+fi
+
+log "Arm erreichbar (${ROBOT_IP}), aber ${TOPIC} publisht nicht -> ${SERVICE} neu starten (spaetes Einschalten nach Kaltstart)."
+echo "$now" > "$STATE"
+systemctl restart "$SERVICE"
+WD_EOF
+    chmod 0755 "$WD_WRAPPER"
+
+    cat > "$WD_UNIT_PATH" <<EOF
+[Unit]
+Description=Watchdog check: restart clearpath-manipulators when the arm is reachable but the UR driver is not connected
+# Nur nach dem Treiber pruefen; KEIN Wants/PartOf (rein periodischer Check, darf
+# den Treiber nicht mit-starten/-stoppen).
+After=clearpath-manipulators.service
+
+[Service]
+Type=oneshot
+# LAeuft als root (Default) -> darf systemctl restart. Die ROS-Pruefung im Wrapper
+# wechselt selbst per 'sudo -u' auf ${REAL_USER}.
+ExecStart=${WD_WRAPPER} ${WD_ROBOT_IP} ${WD_PROGRAM_TOPIC} ${REAL_USER} ${USER_HOME}
+EOF
+    chmod 0644 "$WD_UNIT_PATH"
+
+    cat > "$WD_TIMER_PATH" <<EOF
+[Unit]
+Description=Periodischer manipulators-watchdog-Check (Treiber-Reconnect bei spaetem Arm-Einschalten)
+
+[Timer]
+# Erst nach der normalen Boot-Hochlaufzeit beginnen (Treiber Zeit geben), dann
+# regelmaessig. So schlaegt der Watchdog beim gesunden Boot NICHT an.
+OnBootSec=90
+OnUnitActiveSec=30
+AccuracySec=5
+
+[Install]
+WantedBy=timers.target
+EOF
+    chmod 0644 "$WD_TIMER_PATH"
+else
+    echo ">>> manipulators-watchdog: uebersprungen."
+fi
+
 # --- joint-states Aggregation + Legacy-Bus-Relays (Phase 2) ----------------
 # Startet rg6_control/joint_states.launch.py: joint_state_aggregator
 # (-> /a200_0553/joint_states, vollstaendig, fuer rosbag/Foxglove) + zwei
@@ -1028,12 +1152,15 @@ systemctl enable "$UNIT_NAME" "$RG6_UNIT" "$JS_UNIT" "$ROBOT_YAML_UNIT"
 [ -f "$UR_DASH_UNIT_PATH" ] && systemctl enable "$UR_DASH_UNIT"
 [ -f "$USM_UNIT_PATH" ] && systemctl enable "$USM_UNIT"
 [ -f "$ARM_CTRL_UNIT_PATH" ] && systemctl enable "$ARM_CTRL_UNIT"
+# Watchdog: den TIMER aktivieren (die .service ist der oneshot-Check, den er triggert).
+[ -f "$WD_TIMER_PATH" ] && systemctl enable "$WD_TIMER"
 
 echo ">>> Unit-Syntax pruefen"
 VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH" "$ROBOT_YAML_UNIT_PATH")
 [ -f "$UR_DASH_UNIT_PATH" ] && VERIFY_UNITS+=("$UR_DASH_UNIT_PATH")
 [ -f "$USM_UNIT_PATH" ] && VERIFY_UNITS+=("$USM_UNIT_PATH")
 [ -f "$ARM_CTRL_UNIT_PATH" ] && VERIFY_UNITS+=("$ARM_CTRL_UNIT_PATH")
+[ -f "$WD_UNIT_PATH" ] && VERIFY_UNITS+=("$WD_UNIT_PATH" "$WD_TIMER_PATH")
 systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    Units OK."
 
 # --- Patches jetzt einmal anwenden -----------------------------------------
@@ -1055,6 +1182,8 @@ echo "  ur-dashboard.service           : startet ur_robot_driver dashboard_clien
 echo "  ur-state-manager.service       : startet ur_state_manager (prepare/recover)"
 [ -f "$ARM_CTRL_UNIT_PATH" ] && \
 echo "  arm-controllers.service        : laedt Extra-Controller + Mode-Manager"
+[ -f "$WD_TIMER_PATH" ] && \
+echo "  manipulators-watchdog.timer    : Treiber-Neustart, wenn der Arm erst spaet eingeschaltet wird"
 echo
 echo "Damit ALLES greift, einmal neu starten:"
 echo "  sudo systemctl restart clearpath-robot.service   # oder reboot"
@@ -1070,6 +1199,8 @@ echo "  journalctl -u ur-dashboard.service -b"
 echo "  journalctl -u ur-state-manager.service -b"
 [ -f "$ARM_CTRL_UNIT_PATH" ] && \
 echo "  journalctl -u arm-controllers.service -b"
+[ -f "$WD_TIMER_PATH" ] && \
+echo "  journalctl -t manipulators-watchdog -b   # + 'systemctl list-timers manipulators-watchdog.timer'"
 echo
 echo "Hinweis: robot.yaml wird ab jetzt aus dem Git-Repo verwaltet (SSOT)."
 echo "  Aenderungen (platform.extras.urdf, system.ros2.workspaces, Arm-/Sensor-Config)"
