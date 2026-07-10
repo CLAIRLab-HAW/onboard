@@ -1186,11 +1186,18 @@ cat > "$JS_UNIT_PATH" <<EOF
 [Unit]
 Description=Robot-weite joint_states-Aggregation + Legacy-Bus-Relays (Phase 2)
 # Braucht die Quell-Topics: Raeder (clearpath-platform) + Arm/Greifer
-# (clearpath-manipulators + rg6-bringup). NUR Ordering (After), KEIN PartOf: die
-# Subscriptions reconnecten von selbst, wenn eine Quelle spaeter/erneut hochkommt
-# -> ein Arm-Neustart soll das Aggregat/den Relay nicht mit-bouncen.
+# (clearpath-manipulators + rg6-bringup). After= rg6-bringup -> Start NACH neuem
+# rg6-Publisher. PartOf=clearpath-manipulators: der rg6-Joint-Relay/Aggregator
+# (custom rg6_control-Nodes joint_state_relay/joint_state_aggregator) resubscribed
+# unter rmw_zenoh NICHT zuverlaessig, wenn die rg6-JSC nach einem manipulators-/
+# rg6-bringup-Restart neu publisht -> ohne Mit-Restart fallen die rg6-Joints aus dem
+# TF-Feed und der Greifer-TF wird flach. Daher restartet joint-states mit der
+# clearpath-manipulators-Kaskade und baut die Subscriptions sauber wieder auf
+# (After=rg6-bringup sichert die Reihenfolge). Arm-Relay unbeeinflusst (Arm-JSC geht
+# direkt in manipulators/joint_states, nicht ueber joint-states).
 After=clearpath-platform.service clearpath-manipulators.service rg6-bringup.service
 Wants=clearpath-platform.service
+PartOf=clearpath-manipulators.service
 
 [Service]
 User=${REAL_USER}
