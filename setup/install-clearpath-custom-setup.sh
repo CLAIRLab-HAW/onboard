@@ -86,14 +86,19 @@ JS_WRAPPER="${BIN_DIR}/joint-states.sh"
 JS_UNIT="joint-states.service"
 JS_UNIT_PATH="/etc/systemd/system/${JS_UNIT}"
 
-# manipulators-watchdog: deckt die eine Luecke ab, die auf ROS-Ebene NICHT loesbar
-# ist. Wird der UR erst LANGE NACH dem Boot bestromt, scheitert die einmalige
-# ros2_control-HW-Aktivierung des ur_robot_driver (Arm war stromlos) - und
-# ros2_control retryt sie NICHT. Folge: io_and_status_controller publisht
-# robot_program_running gar nicht mehr, Dashboard/State-Manager haben keine
-# Eingabe, der Arm bleibt "Stopped". Einziger Ausweg = Treiber-Prozess neu starten.
-# Dieser Timer erkennt "Arm pingbar, aber robot_program_running publisht nicht" und
-# startet clearpath-manipulators.service EINMAL neu (mit Cooldown gegen Schleifen).
+# manipulators-watchdog: deckt ZWEI Luecken ab, die auf ROS-Ebene NICHT loesbar sind.
+#  (a) Wird der UR erst LANGE NACH dem Boot bestromt, scheitert die einmalige
+#      ros2_control-HW-Aktivierung des ur_robot_driver (Arm war stromlos) - und
+#      ros2_control retryt sie NICHT. Folge: JSC stumm, Arm bleibt "Stopped".
+#  (b) clearpath-robot.service-Restart bei schon bestromtem Arm: alte ExternalControl-
+#      Instanz haelt das Reverse-Socket, neue HW-Aktivierung schlaegt fehl -> JSC
+#      stumm -> Arm in RViz flach. (robot_program_running allein ist KEIN Health-Signal:
+#      controller-seitig, bleibt 'true' bei totem PC-Motion-Link.)
+# Health-Signal ist daher der joint_state_broadcaster-Stream (.../manipulators/
+# joint_states). Dieser Timer erkennt "Arm pingbar, aber JSC stumm" und startet
+# clearpath-manipulators.service EINMAL neu (mit Cooldown gegen Schleifen). Zusaetzlich
+# legt ein SIGINT-Stop-Drop-in auf clearpath-manipulators.service Ros-Graceful-Shutdown
+# statt SIGTERM-Ignore (90s Zombie mit Socket-Kollision) fest.
 WD_WRAPPER="${BIN_DIR}/manipulators-watchdog.sh"
 WD_UNIT="manipulators-watchdog.service"
 WD_UNIT_PATH="/etc/systemd/system/${WD_UNIT}"
@@ -101,6 +106,11 @@ WD_TIMER="manipulators-watchdog.timer"
 WD_TIMER_PATH="/etc/systemd/system/${WD_TIMER}"
 WD_ROBOT_IP="192.168.131.40"
 WD_PROGRAM_TOPIC="/a200_0553/manipulators/io_and_status_controller/robot_program_running"
+# SIGINT-Stop-Drop-in fuer clearpath-manipulators.service (sauberes Treiber-Shutdown,
+# siehe Skript-Kommentar). Drop-in ueberlebt Clearpath-Package-Updates (layert ueber
+# /usr/lib/systemd/system/clearpath-manipulators.service).
+WD_MANIP_DROPIN_DIR="/etc/systemd/system/clearpath-manipulators.service.d"
+WD_MANIP_DROPIN="${WD_MANIP_DROPIN_DIR}/override.conf"
 
 # robot.yaml: Das Git-Repo ist die Single Source of Truth. Beim Boot wird die
 # robot.yaml VOR der Config-Generierung (clearpath-robot.service) aus dem Repo
@@ -922,17 +932,27 @@ if [ "$DO_WD" -eq 1 ]; then
     echo ">>> Installiere ${WD_WRAPPER} + ${WD_UNIT} + ${WD_TIMER}"
     cat > "$WD_WRAPPER" <<'WD_EOF'
 #!/usr/bin/env bash
-# Watchdog: erkennt "Arm erreichbar, aber ur_robot_driver NICHT verbunden"
-# (robot_program_running publisht nicht -> ros2_control-HW-Interface einmalig beim
-# Start gescheitert, weil der Arm da noch stromlos war; ros2_control retryt die
-# HW-Aktivierung NICHT). Recovery: Treiber neu starten UND den Arm bestromen
-# (power_on + brake_release) + ExternalControl neu starten (resend_robot_program,
-# headless). So wird ein spaetes Einschalten vollstaendig automatisch aufgefangen -
-# kein manueller Eingriff mehr noetig. Protective-/Safety-Stops (safety_mode !=
-# NORMAL) werden NICHT auto-gecleart (bleiben manuell) - nur geloggt.
+# Watchdog: erkennt "Arm erreichbar, aber PC-seitiger Motion-Link (ur_robot_driver)
+# NICHT verbunden". Health-Signal ist der joint_state_broadcaster-Stream auf
+# .../manipulators/joint_states - der publisht NUR, wenn das ros2_control-HW-Interface
+# aktiviert ist und reale Arm-Gelenke liest.
+# robot_program_running allein reicht NICHT als "verbunden": das ist der
+# controller-seitige ExternalControl-Status (via Dashboard/RTDE) und bleibt 'true',
+# selbst wenn der PC-Motion-Link tot ist - z.B. haengebliebener Reconnect nach einem
+# clearpath-robot.service-Restart bei schon bestromtem Arm (alte ExternalControl-
+# Instanz haelt das Reverse-Socket, neue HW-Aktivierung schlaegt fehl, JSC bleibt
+# inactive -> Topic stumm -> Arm in RViz flach). Deckt damit ZWEI Faelle ab:
+#   (a) Kaltstart mit spaet bestromtem Arm: HW-Aktivierung einmalig gescheitert (Arm
+#       war stromlos), ros2_control retryt sie nicht -> JSC stumm.
+#   (b) Service-Restart mit schon bestromtem Arm: neue HW-Aktivierung schlaegt fehl
+#       (Socket-Kollision mit der alten Instanz) -> JSC stumm.
+# Recovery: Treiber neu starten UND den Arm bestromen (power_on + brake_release)
+# + ExternalControl neu starten (resend_robot_program, headless). Protective-/
+# Safety-Stops (safety_mode != NORMAL) werden NICHT auto-gecleart (bleiben manuell)
+# - nur geloggt.
 # Aufruf: manipulators-watchdog.sh <ROBOT_IP> <TOPIC> <RUN_USER> <RUN_HOME>
 #   TOPIC = .../io_and_status_controller/robot_program_running (Namespace wird
-#   daraus abgeleitet; Dashboard- + Resend-Services unter demselben Namespace).
+#   daraus abgeleitet; Dashboard- + Resend-Services + JSC-Topic unter demselben NS).
 set -uo pipefail
 
 ROBOT_IP="${1:?ROBOT_IP fehlt}"
@@ -941,10 +961,10 @@ RUN_USER="${3:?RUN_USER fehlt}"
 RUN_HOME="${4:?RUN_HOME fehlt}"
 SERVICE="clearpath-manipulators.service"
 DASH_SVC="ur-dashboard.service"
-COOLDOWN="${WD_COOLDOWN:-180}"         # s: nach einer Recovery so lange nicht erneut
-ECHO_TIMEOUT="${WD_ECHO_TIMEOUT:-8}"   # s: so lange auf eine Topic-Nachricht warten
+COOLDOWN="${WD_COOLDOWN:-180}"          # s: nach einer Recovery so lange nicht erneut
+JS_TIMEOUT="${WD_JS_TIMEOUT:-25}"      # s: auf JSC-Nachricht warten (JSC braucht nach manipulators-Restart bis ~15s -> grosszuegig, erst >JS_TIMEOUT ohne Nachricht = Motion-Link wirklich tot)
 POWER_TIMEOUT="${WD_POWER_TIMEOUT:-25}"  # Iterationen: auf power_on/brake_release-Moduswechsel warten
-RPR_WAIT="${WD_RPR_WAIT:-15}"           # Iterationen: rpr=true-Bestaetigung nach resend
+RPR_WAIT="${WD_RPR_WAIT:-15}"           # Iterationen: JSC-streamt-wieder-Bestaetigung nach resend
 STATE="/run/manipulators-watchdog.state"
 TAG="manipulators-watchdog"
 log() { echo "${TAG}: $*"; }
@@ -953,22 +973,26 @@ log() { echo "${TAG}: $*"; }
 NS="${TOPIC%/io_and_status_controller/*}"
 DASH_NS="${NS}/dashboard_client"
 RESEND_SVC="${NS}/io_and_status_controller/resend_robot_program"
+JS_TOPIC="${NS}/joint_states"   # joint_state_broadcaster-Ausgang; lebt nur bei aktivem HW-Interface
 
 # ROS-Befehl als RUN_USER im selben Graphen ausfuehren.
 ros_cmd() { sudo -u "$RUN_USER" env HOME="$RUN_HOME" bash -lc "source /etc/clearpath/setup.bash && $*"; }
 
 # 1) Arm ueberhaupt erreichbar? Nein -> bewusst nichts tun (Arm noch aus; der
-#    Watchdog soll NUR beim spaeten Einschalten anspringen, nicht dauernd).
+#    Watchdog soll NUR beim spaeten Einschalten / nach Treiber-Ausfall anspringen,
+#    nicht dauernd).
 if ! ping -c1 -W1 "$ROBOT_IP" >/dev/null 2>&1; then
     exit 0
 fi
 
-# 2) Publisht robot_program_running? IRGENDEINE Nachricht (true ODER false) = Treiber
-#    lebt -> auto_recover/prepare uebernimmt, Watchdog haelt sich raus. KEINE Nachricht
-#    = Treiber tot (HW-Interface gescheitert ODER Arm POWER_OFF, ExternalControl nicht
-#    laufend) -> Recovery.
-if ros_cmd "timeout ${ECHO_TIMEOUT} ros2 topic echo --once '${TOPIC}'" >/dev/null 2>&1; then
-    exit 0    # Treiber verbunden -> ok
+# 2) Health-Check: lebt der PC-seitige Motion-Link? Signal = JSC-Stream auf
+#    .../manipulators/joint_states (reale Arm-Gelenke, nur verfuegbar wenn das
+#    ros2_control-HW-Interface aktiviert ist). robot_program_running (true/false)
+#    ist KEIN ausreichendes Signal (controller-seitig, bleibt true bei totem
+#    PC-Motion-Link). Grace-Timeout grosszuegig: der JSC braucht nach einem
+#    manipulators-Restart bis ~15s -> erst >JS_TIMEOUT ohne Nachricht = wirklich tot.
+if ros_cmd "timeout ${JS_TIMEOUT} ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
+    exit 0    # JSC streamt -> Motion-Link ok
 fi
 
 # 3) Cooldown pruefen (/run wird beim Boot geleert -> pro Boot frisch).
@@ -977,12 +1001,12 @@ if [ -f "$STATE" ]; then
     last="$(cat "$STATE" 2>/dev/null || echo 0)"
     [ -n "$last" ] || last=0
     if [ "$(( now - last ))" -lt "$COOLDOWN" ]; then
-        log "Treiber verbindet nicht, aber letzte Recovery < ${COOLDOWN}s her -> warte."
+        log "Motion-Link tot (JSC stumm), aber letzte Recovery < ${COOLDOWN}s her -> warte."
         exit 0
     fi
 fi
 
-log "Arm erreichbar (${ROBOT_IP}), aber ${TOPIC} publisht nicht -> Recovery (spaetes Einschalten nach Kaltstart): ${SERVICE} neu starten, dann bestromen + ExternalControl neu starten."
+log "Arm erreichbar (${ROBOT_IP}), aber JSC ${JS_TOPIC} stumm (Motion-Link tot) -> Recovery: ${SERVICE} neu starten, dann bestromen + ExternalControl neu starten."
 echo "$now" > "$STATE"
 
 # --- Helfer: Modus-/Safety-Abfrage und Trigger-Aufrufe (alle via Dashboard) ---
@@ -993,11 +1017,11 @@ call_trigger() {  # $1 Service-Pfad, $2 Timeout(s); 0 = success=True
     ros_cmd "timeout ${t} ros2 service call '${svc}' std_srvs/srv/Trigger" 2>&1 | grep -q 'success=True'
 }
 
-# 3a) Treiber neu starten (blockierend): der alte ros2_control_node ignoriert SIGTERM
-#     und braucht bis zu 90s bis SIGKILL; systemctl restart blockiert diese Zeit, damit
-#     ist beim Weitergehen der NEUE Controller-Manager oben (kein Treffer auf den
-#     sterbenden alten CM). TimeoutStartSec des watchdog-Service muss das abdecken
-#     (siehe Unit, dort =240s).
+# 3a) Treiber neu starten (blockierend). Mit dem SIGINT-Stop-Drop-in auf
+#     clearpath-manipulators.service (siehe unten, WD_MANIP_DROPIN) stirbt der alte
+#     ros2_control_node sauber (Reverse-Socket geordnet geschlossen) statt SIGTERM bis
+#     zu 90s zu ignorieren -> der neue Controller-Manager startet gegen ein freies Socket.
+#     TimeoutStartSec des watchdog-Service (300s) deckt langsames Stoppen + Recovery ab.
 systemctl restart "$SERVICE" || log "systemctl restart ${SERVICE} lief nicht sauber - versuche Recovery trotzdem weiter."
 
 # 3b) ur-dashboard.service sicherstellen (power_on/brake_release brauchen den
@@ -1057,18 +1081,20 @@ if [ -z "$sent" ]; then
     exit 0
 fi
 
-# 3g) rpr=true bestaetigen (Topic-Echo, zuverlaessig; kurz - resend hat das Programm
-#     gestartet, rpr wird schnell true).
+# 3g) Erfolg verifizieren: JSC streamt wieder (reale Arm-Gelenke). Zuverlaessiger als
+#     rpr, weil es direkt den PC-Motion-Link bestaetigt (nicht nur das controller-seitige
+#     Programm). Kurz - resend hat ExternalControl gestartet, JSC wird schnell aktiv.
 ok=""
 for i in $(seq 1 "${RPR_WAIT}"); do
-    v="$(ros_cmd "timeout 6 ros2 topic echo --once '${TOPIC}'" 2>&1 | grep -oE 'data: (true|false)' | head -1)"
-    [ "$v" = "data: true" ] && { ok=1; break; }
+    if ros_cmd "timeout 6 ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
+        ok=1; break
+    fi
     sleep 1
 done
 if [ -n "$ok" ]; then
-    log "Recovery erfolgreich: ${TOPIC} -> data: true."
+    log "Recovery erfolgreich: ${JS_TOPIC} streamt wieder."
 else
-    log "resend gesendet, aber ${TOPIC} noch kein 'true' (${v:-keine Nachricht}). Naechster Timer-Lauf prueft erneut (Cooldown ${COOLDOWN}s)."
+    log "resend gesendet, aber ${JS_TOPIC} noch stumm. Naechster Timer-Lauf prueft erneut (Cooldown ${COOLDOWN}s)."
 fi
 WD_EOF
     chmod 0755 "$WD_WRAPPER"
@@ -1085,9 +1111,10 @@ Type=oneshot
 # LAeuft als root (Default) -> darf systemctl restart. Die ROS-Pruefung im Wrapper
 # wechselt selbst per 'sudo -u' auf ${REAL_USER}.
 ExecStart=${WD_WRAPPER} ${WD_ROBOT_IP} ${WD_PROGRAM_TOPIC} ${REAL_USER} ${USER_HOME}
-# Recovery blockiert beim systemctl restart (alter ros2_control_node braucht bis zu 90s
-# bis SIGKILL) + Dashboard-Aufrufe + Polls. systemd-Default-Timeout (90s) wuerde den
-# oneshot mittendrin killen -> grosszuegig.
+# Recovery blockiert beim systemctl restart + Dashboard-Aufrufe + Polls. Mit dem
+# SIGINT-Stop-Drop-in (WD_MANIP_DROPIN) stoppt der Treiber in ~1-3s; ohne Drop-in
+# kann SIGTERM bis zu 90s bis SIGKILL brauchen. systemd-Default-Timeout (90s) wuerde
+# den oneshot mittendrin killen -> grosszuegig (Puffer fuer Slow-Stop + Recovery).
 TimeoutStartSec=300
 # Script-echo-Zeilen unter journalctl -t manipulators-watchdog sammelbar.
 SyslogIdentifier=manipulators-watchdog
@@ -1096,19 +1123,43 @@ EOF
 
     cat > "$WD_TIMER_PATH" <<EOF
 [Unit]
-Description=Periodischer manipulators-watchdog-Check (Treiber-Reconnect bei spaetem Arm-Einschalten)
+Description=Periodischer manipulators-watchdog-Check (Treiber-Reconnect bei spaetem Arm-Einschalten ODER haengengebliebenem Reconnect nach Service-Restart)
 
 [Timer]
 # Erst nach der normalen Boot-Hochlaufzeit beginnen (Treiber Zeit geben), dann
-# regelmaessig. So schlaegt der Watchdog beim gesunden Boot NICHT an.
+# regelmaessig. Kadenz 10s (statt 30s): so schlaegt der Watchdog auch nach einem
+# clearpath-robot.service-Restart mit schon bestromtem Arm binnen ~10s an, sobald
+# der JSC-Stream (Health-Signal) aussetzt. Grace-Timeout im Skript (JS_TIMEOUT=25s)
+# verhindert Fehl-Alarme waehrend des ~15s manipulators-Hochlaufs.
 OnBootSec=90
-OnUnitActiveSec=30
-AccuracySec=5
+OnUnitActiveSec=10
+AccuracySec=2
 
 [Install]
 WantedBy=timers.target
 EOF
     chmod 0644 "$WD_TIMER_PATH"
+
+    # --- SIGINT-Stop-Drop-in fuer clearpath-manipulators.service -------------
+    # Ros-Knoten (ros2_control_node, move_group, robot_state_pub) reagieren auf SIGINT
+    # mit sauberem ROS-Graceful-Shutdown (Reverse-/Dashboard-Socket geordnet
+    # geschlossen) statt SIGTERM bis zu 90s zu ignorieren. Verhindert die Socket-
+    # Kollision beim Reconnect nach einem Service-Restart mit schon bestromtem Arm
+    # (alte ExternalControl-Instanz haelt das Reverse-Socket -> neue HW-Aktivierung
+    # schlaegt fehl -> Arm in RViz flach). Drop-in layert ueber der Clearpath-Unit
+    # (/usr/lib/systemd/system/...) und ueberlebt Package-Updates.
+    install -d -m 0755 "$WD_MANIP_DROPIN_DIR"
+    cat > "$WD_MANIP_DROPIN" <<'DROPEOF'
+[Unit]
+Description=Harte Stop-Parameter fuer clearpath-manipulators (sauberes Treiber-Shutdown)
+
+[Service]
+KillSignal=SIGINT
+TimeoutStopSec=95
+KillMode=control-group
+SendSIGKILL=yes
+DROPEOF
+    chmod 0644 "$WD_MANIP_DROPIN"
 else
     echo ">>> manipulators-watchdog: uebersprungen."
 fi
@@ -1287,7 +1338,8 @@ echo "  ur-state-manager.service       : startet ur_state_manager (prepare/recov
 [ -f "$ARM_CTRL_UNIT_PATH" ] && \
 echo "  arm-controllers.service        : laedt Extra-Controller + Mode-Manager"
 [ -f "$WD_TIMER_PATH" ] && \
-echo "  manipulators-watchdog.timer    : Treiber-Neustart, wenn der Arm erst spaet eingeschaltet wird"
+echo "  manipulators-watchdog.timer    : Treiber-Reconnect bei spaetem Arm-Einschalten ODER hängengebliebenem Reconnect nach Service-Restart (Health-Signal = JSC-Stream, Kadenz 10s)"
+echo "  clearpath-manipulators.service.d/override.conf : SIGINT-Stop-Drop-in (sauberes Treiber-Shutdown, verhindert Socket-Kollision beim Reconnect)"
 echo
 echo "Damit ALLES greift, einmal neu starten:"
 echo "  sudo systemctl restart clearpath-robot.service   # oder reboot"
