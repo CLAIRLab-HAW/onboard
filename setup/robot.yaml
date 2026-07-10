@@ -103,8 +103,10 @@ manipulators:
       headless_mode: true
       kinematics_parameters_file: "/home/robot/ur5_a200_0553_calibration.yaml" # "$(find ur_description)/config/ur5/default_kinematics.yaml"
       poses:
-        - name: ee_up_packed
-          joints: [2.6862428188323975, -2.6695182959186, 0.03133762627840042, -4.5593735615359705, -1.547995392476217, -0.03170234361757451]
+        - name: packed
+          joints: [-0.0002396742450159195, -1.5707839171039026, 1.570831298828125, -1.5707123915301722, -1.570864502583639, -0.00022727647890263825]
+        - name: forwards
+          joints: [-0.0002396742450159195, -1.5707839171039026, 1.570831298828125, -1.5707123915301722, -1.570864502583639, -0.00022727647890263825]
       ros_parameters:
         controller_manager:
           update_rate: 125 # CB3 RTDE max = 125 Hz; Clearpath-Default 500 -> FATAL
