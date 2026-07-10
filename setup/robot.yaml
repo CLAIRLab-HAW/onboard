@@ -89,6 +89,10 @@ platform:
 manipulators:
   moveit:
     enable: true
+    ros_parameters:
+      move_group:
+        trajectory_execution:
+          allowed_goal_duration_margin: 6.0 # allows slow gripper opening/closing
   arms:
     - model: universal_robots
       parent: top_plate_front_mount
