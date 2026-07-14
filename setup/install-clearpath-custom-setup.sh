@@ -25,8 +25,9 @@
 #     "Arm pingbar, aber robot_program_running publisht nicht" und startet EINMAL neu.
 #   - robot.yaml aus dem Git-Repo (SSOT) nach /etc/clearpath/robot.yaml deployen +
 #     robot-yaml-update.service: aktualisiert robot.yaml bei JEDEM Boot aus dem Repo
-#     (VOR der Config-Generierung durch clearpath-robot.service). Ohne Netz/bei
-#     Download-Fehler bleibt die vorhandene robot.yaml erhalten (Boot laeuft weiter).
+#     (VOR der Config-Generierung durch clearpath-robot.service). Ohne Netz, bei
+#     Download-Fehler oder ungueltiger Datei (YAML- + clearpath_config-Check)
+#     bleibt die vorhandene robot.yaml erhalten (Boot laeuft weiter).
 #
 # Hinweis robot.yaml: Das Repo ist ab jetzt die Single Source of Truth. Aenderungen
 #   also im Repo pflegen (platform.extras.urdf, system.ros2.workspaces, Arm-/Sensor-
@@ -1230,7 +1231,8 @@ chmod 0644 "$JS_UNIT_PATH"
 
 # --- robot.yaml aus dem Repo deployen + Boot-Update-Service -----------------
 # Das Git-Repo ist die SSOT. Wrapper laedt robot.yaml aus dem Repo, validiert
-# (nicht-leer + gueltiges YAML) und installiert sie nur bei Abweichung (Backup).
+# (nicht-leer, gueltiges YAML, clearpath_config-Schema) und installiert sie nur
+# bei Abweichung (Backup).
 # robot-yaml-update.service zieht sie bei JEDEM Boot VOR clearpath-robot.service
 # nach, sodass die Generierung die Repo-Version nutzt.
 echo ">>> Installiere ${ROBOT_YAML_WRAPPER} + ${ROBOT_YAML_UNIT}"
@@ -1239,8 +1241,9 @@ cat > "$ROBOT_YAML_WRAPPER" <<'ROBOT_YAML_EOF'
 # Laedt robot.yaml aus dem Git-Repo (SSOT) und installiert sie nach $2, wenn sie
 # sich unterscheidet. Aufruf: robot-yaml-update.sh <URL> <ZIELPFAD>.
 # Wird VOR clearpath-robot.service ausgefuehrt -> die Config-Generierung nutzt
-# die neue robot.yaml. Bei fehlendem Netz/Download-Fehler bleibt die vorhandene
-# robot.yaml unveraendert (Boot wird NICHT blockiert -> exit 0).
+# die neue robot.yaml. Bei fehlendem Netz/Download-Fehler ODER wenn die neue
+# Datei die Validierung (YAML-Syntax + clearpath_config-Schema) nicht besteht,
+# bleibt die vorhandene robot.yaml unveraendert (Boot wird NICHT blockiert -> exit 0).
 set -uo pipefail
 
 URL="${1:?URL fehlt}"
@@ -1276,6 +1279,36 @@ if [ -f "$DEST" ] && cmp -s "$tmp" "$DEST"; then
     log "robot.yaml bereits aktuell - keine Aenderung."
     exit 0
 fi
+
+# Semantisch gueltig? Kandidat durch den clearpath_config-Parser schicken -
+# dieselbe Bibliothek, die clearpath-robot-generate beim Boot nutzt: was hier
+# durchgeht, geht auch in der Generierung durch. Faengt strukturelle Fehler
+# (unbekannte Modelle, falsche Keys/Typen), die reines YAML-Parsing nicht sieht.
+# Laeuft nur bei ECHTER Aenderung (nach dem cmp oben) -> kostet im Normal-Boot
+# nichts. Ist clearpath_config nicht importierbar (ROS-Pfad geaendert o.ae.),
+# wird nur gewarnt und NICHT blockiert - sonst wuerde ein Umgebungsproblem
+# Repo-Updates dauerhaft verhindern.
+ros_site="$(ls -d /opt/ros/*/lib/python3*/site-packages 2>/dev/null | head -1 || true)"
+if ! sem="$(PYTHONPATH="${ros_site}${PYTHONPATH:+:${PYTHONPATH}}" python3 - "$tmp" 2>&1 <<'PYEOF'
+import sys
+try:
+    from clearpath_config.clearpath_config import ClearpathConfig
+except Exception as e:
+    print(f"SKIP {e}")
+    sys.exit(0)
+try:
+    ClearpathConfig(sys.argv[1])
+except Exception as e:
+    print(f"{type(e).__name__}: {e}")
+    sys.exit(1)
+PYEOF
+)"; then
+    log "WARN: neue robot.yaml besteht die clearpath_config-Validierung NICHT - behalte vorhandene ${DEST}. Fehler: ${sem}"
+    exit 0
+fi
+case "$sem" in
+    SKIP*) log "WARN: semantische Validierung uebersprungen (clearpath_config nicht importierbar) - installiere nur YAML-geprueft." ;;
+esac
 
 install -d -m 0755 "$(dirname "$DEST")"
 note=""
