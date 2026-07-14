@@ -11,20 +11,20 @@
 #   - optional: UR-Kinematik-Kalibrierung (ros-jazzy-ur-calibration -> YAML;
 #     robot.yaml-Pfad muss man selbst eintragen)
 #   - onrobot-rg6 per git klonen + bauen (colcon)
-#   - rg6-bringup.service: startet rg6_control + joint_state_broadcaster + urscript_interface beim Boot
+#   - clearpath-custom-rg6-bringup.service: startet rg6_control + joint_state_broadcaster + urscript_interface beim Boot
 #     (io_and_status_controller wird von Clearpath aus der robot.yaml gespawnt)
-#   - optional: ur-dashboard.service: startet den ur_robot_driver dashboard_client
+#   - optional: clearpath-custom-ur-dashboard.service: startet den ur_robot_driver dashboard_client
 #     (power_on/brake_release/unlock_protective_stop/restart_safety) beim Boot
-#   - optional: ur-state-manager.service: klont+baut ur-state-manager und startet
+#   - optional: clearpath-custom-ur-state-manager.service: klont+baut ur-state-manager und startet
 #     den State-Manager (prepare/recover/ensure_ready/power_off) beim Boot
-#   - optional: arm-controllers.service: laedt Extra-Controller (--inactive) +
+#   - optional: clearpath-custom-arm-controllers.service: laedt Extra-Controller (--inactive) +
 #     ur_controller_mode_manager beim Boot (nutzt den ur-state-manager-Workspace)
-#   - optional: manipulators-watchdog.timer: startet clearpath-manipulators.service
+#   - optional: clearpath-custom-manipulators-watchdog.timer: startet clearpath-manipulators.service
 #     neu, wenn der Arm erst LANGE nach dem Boot bestromt wird (ros2_control retryt
 #     die einmalig gescheiterte HW-Aktivierung nicht -> Treiber bleibt tot). Prueft
 #     "Arm pingbar, aber robot_program_running publisht nicht" und startet EINMAL neu.
 #   - robot.yaml aus dem Git-Repo (SSOT) nach /etc/clearpath/robot.yaml deployen +
-#     robot-yaml-update.service: aktualisiert robot.yaml bei JEDEM Boot aus dem Repo
+#     clearpath-custom-robot-yaml-update.service: aktualisiert robot.yaml bei JEDEM Boot aus dem Repo
 #     (VOR der Config-Generierung durch clearpath-robot.service). Ohne Netz, bei
 #     Download-Fehler oder ungueltiger Datei (YAML- + clearpath_config-Check)
 #     bleibt die vorhandene robot.yaml erhalten (Boot laeuft weiter).
@@ -58,7 +58,7 @@ UNIT_PATH="/etc/systemd/system/${UNIT_NAME}"
 FOXGLOVE_YAML="/etc/clearpath/platform/config/foxglove_bridge.yaml"
 
 RG6_WRAPPER="${BIN_DIR}/rg6-bringup.sh"
-RG6_UNIT="rg6-bringup.service"
+RG6_UNIT="clearpath-custom-rg6-bringup.service"
 RG6_UNIT_PATH="/etc/systemd/system/${RG6_UNIT}"
 # Root-eigene Kopie des rg6_moveit_patch-Tools (siehe Kopier-Schritt nach dem
 # rg6-Build). Der Boot-Service clearpath-custom-setup (root) ruft NUR diese
@@ -69,22 +69,22 @@ RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
 # aber power_on/brake_release/unlock_protective_stop/restart_safety/get_*_mode.
 # Kein Build noetig (kommt aus ros-jazzy-ur-robot-driver). robot_ip = UR-Control-Box.
 UR_DASH_WRAPPER="${BIN_DIR}/ur-dashboard.sh"
-UR_DASH_UNIT="ur-dashboard.service"
+UR_DASH_UNIT="clearpath-custom-ur-dashboard.service"
 UR_DASH_UNIT_PATH="/etc/systemd/system/${UR_DASH_UNIT}"
 UR_DASH_NS="${MANIP_NS}"
 UR_DASH_ROBOT_IP="${ARM_ROBOT_IP}"
 
 # ur-state-manager: prepare/recover/ensure_ready/power_off-Services fuer den Arm.
 # Wird (wie onrobot-rg6) geklont+gebaut und per Boot-Service gestartet. Braucht den
-# dashboard_client (ur-dashboard.service) -> startet das Launch mit start_dashboard_client:=false.
+# dashboard_client (clearpath-custom-ur-dashboard.service) -> startet das Launch mit start_dashboard_client:=false.
 USM_WRAPPER="${BIN_DIR}/ur-state-manager.sh"
-USM_UNIT="ur-state-manager.service"
+USM_UNIT="clearpath-custom-ur-state-manager.service"
 USM_UNIT_PATH="/etc/systemd/system/${USM_UNIT}"
 
 # arm-controllers: laedt die Extra-Controller (--inactive) + Mode-Manager beim Boot.
 # Nutzt denselben ur-state-manager-Workspace (kein eigener Build).
 ARM_CTRL_WRAPPER="${BIN_DIR}/arm-controllers.sh"
-ARM_CTRL_UNIT="arm-controllers.service"
+ARM_CTRL_UNIT="clearpath-custom-arm-controllers.service"
 ARM_CTRL_UNIT_PATH="/etc/systemd/system/${ARM_CTRL_UNIT}"
 
 # joint-states (Phase 2): robot-weiter joint_state_aggregator (/a200_0553/joint_states)
@@ -92,7 +92,7 @@ ARM_CTRL_UNIT_PATH="/etc/systemd/system/${ARM_CTRL_UNIT}"
 # Bus (fuer RSP + move_group). Nutzt den onrobot-rg6-Workspace (rg6_control
 # joint_states.launch.py), kein eigener Build.
 JS_WRAPPER="${BIN_DIR}/joint-states.sh"
-JS_UNIT="joint-states.service"
+JS_UNIT="clearpath-custom-joint-states.service"
 JS_UNIT_PATH="/etc/systemd/system/${JS_UNIT}"
 
 # manipulators-watchdog: deckt ZWEI Luecken ab, die auf ROS-Ebene NICHT loesbar sind.
@@ -109,9 +109,9 @@ JS_UNIT_PATH="/etc/systemd/system/${JS_UNIT}"
 # legt ein SIGINT-Stop-Drop-in auf clearpath-manipulators.service Ros-Graceful-Shutdown
 # statt SIGTERM-Ignore (90s Zombie mit Socket-Kollision) fest.
 WD_WRAPPER="${BIN_DIR}/manipulators-watchdog.sh"
-WD_UNIT="manipulators-watchdog.service"
+WD_UNIT="clearpath-custom-manipulators-watchdog.service"
 WD_UNIT_PATH="/etc/systemd/system/${WD_UNIT}"
-WD_TIMER="manipulators-watchdog.timer"
+WD_TIMER="clearpath-custom-manipulators-watchdog.timer"
 WD_TIMER_PATH="/etc/systemd/system/${WD_TIMER}"
 WD_ROBOT_IP="${ARM_ROBOT_IP}"
 WD_PROGRAM_TOPIC="${MANIP_NS}/io_and_status_controller/robot_program_running"
@@ -127,11 +127,29 @@ WD_MANIP_DROPIN="${WD_MANIP_DROPIN_DIR}/override.conf"
 ROBOT_YAML_URL="https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/robot.yaml"
 ROBOT_YAML_PATH="/etc/clearpath/robot.yaml"
 ROBOT_YAML_WRAPPER="${BIN_DIR}/robot-yaml-update.sh"
-ROBOT_YAML_UNIT="robot-yaml-update.service"
+ROBOT_YAML_UNIT="clearpath-custom-robot-yaml-update.service"
 ROBOT_YAML_UNIT_PATH="/etc/systemd/system/${ROBOT_YAML_UNIT}"
 
+# Fruehere Custom-Unit-Namen (ohne clearpath-custom--Prefix) + der alte
+# Vorgaenger-Service: der Installer disable+rm sie, BEVOR er die neuen
+# clearpath-custom-*-Units schreibt+aktiviert (saubere Migration des Rename).
 OLD_UNIT="clearpath-set-update-rate.service"
+OLD_UNITS=(
+  "${OLD_UNIT}"
+  "rg6-bringup.service"
+  "ur-dashboard.service"
+  "ur-state-manager.service"
+  "arm-controllers.service"
+  "joint-states.service"
+  "manipulators-watchdog.service"
+  "manipulators-watchdog.timer"
+  "robot-yaml-update.service"
+)
 OLD_FILES=("${BIN_DIR}/set-update-rate.py" "${BIN_DIR}/wait-for-clearpath.sh")
+# Verwaiste Drop-in-Verzeichnisse der alten Namen (Prefix-Rename -> Drop-in-Pfad
+# passt nicht mehr zur neuen Unit; Inhalt ist PartOf=clearpath-manipulators, das
+# die neue Unit ohnehin schon selbst traegt -> sicher zu entfernen).
+OLD_DIRS=("/etc/systemd/system/joint-states.service.d")
 # ---------------------------------------------------------------------------
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -186,15 +204,27 @@ if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
     exit 1
 fi
 
-# --- Vorgaenger-Service abloesen -------------------------------------------
-if systemctl list-unit-files | grep -q "^${OLD_UNIT}"; then
-    echo ">>> Entferne Vorgaenger ${OLD_UNIT}"
-    systemctl disable --now "${OLD_UNIT}" 2>/dev/null || true
-    rm -f "/etc/systemd/system/${OLD_UNIT}"
-fi
+# --- Vorgaenger-/Alt-Namen abloesen (Migration auf clearpath-custom-*) ------
+# Alle alten Custom-Unit-Namen disable+rm, bevor die neuen clearpath-custom-*
+# Units geschrieben+aktiviert werden. Fenster: alte Services kurz gestoppt ->
+# neue direkt danach aktiviert (Wartungszeitpunkt; Arm ggf. neu prepare).
+for u in "${OLD_UNITS[@]}"; do
+    if systemctl list-unit-files 2>/dev/null | grep -q "^${u}"; then
+        echo ">>> Entferne alte Unit ${u}"
+        systemctl disable --now "${u}" 2>/dev/null || true
+    fi
+    rm -f "/etc/systemd/system/${u}"
+done
 for f in "${OLD_FILES[@]}"; do
     [ -e "$f" ] && { echo ">>> Entferne alte Datei $f"; rm -f "$f"; }
 done
+for d in "${OLD_DIRS[@]}"; do
+    [ -d "$d" ] && { echo ">>> Entferne verwaistes Verzeichnis $d"; rm -rf "$d"; }
+done
+# Stale Backup-Leichen der alten Namen raeumen (Commit a13f226 hat das Stapfen
+# beim Installer behoben; alte .bak.* vom letzten Stand liegen aber noch auf Platte).
+rm -f /etc/systemd/system/manipulators-watchdog.service.bak.* \
+      /usr/local/bin/manipulators-watchdog.sh.bak.* 2>/dev/null || true
 
 DO_BOOT=1
 if systemctl list-unit-files | grep -q "^${UNIT_NAME}" && [ -f "$PY_PATH" ]; then
@@ -220,7 +250,7 @@ Patches:
   3. Arm-JSB joint_states -> manipulators/joint_states (move_arm_joint_states,
      Phase 2) in /opt/ros/*/share/clearpath_manipulators/launch/control.launch.py.
      Loest die Arm-Gelenke aus dem platform-Namespace; ein Relay + Aggregator
-     (rg6_control joint_states.launch.py, joint-states.service) haelt den
+     (rg6_control joint_states.launch.py, clearpath-custom-joint-states.service) haelt den
      platform/joint_states-Bus fuer RSP+move_group vollstaendig.
 
 Jeder Edit ist chirurgisch, idempotent, mit .bak-Backup und atomarem Schreiben.
@@ -459,7 +489,7 @@ def main():
     # 2) Sensor-Meshes file:// -> package:// (foxglove_bridge serviert nur package://)
     fix_realsense_mesh_uris("sensor mesh package://")
     # 3) Phase 2: Arm-JSB joint_states raus aus dem platform-Namespace ->
-    #    manipulators/joint_states (Relay + Aggregator via joint-states.service).
+    #    manipulators/joint_states (Relay + Aggregator via clearpath-custom-joint-states.service).
     move_arm_joint_states("arm joint_states -> manipulators")
     # 4) RG6 in MoveIt: robot.srdf (Gruppe 'gripper' + EE) und moveit.yaml
     #    (GripperCommand-Controller + joint_limits) patchen (onrobot-rg6-Tool).
@@ -812,7 +842,7 @@ chmod 0644 "$RG6_UNIT_PATH"
 # ${UR_DASH_NS}/dashboard_client/* (passt zum ur_state_manager-Default).
 DO_DASH=1
 if [ -f "$UR_DASH_UNIT_PATH" ]; then
-    confirm ">>> ur-dashboard.service ist bereits installiert. Aktualisieren?" || DO_DASH=0
+    confirm ">>> ${UR_DASH_UNIT} ist bereits installiert. Aktualisieren?" || DO_DASH=0
 else
     confirm ">>> UR dashboard_client als Boot-Service installieren (power_on/brake_release/unlock/restart_safety)?" || DO_DASH=0
 fi
@@ -856,7 +886,7 @@ fi
 # --- ur-state-manager klonen + bauen + Boot-Service (optional) -------------
 # prepare/recover/ensure_ready/power_off-Services fuer den Arm. Wie onrobot-rg6:
 # als realer Nutzer klonen+bauen, dann per systemd starten. Braucht den
-# dashboard_client (ur-dashboard.service) -> Launch mit start_dashboard_client:=false.
+# dashboard_client (clearpath-custom-ur-dashboard.service) -> Launch mit start_dashboard_client:=false.
 DO_USM=1
 if [ -d "${USM_WS}/.git" ]; then
     confirm ">>> ur-state-manager existiert in ${USM_WS}. git pull + neu bauen + Service aktualisieren?" || DO_USM=0
@@ -873,13 +903,13 @@ if [ "$DO_USM" -eq 1 ]; then
     echo ">>> Baue Workspace (colcon)"
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
         "source /etc/clearpath/setup.bash && cd '$USM_WS' && colcon build --packages-select ur_state_manager" \
-        || echo "    WARN: colcon build fehlgeschlagen - ur-state-manager.service laeuft erst nach erfolgreichem Build."
+        || echo "    WARN: colcon build fehlgeschlagen - ${USM_UNIT} laeuft erst nach erfolgreichem Build."
 
     echo ">>> Installiere ${USM_WRAPPER} + ${USM_UNIT}"
     cat > "$USM_WRAPPER" <<EOF
 #!/usr/bin/env bash
 # Startet den ur_state_manager (prepare/recover/ensure_ready/power_off).
-# start_dashboard_client:=false -> der dashboard_client laeuft via ur-dashboard.service.
+# start_dashboard_client:=false -> der dashboard_client laeuft via clearpath-custom-ur-dashboard.service.
 source /etc/clearpath/setup.bash
 source ${USM_WS}/install/setup.bash
 exec ros2 launch ur_state_manager ur_state_manager.launch.py start_dashboard_client:=false
@@ -890,8 +920,8 @@ EOF
 [Unit]
 Description=UR state manager (prepare/recover/ensure_ready/power_off fuer den UR5)
 # Nach dem dashboard_client starten (liefert die Dashboard-Services). Ist
-# ur-dashboard.service nicht installiert, ist das After= ein No-op.
-After=clearpath-manipulators.service ur-dashboard.service
+# clearpath-custom-ur-dashboard.service nicht installiert, ist das After= ein No-op.
+After=clearpath-manipulators.service clearpath-custom-ur-dashboard.service
 Wants=clearpath-manipulators.service
 # Mit-Neustart: startet clearpath-manipulators (Treiber/controller_manager) neu,
 # muss auch dieser Node neu starten - sonst zeigen der robot_state_helper und der
@@ -919,7 +949,7 @@ fi
 # Braucht den gebauten ur-state-manager-Workspace (siehe oben).
 DO_ARM_CTRL=1
 if [ -f "$ARM_CTRL_UNIT_PATH" ]; then
-    confirm ">>> arm-controllers.service ist bereits installiert. Aktualisieren?" || DO_ARM_CTRL=0
+    confirm ">>> ${ARM_CTRL_UNIT} ist bereits installiert. Aktualisieren?" || DO_ARM_CTRL=0
 else
     confirm ">>> arm-controllers beim Boot starten (Extra-Controller + Mode-Manager)?" || DO_ARM_CTRL=0
 fi
@@ -1004,7 +1034,7 @@ TOPIC="${2:?TOPIC fehlt}"
 RUN_USER="${3:?RUN_USER fehlt}"
 RUN_HOME="${4:?RUN_HOME fehlt}"
 SERVICE="clearpath-manipulators.service"
-DASH_SVC="ur-dashboard.service"
+DASH_SVC="clearpath-custom-ur-dashboard.service"
 COOLDOWN="${WD_COOLDOWN:-180}"          # s: nach einer Recovery so lange nicht erneut
 JS_TIMEOUT="${WD_JS_TIMEOUT:-25}"      # s: auf JSC-Nachricht warten (JSC braucht nach manipulators-Restart bis ~15s -> grosszuegig, erst >JS_TIMEOUT ohne Nachricht = Motion-Link wirklich tot)
 POWER_TIMEOUT="${WD_POWER_TIMEOUT:-25}"  # Iterationen: auf power_on/brake_release-Moduswechsel warten
@@ -1068,7 +1098,7 @@ call_trigger() {  # $1 Service-Pfad, $2 Timeout(s); 0 = success=True
 #     TimeoutStartSec des watchdog-Service (300s) deckt langsames Stoppen + Recovery ab.
 systemctl restart "$SERVICE" || log "systemctl restart ${SERVICE} lief nicht sauber - versuche Recovery trotzdem weiter."
 
-# 3b) ur-dashboard.service sicherstellen (power_on/brake_release brauchen den
+# 3b) clearpath-custom-ur-dashboard.service sicherstellen (power_on/brake_release brauchen den
 #     Dashboard-Client; unabhaengig von manipulators, bleibt beim Restart oben).
 if [ "$(systemctl is-active "$DASH_SVC" 2>/dev/null)" != "active" ]; then
     log "${DASH_SVC} nicht aktiv -> starte es."
@@ -1239,7 +1269,7 @@ Description=Robot-weite joint_states-Aggregation + Legacy-Bus-Relays (Phase 2)
 # clearpath-manipulators-Kaskade und baut die Subscriptions sauber wieder auf
 # (After=rg6-bringup sichert die Reihenfolge). Arm-Relay unbeeinflusst (Arm-JSC geht
 # direkt in manipulators/joint_states, nicht ueber joint-states).
-After=clearpath-platform.service clearpath-manipulators.service rg6-bringup.service
+After=clearpath-platform.service clearpath-manipulators.service clearpath-custom-rg6-bringup.service
 Wants=clearpath-platform.service
 PartOf=clearpath-manipulators.service
 
@@ -1258,7 +1288,7 @@ chmod 0644 "$JS_UNIT_PATH"
 # Das Git-Repo ist die SSOT. Wrapper laedt robot.yaml aus dem Repo, validiert
 # (nicht-leer, gueltiges YAML, clearpath_config-Schema) und installiert sie nur
 # bei Abweichung (Backup).
-# robot-yaml-update.service zieht sie bei JEDEM Boot VOR clearpath-robot.service
+# clearpath-custom-robot-yaml-update.service zieht sie bei JEDEM Boot VOR clearpath-robot.service
 # nach, sodass die Generierung die Repo-Version nutzt.
 echo ">>> Installiere ${ROBOT_YAML_WRAPPER} + ${ROBOT_YAML_UNIT}"
 cat > "$ROBOT_YAML_WRAPPER" <<'ROBOT_YAML_EOF'
@@ -1413,18 +1443,18 @@ fi
 echo
 echo "=============================================================="
 echo "Installation abgeschlossen."
-echo "  clearpath-custom-setup.service : patcht Configs bei jedem Boot"
-echo "  robot-yaml-update.service      : zieht robot.yaml aus dem Repo (SSOT) vor der Generierung"
-echo "  rg6-bringup.service            : startet rg6_control + joint_state_broadcaster + urscript_interface"
-echo "  joint-states.service           : joint_state_aggregator + Legacy-Bus-Relays (Phase 2)"
+echo "  ${UNIT_NAME} : patcht Configs bei jedem Boot"
+echo "  ${ROBOT_YAML_UNIT}      : zieht robot.yaml aus dem Repo (SSOT) vor der Generierung"
+echo "  ${RG6_UNIT}            : startet rg6_control + joint_state_broadcaster + urscript_interface"
+echo "  ${JS_UNIT}           : joint_state_aggregator + Legacy-Bus-Relays (Phase 2)"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
-echo "  ur-dashboard.service           : startet ur_robot_driver dashboard_client"
+echo "  ${UR_DASH_UNIT}           : startet ur_robot_driver dashboard_client"
 [ -f "$USM_UNIT_PATH" ] && \
-echo "  ur-state-manager.service       : startet ur_state_manager (prepare/recover)"
+echo "  ${USM_UNIT}       : startet ur_state_manager (prepare/recover)"
 [ -f "$ARM_CTRL_UNIT_PATH" ] && \
-echo "  arm-controllers.service        : laedt Extra-Controller + Mode-Manager"
+echo "  ${ARM_CTRL_UNIT}        : laedt Extra-Controller + Mode-Manager"
 [ -f "$WD_TIMER_PATH" ] && \
-echo "  manipulators-watchdog.timer    : Treiber-Reconnect bei spaetem Arm-Einschalten ODER hängengebliebenem Reconnect nach Service-Restart (Health-Signal = JSC-Stream, Kadenz 10s)"
+echo "  ${WD_TIMER}    : Treiber-Reconnect bei spaetem Arm-Einschalten ODER hängengebliebenem Reconnect nach Service-Restart (Health-Signal = JSC-Stream, Kadenz 10s)"
 echo "  clearpath-manipulators.service.d/override.conf : SIGINT-Stop-Drop-in (sauberes Treiber-Shutdown, verhindert Socket-Kollision beim Reconnect)"
 [ -f "$RG6_MOVEIT_PATCH_BIN" ] && \
 echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-eigene Kopie des rg6_moveit_patch (vom Boot-Service genutzt, aktualisiert nur der Installer)"
@@ -1435,19 +1465,19 @@ echo
 echo "Logs:"
 echo "  journalctl -t clearpath-custom-setup -b"
 echo "  journalctl -t robot-yaml-update -b"
-echo "  journalctl -u rg6-bringup.service -b"
-echo "  journalctl -u joint-states.service -b"
+echo "  journalctl -u ${RG6_UNIT} -b"
+echo "  journalctl -u ${JS_UNIT} -b"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
-echo "  journalctl -u ur-dashboard.service -b"
+echo "  journalctl -u ${UR_DASH_UNIT} -b"
 [ -f "$USM_UNIT_PATH" ] && \
-echo "  journalctl -u ur-state-manager.service -b"
+echo "  journalctl -u ${USM_UNIT} -b"
 [ -f "$ARM_CTRL_UNIT_PATH" ] && \
-echo "  journalctl -u arm-controllers.service -b"
+echo "  journalctl -u ${ARM_CTRL_UNIT} -b"
 [ -f "$WD_TIMER_PATH" ] && \
-echo "  journalctl -t manipulators-watchdog -b   # + 'systemctl list-timers manipulators-watchdog.timer'"
+echo "  journalctl -t manipulators-watchdog -b   # + 'systemctl list-timers ${WD_TIMER}'"
 echo
 echo "Hinweis: robot.yaml wird ab jetzt aus dem Git-Repo verwaltet (SSOT)."
 echo "  Aenderungen (platform.extras.urdf, system.ros2.workspaces, Arm-/Sensor-Config)"
-echo "  im Repo pflegen -> robot-yaml-update.service zieht sie beim naechsten Boot."
+echo "  im Repo pflegen -> ${ROBOT_YAML_UNIT} zieht sie beim naechsten Boot."
 echo "  Lokale Aenderungen an ${ROBOT_YAML_PATH} werden dann ueberschrieben (Backup .bak.*)."
 echo "=============================================================="

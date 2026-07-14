@@ -5,9 +5,11 @@ After installing the clearpath software stack (see [Clearpath Installation](http
 wget -c https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/install-clearpath-custom-setup.sh && bash -e install-clearpath-custom-setup.sh
 ``
 
-The installer is interactive and asks (each step `[j/N]`, or pass `-y` to accept all) before optional parts. One of them installs **`ur-dashboard.service`** — it starts the `ur_robot_driver` `dashboard_client` on boot (`power_on`/`brake_release`/`unlock_protective_stop`/`restart_safety`/`get_robot_mode`/`get_safety_mode`), which Clearpath does *not* bring up in the headless setup. The services land under `/a200_0553/manipulators/dashboard_client/*` and are consumed by the `ur_state_manager` package (repo [`ur-state-manager`](https://github.com/CLAIRLab-HAW/ur-state-manager)), which the installer can also clone, build and start on boot (`ur-state-manager.service`).
+The installer is interactive and asks (each step `[j/N]`, or pass `-y` to accept all) before optional parts. One of them installs **`clearpath-custom-ur-dashboard.service`** — it starts the `ur_robot_driver` `dashboard_client` on boot (`power_on`/`brake_release`/`unlock_protective_stop`/`restart_safety`/`get_robot_mode`/`get_safety_mode`), which Clearpath does *not* bring up in the headless setup. The services land under `/a200_0553/manipulators/dashboard_client/*` and are consumed by the `ur_state_manager` package (repo [`ur-state-manager`](https://github.com/CLAIRLab-HAW/ur-state-manager)), which the installer can also clone, build and start on boot (`clearpath-custom-ur-state-manager.service`).
 
-## `manipulators-watchdog.timer` (late arm power-on + stuck reconnect after restart)
+All custom units the installer creates carry the `clearpath-custom-*` prefix (`clearpath-custom-rg6-bringup`, `clearpath-custom-joint-states`, `clearpath-custom-arm-controllers`, `clearpath-custom-ur-dashboard`, `clearpath-custom-ur-state-manager`, `clearpath-custom-robot-yaml-update`, `clearpath-custom-manipulators-watchdog.service`/`.timer`, plus `clearpath-custom-setup`). A re-run on a host that still has the old, unprefixed names disables and removes them first (migration window: those services stop briefly, then the renamed ones start). Drop-ins on Clearpath-owned units (`clearpath-manipulators.service.d/override.conf`) keep their target-unit name by systemd convention.
+
+## `clearpath-custom-manipulators-watchdog.timer` (late arm power-on + stuck reconnect after restart)
 
 The watchdog covers two cases that are unfixable from a ROS node (both need the dead
 driver connection for their own inputs and can't restart the driver process they
@@ -40,7 +42,7 @@ arm **and** gripper up — no manual step. A generous `JS_TIMEOUT` (25 s) grace 
 prevents false alarms during the ~15 s the JSC needs to come up after a restart; it stays
 silent on a healthy boot (JSC streaming) and while the arm is off (not pingable). Logs:
 `journalctl -t manipulators-watchdog -b`; schedule:
-`systemctl list-timers manipulators-watchdog.timer`.
+`systemctl list-timers clearpath-custom-manipulators-watchdog.timer`.
 
 ## `clearpath-manipulators.service.d/override.conf` (clean driver shutdown)
 
