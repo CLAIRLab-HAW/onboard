@@ -92,8 +92,10 @@ run() { log "$*"; "$@"; }
 # ROS-Umgebung
 # ---------------------------------------------------------------------------
 if [ -f /opt/ros/jazzy/setup.bash ]; then
+  # ROS-Setup-Scripts fassen Variablen an, die unter `set -u` ungebunden
+  # sind (z.B. AMENT_TRACE_SETUP_FILES) -> waehrend des Sourcens -u aus.
   # shellcheck disable=SC1091
-  source /opt/ros/jazzy/setup.bash
+  set +u; source /opt/ros/jazzy/setup.bash; set -u
 else
   die "/opt/ros/jazzy/setup.bash nicht gefunden - feierabend.sh laeuft auf dem Roboter-PC?"
 fi
@@ -101,7 +103,7 @@ fi
 for ws in /opt/ros/clearpath/setup.bash /opt/ros/robot/setup.bash \
           /home/robot/ros2_ws/install/setup.bash /ros2_ws/install/setup.bash; do
   [ -f "$ws" ] && { # shellcheck disable=SC1091
-    source "$ws" || true; }
+    set +u; source "$ws" || true; set -u; }
 done
 
 JTC_ACTION="/${MANIP_NS}/arm_0_joint_trajectory_controller/follow_joint_trajectory"
