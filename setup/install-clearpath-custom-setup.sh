@@ -820,8 +820,14 @@ After=clearpath-manipulators.service
 Wants=clearpath-manipulators.service
 # Mit-Neustart: bei einem Restart von clearpath-manipulators wird der
 # controller_manager neu gespawnt und der joint_state_broadcaster verworfen ->
-# dieser Service muss ihn neu laden. PartOf propagiert Stop UND Restart.
-PartOf=clearpath-manipulators.service
+# dieser Service muss ihn neu laden.
+# PartOf propagiert Stop/Restart NUR eine Hop-Ebene und NUR bei DIREKTEM Job auf
+# der Ziel-Unit (propagierte Jobs werden NICHT weitergereicht). Stack-Restart in
+# der Praxis: 'systemctl restart clearpath-robot' -> clearpath-manipulators
+# startet nur indirekt neu -> OHNE PartOf=clearpath-robot wuerde dieser Service
+# nicht mit-restarten. Daher an BEIDE Wurzeln: robot (praktischer Stack-Restart)
+# + manipulators (direkter Treiber-Restart). Stop clearpath-robot stoppt ihn mit.
+PartOf=clearpath-robot.service clearpath-manipulators.service
 
 [Service]
 User=${REAL_USER}
@@ -866,6 +872,12 @@ EOF
 Description=UR dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
 After=clearpath-manipulators.service
 Wants=clearpath-manipulators.service
+# Mit-Neustart wie die anderen Custom-Units: PartOf an BEIDE Wurzeln (robot +
+# manipulators). PartOf propagiert Stop/Restart nur eine Hop-Ebene und nur bei
+# DIREKTEM Job -> ein Stack-Restart via 'systemctl restart clearpath-robot'
+# (manipulators startet dabei nur indirekt) wuerde diesen Service sonst nicht
+# mit-restarten. Stop clearpath-robot stoppt ihn dann ebenfalls mit.
+PartOf=clearpath-robot.service clearpath-manipulators.service
 
 [Service]
 User=${REAL_USER}
@@ -925,9 +937,13 @@ After=clearpath-manipulators.service clearpath-custom-ur-dashboard.service
 Wants=clearpath-manipulators.service
 # Mit-Neustart: startet clearpath-manipulators (Treiber/controller_manager) neu,
 # muss auch dieser Node neu starten - sonst zeigen der robot_state_helper und der
-# Adapter auf stale io_and_status_controller-Topics/-Services. PartOf propagiert
-# Stop UND Restart der genannten Unit (einseitig).
-PartOf=clearpath-manipulators.service
+# Adapter auf stale io_and_status_controller-Topics/-Services.
+# PartOf propagiert Stop/Restart nur eine Hop-Ebene und nur bei DIREKTEM Job auf
+# der Ziel-Unit. Stack-Restart via 'systemctl restart clearpath-robot' startet
+# clearpath-manipulators nur indirekt -> ohne PartOf=clearpath-robot wuerde dieser
+# Service nicht mit-restarten. Daher an BEIDE Wurzeln (robot + manipulators);
+# Stop clearpath-robot stoppt ihn dann mit.
+PartOf=clearpath-robot.service clearpath-manipulators.service
 
 [Service]
 User=${REAL_USER}
@@ -972,8 +988,13 @@ After=clearpath-manipulators.service
 Wants=clearpath-manipulators.service
 # Mit-Neustart: bei einem Restart von clearpath-manipulators wird der
 # controller_manager neu gespawnt und die Extra-Controller (--inactive) sind weg
-# -> dieser Service muss sie neu laden. PartOf propagiert Stop UND Restart.
-PartOf=clearpath-manipulators.service
+# -> dieser Service muss sie neu laden.
+# PartOf propagiert Stop/Restart nur eine Hop-Ebene und nur bei DIREKTEM Job auf
+# der Ziel-Unit. Stack-Restart via 'systemctl restart clearpath-robot' startet
+# clearpath-manipulators nur indirekt -> ohne PartOf=clearpath-robot wuerde dieser
+# Service nicht mit-restarten. Daher an BEIDE Wurzeln (robot + manipulators);
+# Stop clearpath-robot stoppt ihn dann mit.
+PartOf=clearpath-robot.service clearpath-manipulators.service
 
 [Service]
 User=${REAL_USER}
@@ -1271,7 +1292,12 @@ Description=Robot-weite joint_states-Aggregation + Legacy-Bus-Relays (Phase 2)
 # direkt in manipulators/joint_states, nicht ueber joint-states).
 After=clearpath-platform.service clearpath-manipulators.service clearpath-custom-rg6-bringup.service
 Wants=clearpath-platform.service
-PartOf=clearpath-manipulators.service
+# Mit-Neustart an BEIDE Wurzeln (robot + manipulators): PartOf propagiert
+# Stop/Restart nur eine Hop-Ebene und nur bei DIREKTEM Job. Stack-Restart via
+# 'systemctl restart clearpath-robot' startet clearpath-manipulators nur indirekt
+# -> ohne PartOf=clearpath-robot wuerden die rg6-Joint-Relays/Aggregatoren nicht
+# mit-restarten -> Greifer-TF wird flach. Stop clearpath-robot stoppt ihn mit.
+PartOf=clearpath-robot.service clearpath-manipulators.service
 
 [Service]
 User=${REAL_USER}
