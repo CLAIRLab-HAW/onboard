@@ -91,13 +91,26 @@ run() { log "$*"; "$@"; }
 # ---------------------------------------------------------------------------
 # ROS-Umgebung
 # ---------------------------------------------------------------------------
-if [ -f /opt/ros/jazzy/setup.bash ]; then
-  # ROS-Setup-Scripts fassen Variablen an, die unter `set -u` ungebunden
-  # sind (z.B. AMENT_TRACE_SETUP_FILES) -> waehrend des Sourcens -u aus.
+# Kanonischer Einstieg ist /etc/clearpath/setup.bash: sie sourct das
+# Jazzy-Setup, onrobot-rg6 und - ENTSCHEIDEND - setzt ROS_DOMAIN_ID und
+# RMW_IMPLEMENTATION (rmw_zenoh_cpp). Ohne letzteres laeuft feierabend im
+# ROS-Jazzy-Default (FastDDS) und ist NICHT im selben Graph wie die
+# Roboter-Stacks -> ros2 service call haengt ("waiting for service to
+# become available"). Daher VOR dem nackten /opt/ros-Pfad probieren.
+# ROS-Setup-Scripts fassen Variablen an, die unter `set -u` ungebunden
+# sind (z.B. AMENT_TRACE_SETUP_FILES) -> waehrend des Sourcens -u aus.
+if [ -f /etc/clearpath/setup.bash ]; then
+  # shellcheck disable=SC1091
+  set +u; source /etc/clearpath/setup.bash; set -u
+elif [ -f /opt/ros/jazzy/setup.bash ]; then
   # shellcheck disable=SC1091
   set +u; source /opt/ros/jazzy/setup.bash; set -u
+  # Fallback auf Nicht-Clearpath-Boxen: zumindest Default-Domain + die
+  # auf Clearpath-Robotern uebliche RMW (zenoh) setzen, falls nicht gesetzt.
+  : "${ROS_DOMAIN_ID:=0}";        export ROS_DOMAIN_ID
+  : "${RMW_IMPLEMENTATION:=rmw_zenoh_cpp}"; export RMW_IMPLEMENTATION
 else
-  die "/opt/ros/jazzy/setup.bash nicht gefunden - feierabend.sh laeuft auf dem Roboter-PC?"
+  die "/etc/clearpath/setup.bash und /opt/ros/jazzy/setup.bash fehlen - feierabend.sh laeuft auf dem Roboter-PC?"
 fi
 # Falls es ein lokales Workspace-Setup gibt, zusätzlich sourcen (ohne Fehler).
 for ws in /opt/ros/clearpath/setup.bash /opt/ros/robot/setup.bash \
