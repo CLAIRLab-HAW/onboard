@@ -60,6 +60,10 @@ FOXGLOVE_YAML="/etc/clearpath/platform/config/foxglove_bridge.yaml"
 RG6_WRAPPER="${BIN_DIR}/rg6-bringup.sh"
 RG6_UNIT="rg6-bringup.service"
 RG6_UNIT_PATH="/etc/systemd/system/${RG6_UNIT}"
+# Root-eigene Kopie des rg6_moveit_patch-Tools (siehe Kopier-Schritt nach dem
+# rg6-Build). Der Boot-Service clearpath-custom-setup (root) ruft NUR diese
+# Kopie auf - nie direkt den user-schreibbaren Workspace.
+RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
 
 # UR dashboard_client: Clearpath startet ihn im headless-Setup NICHT mit, liefert
 # aber power_on/brake_release/unlock_protective_stop/restart_safety/get_*_mode.
@@ -413,22 +417,22 @@ def move_arm_joint_states(label):
 def run_rg6_moveit_patch(label):
     """RG6 in die frisch generierte MoveIt-Config einhaengen.
 
-    Delegiert an das selbst-enthaltene Tool aus dem onrobot-rg6-Repo
-    (rg6_moveit_patch: robot.srdf + manipulators/config/moveit.yaml, idempotent).
+    Delegiert an die root-eigene Kopie des selbst-enthaltenen Tools aus dem
+    onrobot-rg6-Repo (rg6_moveit_patch: robot.srdf + manipulators/config/
+    moveit.yaml, idempotent), die der Installer nach /usr/local/bin kopiert.
+    Bewusst KEIN Aufruf direkt aus /home/*: dieser Service laeuft als root -
+    Code aus einem user-schreibbaren Workspace waere eine Rechteausweitung
+    (Workspace-/Repo-Schreibzugriff -> root bei jedem Boot). Die Kopie aendert
+    sich nur durch einen erneuten Installer-Lauf (explizite Admin-Entscheidung).
     Muss NACH clearpath-robot-generate und VOR clearpath-manipulators laufen -
-    genau das Fenster dieses Services. Fehlt das Tool (Repo nicht installiert),
-    wird nur gewarnt."""
-    import glob
+    genau das Fenster dieses Services. Fehlt die Kopie (Installer nie mit
+    vorhandenem onrobot-rg6-Workspace gelaufen), wird nur gewarnt."""
     import subprocess
-    candidates = (
-        glob.glob("/home/*/onrobot-rg6/install/rg6_control/lib/rg6_control/rg6_moveit_patch")
-        + glob.glob("/home/*/onrobot-rg6/src/rg6_control/scripts/rg6_moveit_patch")
-    )
-    if not candidates:
-        log(f"{label}: rg6_moveit_patch nicht gefunden (onrobot-rg6 gebaut?) - "
-            "MoveIt ohne Greifer.", err=True)
+    tool = "/usr/local/bin/rg6-moveit-patch"
+    if not os.path.isfile(tool):
+        log(f"{label}: {tool} fehlt (Installer mit onrobot-rg6-Workspace "
+            "laufen lassen) - MoveIt ohne Greifer.", err=True)
         return False
-    tool = sorted(candidates)[0]
     try:
         out = subprocess.run(
             [tool, "--setup-path", "/etc/clearpath"],
@@ -744,6 +748,27 @@ if [ "$DO_RG6" -eq 1 ]; then
         || echo "    WARN: colcon build fehlgeschlagen - rg6-bringup wird erst nach erfolgreichem Build laufen."
 else
     echo ">>> onrobot-rg6: uebersprungen (vorhandener Stand bleibt)."
+fi
+
+# --- rg6_moveit_patch als root-eigene Kopie installieren --------------------
+# Der Boot-Service clearpath-custom-setup laeuft als root und haengt den RG6
+# in die MoveIt-Config. Das Tool dafuer stammt aus dem User-Workspace - es als
+# root DIREKT von dort auszufuehren waere eine Rechteausweitung (wer in den
+# Workspace schreiben kann, bekaeme root bei jedem Boot; via git pull sogar das
+# Remote-Repo). Daher hier eine root-eigene Kopie: sie aendert sich nur durch
+# einen erneuten Installer-Lauf, nicht durch Aenderungen im Workspace.
+RG6_PATCH_SRC=""
+for cand in "${RG6_WS}/install/rg6_control/lib/rg6_control/rg6_moveit_patch" \
+            "${RG6_WS}/src/rg6_control/scripts/rg6_moveit_patch"; do
+    [ -f "$cand" ] && { RG6_PATCH_SRC="$cand"; break; }
+done
+if [ -n "$RG6_PATCH_SRC" ]; then
+    echo ">>> Installiere ${RG6_MOVEIT_PATCH_BIN} (Kopie von ${RG6_PATCH_SRC})"
+    install -m 0755 -o root -g root "$RG6_PATCH_SRC" "$RG6_MOVEIT_PATCH_BIN"
+elif [ -f "$RG6_MOVEIT_PATCH_BIN" ]; then
+    echo ">>> rg6_moveit_patch: Workspace-Tool nicht gefunden - vorhandene Kopie ${RG6_MOVEIT_PATCH_BIN} bleibt."
+else
+    echo "    WARN: rg6_moveit_patch nicht gefunden (onrobot-rg6 geklont/gebaut?) - RG6-MoveIt-Patch beim Boot inaktiv, bis der Installer mit vorhandenem Workspace erneut laeuft."
 fi
 
 # --- rg6-bringup Wrapper + Service -----------------------------------------
@@ -1401,6 +1426,8 @@ echo "  arm-controllers.service        : laedt Extra-Controller + Mode-Manager"
 [ -f "$WD_TIMER_PATH" ] && \
 echo "  manipulators-watchdog.timer    : Treiber-Reconnect bei spaetem Arm-Einschalten ODER hängengebliebenem Reconnect nach Service-Restart (Health-Signal = JSC-Stream, Kadenz 10s)"
 echo "  clearpath-manipulators.service.d/override.conf : SIGINT-Stop-Drop-in (sauberes Treiber-Shutdown, verhindert Socket-Kollision beim Reconnect)"
+[ -f "$RG6_MOVEIT_PATCH_BIN" ] && \
+echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-eigene Kopie des rg6_moveit_patch (vom Boot-Service genutzt, aktualisiert nur der Installer)"
 echo
 echo "Damit ALLES greift, einmal neu starten:"
 echo "  sudo systemctl restart clearpath-robot.service   # oder reboot"
