@@ -922,9 +922,15 @@ if [ "$DO_USM" -eq 1 ]; then
 #!/usr/bin/env bash
 # Startet den ur_state_manager (prepare/recover/ensure_ready/power_off).
 # start_dashboard_client:=false -> der dashboard_client laeuft via clearpath-custom-ur-dashboard.service.
+# auto_recover:=false -> der auto_recover-Watcher AUS: er wuerde per 'recover'
+#   die Bremsen loesen + ExternalControl starten (Arm -> RUNNING). Wir wollen nach
+#   einem Restart aber NUR 'Treiber verbunden' (Arm bleibt IDLE, Bremsen angelegt,
+#   kein automatisches Bremsenloesen/Bestromen). Zum Bewegen ruft der Bediener
+#   manuell 'prepare'. Treiber-Connect passiert von selbst (JSC); der Watchdog ist
+#   die Notbremse (nur Treiber-Restart, keine Bremsen/Bestromung).
 source /etc/clearpath/setup.bash
 source ${USM_WS}/install/setup.bash
-exec ros2 launch ur_state_manager ur_state_manager.launch.py start_dashboard_client:=false
+exec ros2 launch ur_state_manager ur_state_manager.launch.py start_dashboard_client:=false auto_recover:=false
 EOF
     chmod 0755 "$USM_WRAPPER"
 
