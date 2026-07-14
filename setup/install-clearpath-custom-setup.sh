@@ -205,13 +205,30 @@ if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
 fi
 
 # --- Vorgaenger-/Alt-Namen abloesen (Migration auf clearpath-custom-*) ------
-# Alle alten Custom-Unit-Namen disable+rm, bevor die neuen clearpath-custom-*
+# Alle alten Custom-Unit-Namen disable+stop+rm, bevor die neuen clearpath-custom-*
 # Units geschrieben+aktiviert werden. Fenster: alte Services kurz gestoppt ->
 # neue direkt danach aktiviert (Wartungszeitpunkt; Arm ggf. neu prepare).
+#
+# WICHTIG: nicht nur auf list-unit-files pruefen. Wurde die Unit-Datei bei einem
+# frueheren Lauf schon entfernt, der Prozess aber nicht gestoppt, laeuft die Unit
+# als "not-found aber active" weiter - und fehlt in list-unit-files. Solche
+# Zombies (Boot-Prozesse unter altem Namen, z.B. doppelter ur_state_manager mit
+# altem auto_recover) faengt nur der is-active-Check. 'systemctl stop' wirkt
+# auch auf not-found-Units (systemd fuehrt sie in-memory weiter); 'disable'
+# dagegen braucht die Unit-Datei -> getrennt und Fehler dort tolerieren.
+# Stop-Fehler NICHT verschlucken, sondern laut warnen (sonst laufen alte
+# Prozesse unbemerkt neben den neuen Units weiter).
 for u in "${OLD_UNITS[@]}"; do
-    if systemctl list-unit-files 2>/dev/null | grep -q "^${u}"; then
-        echo ">>> Entferne alte Unit ${u}"
-        systemctl disable --now "${u}" 2>/dev/null || true
+    known=0
+    systemctl list-unit-files 2>/dev/null | grep -q "^${u}" && known=1
+    state="$(systemctl is-active "${u}" 2>/dev/null || true)"
+    if [ "$known" = "1" ] || [ "$state" = "active" ] || [ "$state" = "activating" ]; then
+        echo ">>> Entferne alte Unit ${u} (state=${state:-unbekannt})"
+        systemctl disable "${u}" 2>/dev/null || true
+        if ! systemctl stop "${u}" 2>/dev/null; then
+            echo "    WARN: 'systemctl stop ${u}' fehlgeschlagen - alte Prozesse"
+            echo "    laufen ggf. weiter (pruefen: systemctl status ${u})."
+        fi
     fi
     rm -f "/etc/systemd/system/${u}"
 done
