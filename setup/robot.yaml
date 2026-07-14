@@ -142,7 +142,7 @@ sensors:
       rpy: [0.0, 0.0, 0.0]
       ros_parameters:
         um7_driver:
-          port: /dev/clearpath/um7_
+          port: /dev/clearpath/um7
           frame_id: imu_0_link
           tf_ned_to_enu: true
 #  lidar2d:
