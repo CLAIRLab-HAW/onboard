@@ -46,6 +46,10 @@ set -euo pipefail
 # ---- Konfiguration ---------------------------------------------------------
 RG6_REPO_URL="https://github.com/CLAIRLab-HAW/onrobot-rg6.git"   # onrobot-rg6 (CLAIRLab-HAW)
 USM_REPO_URL="https://github.com/CLAIRLab-HAW/ur-state-manager.git"   # ur-state-manager (CLAIRLab-HAW)
+# UR-Control-Box + manipulators-Namespace: EINE Quelle fuer Dashboard, Watchdog
+# und Kalibrierung (Sektions-Variablen unten leiten sich hieraus ab).
+ARM_ROBOT_IP="192.168.131.40"
+MANIP_NS="/a200_0553/manipulators"
 BIN_DIR="/usr/local/bin"
 PY_PATH="${BIN_DIR}/clearpath-custom-setup.py"
 UNIT_NAME="clearpath-custom-setup.service"
@@ -62,8 +66,8 @@ RG6_UNIT_PATH="/etc/systemd/system/${RG6_UNIT}"
 UR_DASH_WRAPPER="${BIN_DIR}/ur-dashboard.sh"
 UR_DASH_UNIT="ur-dashboard.service"
 UR_DASH_UNIT_PATH="/etc/systemd/system/${UR_DASH_UNIT}"
-UR_DASH_NS="/a200_0553/manipulators"
-UR_DASH_ROBOT_IP="192.168.131.40"
+UR_DASH_NS="${MANIP_NS}"
+UR_DASH_ROBOT_IP="${ARM_ROBOT_IP}"
 
 # ur-state-manager: prepare/recover/ensure_ready/power_off-Services fuer den Arm.
 # Wird (wie onrobot-rg6) geklont+gebaut und per Boot-Service gestartet. Braucht den
@@ -104,8 +108,8 @@ WD_UNIT="manipulators-watchdog.service"
 WD_UNIT_PATH="/etc/systemd/system/${WD_UNIT}"
 WD_TIMER="manipulators-watchdog.timer"
 WD_TIMER_PATH="/etc/systemd/system/${WD_TIMER}"
-WD_ROBOT_IP="192.168.131.40"
-WD_PROGRAM_TOPIC="/a200_0553/manipulators/io_and_status_controller/robot_program_running"
+WD_ROBOT_IP="${ARM_ROBOT_IP}"
+WD_PROGRAM_TOPIC="${MANIP_NS}/io_and_status_controller/robot_program_running"
 # SIGINT-Stop-Drop-in fuer clearpath-manipulators.service (sauberes Treiber-Shutdown,
 # siehe Skript-Kommentar). Drop-in ueberlebt Clearpath-Package-Updates (layert ueber
 # /usr/lib/systemd/system/clearpath-manipulators.service).
@@ -656,7 +660,7 @@ fi
 # Voraussetzung: Arm an + ueber UR_ROBOT_IP erreichbar. robot.yaml wird NICHT
 # angefasst (handgepflegt) -> Pfad danach selbst als kinematics_parameters_file
 # eintragen. Per Env ueberschreibbar: UR_ROBOT_IP=, UR_CALIB_FILE=.
-UR_ROBOT_IP="${UR_ROBOT_IP:-192.168.131.40}"
+UR_ROBOT_IP="${UR_ROBOT_IP:-${ARM_ROBOT_IP}}"
 UR_CALIB_FILE="${UR_CALIB_FILE:-${USER_HOME}/ur5_a200_0553_calibration.yaml}"
 
 DO_CALIB=0
