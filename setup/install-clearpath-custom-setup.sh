@@ -163,6 +163,13 @@ confirm() {
     case "$_ans" in [jJyY]*) return 0 ;; *) return 1 ;; esac
 }
 
+# Timestamp-Backups ("<datei>.bak.<zeitstempel>") rotieren: nur die KEEP neuesten
+# behalten (Default 5). Nie fatal (leeres Glob etc.) -> set -e-sicher.
+prune_backups() {
+    local file="$1" keep="${2:-5}"
+    ls -1t "${file}".bak.* 2>/dev/null | tail -n "+$((keep + 1))" | xargs -r rm -f -- || true
+}
+
 # Realer Nutzer (fuer den Workspace-Build), nicht root:
 REAL_USER="${SUDO_USER:-robot}"
 USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
@@ -582,7 +589,10 @@ elif [ -f "$NETPLAN_FILE" ]; then
     confirm ">>> netplan ${NETPLAN_FILE} weicht ab. Ueberschreiben (Backup wird angelegt)?" || DO_NETPLAN=0
 fi
 if [ "$DO_NETPLAN" -eq 1 ]; then
-    [ -f "$NETPLAN_FILE" ] && cp -a "$NETPLAN_FILE" "${NETPLAN_FILE}.$(date +%Y%m%d-%H%M%S).bak"
+    if [ -f "$NETPLAN_FILE" ]; then
+        cp -a "$NETPLAN_FILE" "${NETPLAN_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+        prune_backups "$NETPLAN_FILE"
+    fi
     install -m 0600 "$tmp_np" "$NETPLAN_FILE"
     command -v netplan >/dev/null 2>&1 && { netplan generate || echo "    WARN: netplan generate Problem"; }
     echo "    netplan geschrieben (Mode 0600). 'sudo netplan apply' NICHT automatisch."
@@ -629,6 +639,7 @@ elif grep -qE '^GRUB_TIMEOUT_STYLE=hidden$' "$GRUB_FILE" && grep -qE '^GRUB_TIME
     echo ">>> GRUB: bereits auf schnellen Boot gestellt - keine Aenderung."
 elif confirm ">>> GRUB-Boot beschleunigen (GRUB_TIMEOUT_STYLE=hidden, GRUB_TIMEOUT=0)?"; then
     cp -a "$GRUB_FILE" "${GRUB_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+    prune_backups "$GRUB_FILE"
     # GRUB_TIMEOUT_STYLE setzen (vorhandene/auskommentierte Zeile ersetzen, sonst anhaengen)
     if grep -qE '^[#[:space:]]*GRUB_TIMEOUT_STYLE=' "$GRUB_FILE"; then
         sed -i -E 's|^[#[:space:]]*GRUB_TIMEOUT_STYLE=.*|GRUB_TIMEOUT_STYLE=hidden|' "$GRUB_FILE"
@@ -690,7 +701,10 @@ if [ "$DO_CALIB" -eq 1 ]; then
     elif ! ping -c1 -W2 "$UR_ROBOT_IP" >/dev/null 2>&1; then
         echo ">>> UR-Arm ${UR_ROBOT_IP} nicht erreichbar (ping) - Kalibrierung uebersprungen."
     else
-        [ -f "$UR_CALIB_FILE" ] && cp -a "$UR_CALIB_FILE" "${UR_CALIB_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+        if [ -f "$UR_CALIB_FILE" ]; then
+            cp -a "$UR_CALIB_FILE" "${UR_CALIB_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+            prune_backups "$UR_CALIB_FILE"
+        fi
         echo ">>> Kalibriere UR-Arm (${UR_ROBOT_IP}) -> ${UR_CALIB_FILE}"
         echo "    Hinweis: bei 'Could not connect' belegt evtl. der Treiber die Schnittstelle ->"
         echo "             'sudo systemctl stop clearpath-manipulators.service', dann erneut."
@@ -1267,6 +1281,9 @@ install -d -m 0755 "$(dirname "$DEST")"
 note=""
 if [ -f "$DEST" ]; then
     cp -a "$DEST" "${DEST}.bak.$(date +%Y%m%d%H%M%S)"
+    # Rotation: nur die 5 neuesten Backups behalten - laeuft bei jedem Boot mit
+    # Diff, sonst waechst /etc/clearpath unbegrenzt.
+    ls -1t "${DEST}".bak.* 2>/dev/null | tail -n +6 | xargs -r rm -f -- || true
     note=" (Backup angelegt)"
 fi
 install -m 0644 "$tmp" "$DEST"
