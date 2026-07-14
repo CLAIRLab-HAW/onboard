@@ -1433,14 +1433,20 @@ else
 fi
 
 # --- aktivieren ------------------------------------------------------------
-echo ">>> systemd neu einlesen + Services aktivieren"
+echo ">>> systemd neu einlesen + Services aktivieren (+ starten, nicht nur Boot-Symlink)"
 systemctl daemon-reload
-systemctl enable "$UNIT_NAME" "$RG6_UNIT" "$JS_UNIT" "$ROBOT_YAML_UNIT"
-[ -f "$UR_DASH_UNIT_PATH" ] && systemctl enable "$UR_DASH_UNIT"
-[ -f "$USM_UNIT_PATH" ] && systemctl enable "$USM_UNIT"
-[ -f "$ARM_CTRL_UNIT_PATH" ] && systemctl enable "$ARM_CTRL_UNIT"
-# Watchdog: den TIMER aktivieren (die .service ist der oneshot-Check, den er triggert).
-[ -f "$WD_TIMER_PATH" ] && systemctl enable "$WD_TIMER"
+# enable --now: aktiviert den Boot-Symlink UND startet die Unit SOFORT. Wichtig bei
+# Re-Deploy/Rename auf einem laufenden System: das Migration-disable --now der alten
+# Namen stoppt sie, und plain 'enable' wuerde die neuen erst beim naechsten Reboot
+# starten -> der ganze Custom-Stack (inkl. ur-state-manager/auto_recover + Watchdog-
+# Timer) bliebe bis zum Reboot tot. Wants=clearpath-manipulators zieht den Treiber
+# hoch, falls er noch nicht laeuft; After= sichert die Reihenfolge.
+systemctl enable --now "$UNIT_NAME" "$RG6_UNIT" "$JS_UNIT" "$ROBOT_YAML_UNIT"
+[ -f "$UR_DASH_UNIT_PATH" ] && systemctl enable --now "$UR_DASH_UNIT"
+[ -f "$USM_UNIT_PATH" ] && systemctl enable --now "$USM_UNIT"
+[ -f "$ARM_CTRL_UNIT_PATH" ] && systemctl enable --now "$ARM_CTRL_UNIT"
+# Watchdog: den TIMER aktivieren + starten (die .service ist der oneshot-Check, den er triggert).
+[ -f "$WD_TIMER_PATH" ] && systemctl enable --now "$WD_TIMER"
 
 echo ">>> Unit-Syntax pruefen"
 VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH" "$ROBOT_YAML_UNIT_PATH")
