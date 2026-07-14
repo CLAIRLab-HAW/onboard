@@ -33,14 +33,20 @@ dashboard/RTDE) and stays `true` even when the PC-side motion link is dead, whic
 exactly case (b).
 
 Every 10 s (from `OnBootSec=90`) it checks: **arm pingable** (`192.168.131.40`) **but
-the JSC stream silent** → it runs `systemctl restart clearpath-manipulators.service`
-**once** (cooldown-guarded, state in `/run`, so it can't loop), then powers the arm
-(`power_on` + `brake_release`) and restarts `ExternalControl` (`resend_robot_program`).
-The restarted driver reconnects, the JSC stream resumes, and `ur_state_manager`'s
-`auto_recover` (plus `rg6_control`'s tool-power/prime on the program-running edge) brings
-arm **and** gripper up — no manual step. A generous `JS_TIMEOUT` (25 s) grace window
-prevents false alarms during the ~15 s the JSC needs to come up after a restart; it stays
-silent on a healthy boot (JSC streaming) and while the arm is off (not pingable). Logs:
+the JSC stream silent** → if the arm is **not** `POWER_OFF`, it runs
+`systemctl restart clearpath-manipulators.service` **once** (cooldown-guarded, state in
+`/run`, so it can't loop) and restarts `ExternalControl` (`resend_robot_program`). It
+does **not** power the arm (`power_on`/`brake_release`) — powering is an operator
+decision (protecting maintenance / end-of-day shutdown); if the arm is `POWER_OFF`, no
+recovery runs (no driver-restart loop against an unpowered arm). Once the operator
+powers the arm, the watchdog reconnects the motion link on the next tick. Protective /
+safety stops (`safety_mode != NORMAL`) are **not** auto-cleared — `resend` is skipped,
+manual clear required. The restarted driver reconnects, the JSC stream resumes, and
+`ur_state_manager`'s `auto_recover` (plus `rg6_control`'s tool-power/prime on the
+program-running edge) brings the **gripper** up once the arm is powered and the program
+runs. A generous `JS_TIMEOUT` (25 s) grace window prevents false alarms during the ~15 s
+the JSC needs to come up after a restart; it stays silent on a healthy boot (JSC
+streaming) and while the arm is off (not pingable). Logs:
 `journalctl -t manipulators-watchdog -b`; schedule:
 `systemctl list-timers clearpath-custom-manipulators-watchdog.timer`.
 

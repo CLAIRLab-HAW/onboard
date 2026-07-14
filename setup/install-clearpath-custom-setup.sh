@@ -1041,10 +1041,12 @@ if [ "$DO_WD" -eq 1 ]; then
 #       war stromlos), ros2_control retryt sie nicht -> JSC stumm.
 #   (b) Service-Restart mit schon bestromtem Arm: neue HW-Aktivierung schlaegt fehl
 #       (Socket-Kollision mit der alten Instanz) -> JSC stumm.
-# Recovery: Treiber neu starten UND den Arm bestromen (power_on + brake_release)
-# + ExternalControl neu starten (resend_robot_program, headless). Protective-/
-# Safety-Stops (safety_mode != NORMAL) werden NICHT auto-gecleart (bleiben manuell)
-# - nur geloggt.
+# Recovery: Treiber neu starten (clearpath-manipulators.service) + ExternalControl
+# neu starten (resend_robot_program). Der Arm wird NICHT automatisch bestromt
+# (kein power_on/brake_release) - Bestromung ist Bediener-Entscheidung (schuetzt
+# Wartung/Feierabend); ist der Arm POWER_OFF, laeuft keine Recovery (kein
+# Treiber-Loop gegen stromlosen Arm). Protective-/Safety-Stops (safety_mode !=
+# NORMAL) werden NICHT auto-gecleart (bleiben manuell) - resend uebersprungen.
 # Aufruf: manipulators-watchdog.sh <ROBOT_IP> <TOPIC> <RUN_USER> <RUN_HOME>
 #   TOPIC = .../io_and_status_controller/robot_program_running (Namespace wird
 #   daraus abgeleitet; Dashboard- + Resend-Services + JSC-Topic unter demselben NS).
@@ -1058,7 +1060,6 @@ SERVICE="clearpath-manipulators.service"
 DASH_SVC="clearpath-custom-ur-dashboard.service"
 COOLDOWN="${WD_COOLDOWN:-180}"          # s: nach einer Recovery so lange nicht erneut
 JS_TIMEOUT="${WD_JS_TIMEOUT:-25}"      # s: auf JSC-Nachricht warten (JSC braucht nach manipulators-Restart bis ~15s -> grosszuegig, erst >JS_TIMEOUT ohne Nachricht = Motion-Link wirklich tot)
-POWER_TIMEOUT="${WD_POWER_TIMEOUT:-25}"  # Iterationen: auf power_on/brake_release-Moduswechsel warten
 RPR_WAIT="${WD_RPR_WAIT:-15}"           # Iterationen: JSC-streamt-wieder-Bestaetigung nach resend
 STATE="/run/manipulators-watchdog.state"
 TAG="manipulators-watchdog"
@@ -1101,7 +1102,7 @@ if [ -f "$STATE" ]; then
     fi
 fi
 
-log "Arm erreichbar (${ROBOT_IP}), aber JSC ${JS_TOPIC} stumm (Motion-Link tot) -> Recovery: ${SERVICE} neu starten, dann bestromen + ExternalControl neu starten."
+log "Arm erreichbar (${ROBOT_IP}), aber JSC ${JS_TOPIC} stumm (Motion-Link tot) -> Recovery: ${SERVICE} neu starten + ExternalControl neu starten. KEIN Auto-Bestromen des Arms (Bediener-Entscheidung)."
 echo "$now" > "$STATE"
 
 # --- Helfer: Modus-/Safety-Abfrage und Trigger-Aufrufe (alle via Dashboard) ---
@@ -1112,51 +1113,40 @@ call_trigger() {  # $1 Service-Pfad, $2 Timeout(s); 0 = success=True
     ros_cmd "timeout ${t} ros2 service call '${svc}' std_srvs/srv/Trigger" 2>&1 | grep -q 'success=True'
 }
 
-# 3a) Treiber neu starten (blockierend). Mit dem SIGINT-Stop-Drop-in auf
-#     clearpath-manipulators.service (siehe unten, WD_MANIP_DROPIN) stirbt der alte
-#     ros2_control_node sauber (Reverse-Socket geordnet geschlossen) statt SIGTERM bis
-#     zu 90s zu ignorieren -> der neue Controller-Manager startet gegen ein freies Socket.
-#     TimeoutStartSec des watchdog-Service (300s) deckt langsames Stoppen + Recovery ab.
-systemctl restart "$SERVICE" || log "systemctl restart ${SERVICE} lief nicht sauber - versuche Recovery trotzdem weiter."
-
-# 3b) clearpath-custom-ur-dashboard.service sicherstellen (power_on/brake_release brauchen den
-#     Dashboard-Client; unabhaengig von manipulators, bleibt beim Restart oben).
+# 3a) clearpath-custom-ur-dashboard.service sicherstellen (Mode-Abfrage + resend
+#     brauchen den Dashboard-Client; unabhaengig von manipulators, bleibt oben).
 if [ "$(systemctl is-active "$DASH_SVC" 2>/dev/null)" != "active" ]; then
     log "${DASH_SVC} nicht aktiv -> starte es."
     systemctl start "$DASH_SVC" || true
     sleep 3
 fi
 
-# 3c) Arm bestromen (power_on). Beides geht ans Dashboard (unabhaengig vom manipulators-CM).
-if ! call_trigger "${DASH_NS}/power_on" 15; then
-    log "power_on fehlgeschlagen/Timeout - breche Recovery ab (naechster Timer-Lauf)."
+# 3b) Arm bewusst aus? KEIN Auto-Recovery und KEIN Auto-Bestromen - der Watchdog
+#     powert den Arm NIE selbst (Bediener-Entscheidung; schuetzt Wartung/Feierabend).
+#     Verhindert zusaetzlich ein Endlos-Restarten des Treibers gegen einen stromlosen
+#     Arm (HW-Aktivierung schlaegt ohnehin fehl -> JSC bliebe stumm -> Loop).
+rm_mode="$(robot_mode)"
+if [ "$rm_mode" = "Robotmode: POWER_OFF" ]; then
+    log "Arm ist POWER_OFF (bewusst stromlos) -> kein Auto-Recovery, kein Bestromen. Bei Bedarf manuell bestromen; der Watchdog verbindet den Motion-Link, sobald der Arm an ist."
     exit 0
 fi
-for i in $(seq 1 "${POWER_TIMEOUT}"); do
-    [ "$(robot_mode)" != "Robotmode: POWER_OFF" ] && break
-    sleep 1
-done
-log "nach power_on: $(robot_mode)."
 
-# 3d) Safety-Check: Safety-Stop wird NICHT auto-gecleart (manuell). Nur loggen + Ende.
+# 3c) Treiber neu starten (blockierend). Mit dem SIGINT-Stop-Drop-in auf
+#     clearpath-manipulators.service (siehe unten, WD_MANIP_DROPIN) stirbt der alte
+#     ros2_control_node sauber (Reverse-Socket geordnet geschlossen) statt SIGTERM bis
+#     zu 90s zu ignorieren -> der neue Controller-Manager startet gegen ein freies Socket.
+#     TimeoutStartSec des watchdog-Service (300s) deckt langsames Stoppen + Recovery ab.
+systemctl restart "$SERVICE" || log "systemctl restart ${SERVICE} lief nicht sauber - versuche Recovery trotzdem weiter."
+
+# 3d) Safety-Check: Protective-/Safety-Stop wird NICHT auto-gecleart (manuell).
+#     Waehrend eines Safety-Stops kein resend (Bediener muss erst freigeben).
 sm="$(safety_mode)"
 if [ "$sm" != "Safetymode: NORMAL" ]; then
-    log "Safety-Modus ist '${sm:-unbekannt}' (kein NORMAL) -> Protective-/Safety-Stop. NICHT auto-gecleart, manuelle Begutachtung noetig. brake_release/resend uebersprungen."
+    log "Safety-Modus ist '${sm:-unbekannt}' (kein NORMAL) -> Protective-/Safety-Stop. NICHT auto-gecleart, resend uebersprungen. Manuelle Begutachtung noetig."
     exit 0
 fi
 
-# 3e) Bremsen loesen (brake_release).
-if ! call_trigger "${DASH_NS}/brake_release" 15; then
-    log "brake_release fehlgeschlagen/Timeout."
-    exit 0
-fi
-for i in $(seq 1 "${POWER_TIMEOUT}"); do
-    [ "$(robot_mode)" = "Robotmode: RUNNING" ] && break
-    sleep 1
-done
-log "nach brake_release: $(robot_mode)."
-
-# 3f) ExternalControl direkt neu starten (resend_robot_program) - mit Retries, weil
+# 3e) ExternalControl direkt neu starten (resend_robot_program) - mit Retries, weil
 #     der neue manipulators-CM ein paar Sekunden braucht, bis io_and_status_controller
 #     aktiv ist, und Service-Discovery unter rmw_zenoh zaehe sein kann. Direkter Aufruf
 #     statt ros2-service-list-Poll (letzterer ist unter rmw_zenoh unzuverlaessig).
@@ -1176,7 +1166,7 @@ if [ -z "$sent" ]; then
     exit 0
 fi
 
-# 3g) Erfolg verifizieren: JSC streamt wieder (reale Arm-Gelenke). Zuverlaessiger als
+# 3f) Erfolg verifizieren: JSC streamt wieder (reale Arm-Gelenke). Zuverlaessiger als
 #     rpr, weil es direkt den PC-Motion-Link bestaetigt (nicht nur das controller-seitige
 #     Programm). Kurz - resend hat ExternalControl gestartet, JSC wird schnell aktiv.
 ok=""
