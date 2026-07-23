@@ -120,6 +120,7 @@ def main(argv=None) -> int:
     import struct  # noqa: F401  (nur zur Dokumentation: Layout ist 3x float32)
 
     import rclpy
+    from rclpy.executors import ExternalShutdownException
     from rclpy.node import Node
     from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
     from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
@@ -130,8 +131,11 @@ def main(argv=None) -> int:
             ns = self.declare_parameter(
                 "camera_ns", "/a200_0553/sensors/camera_0"
             ).value
+            # Treiber-registriertes aligned-Depth (robot.yaml align_depth.enable):
+            # heisst beim realsense2_camera-Treiber '.../image', NICHT
+            # '.../image_raw' (Kontrakt-Profil camera.depth).
             self.depth_topic = self.declare_parameter(
-                "depth_topic", f"{ns}/aligned_depth_to_color/image_raw"
+                "depth_topic", f"{ns}/aligned_depth_to_color/image"
             ).value
             self.info_topic = self.declare_parameter(
                 "info_topic", f"{ns}/aligned_depth_to_color/camera_info"
@@ -218,8 +222,15 @@ def main(argv=None) -> int:
     node = OctomapFeed()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass  # normaler Stopp (Ctrl+C / systemd)
+    except Exception:
+        # SIGTERM-Shutdown-Race (systemd stop): rclpys Signal-Handler
+        # invalidiert den Context, waehrend spin noch ein WaitSet baut ->
+        # RCLError "context is not valid".  Das ist ein normaler Stopp --
+        # nur bei noch gueltigem Context ist es ein echter Fehler.
+        if rclpy.ok():
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

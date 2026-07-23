@@ -498,6 +498,19 @@ def add_octomap_sensor_params(label):
     if not os.path.exists(OCTOMAP_UNIT_FILE):
         log(f"{label}: octomap-feed nicht installiert - uebersprungen.")
         return False
+    # Der PointCloudOctomapUpdater kommt aus moveit_ros_perception -- ist das
+    # Paket nicht installiert, wuerden die Sensorparameter move_group nur
+    # einen Plugin-Load-Fehler pro Boot bescheren.  Paket-Installation ist
+    # eine ADMIN-Entscheidung (apt hat diesen Roboter schon einmal zerlegt,
+    # s. README/clearpath-apt-update-recovery) -- dieser Schritt aktiviert
+    # sich beim naechsten Boot von selbst, sobald das Paket da ist.
+    import glob as _glob
+    if not _glob.glob("/opt/ros/*/share/moveit_ros_perception"):
+        log(f"{label}: moveit_ros_perception fehlt (liefert den "
+            "PointCloudOctomapUpdater) - Sensorparameter werden NICHT "
+            "eingetragen; nach Paket-Installation (Admin!) greift dieser "
+            "Schritt beim naechsten Boot automatisch.", err=True)
+        return False
     try:
         import yaml
     except ImportError:
@@ -540,6 +553,10 @@ def add_octomap_sensor_params(label):
         "padding_offset": 0.03,
         "padding_scale": 1.0,
         "max_update_rate": 5.0,
+        # PFLICHT in Jazzy: setParams ist eine UND-Kette ueber alle sieben
+        # Parameter -- fehlt einer (auch dieser Debug-Ausgang), scheitert
+        # der Updater mit "Failed to configure".  Leer = kein Debug-Topic.
+        "filtered_cloud_topic": "",
     }
     if params.get("octomap_frame") != "base_link":
         params["octomap_frame"] = "base_link"
@@ -1641,6 +1658,16 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
         chmod 0644 "$OCTO_UNIT_PATH"
+        # Reine PRUEFUNG (kein apt!): der PointCloudOctomapUpdater kommt aus
+        # moveit_ros_perception. Fehlt das Paket, laeuft der Feed zwar, aber
+        # der Boot-Patcher traegt die move_group-Sensorparameter bewusst
+        # nicht ein (Gate) - Installation ist eine Admin-Entscheidung.
+        if ! ls -d /opt/ros/*/share/moveit_ros_perception >/dev/null 2>&1; then
+            echo "    WARN: ros-<distro>-moveit-ros-perception ist NICHT installiert."
+            echo "          Der Octomap bleibt inaktiv (Patcher-Gate), bis das Paket da ist."
+            echo "          Installation NUR bewusst im Wartungsfenster (apt-Historie dieses"
+            echo "          Roboters beachten; vorher 'apt-get install -s' pruefen)."
+        fi
     else
         echo "    WARN: octomap_feed.py weder ladbar noch lokal vorhanden - Octomap uebersprungen."
     fi

@@ -90,6 +90,20 @@ dem Octree (`excludeWorldObjectsFromOctree` / `excludeAttachedBodiesFromOctree`)
 also keine blockierenden Voxel; Griffe bleiben planbar. Der Roboter selbst wird
 vom Updater geometrisch selbst-gefiltert (`padding_offset` 0.03).
 
+**Voraussetzung (bewusst NICHT vom Installer erledigt):** der
+`PointCloudOctomapUpdater` kommt aus **`ros-jazzy-moveit-ros-perception`** —
+auf a200-0553 Stand 2026-07-23 *nicht* installiert. Der Boot-Patcher ist
+darauf **gated**: fehlt das Paket, trägt er die Sensorparameter nicht ein
+(move_group läuft dann exakt wie bisher, ohne Fehlerzeile), und sobald das
+Paket vorhanden ist, aktiviert sich der Octomap beim nächsten Boot von
+selbst. Die Installation ist eine **Admin-Entscheidung im Wartungsfenster**
+(apt hat diesen Roboter schon einmal zerlegt — siehe Snapshot/Hold-Historie):
+vorher mit `apt-get install -s ros-jazzy-moveit-ros-perception` simulieren
+und nur fortfahren, wenn dabei **nichts** aktualisiert oder entfernt wird
+(Stand 2026-07-23 stammt der Kandidat `2.12.4-1noble.20260412.063337` aus
+demselben Snapshot wie das installierte `moveit-core` — die Simulation
+sollte also nur das neue Paket zeigen).
+
 **Verifikation nach Install + Reboot (Checkliste):**
 
 1. `journalctl -u clearpath-custom-octomap-feed -b` → Startzeile mit Topic/Rate.
