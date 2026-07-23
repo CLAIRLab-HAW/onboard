@@ -65,6 +65,20 @@ RG6_UNIT_PATH="/etc/systemd/system/${RG6_UNIT}"
 # Kopie auf - nie direkt den user-schreibbaren Workspace.
 RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
 
+# Octomap-Feed (Schritt 2 der HRL-Hindernis-Architektur): gedrosselte
+# Depth->PointCloud2-Quelle fuer MoveIts Occupancy Map Monitor, damit
+# move_group auch UNGETRACKTEN Hindernissen ausweicht (dichte Voxel-Schicht;
+# die objekt-basierten Boxen vom Mac bleiben fuer Task-Objekte + Twin).
+# Kanonische Quelle im Repo (scripts/octomap_feed.py, SSOT wie robot.yaml);
+# root-eigene Kopie unter /usr/local/bin, gestartet vom Boot-Service. Die
+# move_group-Sensorparameter setzt der Boot-Patcher (Schritt 5) NUR, wenn
+# die Unit-Datei existiert.
+OCTO_FEED_URL="https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/scripts/octomap_feed.py"
+OCTO_FEED_BIN="${BIN_DIR}/octomap-feed"
+OCTO_WRAPPER="${BIN_DIR}/octomap-feed.sh"
+OCTO_UNIT="clearpath-custom-octomap-feed.service"
+OCTO_UNIT_PATH="/etc/systemd/system/${OCTO_UNIT}"
+
 # UR dashboard_client: Clearpath startet ihn im headless-Setup NICHT mit, liefert
 # aber power_on/brake_release/unlock_protective_stop/restart_safety/get_*_mode.
 # Kein Build noetig (kommt aus ros-jazzy-ur-robot-driver). robot_ip = UR-Control-Box.
@@ -461,6 +475,109 @@ def move_arm_joint_states(label):
     return bool(changed)
 
 
+MOVEIT_YAML = "/etc/clearpath/manipulators/config/moveit.yaml"
+OCTOMAP_UNIT_FILE = "/etc/systemd/system/clearpath-custom-octomap-feed.service"
+OCTOMAP_SENSOR = "wrist_depth_camera"
+
+
+def add_octomap_sensor_params(label):
+    """Occupancy-Map-Monitor (Octomap) in move_group aktivieren (Schritt 5).
+
+    Nur aktiv, wenn der octomap-feed-Boot-Service installiert ist (die Unit-
+    Datei ist der Schalter: Datei loeschen + Reboot = Octomap wieder aus).
+    Traegt in das generierte manipulators/config/moveit.yaml die Sensor-
+    Parameter des PointCloudOctomapUpdater ein (idempotent, .bak, atomar --
+    Stil rg6_moveit_patch).  Die Wolke liefert clearpath-custom-octomap-feed
+    (gedrosselt, s. octomap-feed).  octomap_frame ist bewusst base_link,
+    NICHT odom: odom ist auf diesem Roboter UTM-gestuetzt und springt --
+    Voxel wuerden relativ zum Roboter wandern.  Die vom Offboard-Client
+    gepushten Collision-Objects (Wuerfel, Boden-Slab, Hindernis-Boxen)
+    maskiert MoveIts PlanningSceneMonitor selbst aus dem Octree
+    (excludeWorldObjects/AttachedBodiesFromOctree) -> Griffe bleiben planbar.
+    """
+    if not os.path.exists(OCTOMAP_UNIT_FILE):
+        log(f"{label}: octomap-feed nicht installiert - uebersprungen.")
+        return False
+    try:
+        import yaml
+    except ImportError:
+        log(f"{label}: PyYAML fehlt (apt: python3-yaml) - uebersprungen.",
+            err=True)
+        return False
+    if not os.path.isfile(MOVEIT_YAML):
+        log(f"{label}: {MOVEIT_YAML} fehlt (Generierung gelaufen?) - "
+            "uebersprungen.", err=True)
+        return False
+    try:
+        with open(MOVEIT_YAML) as f:
+            data = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError) as e:
+        log(f"{label}: {MOVEIT_YAML} nicht lesbar: {e}", err=True)
+        return False
+    if not isinstance(data, dict):
+        log(f"{label}: {MOVEIT_YAML} hat unerwartetes Format - uebersprungen.",
+            err=True)
+        return False
+    params, ns_key = None, None
+    for key, val in data.items():
+        if isinstance(val, dict) and "move_group" in val:
+            params = val["move_group"].get("ros__parameters")
+            ns_key = key
+            break
+    if params is None:
+        log(f"{label}: kein move_group.ros__parameters - uebersprungen.",
+            err=True)
+        return False
+
+    changed = False
+    sensor_block = {
+        "sensor_plugin": "occupancy_map_monitor/PointCloudOctomapUpdater",
+        "point_cloud_topic": f"/{ns_key}/sensors/camera_0/octomap_points",
+        "max_range": 2.0,
+        # Wolke kommt bereits gestrided vom Feed-Node; padding_* steuern den
+        # geometrischen Roboter-Self-Filter des Updaters.
+        "point_subsample": 1,
+        "padding_offset": 0.03,
+        "padding_scale": 1.0,
+        "max_update_rate": 5.0,
+    }
+    if params.get("octomap_frame") != "base_link":
+        params["octomap_frame"] = "base_link"
+        changed = True
+    if params.get("octomap_resolution") != 0.025:
+        params["octomap_resolution"] = 0.025
+        changed = True
+    sensors = params.setdefault("sensors", [])
+    if OCTOMAP_SENSOR not in sensors:
+        sensors.append(OCTOMAP_SENSOR)
+        changed = True
+    if params.get(OCTOMAP_SENSOR) != sensor_block:
+        params[OCTOMAP_SENSOR] = sensor_block
+        changed = True
+    if not changed:
+        log(f"{label}: bereits korrekt.")
+        return False
+
+    backup = MOVEIT_YAML + ".bak"
+    if not os.path.exists(backup):
+        try:
+            shutil.copy2(MOVEIT_YAML, backup)
+        except OSError:
+            pass
+    tmp = MOVEIT_YAML + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
+        os.replace(tmp, MOVEIT_YAML)
+    except OSError as e:
+        log(f"{label}: kann {MOVEIT_YAML} nicht schreiben: {e}", err=True)
+        return False
+    log(f"{label}: Occupancy-Map-Monitor eingetragen "
+        f"(sensor {OCTOMAP_SENSOR}, topic /{ns_key}/sensors/camera_0/"
+        "octomap_points, frame base_link, res 0.025).")
+    return True
+
+
 def run_rg6_moveit_patch(label):
     """RG6 in die frisch generierte MoveIt-Config einhaengen.
 
@@ -511,6 +628,11 @@ def main():
     # 4) RG6 in MoveIt: robot.srdf (Gruppe 'gripper' + EE) und moveit.yaml
     #    (GripperCommand-Controller + joint_limits) patchen (onrobot-rg6-Tool).
     run_rg6_moveit_patch("rg6 moveit")
+    # 5) Octomap: Occupancy-Map-Monitor-Sensorparameter in moveit.yaml --
+    #    NUR wenn der octomap-feed-Boot-Service installiert ist (Schritt 2
+    #    der HRL-Hindernis-Architektur; muss NACH rg6_moveit_patch laufen,
+    #    beide schreiben dieselbe Datei).
+    add_octomap_sensor_params("octomap sensors")
     log("Fertig.")
     return 0
 
@@ -1455,6 +1577,78 @@ else
     echo ">>> robot.yaml: einmaliges Update uebersprungen (Boot-Service zieht sie beim naechsten Boot)."
 fi
 
+# --- Octomap-Feed (optional): dichte Hindernis-Schicht fuer move_group -----
+# Schritt 2 der HRL-Hindernis-Architektur: move_group pflegt aus der Wrist-
+# D435 einen Octomap (Occupancy Map Monitor) und weicht damit auch Hindernissen
+# aus, die der offboard Objekt-Tracker nicht (oder noch nicht) kennt --
+# Raycasts raeumen freigewordenen Raum automatisch.  Dieser Service liefert
+# die gedrosselte PointCloud2 (octomap_feed.py, Default 5 Hz / stride 2);
+# die move_group-Sensorparameter setzt der Boot-Patcher (Schritt 5) NUR,
+# wenn die Unit-Datei existiert.  Deinstallation: 'systemctl disable --now
+# clearpath-custom-octomap-feed', Unit-Datei loeschen, reboot (der Patcher
+# laesst moveit.yaml dann wieder unangetastet; .bak liegt daneben).
+DO_OCTO=1
+if [ -f "$OCTO_UNIT_PATH" ]; then
+    confirm ">>> ${OCTO_UNIT} ist bereits installiert. Aktualisieren?" || DO_OCTO=0
+else
+    confirm ">>> Octomap-Feed installieren (move_group weicht dann auch ungetrackten Hindernissen aus; ~5 Hz Onboard-Last)?" || DO_OCTO=0
+fi
+if [ "$DO_OCTO" -eq 1 ]; then
+    echo ">>> Installiere ${OCTO_FEED_BIN}"
+    OCTO_TMP="$(mktemp)"
+    OCTO_SRC=""
+    if curl -fsSL --connect-timeout 5 --max-time 30 "$OCTO_FEED_URL" -o "$OCTO_TMP"; then
+        if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$OCTO_TMP"; then
+            OCTO_SRC="$OCTO_TMP"
+        else
+            echo "    WARN: Download ist kein gueltiges Python - verwerfe."
+        fi
+    fi
+    if [ -z "$OCTO_SRC" ] && [ -f "$(dirname "$0")/scripts/octomap_feed.py" ]; then
+        echo "    Download nicht verfuegbar - nutze lokale Repo-Kopie."
+        OCTO_SRC="$(dirname "$0")/scripts/octomap_feed.py"
+    fi
+    if [ -n "$OCTO_SRC" ]; then
+        install -m 0755 -o root -g root "$OCTO_SRC" "$OCTO_FEED_BIN"
+        # Selbsttest der Konvertierung (numpy-only, kein ROS noetig).
+        python3 "$OCTO_FEED_BIN" --selftest || echo "    WARN: Selbsttest fehlgeschlagen - Service wird trotzdem installiert (Logs pruefen)."
+
+        echo ">>> Installiere ${OCTO_WRAPPER} + ${OCTO_UNIT}"
+        cat > "$OCTO_WRAPPER" <<EOF
+#!/usr/bin/env bash
+# Gedrosselte Depth->PointCloud2-Quelle fuer MoveIts Octomap (octomap_feed).
+source /etc/clearpath/setup.bash
+exec python3 ${OCTO_FEED_BIN}
+EOF
+        chmod 0755 "$OCTO_WRAPPER"
+
+        cat > "$OCTO_UNIT_PATH" <<EOF
+[Unit]
+Description=Octomap feed: Depth -> PointCloud2 fuer MoveIts Occupancy Map Monitor
+After=clearpath-sensors.service
+Wants=clearpath-sensors.service
+# Stack-Restart-Verhalten wie rg6-bringup: an beide Wurzeln haengen
+# (praktischer Stack-Restart laeuft ueber clearpath-robot).
+PartOf=clearpath-robot.service clearpath-sensors.service
+
+[Service]
+User=${REAL_USER}
+ExecStart=${OCTO_WRAPPER}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        chmod 0644 "$OCTO_UNIT_PATH"
+    else
+        echo "    WARN: octomap_feed.py weder ladbar noch lokal vorhanden - Octomap uebersprungen."
+    fi
+    rm -f "$OCTO_TMP"
+else
+    echo ">>> Octomap-Feed: uebersprungen."
+fi
+
 # --- aktivieren ------------------------------------------------------------
 echo ">>> systemd neu einlesen + Services aktivieren (+ starten, nicht nur Boot-Symlink)"
 systemctl daemon-reload
@@ -1470,6 +1664,7 @@ systemctl enable --now "$UNIT_NAME" "$RG6_UNIT" "$JS_UNIT" "$ROBOT_YAML_UNIT"
 [ -f "$ARM_CTRL_UNIT_PATH" ] && systemctl enable --now "$ARM_CTRL_UNIT"
 # Watchdog: den TIMER aktivieren + starten (die .service ist der oneshot-Check, den er triggert).
 [ -f "$WD_TIMER_PATH" ] && systemctl enable --now "$WD_TIMER"
+[ -f "$OCTO_UNIT_PATH" ] && systemctl enable --now "$OCTO_UNIT"
 
 echo ">>> Unit-Syntax pruefen"
 VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH" "$ROBOT_YAML_UNIT_PATH")
@@ -1477,6 +1672,7 @@ VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH" "$ROBOT_YAML_UNIT_PA
 [ -f "$USM_UNIT_PATH" ] && VERIFY_UNITS+=("$USM_UNIT_PATH")
 [ -f "$ARM_CTRL_UNIT_PATH" ] && VERIFY_UNITS+=("$ARM_CTRL_UNIT_PATH")
 [ -f "$WD_UNIT_PATH" ] && VERIFY_UNITS+=("$WD_UNIT_PATH" "$WD_TIMER_PATH")
+[ -f "$OCTO_UNIT_PATH" ] && VERIFY_UNITS+=("$OCTO_UNIT_PATH")
 systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    Units OK."
 
 # --- Patches jetzt einmal anwenden -----------------------------------------
@@ -1503,6 +1699,8 @@ echo "  ${WD_TIMER}    : Treiber-Reconnect bei spaetem Arm-Einschalten ODER hän
 echo "  clearpath-manipulators.service.d/override.conf : SIGINT-Stop-Drop-in (sauberes Treiber-Shutdown, verhindert Socket-Kollision beim Reconnect)"
 [ -f "$RG6_MOVEIT_PATCH_BIN" ] && \
 echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-eigene Kopie des rg6_moveit_patch (vom Boot-Service genutzt, aktualisiert nur der Installer)"
+[ -f "$OCTO_UNIT_PATH" ] && \
+echo "  ${OCTO_UNIT}   : Depth->PointCloud2 fuer MoveIts Octomap (Patch-Schritt 5 setzt die move_group-Sensorparameter beim Boot)"
 echo
 echo "Damit ALLES greift, einmal neu starten:"
 echo "  sudo systemctl restart clearpath-robot.service   # oder reboot"
@@ -1520,6 +1718,8 @@ echo "  journalctl -u ${USM_UNIT} -b"
 echo "  journalctl -u ${ARM_CTRL_UNIT} -b"
 [ -f "$WD_TIMER_PATH" ] && \
 echo "  journalctl -t manipulators-watchdog -b   # + 'systemctl list-timers ${WD_TIMER}'"
+[ -f "$OCTO_UNIT_PATH" ] && \
+echo "  journalctl -u ${OCTO_UNIT} -b"
 echo
 echo "Hinweis: robot.yaml wird ab jetzt aus dem Git-Repo verwaltet (SSOT)."
 echo "  Aenderungen (platform.extras.urdf, system.ros2.workspaces, Arm-/Sensor-Config)"

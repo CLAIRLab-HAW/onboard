@@ -59,3 +59,53 @@ in ~1–3 s); under `SIGTERM` the old `ros2_control_node` ignores the signal and
 to 90 s as a zombie still holding the reverse socket — which is what causes the socket
 collision in case (b) above. The drop-in layers over the Clearpath-owned unit and
 survives package updates.
+
+## `clearpath-custom-octomap-feed.service` (MoveIt-Octomap: dichte Hindernis-Schicht)
+
+Schritt 2 der HRL-Hindernis-Architektur (Schritt 1 = objekt-basierte Boxen vom
+Offboard-Client über `/twin/scene_update`): `move_group` pflegt über seinen
+**Occupancy Map Monitor** (`PointCloudOctomapUpdater`) einen probabilistischen
+Voxel-Octree aus der Wrist-D435 und weicht damit auch Hindernissen aus, die der
+Objekt-Tracker nicht (oder noch nicht) kennt. Raycasts räumen freigewordenen
+Raum automatisch — die „Frische“ ist damit sensor-getaktet statt heuristisch.
+
+Zwei Bausteine, beide vom Installer (optionaler Schritt):
+
+1. **`octomap-feed`** (`scripts/octomap_feed.py`, root-eigene Kopie unter
+   `/usr/local/bin`): drosselt das 30-fps-Depth der Kamera auf ~5 Hz, subsampled
+   (stride 2) und publiziert `…/sensors/camera_0/octomap_points`
+   (PointCloud2 im optischen Frame; QoS RELIABLE, matcht jeden Subscriber).
+   Selbsttest ohne ROS: `python3 /usr/local/bin/octomap-feed --selftest`.
+2. **Boot-Patcher Schritt 5** (`clearpath-custom-setup.py`,
+   `add_octomap_sensor_params`): trägt die Sensor-Parameter idempotent in das
+   generierte `/etc/clearpath/manipulators/config/moveit.yaml` ein — **nur**
+   wenn die Unit-Datei existiert (die Datei ist der Feature-Schalter).
+   `octomap_frame` ist bewusst `base_link` (odom ist auf diesem Roboter
+   UTM-gestützt und springt), `octomap_resolution` 0.025, `max_range` 2.0.
+
+**Zusammenspiel mit den Objekt-Collision-Objects:** MoveIts
+PlanningSceneMonitor maskiert bekannte World-Objects und attachte Bodies aus
+dem Octree (`excludeWorldObjectsFromOctree` / `excludeAttachedBodiesFromOctree`)
+— die vom Mac gepushten Würfel, der Boden-Slab und die Hindernis-Boxen erzeugen
+also keine blockierenden Voxel; Griffe bleiben planbar. Der Roboter selbst wird
+vom Updater geometrisch selbst-gefiltert (`padding_offset` 0.03).
+
+**Verifikation nach Install + Reboot (Checkliste):**
+
+1. `journalctl -u clearpath-custom-octomap-feed -b` → Startzeile mit Topic/Rate.
+2. `ros2 topic hz /a200_0553/sensors/camera_0/octomap_points` → ~5 Hz.
+3. `journalctl -t clearpath-custom-setup -b | grep octomap` → „Occupancy-Map-
+   Monitor eingetragen“ (bzw. „bereits korrekt“).
+4. move_group-Log: Zeile „Listening to '…/octomap_points' using message filter
+   with target frame 'base_link'“ (Monitor aktiv).
+5. RViz (offboard-lite): PlanningScene-Display → Octomap-Voxel sichtbar; Hand
+   vor die Kamera halten → Voxel erscheinen, wegnehmen → verschwinden (Raycast).
+6. Greif-Regression: Würfel-Collision-Objects dürfen KEINE Voxel tragen
+   (Maskierung); ein Descend auf einen Würfel muss weiterhin planen.
+7. CPU: `top` auf dem Onboard-PC — Feed + move_group-Insertion zusammen sollten
+   im einstelligen Prozentbereich bleiben; sonst `rate_hz`/`stride` senken
+   (ROS-Params der Unit) und `max_range` reduzieren.
+
+**Rollback:** `sudo systemctl disable --now clearpath-custom-octomap-feed`,
+Unit-Datei löschen, reboot — der Patcher lässt `moveit.yaml` dann unangetastet
+(die generierte Datei entsteht ohnehin bei jedem Boot neu; `.bak` liegt daneben).
