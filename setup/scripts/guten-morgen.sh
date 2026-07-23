@@ -161,7 +161,10 @@ call_trigger() {
     warn "${label}: Timeout - Service ${srv} nicht erreichbar."
     return 1
   fi
-  echo "$out" | grep -qiE 'success:\s*true' && { log "${label}: ok"; return 0; }
+  # ros2 service call druckt die Response als Python-Repr
+  # (`Trigger_Response(success=True, ...)`), NICHT als YAML (`success: true`).
+  # Beide Schreibweisen akzeptieren, sonst sieht jeder Erfolg wie ein Fehler aus.
+  echo "$out" | grep -qiE 'success[:=][[:space:]]*true' && { log "${label}: ok"; return 0; }
   warn "${label}: kein success=true. Auszug:"
   echo "$out" | tail -n 6 | sed 's/^/    /' >&2
   return 1
