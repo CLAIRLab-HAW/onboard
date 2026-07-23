@@ -131,6 +131,7 @@ sensors:
           rgb_camera.color_profile: 640,480,30
           enable_depth: true
           depth_module.depth_profile: 640,480,15
+          align_depth.enable: true
           pointcloud.enable: true
   gps: []
   imu:
