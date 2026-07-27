@@ -1,0 +1,5 @@
+cockpit-ros2-diagnostics (VERSION-1) UNRELEASED; urgency=medium
+
+  * Upstream build
+
+ -- Hilary Luo <hluo@clearpathrobotics.com>  Wed, 14 May 2025 13:34:21 +0400
