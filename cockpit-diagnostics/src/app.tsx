@@ -39,6 +39,7 @@ import { RosConnectionManager } from "./components/RosConnectionManager";
 import { useNamespace } from "./hooks/useNamespace";
 import { useWebSocketUrl } from "./hooks/useWebSocketUrl";
 import { DiagnosticsCapture } from "./components/DiagnosticsCapture";
+import { ManipulatorPanel } from "./components/ManipulatorPanel";
 import { ManualNamespace } from "./components/ManualNamespace";
 import { HistorySelection } from "./components/HistorySelection";
 import { useDiagHistory } from './hooks/useDiagHistory';
@@ -123,6 +124,8 @@ export const Application = () => {
                                 <>
                                     <DiagnosticsTable diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} variant="error" />
                                     <DiagnosticsTable diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} variant="warning" />
+                                    {/* Renders itself only on robots that publish manipulator diagnostics. */}
+                                    <ManipulatorPanel diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
                                 </>
                             )}
                             <DiagnosticsTreeTable

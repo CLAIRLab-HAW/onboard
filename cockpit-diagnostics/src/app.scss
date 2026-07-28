@@ -27,3 +27,30 @@
 .pf-v6-c-progress-stepper__step-main {
     margin-block-start: 0 !important;
 }
+
+/* Manipulator panel (arm + end effector) */
+
+.manipulator-subtitle {
+    color: var(--pf-t--global--text--color--subtle);
+    font-size: var(--pf-t--global--font--size--sm);
+    font-weight: var(--pf-t--global--font--weight--body--default);
+}
+
+.manipulator-hint {
+    color: var(--pf-t--global--text--color--subtle);
+    font-size: var(--pf-t--global--font--size--sm);
+    margin-inline-start: var(--pf-t--global--spacer--xs);
+}
+
+.manipulator-alert {
+    margin-block-end: var(--pf-t--global--spacer--sm);
+}
+
+.manipulator-opening {
+    margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.manipulator-joints,
+.manipulator-controllers {
+    margin-block-start: var(--pf-t--global--spacer--md);
+}

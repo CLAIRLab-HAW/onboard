@@ -1,5 +1,11 @@
 # Cockpit ROS 2 Diagnostics
 
+> **Fork note (CLAIRLab, HAW Hamburg).** This is a fork of
+> [clearpathrobotics/cockpit-ros2-diagnostics](https://github.com/clearpathrobotics/cockpit-ros2-diagnostics)
+> that adds a **Manipulator panel** for the arm and the end effector. See
+> [Manipulator panel](#manipulator-panel) below. Everything else is unchanged and
+> upstream stays the merge base.
+
 This is a Cockpit application that is intended to be installed alongside [Cockpit](https://cockpit-project.org/) and connects to the [foxglove bridge](https://docs.foxglove.dev/docs/connecting-to-data/ros-foxglove-bridge)
 
 This application is built on the Cockpit starter kit (https://github.com/cockpit-project/starter-kit) and using modified code files from https://github.com/tier4/roslibjs-foxglove.
@@ -46,6 +52,78 @@ The following instructions should be completed on the computer that is to be mon
 2. Open a [supported browser](https://cockpit-project.org/running) and go to `http://<ip-address>:9090` but replace `<ip-address>` with the ip address or hostname of your robot computer. Remember to use the IP address for the network over which you are connecting to the robot. In order for the websocket connection to work and successfully receive the ROS 2 topics, cockpit must be accessed over http, which is an unsecure connection. **Setting up a secure connection over https is currently unsupported**, but contributions are welcome.
 
 3. Go to the ROS 2 Diagnostics tab.
+
+# Manipulator panel
+
+On top of the generic diagnostics tree, this fork renders a dedicated
+**Manipulator** card: an *Arm* tile (robot mode, safety mode, external control,
+motion link, joint table, controller chips) and an *End effector* tile (opening
+bar, grip detected, motion, tool power, force preset, last command).
+
+It is a pure read over the aggregated diagnostics the app already subscribes to
+— **no additional topic subscription**, so pause, history and reconnect apply to
+it unchanged. On a robot without manipulator diagnostics the panel renders
+nothing at all.
+
+## Where the data comes from
+
+The panel looks for these statuses in `<namespace>/diagnostics_agg`:
+
+| Status name | Contents |
+|---|---|
+| `manipulator_diagnostics: Arm Mode` | `robot_mode`, `safety_mode` |
+| `manipulator_diagnostics: Arm Control` | external control, joint\_state rate/age, motion link |
+| `manipulator_diagnostics: Arm Joints` | `joints` (ordered CSV) plus `<joint>_rad` / `<joint>_deg` / `<joint>_vel_rad_s` / `<joint>_effort` |
+| `manipulator_diagnostics: Arm Controllers` | one key per controller, value = its state |
+| `manipulator_diagnostics: Gripper` | `width_mm`, `width_percent`, `stroke_mm`, `grip_detected`, `busy`, `tool_power_on`, `high_force_preset`, `last_command`, `force_raw_v` |
+
+Statuses are matched by their raw name, not by the analyzer path, so the panel
+does not care how the aggregator groups them.
+
+Nothing in ROS publishes these out of the box: the UR driver reports its state
+as `ur_dashboard_msgs`, a gripper driver in its own message type, and the arm's
+`controller_manager` publishes into the manipulator namespace rather than onto
+the topic the aggregator consumes. A small bridge node has to translate them
+into `diagnostic_msgs` and publish onto the aggregator's `/diagnostics` topic.
+
+For the a200-0553 (UR5 CB3 + OnRobot RG6) that node is
+[`manipulator_diagnostics.py`](https://github.com/CLAIRLab-HAW/husky-custom-setup/blob/main/scripts/manipulator_diagnostics.py)
+in `husky-custom-setup`, which also installs it as a boot service and registers
+the matching aggregator analyzers. To feed the panel from a different arm or
+gripper, publish the same status names and value keys — the panel needs nothing
+else.
+
+## Installing this fork on a robot
+
+Cockpit searches `~/.local/share/cockpit`, `/etc/cockpit`,
+`/usr/local/share/cockpit`, `/usr/share/cockpit` in that order, so installing to
+`/usr/local` **overrides** the Debian package in `/usr/share` without replacing
+it. The package directory name must stay `ros2-diagnostics` (the `name` in
+`package.json`) for that to work — a different name shows up as a second menu
+entry instead.
+
+```bash
+make
+sudo make install            # -> /usr/local/share/cockpit/ros2-diagnostics
+```
+
+To go back to the packaged version, remove that directory; no apt operation is
+needed. While the override is in place, apt updates of
+`cockpit-ros2-diagnostics` have no visible effect — rebase the fork when you
+want them.
+
+On the a200-0553 the `husky-custom-setup` installer does this as an optional
+step. It deliberately does **not** install a node toolchain on the robot: it
+prefers a prebuilt `dist/` in the checkout and only builds on the robot if
+`npm` and `make` happen to be present. The recommended flow is to build on a
+workstation and copy the result over:
+
+```bash
+make && rsync -a dist/ robot@<robot>:~/cockpit-ros2-diagnostics/dist/
+```
+
+(`dist/` is gitignored upstream. If you would rather have fully offline robot
+installs, drop that line from `.gitignore` and commit the build output.)
 
 # Development and Source Instructions
 
