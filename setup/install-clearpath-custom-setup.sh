@@ -79,6 +79,29 @@ OCTO_WRAPPER="${BIN_DIR}/octomap-feed.sh"
 OCTO_UNIT="clearpath-custom-octomap-feed.service"
 OCTO_UNIT_PATH="/etc/systemd/system/${OCTO_UNIT}"
 
+# Manipulator-Diagnose: uebersetzt UR-Mode/Safety/ExternalControl und den
+# RG6-Zustand in diagnostic_msgs und publiziert sie auf dem /diagnostics-Topic,
+# das der Clearpath-diagnostic_aggregator abonniert. Erst damit taucht der
+# Manipulator ueberhaupt in diagnostics_agg auf -- also in Cockpit,
+# rqt_robot_monitor und im Diagnose-Capture. Den passenden Analyzer-Block
+# traegt der Boot-Patcher (Schritt 6) ein, NUR wenn diese Unit existiert.
+MD_FEED_URL="https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/scripts/manipulator_diagnostics.py"
+MD_BIN="${BIN_DIR}/manipulator-diagnostics"
+MD_WRAPPER="${BIN_DIR}/manipulator-diagnostics.sh"
+MD_UNIT="clearpath-custom-manipulator-diagnostics.service"
+MD_UNIT_PATH="/etc/systemd/system/${MD_UNIT}"
+
+# Cockpit-Plugin (Fork von clearpathrobotics/cockpit-ros2-diagnostics mit dem
+# Manipulator-Panel). Cockpit sucht Pakete in dieser Reihenfolge:
+# ~/.local/share/cockpit, /etc/cockpit, /usr/local/share/cockpit,
+# /usr/share/cockpit -- der Fork unter /usr/local ueberdeckt also das
+# apt-Paket unter /usr/share, ohne es anzufassen. Deinstallation =
+# Verzeichnis loeschen, dann ist das Original wieder aktiv (kein apt noetig).
+# Der Verzeichnisname MUSS 'ros2-diagnostics' sein (package.json "name"), sonst
+# ueberdeckt er nicht, sondern erscheint als zweiter Menuepunkt.
+CKPT_REPO_URL="https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics.git"
+CKPT_PKG_DIR="/usr/local/share/cockpit/ros2-diagnostics"
+
 # UR dashboard_client: Clearpath startet ihn im headless-Setup NICHT mit, liefert
 # aber power_on/brake_release/unlock_protective_stop/restart_safety/get_*_mode.
 # Kein Build noetig (kommt aus ros-jazzy-ur-robot-driver). robot_ip = UR-Control-Box.
@@ -212,6 +235,7 @@ REAL_USER="${SUDO_USER:-robot}"
 USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
 RG6_WS="${USER_HOME}/onrobot-rg6"
 USM_WS="${USER_HOME}/ur-state-manager"
+CKPT_WS="${USER_HOME}/cockpit-ros2-diagnostics"
 
 if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
     echo "FEHLER: Bitte oben im Skript RG6_REPO_URL auf die Git-URL von onrobot-rg6 setzen."
@@ -595,6 +619,122 @@ def add_octomap_sensor_params(label):
     return True
 
 
+AGGREGATOR_YAML = "/etc/clearpath/platform/config/diagnostic_aggregator.yaml"
+MANIPULATOR_UNIT_FILE = (
+    "/etc/systemd/system/clearpath-custom-manipulator-diagnostics.service")
+MANIPULATOR_STATUS_PREFIX = "manipulator_diagnostics"
+
+# Analyzer-Block fuer den Manipulator, flach mit Punkt-Keys geschrieben.
+# ROS 2 behandelt 'a.b: 1' und 'a: {b: 1}' identisch (beides ergibt den
+# Parameter 'a.b') -- flach zu schreiben macht den Patch unabhaengig davon,
+# ob der Generator die uebrigen Analyzer verschachtelt oder flach ablegt.
+# 'expected' ist wichtig: fehlt ein Status (Node tot), erzeugt der Aggregator
+# dafuer einen STALE-Eintrag, statt ihn stillschweigend verschwinden zu lassen.
+MANIPULATOR_ANALYZERS = {
+    "manipulator.type": "diagnostic_aggregator/AnalyzerGroup",
+    "manipulator.path": "Manipulator",
+    "manipulator.analyzers.arm.type": "diagnostic_aggregator/GenericAnalyzer",
+    "manipulator.analyzers.arm.path": "Arm",
+    "manipulator.analyzers.arm.startswith": [f"{MANIPULATOR_STATUS_PREFIX}: Arm"],
+    "manipulator.analyzers.arm.expected": [
+        f"{MANIPULATOR_STATUS_PREFIX}: Arm Mode",
+        f"{MANIPULATOR_STATUS_PREFIX}: Arm Control",
+        f"{MANIPULATOR_STATUS_PREFIX}: Arm Joints",
+        f"{MANIPULATOR_STATUS_PREFIX}: Arm Controllers",
+    ],
+    "manipulator.analyzers.gripper.type": "diagnostic_aggregator/GenericAnalyzer",
+    "manipulator.analyzers.gripper.path": "Gripper",
+    "manipulator.analyzers.gripper.startswith": [
+        f"{MANIPULATOR_STATUS_PREFIX}: Gripper"],
+    "manipulator.analyzers.gripper.expected": [
+        f"{MANIPULATOR_STATUS_PREFIX}: Gripper"],
+}
+
+
+def add_manipulator_analyzers(label):
+    """Manipulator-Analyzer in die generierte diagnostic_aggregator.yaml (Schritt 6).
+
+    clearpath_generator_common erzeugt Analyzer nur fuer Platform (Power,
+    E-Stop, Drive) und Sensoren -- Arm und Greifer kommen im Generator gar
+    nicht vor.  Ohne diesen Block landen die Status des
+    manipulator_diagnostics-Node im Catch-All des Aggregators (bzw. gar nicht)
+    und tauchen in Cockpit nicht als eigene Gruppe auf.
+
+    Nur aktiv, wenn der manipulator-diagnostics-Boot-Service installiert ist
+    (die Unit-Datei ist der Schalter, wie beim octomap-feed): Datei loeschen
+    + Reboot = Analyzer wieder weg.  Idempotent, .bak, atomar.
+    """
+    if not os.path.exists(MANIPULATOR_UNIT_FILE):
+        log(f"{label}: manipulator-diagnostics nicht installiert - uebersprungen.")
+        return False
+    try:
+        import yaml
+    except ImportError:
+        log(f"{label}: PyYAML fehlt (apt: python3-yaml) - uebersprungen.", err=True)
+        return False
+    if not os.path.isfile(AGGREGATOR_YAML):
+        log(f"{label}: {AGGREGATOR_YAML} fehlt (Generierung gelaufen?) - "
+            "uebersprungen.", err=True)
+        return False
+    try:
+        with open(AGGREGATOR_YAML) as f:
+            data = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError) as e:
+        log(f"{label}: {AGGREGATOR_YAML} nicht lesbar: {e}", err=True)
+        return False
+    if not isinstance(data, dict):
+        log(f"{label}: {AGGREGATOR_YAML} hat unerwartetes Format - uebersprungen.",
+            err=True)
+        return False
+
+    # Der Generator schreibt <namespace>: <node>: ros__parameters: ...
+    # Die Namespace-Ebene kann je nach Version fehlen -> beide Formen suchen.
+    params = None
+    if "diagnostic_aggregator" in data:
+        params = data["diagnostic_aggregator"].get("ros__parameters")
+    else:
+        for val in data.values():
+            if isinstance(val, dict) and "diagnostic_aggregator" in val:
+                params = val["diagnostic_aggregator"].get("ros__parameters")
+                break
+    if not isinstance(params, dict):
+        log(f"{label}: kein diagnostic_aggregator.ros__parameters - uebersprungen.",
+            err=True)
+        return False
+
+    # Schon verschachtelt vorhanden (z.B. von Hand eingetragen)? Dann nicht
+    # zusaetzlich flach danebenschreiben - das gaebe doppelte Analyzer.
+    if isinstance(params.get("manipulator"), dict):
+        log(f"{label}: bereits (verschachtelt) vorhanden.")
+        return False
+
+    changed = False
+    for key, value in MANIPULATOR_ANALYZERS.items():
+        if params.get(key) != value:
+            params[key] = value
+            changed = True
+    if not changed:
+        log(f"{label}: bereits korrekt.")
+        return False
+
+    backup = AGGREGATOR_YAML + ".bak"
+    if not os.path.exists(backup):
+        try:
+            shutil.copy2(AGGREGATOR_YAML, backup)
+        except OSError:
+            pass
+    tmp = AGGREGATOR_YAML + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
+        os.replace(tmp, AGGREGATOR_YAML)
+    except OSError as e:
+        log(f"{label}: kann {AGGREGATOR_YAML} nicht schreiben: {e}", err=True)
+        return False
+    log(f"{label}: Analyzer-Gruppe 'Manipulator' (Arm + Gripper) eingetragen.")
+    return True
+
+
 def run_rg6_moveit_patch(label):
     """RG6 in die frisch generierte MoveIt-Config einhaengen.
 
@@ -650,6 +790,11 @@ def main():
     #    der HRL-Hindernis-Architektur; muss NACH rg6_moveit_patch laufen,
     #    beide schreiben dieselbe Datei).
     add_octomap_sensor_params("octomap sensors")
+    # 6) Manipulator-Analyzer in die generierte diagnostic_aggregator.yaml --
+    #    NUR wenn der manipulator-diagnostics-Boot-Service installiert ist.
+    #    Erst damit erscheinen Arm + Greifer als eigene Gruppe in
+    #    diagnostics_agg (Cockpit, rqt_robot_monitor, Diagnose-Capture).
+    add_manipulator_analyzers("manipulator analyzers")
     log("Fertig.")
     return 0
 
@@ -1676,6 +1821,149 @@ else
     echo ">>> Octomap-Feed: uebersprungen."
 fi
 
+# --- Manipulator-Diagnose (optional) ---------------------------------------
+# UR-Mode/Safety/ExternalControl + RG6-Zustand -> diagnostic_msgs auf dem
+# /diagnostics-Topic des Clearpath-Aggregators. Der Aggregator-Analyzer dazu
+# kommt vom Boot-Patcher (Schritt 6) und ist auf DIESE Unit-Datei gegated:
+# Unit loeschen + reboot = Manipulator wieder aus der Diagnose raus.
+# Deinstallation: 'systemctl disable --now clearpath-custom-manipulator-diagnostics',
+# Unit-Datei loeschen, reboot (.bak der aggregator-yaml liegt daneben).
+DO_MD=1
+if [ -f "$MD_UNIT_PATH" ]; then
+    confirm ">>> ${MD_UNIT} ist bereits installiert. Aktualisieren?" || DO_MD=0
+else
+    confirm ">>> Manipulator-Diagnose installieren (UR5 + RG6 erscheinen dann in Cockpit/diagnostics_agg)?" || DO_MD=0
+fi
+if [ "$DO_MD" -eq 1 ]; then
+    echo ">>> Installiere ${MD_BIN}"
+    MD_TMP="$(mktemp)"
+    MD_SRC=""
+    if curl -fsSL --connect-timeout 5 --max-time 30 "$MD_FEED_URL" -o "$MD_TMP"; then
+        if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$MD_TMP"; then
+            MD_SRC="$MD_TMP"
+        else
+            echo "    WARN: Download ist kein gueltiges Python - verwerfe."
+        fi
+    fi
+    if [ -z "$MD_SRC" ] && [ -f "$(dirname "$0")/scripts/manipulator_diagnostics.py" ]; then
+        echo "    Download nicht verfuegbar - nutze lokale Repo-Kopie."
+        MD_SRC="$(dirname "$0")/scripts/manipulator_diagnostics.py"
+    fi
+    if [ -n "$MD_SRC" ]; then
+        install -m 0755 -o root -g root "$MD_SRC" "$MD_BIN"
+        # Selbsttest der Bewertungslogik (reines Python, kein ROS noetig).
+        python3 "$MD_BIN" --selftest || echo "    WARN: Selbsttest fehlgeschlagen - Service wird trotzdem installiert (Logs pruefen)."
+
+        echo ">>> Installiere ${MD_WRAPPER} + ${MD_UNIT}"
+        # rg6_msgs kommt aus dem onrobot-rg6-Workspace; /etc/clearpath/setup.bash
+        # zieht ihn ueber system.ros2.workspaces schon mit, das explizite source
+        # ist die Absicherung fuer den Fall, dass der Eintrag mal fehlt.
+        cat > "$MD_WRAPPER" <<EOF
+#!/usr/bin/env bash
+# UR5 + OnRobot RG6 als diagnostic_msgs fuer den Clearpath-diagnostic_aggregator.
+source /etc/clearpath/setup.bash
+[ -f ${RG6_WS}/install/setup.bash ] && source ${RG6_WS}/install/setup.bash
+exec python3 ${MD_BIN} --ros-args \\
+    -p manipulator_ns:=${MANIP_NS} \\
+    -p robot_ip:=${ARM_ROBOT_IP}
+EOF
+        chmod 0755 "$MD_WRAPPER"
+
+        cat > "$MD_UNIT_PATH" <<EOF
+[Unit]
+Description=Manipulator-Diagnose: UR5 + RG6 -> diagnostic_msgs (Cockpit/diagnostics_agg)
+After=clearpath-manipulators.service ${RG6_UNIT}
+Wants=clearpath-manipulators.service
+# Wie rg6-bringup an BEIDE Wurzeln haengen: der praktische Stack-Restart laeuft
+# ueber clearpath-robot, der direkte Treiber-Restart ueber clearpath-manipulators.
+PartOf=clearpath-robot.service clearpath-manipulators.service
+
+[Service]
+User=${REAL_USER}
+ExecStart=${MD_WRAPPER}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        chmod 0644 "$MD_UNIT_PATH"
+    else
+        echo "    WARN: manipulator_diagnostics.py weder ladbar noch lokal vorhanden - Manipulator-Diagnose uebersprungen."
+    fi
+    rm -f "$MD_TMP"
+else
+    echo ">>> Manipulator-Diagnose: uebersprungen."
+fi
+
+# --- Cockpit-Plugin mit Manipulator-Panel (optional) ------------------------
+# Fork von clearpathrobotics/cockpit-ros2-diagnostics: zusaetzlich zum
+# generischen Diagnose-Baum eine eigene Manipulator-Ansicht (Arm-Mode/Safety/
+# ExternalControl/Motion-Link + Gelenktabelle, Greifer-Weite/grip_detected/
+# Tool-Power). Die Daten kommen aus demselben diagnostics_agg-Strom -- ohne
+# den manipulator-diagnostics-Service oben bleibt das Panel unsichtbar.
+#
+# Installation nach /usr/local/share/cockpit/ros2-diagnostics: Cockpit
+# bevorzugt /usr/local vor /usr/share, der Fork ueberdeckt also das apt-Paket,
+# ohne es zu ersetzen. Rueckbau = Verzeichnis loeschen (kein apt).
+# HINWEIS: apt-Updates von cockpit-ros2-diagnostics wirken sich dann nicht
+# mehr sichtbar aus, solange der Fork liegt - Fork bei Bedarf nachziehen.
+DO_CKPT=1
+if [ -d "$CKPT_PKG_DIR" ]; then
+    confirm ">>> Cockpit-Plugin (Fork mit Manipulator-Panel) ist installiert. Aktualisieren?" || DO_CKPT=0
+else
+    confirm ">>> Cockpit-Plugin mit Manipulator-Panel installieren (ueberdeckt das apt-Plugin unter /usr/share)?" || DO_CKPT=0
+fi
+if [ "$DO_CKPT" -eq 1 ]; then
+    if ! dpkg -s cockpit-bridge >/dev/null 2>&1; then
+        echo "    WARN: cockpit-bridge ist nicht installiert - das Plugin wird erst nach der Cockpit-Installation sichtbar."
+    fi
+    echo ">>> cockpit-ros2-diagnostics (Fork) nach ${CKPT_WS} (Nutzer ${REAL_USER})"
+    CKPT_OK=1
+    if [ -d "${CKPT_WS}/.git" ]; then
+        sudo -u "$REAL_USER" git -C "$CKPT_WS" pull --ff-only || echo "    WARN: git pull fehlgeschlagen, nutze vorhandenen Stand"
+    else
+        sudo -u "$REAL_USER" git clone "$CKPT_REPO_URL" "$CKPT_WS" || CKPT_OK=0
+    fi
+    if [ "$CKPT_OK" -eq 1 ]; then
+        # Bevorzugt ein vorgebautes dist/ aus dem Checkout. Der Build braucht
+        # nodejs+npm (~500 Pakete) und einen git-fetch der Cockpit-Bibliothek --
+        # das gehoert bewusst NICHT auf den Roboter, wenn es vermeidbar ist
+        # (apt-Historie dieses Roboters). Der Installer installiert daher kein
+        # nodejs; er baut nur, wenn die Toolchain schon da ist.
+        if [ ! -f "${CKPT_WS}/dist/manifest.json" ]; then
+            if command -v npm >/dev/null 2>&1 && command -v make >/dev/null 2>&1; then
+                echo ">>> Kein vorgebautes dist/ - baue auf dem Roboter (npm + make)"
+                sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
+                    "cd '$CKPT_WS' && make" || CKPT_OK=0
+            else
+                echo "    WARN: weder dist/ noch npm/make vorhanden."
+                echo "          Auf einem Rechner MIT Toolchain bauen und das Ergebnis herbringen:"
+                echo "            git clone ${CKPT_REPO_URL} && cd cockpit-ros2-diagnostics && make"
+                echo "            rsync -a dist/ ${REAL_USER}@<robot>:${CKPT_WS}/dist/"
+                echo "          Danach diesen Installer erneut laufen lassen."
+                CKPT_OK=0
+            fi
+        fi
+    fi
+    if [ "$CKPT_OK" -eq 1 ] && [ -f "${CKPT_WS}/dist/manifest.json" ]; then
+        echo ">>> Installiere Plugin nach ${CKPT_PKG_DIR}"
+        # Alten Inhalt entfernen, damit geloeschte Dateien nicht liegenbleiben.
+        rm -rf "$CKPT_PKG_DIR"
+        install -d -m 0755 "$CKPT_PKG_DIR"
+        cp -r "${CKPT_WS}/dist/." "$CKPT_PKG_DIR/"
+        chown -R root:root "$CKPT_PKG_DIR"
+        # Source-Maps sind gross und auf dem Roboter nutzlos (das Debian-Paket
+        # wirft sie ebenfalls weg).
+        find "$CKPT_PKG_DIR" -name '*.map' -delete
+        echo "    Cockpit neu laden: Browser-Reload auf http://<robot>:9090 genuegt."
+    else
+        echo "    WARN: Cockpit-Plugin nicht installiert (s. Meldungen oben) - das apt-Plugin bleibt aktiv."
+    fi
+else
+    echo ">>> Cockpit-Plugin: uebersprungen."
+fi
+
 # --- aktivieren ------------------------------------------------------------
 echo ">>> systemd neu einlesen + Services aktivieren (+ starten, nicht nur Boot-Symlink)"
 systemctl daemon-reload
@@ -1692,6 +1980,7 @@ systemctl enable --now "$UNIT_NAME" "$RG6_UNIT" "$JS_UNIT" "$ROBOT_YAML_UNIT"
 # Watchdog: den TIMER aktivieren + starten (die .service ist der oneshot-Check, den er triggert).
 [ -f "$WD_TIMER_PATH" ] && systemctl enable --now "$WD_TIMER"
 [ -f "$OCTO_UNIT_PATH" ] && systemctl enable --now "$OCTO_UNIT"
+[ -f "$MD_UNIT_PATH" ] && systemctl enable --now "$MD_UNIT"
 
 echo ">>> Unit-Syntax pruefen"
 VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH" "$ROBOT_YAML_UNIT_PATH")
@@ -1700,6 +1989,7 @@ VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH" "$ROBOT_YAML_UNIT_PA
 [ -f "$ARM_CTRL_UNIT_PATH" ] && VERIFY_UNITS+=("$ARM_CTRL_UNIT_PATH")
 [ -f "$WD_UNIT_PATH" ] && VERIFY_UNITS+=("$WD_UNIT_PATH" "$WD_TIMER_PATH")
 [ -f "$OCTO_UNIT_PATH" ] && VERIFY_UNITS+=("$OCTO_UNIT_PATH")
+[ -f "$MD_UNIT_PATH" ] && VERIFY_UNITS+=("$MD_UNIT_PATH")
 systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    Units OK."
 
 # --- Patches jetzt einmal anwenden -----------------------------------------
@@ -1728,6 +2018,10 @@ echo "  clearpath-manipulators.service.d/override.conf : SIGINT-Stop-Drop-in (sa
 echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-eigene Kopie des rg6_moveit_patch (vom Boot-Service genutzt, aktualisiert nur der Installer)"
 [ -f "$OCTO_UNIT_PATH" ] && \
 echo "  ${OCTO_UNIT}   : Depth->PointCloud2 fuer MoveIts Octomap (Patch-Schritt 5 setzt die move_group-Sensorparameter beim Boot)"
+[ -f "$MD_UNIT_PATH" ] && \
+echo "  ${MD_UNIT} : UR5 + RG6 -> diagnostic_msgs (Patch-Schritt 6 traegt die Analyzer beim Boot ein)"
+[ -d "$CKPT_PKG_DIR" ] && \
+echo "  ${CKPT_PKG_DIR} : Cockpit-Plugin mit Manipulator-Panel (ueberdeckt das apt-Plugin unter /usr/share)"
 echo
 echo "Damit ALLES greift, einmal neu starten:"
 echo "  sudo systemctl restart clearpath-robot.service   # oder reboot"
@@ -1747,6 +2041,8 @@ echo "  journalctl -u ${ARM_CTRL_UNIT} -b"
 echo "  journalctl -t manipulators-watchdog -b   # + 'systemctl list-timers ${WD_TIMER}'"
 [ -f "$OCTO_UNIT_PATH" ] && \
 echo "  journalctl -u ${OCTO_UNIT} -b"
+[ -f "$MD_UNIT_PATH" ] && \
+echo "  journalctl -u ${MD_UNIT} -b   # + 'ros2 topic echo ${MANIP_NS%/manipulators}/diagnostics_agg'"
 echo
 echo "Hinweis: robot.yaml wird ab jetzt aus dem Git-Repo verwaltet (SSOT)."
 echo "  Aenderungen (platform.extras.urdf, system.ros2.workspaces, Arm-/Sensor-Config)"
