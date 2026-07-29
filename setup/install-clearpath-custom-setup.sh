@@ -780,6 +780,36 @@ else
 fi
 rm -f "$udev_block"
 
+# --- UR-Treiber-Ports vor der Ephemeral-Vergabe schuetzen -------------------
+# ur_client_library bindet FESTE Ports: 50001 reverse, 50002 script sender,
+# 50003 trajectory, 50004 script command. Alle vier liegen im flüchtigen
+# Portbereich des Kernels (net.ipv4.ip_local_port_range = 32768-60999) -> jeder
+# andere Prozess kann einen davon fuer eine AUSGEHENDE Verbindung zugewiesen
+# bekommen, bevor der Arm-Treiber ihn bindet. Passiert am 2026-07-29 real:
+# der image_processing_container (clearpath-platform) zog 50004 als Quellport
+# fuer eine Loopback-Verbindung zu teleop_node -> der Treiber scheiterte mit
+# "Failed to bind socket for port 50004. Reason: Address already in use" und
+# hing in einer Retry-Schleife; die Controller-Spawner gaben nach 5 Versuchen
+# auf -> Arm ohne Controller. Ein Treiber-Neustart half NICHT (die fremde
+# Verbindung lebte weiter) - erst ein Neustart von clearpath-platform gab den
+# Port frei. Reservieren nimmt die Ports aus der automatischen Vergabe;
+# explizites bind() durch den Treiber bleibt erlaubt. Rein additiv, idempotent.
+SYSCTL_UR_PORTS="/etc/sysctl.d/10-ur-reserved-ports.conf"
+echo ">>> Schreibe ${SYSCTL_UR_PORTS} (UR-Ports 50001-50004 reservieren)"
+install -d -m 0755 /etc/sysctl.d
+cat > "$SYSCTL_UR_PORTS" <<'SYSCTL_EOF'
+# UR-Treiber-Ports (ur_client_library) aus der Ephemeral-Vergabe nehmen.
+# Ohne das kann ein beliebiger Prozess 50001-50004 als Quellport belegen und
+# der ur_robot_driver scheitert beim Binden ("Address already in use").
+net.ipv4.ip_local_reserved_ports = 50001-50004
+SYSCTL_EOF
+chmod 0644 "$SYSCTL_UR_PORTS"
+if sysctl -p "$SYSCTL_UR_PORTS" >/dev/null 2>&1; then
+    echo "    aktiv: $(cat /proc/sys/net/ipv4/ip_local_reserved_ports)"
+else
+    echo "    WARN: sysctl -p fehlgeschlagen - greift spaetestens beim naechsten Boot."
+fi
+
 # --- netplan ---------------------------------------------------------------
 NETPLAN_FILE="/etc/netplan/01-netcfg.yaml"
 echo ">>> Schreibe netplan ${NETPLAN_FILE}"
