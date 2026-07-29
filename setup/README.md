@@ -7,7 +7,7 @@ wget -c https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/h
 
 The installer is interactive and asks (each step `[j/N]`, or pass `-y` to accept all) before optional parts. One of them installs **`clearpath-custom-ur-dashboard.service`** — it starts the `ur_robot_driver` `dashboard_client` on boot (`power_on`/`brake_release`/`unlock_protective_stop`/`restart_safety`/`get_robot_mode`/`get_safety_mode`), which Clearpath does *not* bring up in the headless setup. The services land under `/a200_0553/manipulators/dashboard_client/*` and are consumed by the `ur_state_manager` package (repo [`ur-state-manager`](https://github.com/CLAIRLab-HAW/ur-state-manager)), which the installer can also clone, build and start on boot (`clearpath-custom-ur-state-manager.service`).
 
-All custom units the installer creates carry the `clearpath-custom-*` prefix (`clearpath-custom-rg6-bringup`, `clearpath-custom-joint-states`, `clearpath-custom-arm-controllers`, `clearpath-custom-ur-dashboard`, `clearpath-custom-ur-state-manager`, `clearpath-custom-robot-yaml-update`, `clearpath-custom-manipulator-diagnostics`, `clearpath-custom-manipulators-watchdog.service`/`.timer`, plus `clearpath-custom-setup`). A re-run on a host that still has the old, unprefixed names disables and removes them first (migration window: those services stop briefly, then the renamed ones start). Drop-ins on Clearpath-owned units (`clearpath-manipulators.service.d/override.conf`) keep their target-unit name by systemd convention.
+All custom units the installer creates carry the `clearpath-custom-*` prefix (`clearpath-custom-rg6-bringup`, `clearpath-custom-joint-states`, `clearpath-custom-ur-dashboard`, `clearpath-custom-ur-state-manager`, `clearpath-custom-manipulator-diagnostics`, `clearpath-custom-octomap-feed`, `clearpath-custom-manipulators-watchdog.service`/`.timer`, plus `clearpath-custom-setup`) — **8 Services + 1 Timer**. **2026-07-29 entfallen:** `clearpath-custom-arm-controllers` (jetzt Teil von `ur_state_manager.launch.py`, Argument `load_arm_controllers`) und `clearpath-custom-robot-yaml-update` (ersetzt durch den offiziellen Clearpath-Weg: `/etc/clearpath/robot.yaml` ist ein **Symlink** auf den Repo-Klon `~/husky-custom-setup/robot.yaml`; `clearpath-robot-check` md5summt die Datei im Sekundentakt, ein `git pull` wirkt also sofort statt erst beim nächsten Boot). Ein Installer-Lauf entfernt beide Alt-Units automatisch. A re-run on a host that still has the old, unprefixed names disables and removes them first (migration window: those services stop briefly, then the renamed ones start). Drop-ins on Clearpath-owned units (`clearpath-manipulators.service.d/override.conf`) keep their target-unit name by systemd convention.
 
 ## `clearpath-custom-manipulators-watchdog.timer` (late arm power-on + stuck reconnect after restart)
 
@@ -168,12 +168,16 @@ Zwei Bausteine, beide vom Installer (optionaler Schritt):
    (stride 2) und publiziert `…/sensors/camera_0/octomap_points`
    (PointCloud2 im optischen Frame; QoS RELIABLE, matcht jeden Subscriber).
    Selbsttest ohne ROS: `python3 /usr/local/bin/octomap-feed --selftest`.
-2. **Boot-Patcher Schritt 5** (`clearpath-custom-setup.py`,
-   `add_octomap_sensor_params`): trägt die Sensor-Parameter idempotent in das
-   generierte `/etc/clearpath/manipulators/config/moveit.yaml` ein — **nur**
-   wenn die Unit-Datei existiert (die Datei ist der Feature-Schalter).
-   `octomap_frame` ist bewusst `base_link` (odom ist auf diesem Roboter
-   UTM-gestützt und springt), `octomap_resolution` 0.025, `max_range` 2.0.
+2. **Sensor-Parameter in `robot.yaml`** (seit 2026-07-29; vorher Boot-Patcher
+   Schritt 5, entfernt): unter `manipulators.moveit.ros_parameters.move_group`
+   stehen `octomap_frame`, `octomap_resolution`, `sensors` und der
+   `wrist_depth_camera`-Block — der Clearpath-Generator schreibt sie selbst in
+   `/etc/clearpath/manipulators/config/moveit.yaml`. `octomap_frame` ist bewusst
+   `base_link` (odom ist auf diesem Roboter UTM-gestützt und springt),
+   `octomap_resolution` 0.025, `max_range` 2.0.
+   **Achtung:** damit entfällt das frühere Gate „nur wenn `moveit_ros_perception`
+   installiert ist". Fehlt das Paket, quittiert `move_group` das mit einem
+   Plugin-Load-Fehler pro Boot. Auf a200-0553 ist es seit 2026-07-23 installiert.
 
 **Zusammenspiel mit den Objekt-Collision-Objects:** MoveIts
 PlanningSceneMonitor maskiert bekannte World-Objects und attachte Bodies aus
@@ -200,8 +204,8 @@ sollte also nur das neue Paket zeigen).
 
 1. `journalctl -u clearpath-custom-octomap-feed -b` → Startzeile mit Topic/Rate.
 2. `ros2 topic hz /a200_0553/sensors/camera_0/octomap_points` → ~5 Hz.
-3. `journalctl -t clearpath-custom-setup -b | grep octomap` → „Occupancy-Map-
-   Monitor eingetragen“ (bzw. „bereits korrekt“).
+3. `grep -A10 wrist_depth_camera /etc/clearpath/manipulators/config/moveit.yaml`
+   → der Sensor-Block steht in der generierten Datei (kommt aus robot.yaml).
 4. move_group-Log: Zeile „Listening to '…/octomap_points' using message filter
    with target frame 'base_link'“ (Monitor aktiv).
 5. RViz (offboard-lite): PlanningScene-Display → Octomap-Voxel sichtbar; Hand
@@ -212,6 +216,8 @@ sollte also nur das neue Paket zeigen).
    im einstelligen Prozentbereich bleiben; sonst `rate_hz`/`stride` senken
    (ROS-Params der Unit) und `max_range` reduzieren.
 
-**Rollback:** `sudo systemctl disable --now clearpath-custom-octomap-feed`,
-Unit-Datei löschen, reboot — der Patcher lässt `moveit.yaml` dann unangetastet
+**Rollback:** `sudo systemctl disable --now clearpath-custom-octomap-feed` **und**
+den `move_group`-Block aus `robot.yaml` entfernen (sonst sucht der Updater weiter
+eine Wolke, die niemand publiziert). Die Änderung an robot.yaml wirkt sofort —
+`clearpath-robot-check` startet den Stack neu. Frühere Fassung dieses Absatzes
 (die generierte Datei entsteht ohnehin bei jedem Boot neu; `.bak` liegt daneben).

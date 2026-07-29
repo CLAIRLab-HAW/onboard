@@ -17,22 +17,20 @@
 #     (power_on/brake_release/unlock_protective_stop/restart_safety) beim Boot
 #   - optional: clearpath-custom-ur-state-manager.service: klont+baut ur-state-manager und startet
 #     den State-Manager (prepare/recover/ensure_ready/power_off) beim Boot
-#   - optional: clearpath-custom-arm-controllers.service: laedt Extra-Controller (--inactive) +
-#     ur_controller_mode_manager beim Boot (nutzt den ur-state-manager-Workspace)
+#     (inkl. Extra-Controller --inactive + ur_controller_mode_manager -- seit 2026-07-29
+#     Teil desselben Launch, keine eigene arm-controllers-Unit mehr)
 #   - optional: clearpath-custom-manipulators-watchdog.timer: startet clearpath-manipulators.service
 #     neu, wenn der Arm erst LANGE nach dem Boot bestromt wird (ros2_control retryt
 #     die einmalig gescheiterte HW-Aktivierung nicht -> Treiber bleibt tot). Prueft
 #     "Arm pingbar, aber robot_program_running publisht nicht" und startet EINMAL neu.
-#   - robot.yaml aus dem Git-Repo (SSOT) nach /etc/clearpath/robot.yaml deployen +
-#     clearpath-custom-robot-yaml-update.service: aktualisiert robot.yaml bei JEDEM Boot aus dem Repo
-#     (VOR der Config-Generierung durch clearpath-robot.service). Ohne Netz, bei
-#     Download-Fehler oder ungueltiger Datei (YAML- + clearpath_config-Check)
-#     bleibt die vorhandene robot.yaml erhalten (Boot laeuft weiter).
+#   - robot.yaml: Repo klonen und /etc/clearpath/robot.yaml als SYMLINK darauf setzen
+#     (offizieller Clearpath-Weg). Seit 2026-07-29 statt des Boot-Downloads: keine
+#     Netzabhaengigkeit im Bootpfad, reproduzierbar, und ein 'git pull' wirkt sofort
+#     (clearpath-robot-check md5summt die Datei im Sekundentakt).
 #
-# Hinweis robot.yaml: Das Repo ist ab jetzt die Single Source of Truth. Aenderungen
-#   also im Repo pflegen (platform.extras.urdf, system.ros2.workspaces, Arm-/Sensor-
-#   Config etc.) - lokale Aenderungen an /etc/clearpath/robot.yaml werden beim naechsten
-#   Boot durch die Repo-Version ueberschrieben.
+# Hinweis robot.yaml: Das Repo ist die Single Source of Truth, /etc/clearpath/robot.yaml
+#   ist ein SYMLINK darauf. Aenderungen also im Repo-Klon pflegen - sie wirken sofort
+#   (clearpath-robot-check startet den Stack bei Inhaltsaenderung neu).
 #
 # Aufruf (sudo wird bei Bedarf geholt):
 #   1) unten RG6_REPO_URL setzen
@@ -120,9 +118,12 @@ USM_UNIT_PATH="/etc/systemd/system/${USM_UNIT}"
 
 # arm-controllers: laedt die Extra-Controller (--inactive) + Mode-Manager beim Boot.
 # Nutzt denselben ur-state-manager-Workspace (kein eigener Build).
-ARM_CTRL_WRAPPER="${BIN_DIR}/arm-controllers.sh"
-ARM_CTRL_UNIT="clearpath-custom-arm-controllers.service"
-ARM_CTRL_UNIT_PATH="/etc/systemd/system/${ARM_CTRL_UNIT}"
+# arm-controllers: 2026-07-29 ABGELOEST. Die Extra-Controller (--inactive) und der
+# ur_controller_mode_manager kommen jetzt aus ur_state_manager.launch.py
+# (Argument load_arm_controllers, Default true): gleiches Paket, gleicher Workspace,
+# gleicher User, identischer Lifecycle -> kein Grund fuer eine zweite Unit.
+ARM_CTRL_OLD_UNIT="clearpath-custom-arm-controllers.service"
+ARM_CTRL_OLD_WRAPPER="${BIN_DIR}/arm-controllers.sh"
 
 # joint-states (Phase 2): robot-weiter joint_state_aggregator (/a200_0553/joint_states)
 # + Relays der sauberen Arm-/Greifer-Quell-Topics zurueck auf den platform/joint_states-
@@ -161,11 +162,8 @@ WD_MANIP_DROPIN="${WD_MANIP_DROPIN_DIR}/override.conf"
 # robot.yaml: Das Git-Repo ist die Single Source of Truth. Beim Boot wird die
 # robot.yaml VOR der Config-Generierung (clearpath-robot.service) aus dem Repo
 # nachgezogen. Ohne Netz/bei Fehler bleibt die vorhandene Datei erhalten.
-ROBOT_YAML_URL="https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/robot.yaml"
+SETUP_REPO_URL="https://github.com/CLAIRLab-HAW/husky-custom-setup.git"
 ROBOT_YAML_PATH="/etc/clearpath/robot.yaml"
-ROBOT_YAML_WRAPPER="${BIN_DIR}/robot-yaml-update.sh"
-ROBOT_YAML_UNIT="clearpath-custom-robot-yaml-update.service"
-ROBOT_YAML_UNIT_PATH="/etc/systemd/system/${ROBOT_YAML_UNIT}"
 
 # Fruehere Custom-Unit-Namen (ohne clearpath-custom--Prefix) + der alte
 # Vorgaenger-Service: der Installer disable+rm sie, BEVOR er die neuen
@@ -235,6 +233,7 @@ REAL_USER="${SUDO_USER:-robot}"
 USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
 RG6_WS="${USER_HOME}/onrobot-rg6"
 USM_WS="${USER_HOME}/ur-state-manager"
+SETUP_WS="${USER_HOME}/husky-custom-setup"   # versionierte robot.yaml (Symlink-Ziel)
 CKPT_WS="${USER_HOME}/cockpit-ros2-diagnostics"
 
 if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
@@ -1154,51 +1153,11 @@ fi
 # Laedt die Extra-Controller (ft/tcp_pose/speed_scaling aktiv; freedrive/forward/
 # passthrough --inactive) in den manipulators-CM und startet den Mode-Manager.
 # Braucht den gebauten ur-state-manager-Workspace (siehe oben).
-DO_ARM_CTRL=1
-if [ -f "$ARM_CTRL_UNIT_PATH" ]; then
-    confirm ">>> ${ARM_CTRL_UNIT} ist bereits installiert. Aktualisieren?" || DO_ARM_CTRL=0
-else
-    confirm ">>> arm-controllers beim Boot starten (Extra-Controller + Mode-Manager)?" || DO_ARM_CTRL=0
-fi
-if [ "$DO_ARM_CTRL" -eq 1 ]; then
-    echo ">>> Installiere ${ARM_CTRL_WRAPPER} + ${ARM_CTRL_UNIT}"
-    cat > "$ARM_CTRL_WRAPPER" <<EOF
-#!/usr/bin/env bash
-# Laedt Extra-Controller (--inactive) + startet ur_controller_mode_manager.
-source /etc/clearpath/setup.bash
-source ${USM_WS}/install/setup.bash
-exec ros2 launch ur_state_manager arm_controllers.launch.py
-EOF
-    chmod 0755 "$ARM_CTRL_WRAPPER"
-
-    cat > "$ARM_CTRL_UNIT_PATH" <<EOF
-[Unit]
-Description=UR arm controllers (extra controllers --inactive + mode manager)
-# Nach dem manipulators-controller_manager (Spawner wartet ohnehin mit Timeout).
-After=clearpath-manipulators.service
-Wants=clearpath-manipulators.service
-# Mit-Neustart: bei einem Restart von clearpath-manipulators wird der
-# controller_manager neu gespawnt und die Extra-Controller (--inactive) sind weg
-# -> dieser Service muss sie neu laden.
-# PartOf propagiert Stop/Restart nur eine Hop-Ebene und nur bei DIREKTEM Job auf
-# der Ziel-Unit. Stack-Restart via 'systemctl restart clearpath-robot' startet
-# clearpath-manipulators nur indirekt -> ohne PartOf=clearpath-robot wuerde dieser
-# Service nicht mit-restarten. Daher an BEIDE Wurzeln (robot + manipulators);
-# Stop clearpath-robot stoppt ihn dann mit.
-PartOf=clearpath-robot.service clearpath-manipulators.service
-
-[Service]
-User=${REAL_USER}
-ExecStart=${ARM_CTRL_WRAPPER}
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    chmod 0644 "$ARM_CTRL_UNIT_PATH"
-else
-    echo ">>> arm-controllers: uebersprungen."
+# --- arm-controllers: abgeloeste Unit entfernen ---------------------------
+if systemctl list-unit-files 2>/dev/null | grep -q "^${ARM_CTRL_OLD_UNIT}"; then
+    echo ">>> Entferne abgeloeste ${ARM_CTRL_OLD_UNIT} (jetzt Teil von ur-state-manager)"
+    systemctl disable --now "$ARM_CTRL_OLD_UNIT" 2>/dev/null || true
+    rm -f "/etc/systemd/system/${ARM_CTRL_OLD_UNIT}" "$ARM_CTRL_OLD_WRAPPER"
 fi
 
 # --- manipulators-watchdog: Treiber-Reconnect bei spaetem Einschalten -------
@@ -1513,136 +1472,47 @@ WantedBy=multi-user.target
 EOF
 chmod 0644 "$JS_UNIT_PATH"
 
-# --- robot.yaml aus dem Repo deployen + Boot-Update-Service -----------------
-# Das Git-Repo ist die SSOT. Wrapper laedt robot.yaml aus dem Repo, validiert
-# (nicht-leer, gueltiges YAML, clearpath_config-Schema) und installiert sie nur
-# bei Abweichung (Backup).
-# clearpath-custom-robot-yaml-update.service zieht sie bei JEDEM Boot VOR clearpath-robot.service
-# nach, sodass die Generierung die Repo-Version nutzt.
-echo ">>> Installiere ${ROBOT_YAML_WRAPPER} + ${ROBOT_YAML_UNIT}"
-cat > "$ROBOT_YAML_WRAPPER" <<'ROBOT_YAML_EOF'
-#!/usr/bin/env bash
-# Laedt robot.yaml aus dem Git-Repo (SSOT) und installiert sie nach $2, wenn sie
-# sich unterscheidet. Aufruf: robot-yaml-update.sh <URL> <ZIELPFAD>.
-# Wird VOR clearpath-robot.service ausgefuehrt -> die Config-Generierung nutzt
-# die neue robot.yaml. Bei fehlendem Netz/Download-Fehler ODER wenn die neue
-# Datei die Validierung (YAML-Syntax + clearpath_config-Schema) nicht besteht,
-# bleibt die vorhandene robot.yaml unveraendert (Boot wird NICHT blockiert -> exit 0).
-set -uo pipefail
-
-URL="${1:?URL fehlt}"
-DEST="${2:?Zielpfad fehlt}"
-TAG="robot-yaml-update"
-log() { echo "${TAG}: $*"; }
-
-tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
-
-# Download mit Timeout; bei Fehler vorhandene Datei behalten.
-if ! curl -fsSL --connect-timeout 5 --max-time 30 "$URL" -o "$tmp"; then
-    log "WARN: Download fehlgeschlagen ($URL) - behalte vorhandene ${DEST}."
-    exit 0
-fi
-
-# Nicht-leer? (curl -f faengt HTTP-Fehler ab, aber sicher ist sicher)
-if [ ! -s "$tmp" ]; then
-    log "WARN: heruntergeladene robot.yaml ist leer - behalte vorhandene ${DEST}."
-    exit 0
-fi
-
-# Gueltiges YAML? Verhindert, dass eine kaputte Datei die Generierung bricht.
-if command -v python3 >/dev/null 2>&1; then
-    if ! python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' "$tmp" 2>/dev/null; then
-        log "WARN: heruntergeladene robot.yaml ist kein gueltiges YAML - behalte vorhandene ${DEST}."
-        exit 0
-    fi
-fi
-
-# Unveraendert? -> nichts tun (idempotent).
-if [ -f "$DEST" ] && cmp -s "$tmp" "$DEST"; then
-    log "robot.yaml bereits aktuell - keine Aenderung."
-    exit 0
-fi
-
-# Semantisch gueltig? Kandidat durch den clearpath_config-Parser schicken -
-# dieselbe Bibliothek, die clearpath-robot-generate beim Boot nutzt: was hier
-# durchgeht, geht auch in der Generierung durch. Faengt strukturelle Fehler
-# (unbekannte Modelle, falsche Keys/Typen), die reines YAML-Parsing nicht sieht.
-# Laeuft nur bei ECHTER Aenderung (nach dem cmp oben) -> kostet im Normal-Boot
-# nichts. Ist clearpath_config nicht importierbar (ROS-Pfad geaendert o.ae.),
-# wird nur gewarnt und NICHT blockiert - sonst wuerde ein Umgebungsproblem
-# Repo-Updates dauerhaft verhindern.
-ros_site="$(ls -d /opt/ros/*/lib/python3*/site-packages 2>/dev/null | head -1 || true)"
-if ! sem="$(PYTHONPATH="${ros_site}${PYTHONPATH:+:${PYTHONPATH}}" python3 - "$tmp" 2>&1 <<'PYEOF'
-import sys
-try:
-    from clearpath_config.clearpath_config import ClearpathConfig
-except Exception as e:
-    print(f"SKIP {e}")
-    sys.exit(0)
-try:
-    ClearpathConfig(sys.argv[1])
-except Exception as e:
-    print(f"{type(e).__name__}: {e}")
-    sys.exit(1)
-PYEOF
-)"; then
-    log "WARN: neue robot.yaml besteht die clearpath_config-Validierung NICHT - behalte vorhandene ${DEST}. Fehler: ${sem}"
-    exit 0
-fi
-case "$sem" in
-    SKIP*) log "WARN: semantische Validierung uebersprungen (clearpath_config nicht importierbar) - installiere nur YAML-geprueft." ;;
-esac
-
-install -d -m 0755 "$(dirname "$DEST")"
-note=""
-if [ -f "$DEST" ]; then
-    cp -a "$DEST" "${DEST}.bak.$(date +%Y%m%d%H%M%S)"
-    # Rotation: nur die 5 neuesten Backups behalten - laeuft bei jedem Boot mit
-    # Diff, sonst waechst /etc/clearpath unbegrenzt.
-    ls -1t "${DEST}".bak.* 2>/dev/null | tail -n +6 | xargs -r rm -f -- || true
-    note=" (Backup angelegt)"
-fi
-install -m 0644 "$tmp" "$DEST"
-log "robot.yaml aus Repo aktualisiert -> ${DEST}${note}."
-ROBOT_YAML_EOF
-chmod 0755 "$ROBOT_YAML_WRAPPER"
-
-cat > "$ROBOT_YAML_UNIT_PATH" <<EOF
-[Unit]
-Description=robot.yaml aus dem Git-Repo nachziehen (Repo = SSOT), vor der Config-Generierung
-# Braucht Netz -> nach network-online. Ohne Netz bleibt die vorhandene robot.yaml
-# erhalten (Wrapper beendet mit 0), der Boot laeuft normal weiter.
-Wants=network-online.target
-After=network-online.target
-# VOR der Generierung: clearpath-robot.service liest robot.yaml in seinem
-# ExecStartPre (clearpath-robot-generate) -> die neue Version wird uebernommen.
-Before=clearpath-robot.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-SyslogIdentifier=robot-yaml-update
-StandardOutput=journal
-StandardError=journal
-ExecStart=${ROBOT_YAML_WRAPPER} '${ROBOT_YAML_URL}' '${ROBOT_YAML_PATH}'
-
-[Install]
-WantedBy=multi-user.target
-EOF
-chmod 0644 "$ROBOT_YAML_UNIT_PATH"
-
-# robot.yaml jetzt einmalig aus dem Repo ziehen (mit Rueckfrage vor erstem
-# Ueberschreiben). Danach uebernimmt der Boot-Service das automatisch.
-DO_ROBOT_YAML=1
-if [ -f "$ROBOT_YAML_PATH" ]; then
-    confirm ">>> robot.yaml jetzt aus dem Repo aktualisieren (${ROBOT_YAML_PATH} wird bei Abweichung ueberschrieben; Backup wird angelegt)?" || DO_ROBOT_YAML=0
-fi
-if [ "$DO_ROBOT_YAML" -eq 1 ]; then
-    echo ">>> Ziehe robot.yaml aus dem Repo (${ROBOT_YAML_URL})"
-    "$ROBOT_YAML_WRAPPER" "$ROBOT_YAML_URL" "$ROBOT_YAML_PATH" || echo "    WARN: robot.yaml-Update fehlgeschlagen - vorhandene Datei bleibt."
+# --- robot.yaml: versionierte Datei per Symlink (offizieller Clearpath-Weg) ---
+# Clearpath sieht vor, die robot.yaml versioniert zu halten und per SYMLINK nach
+# /etc/clearpath/robot.yaml zu legen (Customization-Package-Konzept). Das ersetzt
+# den frueheren Boot-Download (clearpath-custom-robot-yaml-update.service, 2026-07-29
+# entfernt): keine Netzabhaengigkeit im Bootpfad, reproduzierbare Konfiguration, und
+# ein 'git pull' wirkt SOFORT statt erst beim naechsten Boot -- clearpath-robot-check
+# md5summt /etc/clearpath/robot.yaml im Sekundentakt und startet den Stack bei
+# Aenderung neu (md5sum folgt dem Symlink).
+echo ">>> robot.yaml: Repo-Klon + Symlink (${SETUP_WS} -> ${ROBOT_YAML_PATH})"
+if [ -d "${SETUP_WS}/.git" ]; then
+    sudo -u "$REAL_USER" git -C "$SETUP_WS" pull --ff-only || echo "    WARN: git pull fehlgeschlagen, nutze vorhandenen Stand"
 else
-    echo ">>> robot.yaml: einmaliges Update uebersprungen (Boot-Service zieht sie beim naechsten Boot)."
+    sudo -u "$REAL_USER" git clone "$SETUP_REPO_URL" "$SETUP_WS" || echo "    WARN: git clone fehlgeschlagen"
+fi
+if [ -f "${SETUP_WS}/robot.yaml" ]; then
+    if [ -L "$ROBOT_YAML_PATH" ] && [ "$(readlink -f "$ROBOT_YAML_PATH")" = "$(readlink -f "${SETUP_WS}/robot.yaml")" ]; then
+        echo "    Symlink bereits korrekt - keine Aenderung."
+    else
+        # Vorhandene ECHTE Datei sichern, bevor sie durch den Symlink ersetzt wird.
+        if [ -f "$ROBOT_YAML_PATH" ] && [ ! -L "$ROBOT_YAML_PATH" ]; then
+            if ! cmp -s "$ROBOT_YAML_PATH" "${SETUP_WS}/robot.yaml"; then
+                echo "    ACHTUNG: vorhandene ${ROBOT_YAML_PATH} weicht vom Repo-Stand ab!"
+                confirm "    Trotzdem durch den Symlink ersetzen (Backup wird angelegt)?" || {
+                    echo "    robot.yaml: uebersprungen (Symlink NICHT gesetzt)."; SKIP_SYMLINK=1; }
+            fi
+            [ "${SKIP_SYMLINK:-0}" = "1" ] || cp -a "$ROBOT_YAML_PATH" "${ROBOT_YAML_PATH}.pre-symlink.$(date +%Y%m%d%H%M%S)"
+        fi
+        if [ "${SKIP_SYMLINK:-0}" != "1" ]; then
+            install -d -m 0755 "$(dirname "$ROBOT_YAML_PATH")"
+            ln -sfn "${SETUP_WS}/robot.yaml" "$ROBOT_YAML_PATH"
+            echo "    Symlink gesetzt: ${ROBOT_YAML_PATH} -> ${SETUP_WS}/robot.yaml"
+        fi
+    fi
+else
+    echo "    WARN: ${SETUP_WS}/robot.yaml fehlt - Symlink NICHT gesetzt, vorhandene Datei bleibt."
+fi
+# Alten Boot-Download-Service abloesen (falls von einer frueheren Installation da).
+if systemctl list-unit-files 2>/dev/null | grep -q "^clearpath-custom-robot-yaml-update"; then
+    echo ">>> Entferne abgeloesten clearpath-custom-robot-yaml-update.service"
+    systemctl disable --now clearpath-custom-robot-yaml-update.service 2>/dev/null || true
+    rm -f /etc/systemd/system/clearpath-custom-robot-yaml-update.service "${BIN_DIR}/robot-yaml-update.sh"
 fi
 
 # --- Octomap-Feed (optional): dichte Hindernis-Schicht fuer move_group -----
@@ -1879,20 +1749,18 @@ systemctl daemon-reload
 # starten -> der ganze Custom-Stack (inkl. ur-state-manager/auto_recover + Watchdog-
 # Timer) bliebe bis zum Reboot tot. Wants=clearpath-manipulators zieht den Treiber
 # hoch, falls er noch nicht laeuft; After= sichert die Reihenfolge.
-systemctl enable --now "$UNIT_NAME" "$RG6_UNIT" "$JS_UNIT" "$ROBOT_YAML_UNIT"
+systemctl enable --now "$UNIT_NAME" "$RG6_UNIT" "$JS_UNIT"
 [ -f "$UR_DASH_UNIT_PATH" ] && systemctl enable --now "$UR_DASH_UNIT"
 [ -f "$USM_UNIT_PATH" ] && systemctl enable --now "$USM_UNIT"
-[ -f "$ARM_CTRL_UNIT_PATH" ] && systemctl enable --now "$ARM_CTRL_UNIT"
 # Watchdog: den TIMER aktivieren + starten (die .service ist der oneshot-Check, den er triggert).
 [ -f "$WD_TIMER_PATH" ] && systemctl enable --now "$WD_TIMER"
 [ -f "$OCTO_UNIT_PATH" ] && systemctl enable --now "$OCTO_UNIT"
 [ -f "$MD_UNIT_PATH" ] && systemctl enable --now "$MD_UNIT"
 
 echo ">>> Unit-Syntax pruefen"
-VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH" "$ROBOT_YAML_UNIT_PATH")
+VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH")
 [ -f "$UR_DASH_UNIT_PATH" ] && VERIFY_UNITS+=("$UR_DASH_UNIT_PATH")
 [ -f "$USM_UNIT_PATH" ] && VERIFY_UNITS+=("$USM_UNIT_PATH")
-[ -f "$ARM_CTRL_UNIT_PATH" ] && VERIFY_UNITS+=("$ARM_CTRL_UNIT_PATH")
 [ -f "$WD_UNIT_PATH" ] && VERIFY_UNITS+=("$WD_UNIT_PATH" "$WD_TIMER_PATH")
 [ -f "$OCTO_UNIT_PATH" ] && VERIFY_UNITS+=("$OCTO_UNIT_PATH")
 [ -f "$MD_UNIT_PATH" ] && VERIFY_UNITS+=("$MD_UNIT_PATH")
@@ -1908,15 +1776,13 @@ echo
 echo "=============================================================="
 echo "Installation abgeschlossen."
 echo "  ${UNIT_NAME} : patcht Configs bei jedem Boot"
-echo "  ${ROBOT_YAML_UNIT}      : zieht robot.yaml aus dem Repo (SSOT) vor der Generierung"
+echo "  ${ROBOT_YAML_PATH} -> ${SETUP_WS}/robot.yaml (Symlink, SSOT im Repo)"
 echo "  ${RG6_UNIT}            : startet rg6_control + joint_state_broadcaster + urscript_interface"
 echo "  ${JS_UNIT}           : joint_state_aggregator + Legacy-Bus-Relays (Phase 2)"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  ${UR_DASH_UNIT}           : startet ur_robot_driver dashboard_client"
 [ -f "$USM_UNIT_PATH" ] && \
-echo "  ${USM_UNIT}       : startet ur_state_manager (prepare/recover)"
-[ -f "$ARM_CTRL_UNIT_PATH" ] && \
-echo "  ${ARM_CTRL_UNIT}        : laedt Extra-Controller + Mode-Manager"
+echo "  ${USM_UNIT}       : startet ur_state_manager (prepare/recover) + Extra-Controller + Mode-Manager"
 [ -f "$WD_TIMER_PATH" ] && \
 echo "  ${WD_TIMER}    : Treiber-Reconnect bei spaetem Arm-Einschalten ODER hängengebliebenem Reconnect nach Service-Restart (Health-Signal = JSC-Stream, Kadenz 10s)"
 echo "  clearpath-manipulators.service.d/override.conf : SIGINT-Stop-Drop-in (sauberes Treiber-Shutdown, verhindert Socket-Kollision beim Reconnect)"
@@ -1941,8 +1807,6 @@ echo "  journalctl -u ${JS_UNIT} -b"
 echo "  journalctl -u ${UR_DASH_UNIT} -b"
 [ -f "$USM_UNIT_PATH" ] && \
 echo "  journalctl -u ${USM_UNIT} -b"
-[ -f "$ARM_CTRL_UNIT_PATH" ] && \
-echo "  journalctl -u ${ARM_CTRL_UNIT} -b"
 [ -f "$WD_TIMER_PATH" ] && \
 echo "  journalctl -t manipulators-watchdog -b   # + 'systemctl list-timers ${WD_TIMER}'"
 [ -f "$OCTO_UNIT_PATH" ] && \
@@ -1952,6 +1816,6 @@ echo "  journalctl -u ${MD_UNIT} -b   # + 'ros2 topic echo ${MANIP_NS%/manipulat
 echo
 echo "Hinweis: robot.yaml wird ab jetzt aus dem Git-Repo verwaltet (SSOT)."
 echo "  Aenderungen (platform.extras.urdf, system.ros2.workspaces, Arm-/Sensor-Config)"
-echo "  im Repo pflegen -> ${ROBOT_YAML_UNIT} zieht sie beim naechsten Boot."
-echo "  Lokale Aenderungen an ${ROBOT_YAML_PATH} werden dann ueberschrieben (Backup .bak.*)."
+echo "  im Repo pflegen (${SETUP_WS}) - der Symlink macht sie SOFORT wirksam:"
+echo "  clearpath-robot-check erkennt die Aenderung und startet den Stack neu."
 echo "=============================================================="
