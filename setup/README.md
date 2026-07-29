@@ -95,6 +95,51 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
    Motion-Link tot ist — genau der Fall (b) des Watchdogs oben. Selbsttest ohne
    ROS: `python3 /usr/local/bin/manipulator-diagnostics --selftest`.
 
+   **Der Armzustand entscheidet über den Greifer (2026-07-29).** Der RG6 hängt
+   am UR-Tool-Anschluss — ohne bestromten Arm kann er gar keine Versorgung
+   haben. Die Flags aus `rg6_msgs/GripperState` taugen als Nachweis dafür
+   *nicht*: `tool_data_received`/`io_states_received` sind Latches im Sinne von
+   „schon mal empfangen" und bleiben `true`, wenn das Tool später stromlos wird,
+   und `tool_power_on` ist der zuletzt vom **Treiber kommandierte** Sollwert,
+   kein Hardware-Feedback. Genau daran meldete der Greifer am ausgeschalteten
+   Arm „OK, in Bewegung, 0 mm": AI2/AI3 fallen auf ~0,05 V, die Tool-DIs auf
+   low → `busy` (DI1 invertiert) dauerhaft `true`, Weite rechnerisch 0 mm.
+
+   Maßgeblich ist deshalb **dieselbe Probe, die `rg6_control` und der
+   `rg6_joint_state_broadcaster` intern schon benutzen**: Analogsignal unter
+   `dead_input_threshold` (0,2 V) = kein gültiges Tool-Signal. Gemessen am
+   a200-0553: bestromt AI2 10,00 V / AI3 1,33 V, stromlos beide ~0,056 V.
+   Ist das Signal ungültig, meldet der Status je nach Ursache
+
+   | Lage | Meldung |
+   |---|---|
+   | Arm `POWER_OFF` | **außer Betrieb** (grau): „Arm ausgeschaltet – Greifer ohne Versorgung" |
+   | Arm bestromt, kein Signal | **WARNUNG** mit Rezept: `rg6_control/set_tool_power` + `open` |
+   | Arm sonst unbestromt (z. B. `BOOTING`) | **WARNUNG**: „Arm nicht bestromt" |
+
+   und Weite/Prozent/`grip_detected`/`busy` stehen dann auf `unbekannt` statt
+   auf erfundenen Zahlen; die Rohspannungen bleiben sichtbar (sie *sind* die
+   Diagnose).
+
+   Dieselbe Logik gilt für den Arm selbst: `POWER_OFF` ist eine
+   Bedienerentscheidung (Wartung/Feierabend), kein Fehler — `Arm Mode`,
+   `Arm Control`, `Arm Joints` und der Gutfall von `Arm Controllers` melden
+   dann **außer Betrieb** statt gelb/rot. Der Watchdog verhält sich genauso
+   (bei `POWER_OFF` läuft keine Recovery). Ein echtes Problem schlägt das
+   weiterhin durch: ein Safety-Stopp bleibt auch am ausgeschalteten Arm ROT
+   (live verifiziert an einem `FAULT` nach Power-Cycle), ein fehlender
+   Controller ebenfalls. Nebenbei behoben: `Arm Joints` meldete am
+   unbestromten Arm „in Bewegung", weil die Gelenkgeschwindigkeit dort bis
+   0,055 rad/s rauscht (bestromt: exakt 0,0000) — `moving` ist jetzt
+   `unbekannt`, solange der Arm aus ist, und die Schwelle liegt bei
+   0,02 rad/s (`motion_eps_rad_s`).
+
+   **Kodierung von „außer Betrieb":** `diagnostic_msgs` kennt nur
+   OK/WARN/ERROR/STALE. Ein eigener Byte-Wert würde die `max()`-Rollups des
+   Aggregators und jeden Fremdkonsumenten (`rqt_robot_monitor`, Capture)
+   verwirren. Der Status bleibt daher **OK** (es ist ja nichts kaputt) und
+   trägt zusätzlich den Wert `display=inactive`; nur Cockpit färbt daraus grau.
+
 2. **Boot-Patcher Schritt 6** (`clearpath-custom-setup.py`,
    `add_manipulator_analyzers`): trägt idempotent eine AnalyzerGroup
    `Manipulator` mit den Untergruppen `Arm` und `Gripper` in das generierte
@@ -114,6 +159,19 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
    abonniert — keine zusätzliche Topic-Subscription, also gelten Pause,
    History und Reconnect unverändert. Ohne Manipulator-Status im Baum rendert
    es **gar nichts** (Roboter ohne Arm bleiben unverändert).
+
+   Der Fork ist außerdem **auf Deutsch übersetzt** (`po/de.po`; Cockpit lädt
+   `po.<lang>.js` passend zur Spracheinstellung, inklusive des Menüeintrags)
+   und stuft zwei Fremdmeldungen herunter, die den ganzen Roboter dauerhaft
+   rot färbten: `joy_node: Joystick Driver Status` „Joystick not open." →
+   **inaktiv** (kein Gamepad angesteckt ist der Normalzustand) und
+   `controller_manager: Hardware Components Activity` „High execution jitter"
+   → **Warnung** (systembedingt bei der seriellen 10-Hz-Anbindung der Basis).
+   Die Regeln stehen in `src/utils/severity.ts`, greifen nur bei passendem
+   Namen **und** passender Meldung, und das Detail-Panel zeigt weiterhin die
+   ursprünglich gemeldete Stufe samt Begründung. Sauberer wäre für den Jitter
+   `diagnostics.threshold.hardware_components.*` am `controller_manager` —
+   das schaltet die Meldung aber ganz ab, statt sie herabzustufen.
 
    Installiert wird nach `/usr/local/share/cockpit/ros2-diagnostics`. Cockpit
    sucht in der Reihenfolge `~/.local/share/cockpit`, `/etc/cockpit`,
@@ -144,10 +202,15 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
    `/Clearpath Diagnostics/Manipulator/Arm/…` und `…/Gripper`.
 4. Cockpit (`http://<robot>:9090` → ROS 2 Diagnostics): Karte **Manipulator**
    mit Arm- und Greifer-Kachel.
-5. Funktionsprobe: Greifer öffnen/schließen → Balken + `grip_detected` folgen;
-   Arm stromlos schalten → `Arm Mode` wird WARN/ERROR, `Arm Control` meldet den
-   abgerissenen joint\_state-Strom.
-6. Rückbau-Probe: `systemctl disable --now
+5. Funktionsprobe: Greifer öffnen/schließen → Balken + `grip_detected` folgen.
+6. Abschaltprobe (`ur_state_manager/power_off`): Manipulator-Kachel, Arm- und
+   Greifer-Kachel werden **grau/„Außer Betrieb"**, der Öffnungsbalken
+   verschwindet, `grip_detected`/`busy`/`moving` stehen auf `unbekannt`.
+   Danach `prepare` + `rg6_control/set_tool_power` + `open` → wieder alles grün.
+   (Der Greifer primt sich nach einem Power-Cycle **nicht** von selbst — die
+   Programm-Flanke von `rg6_control` reicht dafür nicht; solange meldet der
+   Status WARNUNG mit genau diesem Rezept.)
+7. Rückbau-Probe: `systemctl disable --now
    clearpath-custom-manipulator-diagnostics`, Unit-Datei löschen, Reboot → die
    Analyzer verschwinden wieder aus der generierten YAML (`.bak` liegt daneben),
    das Panel rendert nichts mehr.
