@@ -144,11 +144,22 @@ reclassifies those. Shipped rules:
 | Status | Reported | Displayed | Why |
 |---|---|---|---|
 | `joy_node: Joystick Driver Status` — "Joystick not open." | ERROR | INACTIVE | No gamepad plugged in is the standing configuration on a software-driven robot. |
-| `controller_manager: Hardware Components Activity` — "High execution jitter or mean error" | ERROR | WARNING | Inherent to the A200's 10 Hz serial base link; worth seeing, not a drive fault. |
+| `controller_manager: Controllers Activity`<br>`controller_manager: Hardware Components Activity` — "High execution jitter or mean error" | ERROR | WARNING | Inherent to the A200's 10 Hz base control loop; worth seeing, not a drive fault. |
 
-Each rule matches on the status name **and** a message substring, so the same
-status still turns red for a *different* problem. Nothing is hidden: the detail
-drawer shows the reported level next to the displayed one, with the reason.
+Note that ros2_control reports that jitter under **two** diagnostic tasks with
+an identical message — the controllers variant fires only intermittently, so a
+rule covering just one of them looks correct until it does. A rule therefore
+carries a list of status names.
+
+Matching is line-wise and exhaustive: **every** non-empty line of the reported
+message must match the rule's pattern. ros2_control concatenates everything it
+found into one message, so a substring match would also downgrade a status that
+reports the tolerated jitter *and* a real problem ("High execution jitter …\nNot
+all controllers are active"). Requiring every line to match means the reported
+level stands the moment anything else appears.
+
+Nothing is hidden: the detail drawer shows the reported level next to the
+displayed one, with the reason.
 
 Overridden leaves are rolled up into their analyzer groups (the aggregator
 publishes group statuses computed from the *reported* child levels, so without

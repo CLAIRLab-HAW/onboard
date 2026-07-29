@@ -408,15 +408,15 @@ msgstr "Die IP-Adresse des Hosts konnte nicht ermittelt werden."
 msgid "Failed to parse Cockpit origin URL:"
 msgstr "Die Cockpit-Origin-URL konnte nicht gelesen werden:"
 
-#: src/utils/severity.ts:83
+#: src/utils/severity.ts:93
 msgid "No joystick connected - the driver is idle, not faulty."
 msgstr "Kein Joystick angeschlossen – der Treiber ruht, er ist nicht defekt."
 
-#: src/utils/severity.ts:97
-msgid "Cycle-time jitter of the base hardware - inherent to the 10 Hz serial link, not a drive fault."
-msgstr "Zykluszeit-Jitter der Basis-Hardware – systembedingt bei der seriellen 10-Hz-Anbindung, kein Antriebsfehler."
+#: src/utils/severity.ts:117
+msgid "Cycle-time jitter on the 10 Hz base control loop - inherent to this platform, not a drive fault."
+msgstr "Zykluszeit-Jitter der 10-Hz-Regelschleife der Basis – systembedingt auf dieser Plattform, kein Antriebsfehler."
 
-#: src/utils/severity.ts:119
+#: src/utils/severity.ts:139
 msgid "Reported as out of service by the publisher."
 msgstr "Vom Publisher als außer Betrieb gemeldet."
 

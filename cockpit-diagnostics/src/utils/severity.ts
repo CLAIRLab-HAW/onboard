@@ -52,11 +52,21 @@ export const DISPLAY_INACTIVE = "inactive";
 
 export interface SeverityOverride {
     // Matched against the raw (aggregated) status name, as a suffix so the
-    // analyzer path in front of it does not matter.
-    nameEndsWith: string;
-    // Substring of the reported message; keeps the override narrow, so the same
-    // status still turns red for a *different* problem.
-    messageContains: string;
+    // analyzer path in front of it does not matter. Several names per rule,
+    // because ros2_control reports the same condition under more than one
+    // diagnostic task.
+    nameEndsWith: string[];
+    /*
+     * Matched against *every* non-empty line of the reported message.
+     *
+     * Line-wise and exhaustive on purpose: ros2_control concatenates all the
+     * problems it found into one message, separated by newlines. Matching a
+     * substring would downgrade a status that reports the tolerated condition
+     * *and* a real one ("High execution jitter …\nNot all controllers are
+     * active"). Requiring every line to match means the moment anything else
+     * shows up, the reported level stands.
+     */
+    messageLine: RegExp;
     level: number;
     // Shown in the detail drawer next to the reported level. Plain English
     // literal: it is translated at render time via cockpit.gettext, not here
@@ -67,9 +77,9 @@ export interface SeverityOverride {
 /*
  * Reclassification of upstream statuses.
  *
- * Deliberately narrow -- name *and* message must match. Nothing is hidden: the
- * drawer shows the reported level alongside the displayed one, together with
- * the reason below.
+ * Deliberately narrow -- name *and* the complete message must match. Nothing is
+ * hidden: the drawer shows the reported level alongside the displayed one,
+ * together with the reason below.
  */
 export const SEVERITY_OVERRIDES: SeverityOverride[] = [
     {
@@ -77,24 +87,34 @@ export const SEVERITY_OVERRIDES: SeverityOverride[] = [
         // On a robot that is normally driven from software, "no joystick" is
         // the standing configuration, not a fault -- and as an ERROR it makes
         // the whole platform rollup red forever, which buries real errors.
-        nameEndsWith: "joy_node: Joystick Driver Status",
-        messageContains: "Joystick not open",
+        nameEndsWith: ["joy_node: Joystick Driver Status"],
+        messageLine: /^Joystick not open\.?$/,
         level: LEVEL_INACTIVE,
         reason: "No joystick connected - the driver is idle, not faulty.",
     },
     {
-        // ros2_control raises ERROR as soon as a hardware component's read/write
-        // cycle deviates from the nominal period. On the A200 the base hardware
-        // runs at 10 Hz over a serial link, so the jitter is inherent and
-        // permanent; it is worth seeing, but it is not a failure of the drive
-        // system. Raising controller_manager's own
-        // `diagnostics.threshold.hardware_components.*` parameters would be the
-        // upstream fix -- that silences the message entirely instead of
-        // downgrading it, which is why it is done here.
-        nameEndsWith: "controller_manager: Hardware Components Activity",
-        messageContains: "High execution jitter or mean error",
+        /*
+         * ros2_control raises ERROR as soon as an execution time deviates from
+         * the nominal cycle -- and it does so under *two* diagnostic tasks, with
+         * the identical message: once for the hardware components, once for the
+         * controllers. The A200 base runs its control loop at 10 Hz over a
+         * serial link, so occasional outliers (measured: 24 ms peak against a
+         * 37 us average, on a 100 ms cycle) are inherent to the platform. The
+         * controllers variant is intermittent, which is precisely why a
+         * permanent red is unhelpful -- it says nothing about when it fires.
+         *
+         * Upstream-correct would be raising controller_manager's own
+         * `diagnostics.threshold.{controllers,hardware_components}.*`; that
+         * silences the message entirely instead of downgrading it, which is why
+         * it is done here.
+         */
+        nameEndsWith: [
+            "controller_manager: Controllers Activity",
+            "controller_manager: Hardware Components Activity",
+        ],
+        messageLine: /^High execution jitter or mean error\b/,
         level: LEVEL_WARN,
-        reason: "Cycle-time jitter of the base hardware - inherent to the 10 Hz serial link, not a drive fault.",
+        reason: "Cycle-time jitter on the 10 Hz base control loop - inherent to this platform, not a drive fault.",
     },
 ];
 
@@ -118,8 +138,19 @@ export const overrideFor = (
     if (values?.[DISPLAY_KEY] === DISPLAY_INACTIVE) {
         return { level: LEVEL_INACTIVE, reason: "Reported as out of service by the publisher." };
     }
+
+    // ros2_control prefixes its messages with a newline, so drop empty lines
+    // before deciding -- an all-whitespace message must not count as "every
+    // line matched".
+    const lines = message.split("\n").map(line => line.trim())
+            .filter(line => line.length > 0);
+    if (lines.length === 0) {
+        return null;
+    }
+
     for (const rule of SEVERITY_OVERRIDES) {
-        if (rawName.endsWith(rule.nameEndsWith) && message.includes(rule.messageContains)) {
+        const nameMatches = rule.nameEndsWith.some(suffix => rawName.endsWith(suffix));
+        if (nameMatches && lines.every(line => rule.messageLine.test(line))) {
             return { level: rule.level, reason: rule.reason };
         }
     }
