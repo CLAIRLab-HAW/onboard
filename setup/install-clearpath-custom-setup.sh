@@ -1252,9 +1252,71 @@ RESEND_SVC="${NS}/io_and_status_controller/resend_robot_program"
 JS_TOPIC="${NS}/joint_states"   # joint_state_broadcaster-Ausgang; lebt nur bei aktivem HW-Interface
 PLATFORM_JS_TOPIC="${NS%/manipulators}/platform/joint_states"  # Fallback-Bus (s. Health-Check)
 DRY_RUN="${WD_DRY_RUN:-0}"      # 1 = nur melden, was passieren wuerde (Test)
+RPR_TOPIC="${TOPIC}"            # robot_program_running (latched/transient_local!)
+RPR_TIMEOUT="${WD_RPR_TIMEOUT:-6}"      # s: auf den gelatchten Wert warten
+RESEND_STATE="/run/manipulators-watchdog.resend"
+RESEND_COOLDOWN="${WD_RESEND_COOLDOWN:-60}"  # s: nicht im Timer-Takt spammen
 
 # ROS-Befehl als RUN_USER im selben Graphen ausfuehren.
 ros_cmd() { sudo -u "$RUN_USER" env HOME="$RUN_HOME" bash -lc "source /etc/clearpath/setup.bash && $*"; }
+
+# --- Helfer: Modus-/Safety-Abfrage und Trigger-Aufrufe (alle via Dashboard) ---
+robot_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_robot_mode' ur_dashboard_msgs/srv/GetRobotMode" 2>&1 | grep -oE 'Robotmode: [A-Z_]+' | head -1; }
+safety_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_safety_mode' ur_dashboard_msgs/srv/GetSafetyMode" 2>&1 | grep -oE 'Safetymode: [A-Z_]+' | head -1; }
+call_trigger() {  # $1 Service-Pfad, $2 Timeout(s); 0 = success=True
+    local svc="$1" t="${2:-12}"
+    ros_cmd "timeout ${t} ros2 service call '${svc}' std_srvs/srv/Trigger" 2>&1 | grep -q 'success=True'
+}
+
+
+
+# --- ExternalControl-Nachzuendung (Fall: RTDE liest, aber Motion-Link fehlt) ---
+# Der JSC streamt schon, sobald die Control-Box an ist - RTDE-Lesen funktioniert
+# unabhaengig von ExternalControl. Wird der Arm ERST NACH der HW-Aktivierung
+# bestromt (typisch: App ruft prepare), ging das einmalig gesendete
+# ExternalControl-Programm ins Leere und ros2_control wiederholt es nicht:
+# Lesen ok, Schreiben tot, Arm bewegt sich nicht. Der JSC-Health-Check sieht das
+# NICHT - erst die Konjunktion "JSC streamt UND robot_program_running" ist
+# belastbar. Reaktion hier bewusst MINIMAL: nur resend_robot_program, kein
+# Treiber-Neustart, kein Bestromen. Gate: nur wenn der Bediener den Arm schon
+# auf RUNNING gebracht hat und keine Safety-Stoerung ansteht.
+ensure_external_control() {
+    ros_cmd "timeout ${RPR_TIMEOUT} ros2 topic echo --once --qos-durability transient_local '${RPR_TOPIC}'" 2>/dev/null \
+        | grep -q 'data: true' && return 0
+    if [ "$DRY_RUN" = "1" ]; then
+        log "DRY_RUN=1 -> ExternalControl steht nicht; haette resend_robot_program geschickt."
+        return 0
+    fi
+    local rm_now; rm_now="$(robot_mode)"
+    if [ "$rm_now" != "Robotmode: RUNNING" ]; then
+        return 0   # Arm nicht betriebsbereit -> nichts tun (Bediener-Entscheidung)
+    fi
+    local sm_now; sm_now="$(safety_mode)"
+    if [ "$sm_now" != "Safetymode: NORMAL" ]; then
+        log "ExternalControl steht nicht, aber Safety-Modus ist '${sm_now:-unbekannt}' -> kein resend (manuelle Freigabe noetig)."
+        return 0
+    fi
+    local now_r; now_r="$(date +%s)"
+    if [ -f "$RESEND_STATE" ]; then
+        local last_r; last_r="$(cat "$RESEND_STATE" 2>/dev/null || echo 0)"
+        [ -n "$last_r" ] || last_r=0
+        if [ "$(( now_r - last_r ))" -lt "$RESEND_COOLDOWN" ]; then
+            return 0
+        fi
+    fi
+    echo "$now_r" > "$RESEND_STATE"
+    log "Arm ist RUNNING und der JSC streamt, aber ExternalControl laeuft nicht (robot_program_running != true) -> resend_robot_program. KEIN Treiber-Neustart, kein Bestromen."
+    if call_trigger "${RESEND_SVC}" 20; then
+        sleep 3
+        if ros_cmd "timeout ${RPR_TIMEOUT} ros2 topic echo --once --qos-durability transient_local '${RPR_TOPIC}'" 2>/dev/null | grep -q 'data: true'; then
+            log "ExternalControl wieder aktiv."
+        else
+            log "resend gesendet, robot_program_running noch nicht true - naechster Lauf prueft erneut (Cooldown ${RESEND_COOLDOWN}s)."
+        fi
+    else
+        log "resend_robot_program fehlgeschlagen - naechster Lauf prueft erneut (Cooldown ${RESEND_COOLDOWN}s)."
+    fi
+}
 
 # 1) Arm ueberhaupt erreichbar? Nein -> bewusst nichts tun (Arm noch aus; der
 #    Watchdog soll NUR beim spaeten Einschalten / nach Treiber-Ausfall anspringen,
@@ -1270,7 +1332,8 @@ fi
 #    PC-Motion-Link). Grace-Timeout grosszuegig: der JSC braucht nach einem
 #    manipulators-Restart bis ~15s -> erst >JS_TIMEOUT ohne Nachricht = wirklich tot.
 if ros_cmd "timeout ${JS_TIMEOUT} ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
-    exit 0    # JSC streamt -> Motion-Link ok
+    ensure_external_control    # JSC-Lesepfad ok - aber steht auch der Schreibpfad?
+    exit 0
 fi
 # Fallback: Arm-Joints koennen auch auf dem platform-Bus ankommen - naemlich dann,
 # wenn der Stock-Patch move_arm_joint_states (clearpath-custom-setup.py Schritt 3)
@@ -1296,14 +1359,6 @@ fi
 
 log "Arm erreichbar (${ROBOT_IP}), aber JSC ${JS_TOPIC} stumm (Motion-Link tot) -> Recovery: ${SERVICE} neu starten + ExternalControl neu starten. KEIN Auto-Bestromen des Arms (Bediener-Entscheidung)."
 echo "$now" > "$STATE"
-
-# --- Helfer: Modus-/Safety-Abfrage und Trigger-Aufrufe (alle via Dashboard) ---
-robot_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_robot_mode' ur_dashboard_msgs/srv/GetRobotMode" 2>&1 | grep -oE 'Robotmode: [A-Z_]+' | head -1; }
-safety_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_safety_mode' ur_dashboard_msgs/srv/GetSafetyMode" 2>&1 | grep -oE 'Safetymode: [A-Z_]+' | head -1; }
-call_trigger() {  # $1 Service-Pfad, $2 Timeout(s); 0 = success=True
-    local svc="$1" t="${2:-12}"
-    ros_cmd "timeout ${t} ros2 service call '${svc}' std_srvs/srv/Trigger" 2>&1 | grep -q 'success=True'
-}
 
 # 3a) clearpath-custom-ur-dashboard.service sicherstellen (Mode-Abfrage + resend
 #     brauchen den Dashboard-Client; unabhaengig von manipulators, bleibt oben).
