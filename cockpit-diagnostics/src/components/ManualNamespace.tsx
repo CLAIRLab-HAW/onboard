@@ -63,7 +63,9 @@ export const ManualNamespace = ({
         const sanitizedValue = sanitizeNamespace(value);
         const isSame = sameNamespace(value, sanitizedValue);
         setValidated(!isSame ? 'error' : 'default');
-        setInvalidNamespaceMessage(!isSame ? 'Invalid namespace. Legal namespace would be: ' + sanitizedValue : '');
+        setInvalidNamespaceMessage(!isSame
+            ? cockpit.format(_('Invalid namespace. Legal namespace would be: $0'), sanitizedValue)
+            : '');
     }, [namespace, value]);
 
     return (
@@ -80,7 +82,7 @@ export const ManualNamespace = ({
                                     placeholder={_('Enter namespace for the diagnostics_agg topic')}
                                     onChange={(_event, value) => setValue(value)}
                                     validated={validated}
-                                    aria-label='Manual Namespace Entry'
+                                    aria-label={_('Manual Namespace Entry')}
                                 />
                                 <FormHelperText>
                                     <HelperText>

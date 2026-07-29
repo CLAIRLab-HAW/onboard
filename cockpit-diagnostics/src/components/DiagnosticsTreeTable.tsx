@@ -42,8 +42,24 @@ import { Table, Thead, Tr, Th, Tbody, Td, TreeRowWrapper, TdProps } from "@patte
 import cockpit from 'cockpit';
 
 import { DiagnosticsEntry } from "../interfaces";
+import { LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_STALE, LEVEL_WARN } from "../utils/severity";
 
 const _ = cockpit.gettext;
+
+const levelName = (level: number): string => {
+    switch (level) {
+    case LEVEL_INACTIVE:
+        return _("INACTIVE");
+    case LEVEL_STALE:
+        return _("STALE");
+    case LEVEL_ERROR:
+        return _("ERROR");
+    case LEVEL_WARN:
+        return _("WARNING");
+    default:
+        return _("OK");
+    }
+};
 
 // Renders an expandable TreeTable of diagnostic messages
 export const DiagnosticsTreeTable = ({
@@ -209,16 +225,18 @@ export const DiagnosticsTreeTable = ({
                             <p>&nbsp;</p>
                             <p><strong>{_("Path")}:</strong> {selectedEntry.path}</p>
                             <p><strong>{_("Hardware ID")}:</strong> {selectedEntry.hardware_id || _("N/A")}</p>
-                            <p><strong>{_("Level")}:</strong> {
-                                selectedEntry.severity_level === 3
-                                    ? _("STALE")
-                                    : selectedEntry.severity_level === 2
-                                        ? _("ERROR")
-                                        : selectedEntry.severity_level === 1
-                                            ? _("WARNING")
-                                            : _("OK")
-                            }
-                            </p>
+                            <p><strong>{_("Level")}:</strong> {levelName(selectedEntry.severity_level)}</p>
+                            {/*
+                              * A reclassified status must never look like the original: show
+                              * what ROS actually reported and why it is displayed differently.
+                              */}
+                            {selectedEntry.override_reason && (
+                                <p>
+                                    <strong>{_("Reported level")}:</strong> {levelName(selectedEntry.reported_level)}
+                                    {" — "}
+                                    {_(selectedEntry.override_reason)}
+                                </p>
+                            )}
                             <p><strong>{_("Message")}:</strong> {selectedEntry.message}</p>
                             {selectedEntry.values && Object.keys(selectedEntry.values).length > 0 && (
                                 <>

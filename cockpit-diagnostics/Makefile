@@ -151,6 +151,10 @@ check: prepare-check
 codecheck: test/common $(NODE_MODULES_TEST)
 	test/common/static-code
 
+# Fork-specific unit tests (node only, no VM/browser -- see test/unit/run.js).
+check-unit: $(NODE_MODULES_TEST)
+	node test/unit/run.js
+
 # checkout Cockpit's bots for standard test VM images and API to launch them
 bots: $(COCKPIT_REPO_STAMP)
 	test/common/make-bots
@@ -162,4 +166,4 @@ $(NODE_MODULES_TEST): package.json
 	env -u NODE_ENV npm install --ignore-scripts
 	env -u NODE_ENV npm prune
 
-.PHONY: all clean install devel-install devel-uninstall print-version dist node-cache rpm prepare-check check vm print-vm
+.PHONY: all clean install devel-install devel-uninstall print-version dist node-cache rpm prepare-check check check-unit vm print-vm

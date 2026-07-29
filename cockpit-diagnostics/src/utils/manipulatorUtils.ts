@@ -19,6 +19,7 @@
  */
 
 import { DiagnosticsEntry } from "../interfaces";
+import { DISPLAY_KEY, LEVEL_NONE } from "./severity";
 
 /*
  * Manipulator (arm + end effector) view over the aggregated diagnostics.
@@ -84,6 +85,20 @@ const findStatus = (entries: DiagnosticsEntry[], task: string): DiagnosticsEntry
 };
 
 /*
+ * Worst severity of a subset of statuses, for the per-card header badge.
+ *
+ * Seeded from the entries that exist rather than from a fixed floor: INACTIVE
+ * sorts *below* OK, so a fixed seed of LEVEL_NONE would swallow an all-inactive
+ * group and report "no data" for a cleanly powered-down arm.
+ */
+export const worstLevel = (entries: (DiagnosticsEntry | null)[]): number => {
+    const levels = entries
+            .filter((entry): entry is DiagnosticsEntry => entry !== null)
+            .map(entry => entry.severity_level);
+    return levels.length > 0 ? Math.max(...levels) : LEVEL_NONE;
+};
+
+/*
  * Collect the manipulator statuses out of the aggregated tree.
  *
  * Returns null when none of them are present -- that is the normal case on a
@@ -110,16 +125,9 @@ export const collectManipulator = (diagnostics: DiagnosticsEntry[]): Manipulator
         return null;
     }
 
-    statuses.level = found.reduce((worst, entry) => Math.max(worst, entry.severity_level), -1);
+    statuses.level = worstLevel(found);
     return statuses;
 };
-
-// Worst severity of a subset of statuses, for the per-card header badge.
-export const worstLevel = (entries: (DiagnosticsEntry | null)[]): number =>
-    entries.reduce(
-        (worst: number, entry) => (entry ? Math.max(worst, entry.severity_level) : worst),
-        -1
-    );
 
 export const valueOf = (entry: DiagnosticsEntry | null, key: string): string | null => {
     const value = entry?.values?.[key];
@@ -170,8 +178,15 @@ export const jointRows = (entry: DiagnosticsEntry | null): JointRow[] => {
             }));
 };
 
-// Keys of the Arm Controllers status that are metadata rather than a controller.
-const CONTROLLER_META_KEYS = ["required", "active_optional"];
+/*
+ * Keys of the Arm Controllers status that are metadata rather than a controller.
+ *
+ * Every entry that is not listed here is rendered as a controller chip, so a
+ * new metadata key on the publisher side has to be added here too -- otherwise
+ * it shows up as a phantom controller (DISPLAY_KEY did exactly that while the
+ * arm was switched off).
+ */
+const CONTROLLER_META_KEYS = ["required", "active_optional", DISPLAY_KEY];
 
 export const controllerRows = (entry: DiagnosticsEntry | null): ControllerRow[] => {
     if (!entry?.values) {

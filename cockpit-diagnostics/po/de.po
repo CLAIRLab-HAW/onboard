@@ -1,0 +1,429 @@
+# German translation for Cockpit ROS 2 Diagnostics.
+# Copyright (C) 2026 CLAIRLab, HAW Hamburg
+# This file is distributed under the same license as the package.
+#
+# Convention: technical identifiers stay untranslated -- ROS names (namespace,
+# topic, joint names), UR product terms (ExternalControl) and unit symbols.
+# Only the interface chrome around them is translated.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: cockpit-ros2-diagnostics\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/app.tsx:78
+msgid "ROS 2 Diagnostics"
+msgstr "ROS-2-Diagnose"
+
+#: src/app.tsx:89
+msgid "Resume diagnostics updates"
+msgstr "Diagnose-Aktualisierung fortsetzen"
+
+#: src/app.tsx:89
+msgid "Pause diagnostics updates"
+msgstr "Diagnose-Aktualisierung pausieren"
+
+#: src/app.tsx:91
+msgid "Resume"
+msgstr "Fortsetzen"
+
+#: src/app.tsx:91
+msgid "Pause"
+msgstr "Pause"
+
+#: src/components/DiagnosticsCapture.tsx:55
+msgid "Incomplete diagnostic capture: Failed to execute commands: "
+msgstr "Unvollständige Diagnose-Erfassung: Befehle fehlgeschlagen: "
+
+#: src/components/DiagnosticsCapture.tsx:143
+msgid "View console log for details."
+msgstr "Details im Konsolen-Log."
+
+#: src/components/DiagnosticsCapture.tsx:149
+msgid "Failed to capture diagnostics. Please try again."
+msgstr "Diagnose-Erfassung fehlgeschlagen. Bitte erneut versuchen."
+
+#: src/components/DiagnosticsCapture.tsx:161
+msgid "Capture Diagnostics"
+msgstr "Diagnose erfassen"
+
+#: src/components/DiagnosticsCapture.tsx:170
+msgid "Generating..."
+msgstr "Wird erstellt …"
+
+#: src/components/DiagnosticsCapture.tsx:170
+msgid "Generate Capture"
+msgstr "Erfassung erstellen"
+
+#: src/components/DiagnosticsCapture.tsx:177
+msgid "Diagnostic capture may take several minutes to generate."
+msgstr "Die Diagnose-Erfassung kann einige Minuten dauern."
+
+#: src/components/DiagnosticsCapture.tsx:182
+msgid "Enable admin access at the top of the page to enable diagnostics capture feature."
+msgstr "Für die Diagnose-Erfassung oben auf der Seite den Administrator-Zugriff aktivieren."
+
+#: src/components/DiagnosticsCapture.tsx:196
+msgid "Diagnostics captured successfully ($0)."
+msgstr "Diagnose erfasst ($0)."
+
+#: src/components/DiagnosticsCapture.tsx:203
+msgid "Download Diagnostics File"
+msgstr "Diagnosedatei herunterladen"
+
+#: src/components/DiagnosticsTable.tsx:61
+msgid "Errors"
+msgstr "Fehler"
+
+#: src/components/DiagnosticsTable.tsx:61
+msgid "Warnings"
+msgstr "Warnungen"
+
+#: src/components/DiagnosticsTable.tsx:70
+msgid "Name"
+msgstr "Name"
+
+#: src/components/DiagnosticsTable.tsx:71
+msgid "Message"
+msgstr "Meldung"
+
+#: src/components/DiagnosticsTable.tsx:83
+msgid "N/A"
+msgstr "k. A."
+
+#: src/components/DiagnosticsTable.tsx:99
+msgid "No Errors"
+msgstr "Keine Fehler"
+
+#: src/components/DiagnosticsTable.tsx:99
+msgid "No Warnings"
+msgstr "Keine Warnungen"
+
+#: src/components/DiagnosticsTreeTable.tsx:52
+msgid "INACTIVE"
+msgstr "INAKTIV"
+
+#: src/components/DiagnosticsTreeTable.tsx:54
+msgid "STALE"
+msgstr "VERALTET"
+
+#: src/components/DiagnosticsTreeTable.tsx:56
+msgid "ERROR"
+msgstr "FEHLER"
+
+#: src/components/DiagnosticsTreeTable.tsx:58
+msgid "WARNING"
+msgstr "WARNUNG"
+
+#: src/components/DiagnosticsTreeTable.tsx:60
+msgid "OK"
+msgstr "OK"
+
+#: src/components/DiagnosticsTreeTable.tsx:226
+msgid "Path"
+msgstr "Pfad"
+
+#: src/components/DiagnosticsTreeTable.tsx:227
+msgid "Hardware ID"
+msgstr "Hardware-ID"
+
+#: src/components/DiagnosticsTreeTable.tsx:228
+msgid "Level"
+msgstr "Stufe"
+
+#: src/components/DiagnosticsTreeTable.tsx:235
+msgid "Reported level"
+msgstr "Gemeldete Stufe"
+
+#: src/components/DiagnosticsTreeTable.tsx:244
+msgid "Values"
+msgstr "Werte"
+
+#: src/components/DiagnosticsTreeTable.tsx:245
+msgid "Diagnostic Values Table"
+msgstr "Tabelle der Diagnosewerte"
+
+#: src/components/DiagnosticsTreeTable.tsx:266
+msgid "All Diagnostics"
+msgstr "Alle Diagnosen"
+
+#: src/components/DiagnosticsTreeTable.tsx:271
+msgid "Diagnostics Tree Table"
+msgstr "Diagnose-Baumtabelle"
+
+#: src/components/DiagnosticsTreeTable.tsx:294
+msgid "Waiting for diagnostics messages..."
+msgstr "Warte auf Diagnose-Nachrichten …"
+
+#: src/components/DiagnosticsTreeTable.tsx:295
+msgid "Attempting to connect to the Foxglove bridge..."
+msgstr "Verbindung zur Foxglove-Bridge wird aufgebaut …"
+
+#: src/components/HistorySelection.tsx:66
+msgid "Timeline:"
+msgstr "Zeitverlauf:"
+
+#: src/components/HistorySelection.tsx:69
+msgid "Diagnostics History"
+msgstr "Diagnose-Verlauf"
+
+#: src/components/HistorySelection.tsx:93
+msgid "diagnostics snapshot $0"
+msgstr "Diagnose-Momentaufnahme $0"
+
+#: src/components/HistorySelection.tsx:109
+msgid "Oldest Timestamp:"
+msgstr "Ältester Zeitstempel:"
+
+#: src/components/HistorySelection.tsx:113
+msgid "Selected Timestamp:"
+msgstr "Ausgewählter Zeitstempel:"
+
+#: src/components/HistorySelection.tsx:116
+msgid "Latest Timestamp:"
+msgstr "Neuester Zeitstempel:"
+
+#: src/components/ManipulatorPanel.tsx:101
+msgid "Warning"
+msgstr "Warnung"
+
+#: src/components/ManipulatorPanel.tsx:103
+msgid "Error"
+msgstr "Fehler"
+
+#: src/components/ManipulatorPanel.tsx:105
+msgid "Stale"
+msgstr "Veraltet"
+
+#: src/components/ManipulatorPanel.tsx:107
+msgid "Out of service"
+msgstr "Außer Betrieb"
+
+#: src/components/ManipulatorPanel.tsx:109
+msgid "No data"
+msgstr "Keine Daten"
+
+#: src/components/ManipulatorPanel.tsx:138
+msgid "unknown"
+msgstr "unbekannt"
+
+#: src/components/ManipulatorPanel.tsx:173
+msgid "No message"
+msgstr "Keine Meldung"
+
+#: src/components/ManipulatorPanel.tsx:175
+msgid "Show details"
+msgstr "Details anzeigen"
+
+#: src/components/ManipulatorPanel.tsx:228
+msgid "Arm"
+msgstr "Arm"
+
+#: src/components/ManipulatorPanel.tsx:234
+msgid "UR5 at $0"
+msgstr "UR5 an $0"
+
+#: src/components/ManipulatorPanel.tsx:235
+msgid "UR5"
+msgstr "UR5"
+
+#: src/components/ManipulatorPanel.tsx:244
+msgid "Robot mode"
+msgstr "Robotermodus"
+
+#: src/components/ManipulatorPanel.tsx:247
+msgid "Safety mode"
+msgstr "Sicherheitsmodus"
+
+#: src/components/ManipulatorPanel.tsx:250
+msgid "External control"
+msgstr "ExternalControl"
+
+#: src/components/ManipulatorPanel.tsx:260
+msgid "Motion link"
+msgstr "Motion-Link"
+
+#: src/components/ManipulatorPanel.tsx:262
+msgid "live"
+msgstr "läuft"
+
+#: src/components/ManipulatorPanel.tsx:262
+msgid "dead"
+msgstr "tot"
+
+#: src/components/ManipulatorPanel.tsx:264
+msgid "$0 Hz"
+msgstr "$0 Hz"
+
+#: src/components/ManipulatorPanel.tsx:266
+msgid "Controllers"
+msgstr "Controller"
+
+#: src/components/ManipulatorPanel.tsx:268
+msgid "$0 of $1 active"
+msgstr "$0 von $1 aktiv"
+
+#: src/components/ManipulatorPanel.tsx:275
+msgid "Arm Joints Table"
+msgstr "Tabelle der Armgelenke"
+
+#: src/components/ManipulatorPanel.tsx:282
+msgid "Joint"
+msgstr "Gelenk"
+
+#: src/components/ManipulatorPanel.tsx:283
+msgid "Position"
+msgstr "Position"
+
+#: src/components/ManipulatorPanel.tsx:284
+msgid "Velocity"
+msgstr "Geschwindigkeit"
+
+#: src/components/ManipulatorPanel.tsx:285
+msgid "Effort"
+msgstr "Moment"
+
+#: src/components/ManipulatorPanel.tsx:343
+msgid "End effector"
+msgstr "Endeffektor"
+
+#: src/components/ManipulatorPanel.tsx:346
+msgid "OnRobot RG6"
+msgstr "OnRobot RG6"
+
+#: src/components/ManipulatorPanel.tsx:353
+msgid "Opening"
+msgstr "Öffnungsweite"
+
+#: src/components/ManipulatorPanel.tsx:355
+msgid "$0 of $1 mm"
+msgstr "$0 von $1 mm"
+
+#: src/components/ManipulatorPanel.tsx:360
+msgid "Gripper opening"
+msgstr "Greiferöffnung"
+
+#: src/components/ManipulatorPanel.tsx:365
+msgid "Grip detected"
+msgstr "Griff erkannt"
+
+#: src/components/ManipulatorPanel.tsx:367
+msgid "object held"
+msgstr "Objekt gegriffen"
+
+#: src/components/ManipulatorPanel.tsx:367
+msgid "no object"
+msgstr "kein Objekt"
+
+#: src/components/ManipulatorPanel.tsx:370
+msgid "Motion"
+msgstr "Bewegung"
+
+#: src/components/ManipulatorPanel.tsx:372
+msgid "moving"
+msgstr "in Bewegung"
+
+#: src/components/ManipulatorPanel.tsx:372
+msgid "settled"
+msgstr "steht"
+
+#: src/components/ManipulatorPanel.tsx:380
+msgid "Tool power"
+msgstr "Tool-Spannung"
+
+#: src/components/ManipulatorPanel.tsx:382
+msgid "on"
+msgstr "an"
+
+#: src/components/ManipulatorPanel.tsx:382
+msgid "off"
+msgstr "aus"
+
+#: src/components/ManipulatorPanel.tsx:384
+msgid "commanded, no signal"
+msgstr "kommandiert, kein Signal"
+
+#: src/components/ManipulatorPanel.tsx:385
+msgid "Force preset"
+msgstr "Kraft-Preset"
+
+#: src/components/ManipulatorPanel.tsx:386
+msgid "high"
+msgstr "hoch"
+
+#: src/components/ManipulatorPanel.tsx:386
+msgid "normal"
+msgstr "normal"
+
+#: src/components/ManipulatorPanel.tsx:388
+msgid "Last command"
+msgstr "Letzter Befehl"
+
+#: src/components/ManipulatorPanel.tsx:391
+msgid "Force signal"
+msgstr "Kraftsignal"
+
+#: src/components/ManipulatorPanel.tsx:419
+msgid "Manipulator"
+msgstr "Manipulator"
+
+#: src/components/ManualNamespace.tsx:67
+msgid "Invalid namespace. Legal namespace would be: $0"
+msgstr "Ungültiger Namespace. Zulässig wäre: $0"
+
+#: src/components/ManualNamespace.tsx:73
+msgid "Namespace"
+msgstr "Namespace"
+
+#: src/components/ManualNamespace.tsx:82
+msgid "Enter namespace for the diagnostics_agg topic"
+msgstr "Namespace des diagnostics_agg-Topics eingeben"
+
+#: src/components/ManualNamespace.tsx:85
+msgid "Manual Namespace Entry"
+msgstr "Manuelle Namespace-Eingabe"
+
+#: src/components/ManualNamespace.tsx:110
+msgid "Apply"
+msgstr "Übernehmen"
+
+#: src/components/ManualNamespace.tsx:110
+msgid "Applied"
+msgstr "Übernommen"
+
+#: src/hooks/useNamespace.ts:74
+msgid "Configuration Error: Neither namespace nor serial_number found in robot.yaml"
+msgstr "Konfigurationsfehler: Weder namespace noch serial_number in der robot.yaml gefunden"
+
+#: src/hooks/useWebSocketUrl.ts:38
+msgid "Unable to determine the host IP address."
+msgstr "Die IP-Adresse des Hosts konnte nicht ermittelt werden."
+
+#: src/hooks/useWebSocketUrl.ts:41
+msgid "Failed to parse Cockpit origin URL:"
+msgstr "Die Cockpit-Origin-URL konnte nicht gelesen werden:"
+
+#: src/utils/severity.ts:83
+msgid "No joystick connected - the driver is idle, not faulty."
+msgstr "Kein Joystick angeschlossen – der Treiber ruht, er ist nicht defekt."
+
+#: src/utils/severity.ts:97
+msgid "Cycle-time jitter of the base hardware - inherent to the 10 Hz serial link, not a drive fault."
+msgstr "Zykluszeit-Jitter der Basis-Hardware – systembedingt bei der seriellen 10-Hz-Anbindung, kein Antriebsfehler."
+
+#: src/utils/severity.ts:119
+msgid "Reported as out of service by the publisher."
+msgstr "Vom Publisher als außer Betrieb gemeldet."
+
+#: src/manifest.json:8
+msgid "ROS 2 diagnostics"
+msgstr "ROS-2-Diagnose"
+
+#: src/index.html:20
+msgid "Cockpit ROS 2 Diagnostics"
+msgstr "Cockpit ROS-2-Diagnose"

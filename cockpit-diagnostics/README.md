@@ -2,8 +2,9 @@
 
 > **Fork note (CLAIRLab, HAW Hamburg).** This is a fork of
 > [clearpathrobotics/cockpit-ros2-diagnostics](https://github.com/clearpathrobotics/cockpit-ros2-diagnostics)
-> that adds a **Manipulator panel** for the arm and the end effector. See
-> [Manipulator panel](#manipulator-panel) below. Everything else is unchanged and
+> that adds a [Manipulator panel](#manipulator-panel) for the arm and the end
+> effector, an [out-of-service level and severity overrides](#severity-out-of-service-and-overrides),
+> and a [German translation](#translations). Everything else is unchanged and
 > upstream stays the merge base.
 
 This is a Cockpit application that is intended to be installed alongside [Cockpit](https://cockpit-project.org/) and connects to the [foxglove bridge](https://docs.foxglove.dev/docs/connecting-to-data/ros-foxglove-bridge)
@@ -75,10 +76,28 @@ The panel looks for these statuses in `<namespace>/diagnostics_agg`:
 | `manipulator_diagnostics: Arm Control` | external control, joint\_state rate/age, motion link |
 | `manipulator_diagnostics: Arm Joints` | `joints` (ordered CSV) plus `<joint>_rad` / `<joint>_deg` / `<joint>_vel_rad_s` / `<joint>_effort` |
 | `manipulator_diagnostics: Arm Controllers` | one key per controller, value = its state |
-| `manipulator_diagnostics: Gripper` | `width_mm`, `width_percent`, `stroke_mm`, `grip_detected`, `busy`, `tool_power_on`, `high_force_preset`, `last_command`, `force_raw_v` |
+| `manipulator_diagnostics: Gripper` | `width_mm`, `width_percent`, `stroke_mm`, `grip_detected`, `busy`, `signal_valid`, `tool_power_commanded`, `high_force_preset`, `last_command`, `force_raw_v` |
+
+`tool_power_commanded` is named for what it is: the driver's commanded setpoint,
+not hardware feedback — it stays true after the tool loses power. The panel
+therefore pairs it with `signal_valid` and only shows it green when the analog
+signal confirms the tool actually answers.
+
+These key names are a contract with no compile-time enforcement, so
+`test/unit/contract.test.ts` checks them in both directions against a capture of
+what the robot publishes: every key the panel reads must exist, and every
+contracted key must still be read. Run it with `make check-unit` (node only, no
+VM or browser). Refresh `test/unit/agg-armed.json` from a live
+`/<ns>/diagnostics_agg` when the publisher changes.
 
 Statuses are matched by their raw name, not by the analyzer path, so the panel
 does not care how the aggregator groups them.
+
+Values that the publisher cannot vouch for are expected to be absent or
+non-numeric rather than invented: the opening bar is not drawn when
+`width_percent` does not parse, and a boolean that is neither `"true"` nor
+`"false"` renders as *unknown* instead of defaulting to false. This is what
+keeps a powered-down gripper from displaying a confident "0 mm, moving".
 
 Nothing in ROS publishes these out of the box: the UR driver reports its state
 as `ur_dashboard_msgs`, a gripper driver in its own message type, and the arm's
@@ -92,6 +111,74 @@ in `husky-custom-setup`, which also installs it as a boot service and registers
 the matching aggregator analyzers. To feed the panel from a different arm or
 gripper, publish the same status names and value keys — the panel needs nothing
 else.
+
+# Severity: out of service, and overrides
+
+`diagnostic_msgs/DiagnosticStatus` only knows OK / WARN / ERROR / STALE. Two
+things are missing for an operator view, and this fork adds both in
+`src/utils/severity.ts`.
+
+## The INACTIVE level
+
+A subsystem that is deliberately switched off is neither OK (it is not working)
+nor a fault (nobody needs to do anything). Painting a powered-down arm yellow or
+red trains people to ignore colours. INACTIVE renders grey, labelled *Out of
+service*, and dims the readings of the affected card — they are last-known
+values, not live state.
+
+It is a **display** level with the value `-2`, deliberately below OK: group
+levels roll up with `Math.max()`, so a group only reads inactive when all of its
+children do, and a single real fault still wins.
+
+A publisher opts in by adding the value `display=inactive` to a status while
+leaving the level at OK. That keeps the message standards-compliant — every
+other consumer (`rqt_robot_monitor`, the diagnostics capture) sees a plain OK
+with an explanatory message — and only this UI paints it grey.
+
+## Overrides
+
+Some upstream nodes classify harmless, permanent conditions as ERROR, which
+drags the whole robot's rollup to red and buries real faults. `SEVERITY_OVERRIDES`
+reclassifies those. Shipped rules:
+
+| Status | Reported | Displayed | Why |
+|---|---|---|---|
+| `joy_node: Joystick Driver Status` — "Joystick not open." | ERROR | INACTIVE | No gamepad plugged in is the standing configuration on a software-driven robot. |
+| `controller_manager: Hardware Components Activity` — "High execution jitter or mean error" | ERROR | WARNING | Inherent to the A200's 10 Hz serial base link; worth seeing, not a drive fault. |
+
+Each rule matches on the status name **and** a message substring, so the same
+status still turns red for a *different* problem. Nothing is hidden: the detail
+drawer shows the reported level next to the displayed one, with the reason.
+
+Overridden leaves are rolled up into their analyzer groups (the aggregator
+publishes group statuses computed from the *reported* child levels, so without
+this a downgraded leaf would leave its group red). Recomputation is limited to
+groups that actually contain an override — every untouched group keeps exactly
+the level the aggregator published.
+
+For the jitter case the upstream-correct fix would be to raise
+`diagnostics.threshold.hardware_components.*` on the `controller_manager`; that
+silences the message entirely rather than downgrading it, which is why it is
+done here instead.
+
+# Translations
+
+Translations live in `po/` and are compiled into `dist/po.<lang>.js` by the
+build; Cockpit loads the file matching the user's language, including a separate
+bundle for the menu entry in `manifest.json`. This fork ships **German**
+(`po/de.po`), since a German Cockpit with an English-only plugin tab reads
+badly.
+
+Convention: technical identifiers stay untranslated — ROS names (namespace,
+topic and joint names), UR product terms such as *ExternalControl*, and unit
+symbols. Only the interface chrome around them is translated.
+
+Note that diagnostic *messages* are data, not interface text: they arrive as
+plain strings from the publishing node and are shown verbatim. On the a200-0553
+the manipulator statuses are German because `manipulator_diagnostics` emits them
+that way; upstream Clearpath statuses remain English.
+
+To add a language, copy `po/de.po`, translate, and rebuild.
 
 ## Installing this fork on a robot
 

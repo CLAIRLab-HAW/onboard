@@ -26,8 +26,13 @@ import {
     Title
 } from '@patternfly/react-core';
 
+import cockpit from 'cockpit';
+
 import { DiagnosticsStatus } from "../interfaces";
 import { HISTORY_SIZE } from '../hooks/useDiagHistory';
+import { LEVEL_ERROR, LEVEL_WARN } from '../utils/severity';
+
+const _ = cockpit.gettext;
 
 export const HistorySelection = ({
     diagHistory,
@@ -58,10 +63,10 @@ export const HistorySelection = ({
         <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsXs' }}>
             <Flex direction={{ default: 'row' }} alignItems={{ default: 'alignItemsCenter' }}>
                 <FlexItem>
-                    <Title headingLevel="h2">Timeline:</Title>
+                    <Title headingLevel="h2">{_("Timeline:")}</Title>
                 </FlexItem>
                 <FlexItem grow={{ default: 'grow' }}>
-                    <ProgressStepper isCenterAligned aria-label="Diagnostics History">
+                    <ProgressStepper isCenterAligned aria-label={_("Diagnostics History")}>
                         {
                             Array.from({ length: HISTORY_SIZE - diagHistory.length }).map((_, index) => (
                                 <ProgressStep
@@ -73,9 +78,9 @@ export const HistorySelection = ({
                         }
 
                         {diagHistory.map((diagStatus, index) => {
-                            const variant = diagStatus.level >= 2
+                            const variant = diagStatus.level >= LEVEL_ERROR
                                 ? "danger"
-                                : diagStatus.level === 1
+                                : diagStatus.level === LEVEL_WARN
                                     ? "warning"
                                     : "success";
 
@@ -85,7 +90,7 @@ export const HistorySelection = ({
                                     variant={((diagHistory.length + negIndex) === index) ? "info" : variant}
                                     id={`history-step-${index}`}
                                     titleId={`history-step-${index}-title`}
-                                    aria-label={`diagnostics snapshot ${index + 1}`}
+                                    aria-label={cockpit.format(_("diagnostics snapshot $0"), index + 1)}
                                     onClick={() => {
                                         setDiagStatusDisplay(diagStatus);
                                         setIsPaused(true);
@@ -101,14 +106,14 @@ export const HistorySelection = ({
             <FlexItem>
                 <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }}>
                     <FlexItem>
-                        Oldest Timestamp: {diagHistory.length > 0 ? new Date(diagHistory[0].timestamp).toLocaleTimeString() : 'N/A'}
+                        {_("Oldest Timestamp:")} {diagHistory.length > 0 ? new Date(diagHistory[0].timestamp).toLocaleTimeString() : _('N/A')}
                     </FlexItem>
                     {isPaused &&
                         <FlexItem>
-                            Selected Timestamp: {diagHistory.length > 0 ? new Date(diagHistory[diagHistory.length + negIndex].timestamp).toLocaleTimeString() : 'N/A'}
+                            {_("Selected Timestamp:")} {diagHistory.length > 0 ? new Date(diagHistory[diagHistory.length + negIndex].timestamp).toLocaleTimeString() : _('N/A')}
                         </FlexItem>}
                     <FlexItem>
-                        Latest Timestamp: {diagHistory.length > 0 ? new Date(diagHistory[diagHistory.length - 1].timestamp).toLocaleTimeString() : 'N/A'}
+                        {_("Latest Timestamp:")} {diagHistory.length > 0 ? new Date(diagHistory[diagHistory.length - 1].timestamp).toLocaleTimeString() : _('N/A')}
                     </FlexItem>
                 </Flex>
             </FlexItem>

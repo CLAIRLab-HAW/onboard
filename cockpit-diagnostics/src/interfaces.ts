@@ -22,7 +22,13 @@ export interface DiagnosticsEntry {
     path: string;
     rawName: string;
     message: string;
+    // Level this entry is *displayed* at. Equal to reported_level unless a
+    // severity override applied (see utils/severity.ts).
     severity_level: number;
+    // Level as published by ROS, kept so the detail drawer can show both.
+    reported_level: number;
+    // Why the displayed level deviates; null when it does not.
+    override_reason: string | null;
     hardware_id: string | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     values: { [key: string]: any } | null;

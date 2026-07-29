@@ -23,11 +23,21 @@ import {
     CheckCircleIcon,
     ExclamationCircleIcon,
     ExclamationTriangleIcon,
+    OutlinedCircleIcon,
     QuestionCircleIcon,
 } from "@patternfly/react-icons";
 
 import { DiagnosticsEntry, DiagnosticsStatus } from "../interfaces";
 import * as ROSLIB from "../roslib/index";
+import {
+    LEVEL_ERROR,
+    LEVEL_INACTIVE,
+    LEVEL_NONE,
+    LEVEL_STALE,
+    LEVEL_WARN,
+    overrideFor,
+    rollUpOverrides,
+} from "../utils/severity";
 
 interface RosConnectionManagerProps {
     namespace: string;
@@ -52,9 +62,32 @@ const calculateOverallLevel = (diagnostics: DiagnosticsEntry[]): number => {
     return maxLevel;
 };
 
+// Icon for a *displayed* severity level. Assigned in a pass after the levels
+// are final, so overridden statuses and their groups get matching icons.
+const iconFor = (level: number): JSX.Element => {
+    if (level === LEVEL_INACTIVE)
+        return <Icon><OutlinedCircleIcon /></Icon>;
+    if (level === LEVEL_STALE)
+        return <Icon status="info"><QuestionCircleIcon /></Icon>;
+    if (level >= LEVEL_ERROR)
+        return <Icon status="danger"><ExclamationCircleIcon /></Icon>;
+    if (level === LEVEL_WARN)
+        return <Icon status="warning"><ExclamationTriangleIcon /></Icon>;
+    return <Icon status="success"><CheckCircleIcon /></Icon>;
+};
+
+const assignIcons = (entries: DiagnosticsEntry[]): void => {
+    entries.forEach(entry => {
+        entry.icon = iconFor(entry.severity_level);
+        assignIcons(entry.children);
+    });
+};
+
 // Helper function to build a nested DiagnosticsEntry tree
+// Exported so the severity-override behaviour can be tested against captured
+// aggregator payloads without standing up a websocket.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const buildDiagnosticsTree = (diagnostics: any[]): DiagnosticsEntry[] => {
+export const buildDiagnosticsTree = (diagnostics: any[]): DiagnosticsEntry[] => {
     const root: DiagnosticsEntry[] = [];
 
     diagnostics.forEach(({ name, message, level, hardware_id, values }) => {
@@ -75,18 +108,19 @@ const buildDiagnosticsTree = (diagnostics: any[]): DiagnosticsEntry[] => {
                     path,
                     rawName: path,
                     message: "",
-                    severity_level: -1,
+                    severity_level: LEVEL_NONE,
+                    reported_level: LEVEL_NONE,
+                    override_reason: null,
                     hardware_id: null,
                     values: null,
                     children: [],
-                    icon: null, // Initialize icon as null
+                    icon: null, // Assigned once the levels are final
                 };
                 currentLevel.push(existingEntry);
             }
 
             if (index === parts.length - 1) {
                 existingEntry.message = message || "";
-                existingEntry.severity_level = level ?? -1;
                 existingEntry.hardware_id = hardware_id || null;
                 existingEntry.rawName = name;
 
@@ -101,19 +135,21 @@ const buildDiagnosticsTree = (diagnostics: any[]): DiagnosticsEntry[] => {
                         )
                         : {};
 
-                // Populate the icon based on severity level
-                existingEntry.icon = level === 3
-                    ? <Icon status="info"><QuestionCircleIcon /></Icon>
-                    : level === 2
-                        ? <Icon status="danger"><ExclamationCircleIcon /></Icon>
-                        : level === 1
-                            ? <Icon status="warning"><ExclamationTriangleIcon /></Icon>
-                            : <Icon status="success"><CheckCircleIcon /></Icon>;
+                const reported = level ?? LEVEL_NONE;
+                const override = overrideFor(name, existingEntry.message, existingEntry.values);
+                existingEntry.reported_level = reported;
+                existingEntry.severity_level = override ? override.level : reported;
+                existingEntry.override_reason = override ? override.reason : null;
             }
 
             currentLevel = existingEntry.children;
         });
     });
+
+    // Propagate overridden levels into the analyzer groups above them, then
+    // derive every icon from the final level.
+    rollUpOverrides(root);
+    assignIcons(root);
 
     return root;
 };

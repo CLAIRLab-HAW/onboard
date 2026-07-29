@@ -54,3 +54,20 @@
 .manipulator-controllers {
     margin-block-start: var(--pf-t--global--spacer--md);
 }
+
+/* Explanation line for an out-of-service subsystem: informative, not alarming. */
+.manipulator-note {
+    color: var(--pf-t--global--text--color--subtle);
+    margin-block-end: var(--pf-t--global--spacer--sm);
+}
+
+/*
+ * Readings of a subsystem that is switched off are last-known values, not live
+ * state. Dimming them keeps a joint angle from a powered-down arm from being
+ * read as current, without hiding it.
+ */
+.manipulator-out-of-service .pf-v6-c-description-list,
+.manipulator-out-of-service .pf-v6-c-table,
+.manipulator-out-of-service .pf-v6-c-progress {
+    opacity: 0.65;
+}

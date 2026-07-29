@@ -43,6 +43,7 @@ import {
     CheckCircleIcon,
     ExclamationCircleIcon,
     ExclamationTriangleIcon,
+    OutlinedCircleIcon,
     QuestionCircleIcon,
 } from "@patternfly/react-icons";
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
@@ -60,6 +61,13 @@ import {
     valueOf,
     worstLevel,
 } from "../utils/manipulatorUtils";
+import {
+    LEVEL_ERROR,
+    LEVEL_INACTIVE,
+    LEVEL_OK,
+    LEVEL_STALE,
+    LEVEL_WARN,
+} from "../utils/severity";
 
 const _ = cockpit.gettext;
 
@@ -87,14 +95,16 @@ interface SeverityStyle {
 
 const severityStyle = (level: number): SeverityStyle => {
     switch (level) {
-    case 0:
+    case LEVEL_OK:
         return { color: "green", text: _("OK"), icon: <CheckCircleIcon /> };
-    case 1:
+    case LEVEL_WARN:
         return { color: "orange", text: _("Warning"), icon: <ExclamationTriangleIcon /> };
-    case 2:
+    case LEVEL_ERROR:
         return { color: "red", text: _("Error"), icon: <ExclamationCircleIcon /> };
-    case 3:
+    case LEVEL_STALE:
         return { color: "blue", text: _("Stale"), icon: <QuestionCircleIcon /> };
+    case LEVEL_INACTIVE:
+        return { color: "grey", text: _("Out of service"), icon: <OutlinedCircleIcon /> };
     default:
         return { color: "grey", text: _("No data"), icon: <QuestionCircleIcon /> };
     }
@@ -137,10 +147,13 @@ const Term = ({ label, children }: { label: string, children: React.ReactNode })
 );
 
 /*
- * One inline alert per status that is not OK, carrying the publisher's own
- * message (which already says what to do -- "arm powered late", "tool voltage
+ * One line per status that is not plain OK, carrying the publisher's own
+ * message (which already says what to do -- "arm switched off", "tool voltage
  * off", ...). Clicking it selects the status in the tree table below, which
  * opens the detail drawer with the full key/value list.
+ *
+ * Out-of-service statuses get a muted line instead of an alert: they are the
+ * *explanation* for the grey card, not something to act on.
  */
 const StatusAlerts = ({
     entries,
@@ -151,21 +164,34 @@ const StatusAlerts = ({
 }) => (
     <>
         {entries
-                .filter((entry): entry is DiagnosticsEntry => entry !== null && entry.severity_level > 0)
-                .map(entry => (
-                    <Alert
-                        key={entry.rawName}
-                        isInline
-                        isPlain
-                        variant={entry.severity_level === 1 ? "warning" : entry.severity_level === 3 ? "info" : "danger"}
-                        title={entry.message || _("No message")}
-                        className="manipulator-alert"
-                    >
-                        <Button variant="link" isInline onClick={() => setSelectedRawName(entry.rawName)}>
-                            {_("Show details")}
-                        </Button>
-                    </Alert>
-                ))}
+                .filter((entry): entry is DiagnosticsEntry =>
+                    entry !== null &&
+                    (entry.severity_level > LEVEL_OK || entry.severity_level === LEVEL_INACTIVE))
+                .map(entry => (entry.severity_level === LEVEL_INACTIVE
+                    ? (
+                        <div key={entry.rawName} className="manipulator-note">
+                            {entry.message || _("No message")}{" "}
+                            <Button variant="link" isInline onClick={() => setSelectedRawName(entry.rawName)}>
+                                {_("Show details")}
+                            </Button>
+                        </div>
+                    )
+                    : (
+                        <Alert
+                            key={entry.rawName}
+                            isInline
+                            isPlain
+                            variant={entry.severity_level === LEVEL_WARN
+                                ? "warning"
+                                : entry.severity_level === LEVEL_STALE ? "info" : "danger"}
+                            title={entry.message || _("No message")}
+                            className="manipulator-alert"
+                        >
+                            <Button variant="link" isInline onClick={() => setSelectedRawName(entry.rawName)}>
+                                {_("Show details")}
+                            </Button>
+                        </Alert>
+                    )))}
     </>
 );
 
@@ -190,6 +216,10 @@ const ArmCard = ({
     const joints = jointRows(armJoints);
     const controllers = controllerRows(armControllers);
     const activeControllers = controllers.filter(c => c.state === "active").length;
+    const level = worstLevel([armMode, armControl, armJoints, armControllers]);
+    // Out of service: the readings are last-known values, not live state. Dim
+    // them so nobody reads a joint angle off a powered-down arm as current.
+    const isInactive = level === LEVEL_INACTIVE;
 
     return (
         <Card isPlain isCompact>
@@ -197,7 +227,7 @@ const ArmCard = ({
                 <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
                     <FlexItem>{_("Arm")}</FlexItem>
                     <FlexItem>
-                        <SeverityLabel level={worstLevel([armMode, armControl, armJoints, armControllers])} />
+                        <SeverityLabel level={level} />
                     </FlexItem>
                 </Flex>
                 <div className="manipulator-subtitle">{valueOf(armMode, "robot_ip")
@@ -205,7 +235,7 @@ const ArmCard = ({
                     : _("UR5")}
                 </div>
             </CardTitle>
-            <CardBody>
+            <CardBody {...(isInactive ? { className: "manipulator-out-of-service" } : {})}>
                 <StatusAlerts
                     entries={[armMode, armControl, armJoints, armControllers]}
                     setSelectedRawName={setSelectedRawName}
@@ -300,20 +330,31 @@ const GripperCard = ({
     const strokeMm = valueOf(gripper, "stroke_mm");
     const gripDetected = boolOf(gripper, "grip_detected");
     const busy = boolOf(gripper, "busy");
-    const toolPower = boolOf(gripper, "tool_power_on");
+    /*
+     * Tool voltage is the *commanded* setpoint of the driver, never hardware
+     * feedback -- it stays true after the arm is powered down. `signal_valid`
+     * is what says whether the tool actually answers, so the two are shown
+     * together: green only when the analog signal confirms it.
+     * (`tool_power_on` is the pre-2026-07 key name, kept so an older publisher
+     * still renders instead of reading "unknown".)
+     */
+    const toolPower = boolOf(gripper, "tool_power_commanded") ?? boolOf(gripper, "tool_power_on");
+    const signalValid = boolOf(gripper, "signal_valid");
     const highForce = boolOf(gripper, "high_force_preset");
     const forceRaw = numberOf(gripper, "force_raw_v");
+    const level = worstLevel([gripper]);
+    const isInactive = level === LEVEL_INACTIVE;
 
     return (
         <Card isPlain isCompact>
             <CardTitle component="h3">
                 <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
                     <FlexItem>{_("End effector")}</FlexItem>
-                    <FlexItem><SeverityLabel level={worstLevel([gripper])} /></FlexItem>
+                    <FlexItem><SeverityLabel level={level} /></FlexItem>
                 </Flex>
                 <div className="manipulator-subtitle">{_("OnRobot RG6")}</div>
             </CardTitle>
-            <CardBody>
+            <CardBody {...(isInactive ? { className: "manipulator-out-of-service" } : {})}>
                 <StatusAlerts entries={[gripper]} setSelectedRawName={setSelectedRawName} />
                 {percent !== null && (
                     <Progress
@@ -346,9 +387,12 @@ const GripperCard = ({
                       * raises the voltage itself on the program-running edge.
                       */}
                     <Term label={_("Tool power")}>
-                        <Label isCompact color={boolColor(toolPower, true)}>
+                        <Label isCompact color={signalValid === false ? "grey" : boolColor(toolPower, true)}>
                             {boolText(toolPower, _("on"), _("off"))}
                         </Label>
+                        {signalValid === false && toolPower === true && (
+                            <span className="manipulator-hint">{_("commanded, no signal")}</span>
+                        )}
                     </Term>
                     <Term label={_("Force preset")}>
                         {boolText(highForce, _("high"), _("normal"))}

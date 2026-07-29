@@ -52,7 +52,7 @@ export const DiagnosticsCapture = ({ namespace }: { namespace: string }) => {
         setDownloadPath(null);
 
         let failedCommand = false;
-        let failedCommandMessage = "Incomplete diagnostic capture: Failed to execute commands: ";
+        let failedCommandMessage = _("Incomplete diagnostic capture: Failed to execute commands: ");
 
         try {
             const temp_folder = (await runBash("mktemp -d")).trim();
@@ -140,7 +140,7 @@ export const DiagnosticsCapture = ({ namespace }: { namespace: string }) => {
             console.log("TAR archive created successfully");
             await runBash(`rm -rf ${temp_folder}`, { superuser: "require" });
             if (failedCommand) {
-                setErrorMessage(failedCommandMessage + "View console log for details.");
+                setErrorMessage(failedCommandMessage + _("View console log for details."));
             }
 
             setDownloadPath(archive_name);
@@ -174,12 +174,12 @@ export const DiagnosticsCapture = ({ namespace }: { namespace: string }) => {
                     </Flex>
                     {isCapturing && (
                         <FlexItem align={{ default: 'alignRight' }}>
-                            <p>Diagnostic capture may take several minutes to generate.</p>
+                            <p>{_("Diagnostic capture may take several minutes to generate.")}</p>
                         </FlexItem>
                     )}
                     {!adminAccess && (
                         <FlexItem>
-                            <p>Enable admin access at the top of the page to enable diagnostics capture feature.</p>
+                            <p>{_("Enable admin access at the top of the page to enable diagnostics capture feature.")}</p>
                         </FlexItem>
                     )}
                     {!isCapturing && (
@@ -193,7 +193,7 @@ export const DiagnosticsCapture = ({ namespace }: { namespace: string }) => {
                                 <FlexItem>
                                     <Alert
                                         variant="success"
-                                        title={_(`Diagnostics captured successfully (${downloadPath}).`)}
+                                        title={cockpit.format(_("Diagnostics captured successfully ($0)."), downloadPath)}
                                     >
                                         <Button
                                             variant="link"
