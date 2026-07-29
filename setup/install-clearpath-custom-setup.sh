@@ -499,124 +499,7 @@ def move_arm_joint_states(label):
     return bool(changed)
 
 
-MOVEIT_YAML = "/etc/clearpath/manipulators/config/moveit.yaml"
-OCTOMAP_UNIT_FILE = "/etc/systemd/system/clearpath-custom-octomap-feed.service"
-OCTOMAP_SENSOR = "wrist_depth_camera"
 
-
-def add_octomap_sensor_params(label):
-    """Occupancy-Map-Monitor (Octomap) in move_group aktivieren (Schritt 5).
-
-    Nur aktiv, wenn der octomap-feed-Boot-Service installiert ist (die Unit-
-    Datei ist der Schalter: Datei loeschen + Reboot = Octomap wieder aus).
-    Traegt in das generierte manipulators/config/moveit.yaml die Sensor-
-    Parameter des PointCloudOctomapUpdater ein (idempotent, .bak, atomar --
-    Stil rg6_moveit_patch).  Die Wolke liefert clearpath-custom-octomap-feed
-    (gedrosselt, s. octomap-feed).  octomap_frame ist bewusst base_link,
-    NICHT odom: odom ist auf diesem Roboter UTM-gestuetzt und springt --
-    Voxel wuerden relativ zum Roboter wandern.  Die vom Offboard-Client
-    gepushten Collision-Objects (Wuerfel, Boden-Slab, Hindernis-Boxen)
-    maskiert MoveIts PlanningSceneMonitor selbst aus dem Octree
-    (excludeWorldObjects/AttachedBodiesFromOctree) -> Griffe bleiben planbar.
-    """
-    if not os.path.exists(OCTOMAP_UNIT_FILE):
-        log(f"{label}: octomap-feed nicht installiert - uebersprungen.")
-        return False
-    # Der PointCloudOctomapUpdater kommt aus moveit_ros_perception -- ist das
-    # Paket nicht installiert, wuerden die Sensorparameter move_group nur
-    # einen Plugin-Load-Fehler pro Boot bescheren.  Paket-Installation ist
-    # eine ADMIN-Entscheidung (apt hat diesen Roboter schon einmal zerlegt,
-    # s. README/clearpath-apt-update-recovery) -- dieser Schritt aktiviert
-    # sich beim naechsten Boot von selbst, sobald das Paket da ist.
-    import glob as _glob
-    if not _glob.glob("/opt/ros/*/share/moveit_ros_perception"):
-        log(f"{label}: moveit_ros_perception fehlt (liefert den "
-            "PointCloudOctomapUpdater) - Sensorparameter werden NICHT "
-            "eingetragen; nach Paket-Installation (Admin!) greift dieser "
-            "Schritt beim naechsten Boot automatisch.", err=True)
-        return False
-    try:
-        import yaml
-    except ImportError:
-        log(f"{label}: PyYAML fehlt (apt: python3-yaml) - uebersprungen.",
-            err=True)
-        return False
-    if not os.path.isfile(MOVEIT_YAML):
-        log(f"{label}: {MOVEIT_YAML} fehlt (Generierung gelaufen?) - "
-            "uebersprungen.", err=True)
-        return False
-    try:
-        with open(MOVEIT_YAML) as f:
-            data = yaml.safe_load(f)
-    except (OSError, yaml.YAMLError) as e:
-        log(f"{label}: {MOVEIT_YAML} nicht lesbar: {e}", err=True)
-        return False
-    if not isinstance(data, dict):
-        log(f"{label}: {MOVEIT_YAML} hat unerwartetes Format - uebersprungen.",
-            err=True)
-        return False
-    params, ns_key = None, None
-    for key, val in data.items():
-        if isinstance(val, dict) and "move_group" in val:
-            params = val["move_group"].get("ros__parameters")
-            ns_key = key
-            break
-    if params is None:
-        log(f"{label}: kein move_group.ros__parameters - uebersprungen.",
-            err=True)
-        return False
-
-    changed = False
-    sensor_block = {
-        "sensor_plugin": "occupancy_map_monitor/PointCloudOctomapUpdater",
-        "point_cloud_topic": f"/{ns_key}/sensors/camera_0/octomap_points",
-        "max_range": 2.0,
-        # Wolke kommt bereits gestrided vom Feed-Node; padding_* steuern den
-        # geometrischen Roboter-Self-Filter des Updaters.
-        "point_subsample": 1,
-        "padding_offset": 0.03,
-        "padding_scale": 1.0,
-        "max_update_rate": 5.0,
-        # PFLICHT in Jazzy: setParams ist eine UND-Kette ueber alle sieben
-        # Parameter -- fehlt einer (auch dieser Debug-Ausgang), scheitert
-        # der Updater mit "Failed to configure".  Leer = kein Debug-Topic.
-        "filtered_cloud_topic": "",
-    }
-    if params.get("octomap_frame") != "base_link":
-        params["octomap_frame"] = "base_link"
-        changed = True
-    if params.get("octomap_resolution") != 0.025:
-        params["octomap_resolution"] = 0.025
-        changed = True
-    sensors = params.setdefault("sensors", [])
-    if OCTOMAP_SENSOR not in sensors:
-        sensors.append(OCTOMAP_SENSOR)
-        changed = True
-    if params.get(OCTOMAP_SENSOR) != sensor_block:
-        params[OCTOMAP_SENSOR] = sensor_block
-        changed = True
-    if not changed:
-        log(f"{label}: bereits korrekt.")
-        return False
-
-    backup = MOVEIT_YAML + ".bak"
-    if not os.path.exists(backup):
-        try:
-            shutil.copy2(MOVEIT_YAML, backup)
-        except OSError:
-            pass
-    tmp = MOVEIT_YAML + ".tmp"
-    try:
-        with open(tmp, "w") as f:
-            yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
-        os.replace(tmp, MOVEIT_YAML)
-    except OSError as e:
-        log(f"{label}: kann {MOVEIT_YAML} nicht schreiben: {e}", err=True)
-        return False
-    log(f"{label}: Occupancy-Map-Monitor eingetragen "
-        f"(sensor {OCTOMAP_SENSOR}, topic /{ns_key}/sensors/camera_0/"
-        "octomap_points, frame base_link, res 0.025).")
-    return True
 
 
 AGGREGATOR_YAML = "/etc/clearpath/platform/config/diagnostic_aggregator.yaml"
@@ -785,11 +668,10 @@ def main():
     # 4) RG6 in MoveIt: robot.srdf (Gruppe 'gripper' + EE) und moveit.yaml
     #    (GripperCommand-Controller + joint_limits) patchen (onrobot-rg6-Tool).
     run_rg6_moveit_patch("rg6 moveit")
-    # 5) Octomap: Occupancy-Map-Monitor-Sensorparameter in moveit.yaml --
-    #    NUR wenn der octomap-feed-Boot-Service installiert ist (Schritt 2
-    #    der HRL-Hindernis-Architektur; muss NACH rg6_moveit_patch laufen,
-    #    beide schreiben dieselbe Datei).
-    add_octomap_sensor_params("octomap sensors")
+    # 5) ENTFERNT 2026-07-29 (A4): die Occupancy-Map-Monitor-Sensorparameter
+    #    stehen jetzt nativ in robot.yaml unter
+    #    manipulators.moveit.ros_parameters.move_group - der Generator
+    #    schreibt sie selbst in moveit.yaml. Kein Patch mehr noetig.
     # 6) Manipulator-Analyzer in die generierte diagnostic_aggregator.yaml --
     #    NUR wenn der manipulator-diagnostics-Boot-Service installiert ist.
     #    Erst damit erscheinen Arm + Greifer als eigene Gruppe in
@@ -1171,14 +1053,16 @@ EOF
     cat > "$UR_DASH_UNIT_PATH" <<EOF
 [Unit]
 Description=UR dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
-After=clearpath-manipulators.service
-Wants=clearpath-manipulators.service
-# Mit-Neustart wie die anderen Custom-Units: PartOf an BEIDE Wurzeln (robot +
-# manipulators). PartOf propagiert Stop/Restart nur eine Hop-Ebene und nur bei
-# DIREKTEM Job -> ein Stack-Restart via 'systemctl restart clearpath-robot'
-# (manipulators startet dabei nur indirekt) wuerde diesen Service sonst nicht
-# mit-restarten. Stop clearpath-robot stoppt ihn dann ebenfalls mit.
-PartOf=clearpath-robot.service clearpath-manipulators.service
+# A2: KEINE Kopplung an clearpath-manipulators. Der dashboard_client spricht
+# ausschliesslich TCP:29999 mit der UR-Control-Box und braucht den ROS-Treiber
+# nicht. Der Watchdog startet clearpath-manipulators neu und braucht die
+# Dashboard-Services waehrend genau dieser Recovery durchgehend (get_robot_mode,
+# get_safety_mode, resend_robot_program) - mit PartOf riss er sie selbst mit runter.
+# Ordnung an clearpath-robot bleibt: erst danach existiert /etc/clearpath/setup.bash.
+After=clearpath-robot.service
+# PartOf nur an clearpath-robot: ein Stack-Stop/-Restart nimmt ihn mit,
+# ein reiner Treiber-Restart (clearpath-manipulators) nicht.
+PartOf=clearpath-robot.service
 
 [Service]
 User=${REAL_USER}
@@ -1377,6 +1261,8 @@ NS="${TOPIC%/io_and_status_controller/*}"
 DASH_NS="${NS}/dashboard_client"
 RESEND_SVC="${NS}/io_and_status_controller/resend_robot_program"
 JS_TOPIC="${NS}/joint_states"   # joint_state_broadcaster-Ausgang; lebt nur bei aktivem HW-Interface
+PLATFORM_JS_TOPIC="${NS%/manipulators}/platform/joint_states"  # Fallback-Bus (s. Health-Check)
+DRY_RUN="${WD_DRY_RUN:-0}"      # 1 = nur melden, was passieren wuerde (Test)
 
 # ROS-Befehl als RUN_USER im selben Graphen ausfuehren.
 ros_cmd() { sudo -u "$RUN_USER" env HOME="$RUN_HOME" bash -lc "source /etc/clearpath/setup.bash && $*"; }
@@ -1396,6 +1282,16 @@ fi
 #    manipulators-Restart bis ~15s -> erst >JS_TIMEOUT ohne Nachricht = wirklich tot.
 if ros_cmd "timeout ${JS_TIMEOUT} ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
     exit 0    # JSC streamt -> Motion-Link ok
+fi
+# Fallback: Arm-Joints koennen auch auf dem platform-Bus ankommen - naemlich dann,
+# wenn der Stock-Patch move_arm_joint_states (clearpath-custom-setup.py Schritt 3)
+# nach einem apt-Update nicht mehr greift. Ohne diesen Zweig laese der Watchdog
+# Stille auf einem KERNGESUNDEN Roboter und startete den Treiber im Cooldown-Takt
+# dauerhaft neu. Health-Signal ist "Arm-Gelenke kommen an" - egal auf welchem Bus.
+if ros_cmd "timeout ${JS_TIMEOUT} ros2 topic echo --once '${PLATFORM_JS_TOPIC}'" 2>/dev/null \
+     | grep -q 'arm_0_shoulder_pan_joint'; then
+    log "WARN: Arm-Joints kommen auf ${PLATFORM_JS_TOPIC} statt ${JS_TOPIC} an -> der Stock-Patch move_arm_joint_states greift NICHT (apt-Update?). Motion-Link ist GESUND, keine Recovery. Pruefen: journalctl -t clearpath-custom-setup -b"
+    exit 0
 fi
 
 # 3) Cooldown pruefen (/run wird beim Boot geleert -> pro Boot frisch).
@@ -1443,6 +1339,10 @@ fi
 #     ros2_control_node sauber (Reverse-Socket geordnet geschlossen) statt SIGTERM bis
 #     zu 90s zu ignorieren -> der neue Controller-Manager startet gegen ein freies Socket.
 #     TimeoutStartSec des watchdog-Service (300s) deckt langsames Stoppen + Recovery ab.
+if [ "$DRY_RUN" = "1" ]; then
+    log "DRY_RUN=1 -> haette jetzt ${SERVICE} neu gestartet + ExternalControl resendet. Kein Eingriff."
+    exit 0
+fi
 systemctl restart "$SERVICE" || log "systemctl restart ${SERVICE} lief nicht sauber - versuche Recovery trotzdem weiter."
 
 # 3d) Safety-Check: Protective-/Safety-Stop wird NICHT auto-gecleart (manuell).
@@ -1550,6 +1450,12 @@ KillSignal=SIGINT
 TimeoutStopSec=95
 KillMode=control-group
 SendSIGKILL=yes
+# A7: ros2_control_node setzt seinen Control-Thread per configure_sched_fifo()
+# auf SCHED_FIFO (Default-Prio 50). Systemd-Units lesen KEINE
+# /etc/security/limits.conf (pam_limits gilt nur fuer Login-Sessions) -> ohne
+# LimitRTPRIO scheitert das mit EPERM und der Loop laeuft SCHED_OTHER.
+# Gemessen 2026-07-29: Overruns bei 125 Hz (bis 18.5 ms Zyklus).
+LimitRTPRIO=99
 DROPEOF
     chmod 0644 "$WD_MANIP_DROPIN"
 else

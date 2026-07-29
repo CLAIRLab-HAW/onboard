@@ -93,6 +93,22 @@ manipulators:
       move_group:
         trajectory_execution:
           allowed_goal_duration_margin: 6.0 # allows slow gripper opening/closing
+        # A4 (2026-07-29): Occupancy-Map-Monitor. Stand bis dahin im Boot-Patcher
+        # (Schritt 5) -- der Generator schreibt ros_parameters selbst in moveit.yaml.
+        # octomap_frame bewusst base_link: odom ist hier UTM-gestuetzt und springt.
+        octomap_frame: base_link
+        octomap_resolution: 0.025
+        sensors:
+          - wrist_depth_camera
+        wrist_depth_camera:
+          sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
+          point_cloud_topic: /a200_0553/sensors/camera_0/octomap_points
+          max_range: 2.0
+          point_subsample: 1
+          padding_offset: 0.03
+          padding_scale: 1.0
+          max_update_rate: 5.0
+          filtered_cloud_topic: ""
   arms:
     - model: universal_robots
       parent: top_plate_front_mount
