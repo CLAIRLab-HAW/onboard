@@ -105,6 +105,27 @@ const at = (ms: number): DiagnosticsStatus => ({ timestamp: ms, level: LEVEL_OK,
 check(updateRateHz([at(0), at(1000), at(2000), at(3000)]) === 1, "four samples one second apart are 1 Hz");
 check(updateRateHz([at(0)]) === null, "a single sample has no rate");
 check(updateRateHz([]) === null, "an empty history has no rate");
+check(updateRateHz([at(100), at(100)]) === null, "identical timestamps have no rate");
+
+/* ---------------------------------------------------- worst level edge cases */
+
+// A fully powered-down robot is all LEVEL_INACTIVE leaves. Should not report OK.
+check(summarise([group("g", [leaf("sleeping1", LEVEL_INACTIVE), leaf("sleeping2", LEVEL_INACTIVE)])]).worst === LEVEL_INACTIVE,
+      "a tree whose leaves are all LEVEL_INACTIVE reports worst === LEVEL_INACTIVE");
+// Empty tree has no leaves at all. Should be LEVEL_INACTIVE, not OK.
+check(summarise([]).worst === LEVEL_INACTIVE,
+      "an empty tree reports worst === LEVEL_INACTIVE");
+
+/* ------------------------------------------------- tie-break by path */
+
+// Two warnings at the same urgency should come back sorted by path.
+const warnings = [group("g", [
+    leaf("b_warning", LEVEL_WARN),
+    leaf("a_warning", LEVEL_WARN),
+])];
+const warningIssues = issueEntries(warnings).map(e => e.path);
+check(JSON.stringify(warningIssues) === JSON.stringify(["group/a_warning", "group/b_warning"]),
+      "issues at the same urgency are sorted by path");
 
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));

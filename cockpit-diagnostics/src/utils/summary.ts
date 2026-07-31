@@ -21,7 +21,7 @@
 import cockpit from 'cockpit';
 
 import { DiagnosticsEntry, DiagnosticsStatus } from "../interfaces";
-import { LEVEL_ERROR, LEVEL_OK, LEVEL_STALE, LEVEL_WARN } from "./severity";
+import { LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_STALE, LEVEL_WARN } from "./severity";
 
 const _ = cockpit.gettext;
 
@@ -31,7 +31,7 @@ export interface DiagnosticsSummary {
     stale: number;
     // Every leaf, including the ones that are OK or out of service.
     total: number;
-    // Worst *displayed* level across all leaves; LEVEL_OK for an empty tree.
+    // Worst *displayed* level across all leaves; LEVEL_INACTIVE when there are no leaves.
     worst: number;
 }
 
@@ -55,7 +55,7 @@ export const summarise = (entries: DiagnosticsEntry[]): DiagnosticsSummary => {
         warnings: count(LEVEL_WARN),
         stale: count(LEVEL_STALE),
         total: leaves.length,
-        worst: leaves.reduce((worst, leaf) => Math.max(worst, leaf.severity_level), LEVEL_OK),
+        worst: leaves.reduce((worst, leaf) => Math.max(worst, leaf.severity_level), LEVEL_INACTIVE),
     };
 };
 
