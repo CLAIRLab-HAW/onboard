@@ -236,6 +236,135 @@ check(filtered.includes(warnLeaf.message), "a query keeps the matching row");
 const emptyTree = treeMarkup({ diagnostics: [] });
 check(!emptyTree.includes("Connecting"), "the tree no longer renders its own connecting state");
 
+/* --------------------------------------------------------- ManipulatorPanel */
+
+// `realTree` only ever gives a healthy, powered arm -- the real capture has
+// no way to show a powered-down arm or a gripper warning, so both states
+// below are built by hand, the same way `treeNode` above stands in for a
+// capture the fixture cannot provide.
+import { ManipulatorPanel } from "../../src/components/ManipulatorPanel";
+
+const manipEntry = (
+    task: string,
+    level: number,
+    message: string,
+    values: { [key: string]: unknown },
+): DiagnosticsEntry => ({
+    name: task,
+    path: `root/manipulator_diagnostics: ${task}`,
+    rawName: `root/manipulator_diagnostics: ${task}`,
+    message,
+    severity_level: level,
+    reported_level: level,
+    override_reason: null,
+    hardware_id: null,
+    values,
+    children: [],
+});
+
+const manipMarkup = (diagnostics: DiagnosticsEntry[]) =>
+    renderToStaticMarkup(React.createElement(ManipulatorPanel, {
+        diagnostics,
+        setSelectedRawName: () => undefined,
+    }));
+
+// ManipulatorPanel always renders the Arm card before the Gripper card
+// (Grid: md=7 then md=5), and `state-card state-card-<variant>` is the
+// literal class template Task 12 gives both cards -- splitting the markup on
+// its second occurrence isolates one card's subtree from the other's.
+const cardChunks = (html: string): [string, string] => {
+    const first = html.indexOf("state-card state-card-");
+    const second = html.indexOf("state-card state-card-", first + 1);
+    return [html.slice(first, second), html.slice(second)];
+};
+
+/* -- out-of-service dimming: the class must reach the elements the SCSS rule targets -- */
+
+const inactiveManipulator = [
+    manipEntry("Arm Mode", LEVEL_INACTIVE, "Arm is switched off.",
+               { robot_mode: "POWER_OFF", safety_mode: "NORMAL" }),
+    manipEntry("Arm Control", LEVEL_INACTIVE, "Arm is switched off.",
+               { external_control: "stopped", motion_interface: "dead" }),
+    manipEntry("Arm Joints", LEVEL_INACTIVE, "Arm is switched off.",
+               {
+                   joints: "shoulder_pan_joint",
+                   shoulder_pan_joint_deg: "12.0",
+                   shoulder_pan_joint_rad: "0.209",
+                   shoulder_pan_joint_vel_rad_s: "0.0",
+               }),
+    manipEntry("Arm Controllers", LEVEL_INACTIVE, "Arm is switched off.", {}),
+    manipEntry("Gripper", LEVEL_INACTIVE, "Arm is switched off.",
+               {
+                   width_mm: "80",
+                   stroke_mm: "160",
+                   grip_detected: "false",
+                   busy: "false",
+                   tool_power_commanded: "false",
+                   signal_valid: "false",
+               }),
+];
+
+const inactiveHtml = manipMarkup(inactiveManipulator);
+const [inactiveArmChunk, inactiveGripperChunk] = cardChunks(inactiveHtml);
+
+check(inactiveArmChunk.includes("manipulator-out-of-service"),
+      "an out-of-service arm renders the dimming class on the readings wrapper");
+check(inactiveGripperChunk.includes("manipulator-out-of-service"),
+      "an out-of-service gripper renders the dimming class on the readings wrapper");
+
+// The SCSS rule dims by descendant selector (".manipulator-out-of-service
+// .pf-v6-c-description-list" etc.), so the class existing somewhere in the
+// card proves nothing on its own -- what has to hold is that the elements the
+// selector actually targets sit after (i.e. inside) that wrapper, which is
+// the wrapper's last-child position in the markup guarantees.
+const afterMarker = (html: string) => html.slice(html.indexOf("manipulator-out-of-service"));
+const armReadings = afterMarker(inactiveArmChunk);
+const gripperReadings = afterMarker(inactiveGripperChunk);
+
+check(armReadings.includes("pf-v6-c-description-list"),
+      "the arm's description list sits inside the out-of-service wrapper, where the dimming selector reaches it");
+check(armReadings.includes("pf-v6-c-table"),
+      "the arm's joint table sits inside the out-of-service wrapper too -- a joint angle from a powered-down " +
+      "arm must read as dimmed, not current");
+check(gripperReadings.includes("pf-v6-c-progress"),
+      "the gripper's opening bar sits inside the out-of-service wrapper");
+check(gripperReadings.includes("pf-v6-c-description-list"),
+      "the gripper's description list sits inside the out-of-service wrapper");
+
+// With no controllers published, the only remaining consumer of PatternFly's
+// Label (the controller chips) has nothing to render -- so this fully
+// out-of-service panel doubles as proof that Label did not creep back onto
+// any of the rows Task 12 de-labelled (robot mode, safety mode, external
+// control, motion link, grip detected, motion, tool power).
+check(!inactiveHtml.includes("pf-v6-c-label"),
+      "with no controller chips, the panel uses no PatternFly Label at all");
+
+/* -- the stripe is the only state carrier left: wrong suffix = unstyled card -- */
+
+const warnGripper = [
+    manipEntry("Arm Mode", LEVEL_OK, "", { robot_mode: "RUNNING", safety_mode: "NORMAL" }),
+    manipEntry("Arm Control", LEVEL_OK, "",
+               { external_control: "running", motion_interface: "live", joint_state_rate_hz: "125" }),
+    manipEntry("Arm Joints", LEVEL_OK, "", { joints: "" }),
+    manipEntry("Arm Controllers", LEVEL_OK, "", {}),
+    manipEntry("Gripper", LEVEL_WARN, "Tool voltage off.",
+               { tool_power_commanded: "false", signal_valid: "false", grip_detected: "false", busy: "false" }),
+];
+
+const [okArmChunk, warnGripperChunk] = cardChunks(manipMarkup(warnGripper));
+
+// `class="state-card state-card-<variant>"` is the entire attribute -- no
+// other class follows the variant -- so the closing quote has to come right
+// after it. Matching only the prefix would also accept a variant like
+// "warning" for "warn": a real class-name drift that leaves the CSS selector
+// (which matches whole class tokens, not prefixes) unable to find the card.
+check(okArmChunk.startsWith('state-card state-card-quiet"'),
+      "an OK arm card gets exactly the neutral (quiet, grey) stripe variant");
+check(warnGripperChunk.startsWith('state-card state-card-warn"'),
+      "a gripper reporting a warning gets exactly the warn stripe variant");
+check(warnGripperChunk.includes("Tool voltage off."),
+      "the warning message reaches the card as an alert, not just the stripe colour");
+
 /* ------------------------------------------------------------- CaptureAlerts */
 
 // useCapture itself talks to cockpit.spawn/cockpit.permission through a
@@ -289,4 +418,5 @@ if (problems.length > 0) {
 
 console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + " +
             "no colour on healthy, detail panel empty/override-reason, tree level column + search filter, " +
-            "connecting state moved to app level)");
+            "connecting state moved to app level, manipulator out-of-service dimming reaches its selectors + " +
+            "stripe variants + no stray Label)");
