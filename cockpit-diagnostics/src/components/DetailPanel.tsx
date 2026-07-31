@@ -75,6 +75,30 @@ export const DetailPanel = ({
             panelRef.current.focus();
     }, [entry]);
 
+    /*
+     * PatternFly's Drawer does not close itself on Escape: Drawer.js has no
+     * keyboard listener at all, the only Escape handling anywhere in the
+     * package is DrawerPanelContent's resize splitter, and the FocusTrap that
+     * might otherwise supply it is inactive here because no `focusTrap` prop
+     * is set. Wire it explicitly.
+     *
+     * Listens on `document`, not the panel: focus can be anywhere on the page
+     * when Escape is pressed, including back in the tree table the user just
+     * clicked to open this panel. No listener at all while nothing is
+     * selected, so a closed panel never leaves a global handler running.
+     */
+    React.useEffect(() => {
+        if (!entry) {
+            return undefined;
+        }
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape")
+                onClose();
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => document.removeEventListener("keydown", onKeyDown);
+    }, [entry, onClose]);
+
     if (!entry) {
         return null;
     }

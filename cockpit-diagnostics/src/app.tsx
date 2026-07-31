@@ -123,7 +123,7 @@ export const Application = () => {
                               * same setSelectedRawName, and isInline is deliberately not set so the
                               * panel slides over the workspace instead of splitting its width.
                               */}
-                            <Drawer isExpanded={!!selectedEntry} onExpand={() => undefined}>
+                            <Drawer isExpanded={!!selectedEntry}>
                                 <DrawerContent
                                     panelContent={
                                         <DrawerPanelContent isResizable defaultSize="28rem" minSize="20rem">
