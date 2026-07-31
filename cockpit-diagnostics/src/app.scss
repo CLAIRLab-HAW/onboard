@@ -95,6 +95,50 @@
     opacity: 0.65;
 }
 
+/* State cards ------------------------------------------------------------- */
+
+.state-card {
+    border: 1px solid var(--pf-t--global--border--color--default);
+    border-inline-start: 3px solid var(--pf-t--global--border--color--default);
+    border-radius: var(--pf-t--global--border--radius--small);
+    padding: var(--pf-t--global--spacer--md);
+}
+
+.state-card-warn {
+    border-inline-start-color: var(--pf-t--global--color--status--warning--default);
+}
+
+.state-card-error {
+    border-inline-start-color: var(--pf-t--global--color--status--danger--default);
+}
+
+.state-card-stale {
+    border-inline-start-color: var(--pf-t--global--color--status--info--default);
+}
+
+.state-card-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: var(--pf-t--global--font--size--md);
+    margin: 0;
+}
+
+.card-state {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--pf-t--global--spacer--xs);
+    font-size: var(--pf-t--global--font--size--sm);
+    font-weight: var(--pf-t--global--font--weight--body--default);
+    color: var(--pf-t--global--text--color--subtle);
+}
+
+/* Readings line up so they can be compared down the column. */
+.manipulator-joints td,
+.state-card .pf-v6-c-description-list__description {
+    font-variant-numeric: tabular-nums;
+}
+
 /* Status band ------------------------------------------------------------- */
 
 .status-band {

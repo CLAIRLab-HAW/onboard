@@ -34,18 +34,9 @@ import {
     Grid,
     GridItem,
     Label,
-    LabelProps,
     Progress,
     ProgressMeasureLocation,
-    ProgressVariant,
 } from "@patternfly/react-core";
-import {
-    CheckCircleIcon,
-    ExclamationCircleIcon,
-    ExclamationTriangleIcon,
-    OutlinedCircleIcon,
-    QuestionCircleIcon,
-} from "@patternfly/react-icons";
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
 
 import cockpit from 'cockpit';
@@ -68,6 +59,7 @@ import {
     LEVEL_STALE,
     LEVEL_WARN,
 } from "../utils/severity";
+import { SeverityIcon, severityLabel } from "./SeverityIcon";
 
 const _ = cockpit.gettext;
 
@@ -82,56 +74,13 @@ const _ = cockpit.gettext;
  * manipulator: no manipulator statuses in the tree -> nothing is rendered.
  */
 
-// `LabelProps["color"]` is optional, and the project builds with
-// exactOptionalPropertyTypes -- so an explicit `undefined` would not be a valid
-// value for the prop. Strip it: every helper here always names a colour.
-type LabelColor = NonNullable<LabelProps["color"]>;
-
-interface SeverityStyle {
-    color: LabelColor;
-    text: string;
-    icon: React.ReactElement;
-}
-
-const severityStyle = (level: number): SeverityStyle => {
-    switch (level) {
-    case LEVEL_OK:
-        return { color: "green", text: _("OK"), icon: <CheckCircleIcon /> };
-    case LEVEL_WARN:
-        return { color: "orange", text: _("Warning"), icon: <ExclamationTriangleIcon /> };
-    case LEVEL_ERROR:
-        return { color: "red", text: _("Error"), icon: <ExclamationCircleIcon /> };
-    case LEVEL_STALE:
-        return { color: "blue", text: _("Stale"), icon: <QuestionCircleIcon /> };
-    case LEVEL_INACTIVE:
-        return { color: "grey", text: _("Out of service"), icon: <OutlinedCircleIcon /> };
-    default:
-        return { color: "grey", text: _("No data"), icon: <QuestionCircleIcon /> };
-    }
-};
-
-const SeverityLabel = ({ level }: { level: number }) => {
-    const style = severityStyle(level);
-    return <Label isCompact color={style.color} icon={style.icon}>{style.text}</Label>;
-};
-
-// UR robot mode: only RUNNING means "ready to move".
-const modeColor = (mode: string | null): LabelColor => {
-    if (mode === null || mode === "UNKNOWN") return "grey";
-    return mode === "RUNNING" ? "green" : "orange";
-};
-
-// UR safety mode: anything past REDUCED/RECOVERY needs an intervention.
-const safetyColor = (safety: string | null): LabelColor => {
-    if (safety === null || safety === "UNKNOWN") return "grey";
-    if (safety === "NORMAL") return "green";
-    if (safety === "REDUCED" || safety === "RECOVERY") return "orange";
-    return "red";
-};
-
-const boolColor = (value: boolean | null, goodValue: boolean): LabelColor => {
-    if (value === null) return "grey";
-    return value === goodValue ? "green" : "orange";
+// The stripe is the card's only state carrier; OK is deliberately grey, because
+// "fine" is not something anybody scans for.
+const cardVariant = (level: number): string => {
+    if (level >= LEVEL_STALE) return "stale";
+    if (level >= LEVEL_ERROR) return "error";
+    if (level >= LEVEL_WARN) return "warn";
+    return "quiet";
 };
 
 const boolText = (value: boolean | null, yes: string, no: string): string => {
@@ -222,45 +171,33 @@ const ArmCard = ({
     const isInactive = level === LEVEL_INACTIVE;
 
     return (
-        <Card isPlain isCompact>
-            <CardTitle component="h3">
-                <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
-                    <FlexItem>{_("Arm")}</FlexItem>
-                    <FlexItem>
-                        <SeverityLabel level={level} />
-                    </FlexItem>
-                </Flex>
-                <div className="manipulator-subtitle">{valueOf(armMode, "robot_ip")
-                    ? cockpit.format(_("UR5 at $0"), valueOf(armMode, "robot_ip"))
-                    : _("UR5")}
-                </div>
-            </CardTitle>
-            <CardBody {...(isInactive ? { className: "manipulator-out-of-service" } : {})}>
+        <div className={`state-card state-card-${cardVariant(level)}`}>
+            <h3 className="state-card-title">
+                {_("Arm")}
+                <span className="card-state">
+                    <SeverityIcon level={level} /> {severityLabel(level)}
+                </span>
+            </h3>
+            <div className="manipulator-subtitle">{valueOf(armMode, "robot_ip")
+                ? cockpit.format(_("UR5 at $0"), valueOf(armMode, "robot_ip"))
+                : _("UR5")}
+            </div>
+            <div {...(isInactive ? { className: "manipulator-out-of-service" } : {})}>
                 <StatusAlerts
                     entries={[armMode, armControl, armJoints, armControllers]}
                     setSelectedRawName={setSelectedRawName}
                 />
                 <DescriptionList isHorizontal isCompact>
-                    <Term label={_("Robot mode")}>
-                        <Label isCompact color={modeColor(robotMode)}>{robotMode ?? _("unknown")}</Label>
-                    </Term>
-                    <Term label={_("Safety mode")}>
-                        <Label isCompact color={safetyColor(safetyMode)}>{safetyMode ?? _("unknown")}</Label>
-                    </Term>
-                    <Term label={_("External control")}>
-                        <Label isCompact color={externalControl === "running" ? "green" : externalControl ? "orange" : "grey"}>
-                            {externalControl ?? _("unknown")}
-                        </Label>
-                    </Term>
+                    <Term label={_("Robot mode")}>{robotMode ?? _("unknown")}</Term>
+                    <Term label={_("Safety mode")}>{safetyMode ?? _("unknown")}</Term>
+                    <Term label={_("External control")}>{externalControl ?? _("unknown")}</Term>
                     {/*
                       * The joint_state stream is the honest liveness signal: it only
                       * flows while the ros2_control hardware interface is active.
                       * External control can read "running" over a dead motion link.
                       */}
                     <Term label={_("Motion link")}>
-                        <Label isCompact color={motionLive ? "green" : "red"}>
-                            {motionLive ? _("live") : _("dead")}
-                        </Label>
+                        {motionLive ? _("live") : _("dead")}
                         {rate && motionLive ? <span className="manipulator-hint">{cockpit.format(_("$0 Hz"), rate)}</span> : null}
                     </Term>
                     <Term label={_("Controllers")}>
@@ -313,8 +250,8 @@ const ArmCard = ({
                         ))}
                     </Flex>
                 )}
-            </CardBody>
-        </Card>
+            </div>
+        </div>
     );
 };
 
@@ -334,7 +271,8 @@ const GripperCard = ({
      * Tool voltage is the *commanded* setpoint of the driver, never hardware
      * feedback -- it stays true after the arm is powered down. `signal_valid`
      * is what says whether the tool actually answers, so the two are shown
-     * together: green only when the analog signal confirms it.
+     * together: "commanded, no signal" is the honest reading when the analog
+     * signal does not confirm it.
      * (`tool_power_on` is the pre-2026-07 key name, kept so an older publisher
      * still renders instead of reading "unknown".)
      */
@@ -346,15 +284,15 @@ const GripperCard = ({
     const isInactive = level === LEVEL_INACTIVE;
 
     return (
-        <Card isPlain isCompact>
-            <CardTitle component="h3">
-                <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
-                    <FlexItem>{_("End effector")}</FlexItem>
-                    <FlexItem><SeverityLabel level={level} /></FlexItem>
-                </Flex>
-                <div className="manipulator-subtitle">{_("OnRobot RG6")}</div>
-            </CardTitle>
-            <CardBody {...(isInactive ? { className: "manipulator-out-of-service" } : {})}>
+        <div className={`state-card state-card-${cardVariant(level)}`}>
+            <h3 className="state-card-title">
+                {_("End effector")}
+                <span className="card-state">
+                    <SeverityIcon level={level} /> {severityLabel(level)}
+                </span>
+            </h3>
+            <div className="manipulator-subtitle">{_("OnRobot RG6")}</div>
+            <div {...(isInactive ? { className: "manipulator-out-of-service" } : {})}>
                 <StatusAlerts entries={[gripper]} setSelectedRawName={setSelectedRawName} />
                 {percent !== null && (
                     <Progress
@@ -364,22 +302,16 @@ const GripperCard = ({
                             ? cockpit.format(_("$0 of $1 mm"), widthMm, strokeMm)
                             : `${percent.toFixed(0)} %`}
                         measureLocation={ProgressMeasureLocation.top}
-                        // No variant = the neutral blue bar; green only once an object is actually held.
-                        {...(gripDetected ? { variant: ProgressVariant.success } : {})}
                         aria-label={_("Gripper opening")}
                         className="manipulator-opening"
                     />
                 )}
                 <DescriptionList isHorizontal isCompact>
                     <Term label={_("Grip detected")}>
-                        <Label isCompact color={gripDetected === null ? "grey" : gripDetected ? "green" : "grey"}>
-                            {boolText(gripDetected, _("object held"), _("no object"))}
-                        </Label>
+                        {boolText(gripDetected, _("object held"), _("no object"))}
                     </Term>
                     <Term label={_("Motion")}>
-                        <Label isCompact color={busy === null ? "grey" : busy ? "blue" : "green"}>
-                            {boolText(busy, _("moving"), _("settled"))}
-                        </Label>
+                        {boolText(busy, _("moving"), _("settled"))}
                     </Term>
                     {/*
                       * Without tool voltage the RG6 reports neither analog nor digital
@@ -387,9 +319,7 @@ const GripperCard = ({
                       * raises the voltage itself on the program-running edge.
                       */}
                     <Term label={_("Tool power")}>
-                        <Label isCompact color={signalValid === false ? "grey" : boolColor(toolPower, true)}>
-                            {boolText(toolPower, _("on"), _("off"))}
-                        </Label>
+                        {boolText(toolPower, _("on"), _("off"))}
                         {signalValid === false && toolPower === true && (
                             <span className="manipulator-hint">{_("commanded, no signal")}</span>
                         )}
@@ -404,8 +334,8 @@ const GripperCard = ({
                         {forceRaw === null ? _("unknown") : `${forceRaw.toFixed(2)} V`}
                     </Term>
                 </DescriptionList>
-            </CardBody>
-        </Card>
+            </div>
+        </div>
     );
 };
 
@@ -429,7 +359,11 @@ export const ManipulatorPanel = ({
             <CardTitle component="h2" className="diagnostics-title">
                 <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
                     <FlexItem>{_("Manipulator")}</FlexItem>
-                    <FlexItem><SeverityLabel level={manipulator.level} /></FlexItem>
+                    <FlexItem>
+                        <span className="card-state">
+                            <SeverityIcon level={manipulator.level} /> {severityLabel(manipulator.level)}
+                        </span>
+                    </FlexItem>
                 </Flex>
             </CardTitle>
             <CardBody>

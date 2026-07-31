@@ -180,187 +180,187 @@ msgstr "Keine Auffälligkeiten"
 msgid "Issues"
 msgstr "Auffälligkeiten"
 
-#: src/components/ManipulatorPanel.tsx:101
+#: src/components/SeverityIcon.tsx:61
 msgid "Warning"
 msgstr "Warnung"
 
-#: src/components/ManipulatorPanel.tsx:103
+#: src/components/SeverityIcon.tsx:57
 msgid "Error"
 msgstr "Fehler"
 
-#: src/components/ManipulatorPanel.tsx:105
+#: src/components/SeverityIcon.tsx:59
 msgid "Stale"
 msgstr "Veraltet"
 
-#: src/components/ManipulatorPanel.tsx:107
+#: src/components/SeverityIcon.tsx:65
 msgid "Out of service"
 msgstr "Außer Dienst"
 
-#: src/components/ManipulatorPanel.tsx:109
+#: src/components/SeverityIcon.tsx:67
 msgid "No data"
 msgstr "Keine Daten"
 
-#: src/components/ManipulatorPanel.tsx:138
+#: src/components/ManipulatorPanel.tsx:87
 msgid "unknown"
 msgstr "unbekannt"
 
-#: src/components/ManipulatorPanel.tsx:173
+#: src/components/ManipulatorPanel.tsx:122
 msgid "No message"
 msgstr "Keine Meldung"
 
-#: src/components/ManipulatorPanel.tsx:175
+#: src/components/ManipulatorPanel.tsx:124
 msgid "Show details"
 msgstr "Details anzeigen"
 
-#: src/components/ManipulatorPanel.tsx:228
+#: src/components/ManipulatorPanel.tsx:176
 msgid "Arm"
 msgstr "Arm"
 
-#: src/components/ManipulatorPanel.tsx:234
+#: src/components/ManipulatorPanel.tsx:182
 msgid "UR5 at $0"
 msgstr "UR5 an $0"
 
-#: src/components/ManipulatorPanel.tsx:235
+#: src/components/ManipulatorPanel.tsx:183
 msgid "UR5"
 msgstr "UR5"
 
-#: src/components/ManipulatorPanel.tsx:244
+#: src/components/ManipulatorPanel.tsx:191
 msgid "Robot mode"
 msgstr "Robotermodus"
 
-#: src/components/ManipulatorPanel.tsx:247
+#: src/components/ManipulatorPanel.tsx:192
 msgid "Safety mode"
 msgstr "Sicherheitsmodus"
 
-#: src/components/ManipulatorPanel.tsx:250
+#: src/components/ManipulatorPanel.tsx:193
 msgid "External control"
 msgstr "ExternalControl"
 
-#: src/components/ManipulatorPanel.tsx:260
+#: src/components/ManipulatorPanel.tsx:199
 msgid "Motion link"
 msgstr "Motion-Link"
 
-#: src/components/ManipulatorPanel.tsx:262
+#: src/components/ManipulatorPanel.tsx:200
 msgid "live"
 msgstr "läuft"
 
-#: src/components/ManipulatorPanel.tsx:262
+#: src/components/ManipulatorPanel.tsx:200
 msgid "dead"
 msgstr "tot"
 
-#: src/components/ManipulatorPanel.tsx:264
+#: src/components/ManipulatorPanel.tsx:201
 msgid "$0 Hz"
 msgstr "$0 Hz"
 
-#: src/components/ManipulatorPanel.tsx:266
+#: src/components/ManipulatorPanel.tsx:203
 msgid "Controllers"
 msgstr "Controller"
 
-#: src/components/ManipulatorPanel.tsx:268
+#: src/components/ManipulatorPanel.tsx:205
 msgid "$0 of $1 active"
 msgstr "$0 von $1 aktiv"
 
-#: src/components/ManipulatorPanel.tsx:275
+#: src/components/ManipulatorPanel.tsx:212
 msgid "Arm Joints Table"
 msgstr "Tabelle der Armgelenke"
 
-#: src/components/ManipulatorPanel.tsx:282
+#: src/components/ManipulatorPanel.tsx:219
 msgid "Joint"
 msgstr "Gelenk"
 
-#: src/components/ManipulatorPanel.tsx:283
+#: src/components/ManipulatorPanel.tsx:220
 msgid "Position"
 msgstr "Position"
 
-#: src/components/ManipulatorPanel.tsx:284
+#: src/components/ManipulatorPanel.tsx:221
 msgid "Velocity"
 msgstr "Geschwindigkeit"
 
-#: src/components/ManipulatorPanel.tsx:285
+#: src/components/ManipulatorPanel.tsx:222
 msgid "Effort"
 msgstr "Moment"
 
-#: src/components/ManipulatorPanel.tsx:343
+#: src/components/ManipulatorPanel.tsx:289
 msgid "End effector"
 msgstr "Endeffektor"
 
-#: src/components/ManipulatorPanel.tsx:346
+#: src/components/ManipulatorPanel.tsx:294
 msgid "OnRobot RG6"
 msgstr "OnRobot RG6"
 
-#: src/components/ManipulatorPanel.tsx:353
+#: src/components/ManipulatorPanel.tsx:300
 msgid "Opening"
 msgstr "Öffnungsweite"
 
-#: src/components/ManipulatorPanel.tsx:355
+#: src/components/ManipulatorPanel.tsx:302
 msgid "$0 of $1 mm"
 msgstr "$0 von $1 mm"
 
-#: src/components/ManipulatorPanel.tsx:360
+#: src/components/ManipulatorPanel.tsx:305
 msgid "Gripper opening"
 msgstr "Greiferöffnung"
 
-#: src/components/ManipulatorPanel.tsx:365
+#: src/components/ManipulatorPanel.tsx:310
 msgid "Grip detected"
 msgstr "Griff erkannt"
 
-#: src/components/ManipulatorPanel.tsx:367
+#: src/components/ManipulatorPanel.tsx:311
 msgid "object held"
 msgstr "Objekt gegriffen"
 
-#: src/components/ManipulatorPanel.tsx:367
+#: src/components/ManipulatorPanel.tsx:311
 msgid "no object"
 msgstr "kein Objekt"
 
-#: src/components/ManipulatorPanel.tsx:370
+#: src/components/ManipulatorPanel.tsx:313
 msgid "Motion"
 msgstr "Bewegung"
 
-#: src/components/ManipulatorPanel.tsx:372
+#: src/components/ManipulatorPanel.tsx:314
 msgid "moving"
 msgstr "in Bewegung"
 
-#: src/components/ManipulatorPanel.tsx:372
+#: src/components/ManipulatorPanel.tsx:314
 msgid "settled"
 msgstr "steht"
 
-#: src/components/ManipulatorPanel.tsx:380
+#: src/components/ManipulatorPanel.tsx:321
 msgid "Tool power"
 msgstr "Tool-Spannung"
 
-#: src/components/ManipulatorPanel.tsx:382
+#: src/components/ManipulatorPanel.tsx:322
 msgid "on"
 msgstr "an"
 
-#: src/components/ManipulatorPanel.tsx:382
+#: src/components/ManipulatorPanel.tsx:322
 msgid "off"
 msgstr "aus"
 
-#: src/components/ManipulatorPanel.tsx:384
+#: src/components/ManipulatorPanel.tsx:324
 msgid "commanded, no signal"
 msgstr "kommandiert, kein Signal"
 
-#: src/components/ManipulatorPanel.tsx:385
+#: src/components/ManipulatorPanel.tsx:327
 msgid "Force preset"
 msgstr "Kraft-Preset"
 
-#: src/components/ManipulatorPanel.tsx:386
+#: src/components/ManipulatorPanel.tsx:328
 msgid "high"
 msgstr "hoch"
 
-#: src/components/ManipulatorPanel.tsx:386
+#: src/components/ManipulatorPanel.tsx:328
 msgid "normal"
 msgstr "normal"
 
-#: src/components/ManipulatorPanel.tsx:388
+#: src/components/ManipulatorPanel.tsx:330
 msgid "Last command"
 msgstr "Letzter Befehl"
 
-#: src/components/ManipulatorPanel.tsx:391
+#: src/components/ManipulatorPanel.tsx:333
 msgid "Force signal"
 msgstr "Kraftsignal"
 
-#: src/components/ManipulatorPanel.tsx:419
+#: src/components/ManipulatorPanel.tsx:361
 msgid "Manipulator"
 msgstr "Manipulator"
 
