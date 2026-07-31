@@ -31,6 +31,7 @@ import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
 import cockpit from 'cockpit';
 
 import { DiagnosticsEntry } from "../interfaces";
+import { SeverityIcon } from "./SeverityIcon";
 
 const _ = cockpit.gettext;
 
@@ -80,7 +81,7 @@ export const DiagnosticsTable = ({
                             onRowClick={() => setSelectedRawName(diag.rawName)}
                         >
                             <Td>
-                                {diag.icon} <span className="diagnostics-table-name" style={{ marginLeft: "0.5rem" }}>{diag.name || _("N/A")}</span>
+                                <SeverityIcon level={diag.severity_level} hideOk /> <span className="diagnostics-table-name" style={{ marginLeft: "0.5rem" }}>{diag.name || _("N/A")}</span>
                                 <br />
                                 {diag.path || _("N/A")}
                             </Td>

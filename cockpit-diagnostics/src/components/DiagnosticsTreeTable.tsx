@@ -43,6 +43,7 @@ import cockpit from 'cockpit';
 
 import { DiagnosticsEntry } from "../interfaces";
 import { LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_STALE, LEVEL_WARN } from "../utils/severity";
+import { SeverityIcon } from "./SeverityIcon";
 
 const _ = cockpit.gettext;
 
@@ -126,7 +127,6 @@ export const DiagnosticsTreeTable = ({
                 "aria-level": indentLevel,
                 "aria-posinset": posinset,
                 "aria-setsize": diag.children.length,
-                icon: diag.icon,
             },
         };
 
@@ -221,7 +221,9 @@ export const DiagnosticsTreeTable = ({
                     </DrawerHead>
                     <DrawerPanelBody>
                         <div tabIndex={0} ref={drawerRef}>
-                            <Title headingLevel="h4" size="md">{selectedEntry.icon} {selectedEntry.name}</Title>
+                            <Title headingLevel="h4" size="md">
+                                <SeverityIcon level={selectedEntry.severity_level} /> {selectedEntry.name}
+                            </Title>
                             <p>&nbsp;</p>
                             <p><strong>{_("Path")}:</strong> {selectedEntry.path}</p>
                             <p><strong>{_("Hardware ID")}:</strong> {selectedEntry.hardware_id || _("N/A")}</p>

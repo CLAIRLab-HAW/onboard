@@ -33,7 +33,6 @@ export interface DiagnosticsEntry {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     values: { [key: string]: any } | null;
     children: DiagnosticsEntry[];
-    icon: JSX.Element | null;
 }
 
 export interface DiagnosticsStatus {

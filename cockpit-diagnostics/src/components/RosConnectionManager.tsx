@@ -18,23 +18,11 @@
  */
 
 import React, { useEffect, useRef } from "react";
-import { Icon } from "@patternfly/react-core";
-import {
-    CheckCircleIcon,
-    ExclamationCircleIcon,
-    ExclamationTriangleIcon,
-    OutlinedCircleIcon,
-    QuestionCircleIcon,
-} from "@patternfly/react-icons";
 
 import { DiagnosticsEntry, DiagnosticsStatus } from "../interfaces";
 import * as ROSLIB from "../roslib/index";
 import {
-    LEVEL_ERROR,
-    LEVEL_INACTIVE,
     LEVEL_NONE,
-    LEVEL_STALE,
-    LEVEL_WARN,
     overrideFor,
     rollUpOverrides,
 } from "../utils/severity";
@@ -60,27 +48,6 @@ const calculateOverallLevel = (diagnostics: DiagnosticsEntry[]): number => {
 
     diagnostics.forEach(checkEntry);
     return maxLevel;
-};
-
-// Icon for a *displayed* severity level. Assigned in a pass after the levels
-// are final, so overridden statuses and their groups get matching icons.
-const iconFor = (level: number): JSX.Element => {
-    if (level === LEVEL_INACTIVE)
-        return <Icon><OutlinedCircleIcon /></Icon>;
-    if (level === LEVEL_STALE)
-        return <Icon status="info"><QuestionCircleIcon /></Icon>;
-    if (level >= LEVEL_ERROR)
-        return <Icon status="danger"><ExclamationCircleIcon /></Icon>;
-    if (level === LEVEL_WARN)
-        return <Icon status="warning"><ExclamationTriangleIcon /></Icon>;
-    return <Icon status="success"><CheckCircleIcon /></Icon>;
-};
-
-const assignIcons = (entries: DiagnosticsEntry[]): void => {
-    entries.forEach(entry => {
-        entry.icon = iconFor(entry.severity_level);
-        assignIcons(entry.children);
-    });
 };
 
 // Helper function to build a nested DiagnosticsEntry tree
@@ -114,7 +81,6 @@ export const buildDiagnosticsTree = (diagnostics: any[]): DiagnosticsEntry[] => 
                     hardware_id: null,
                     values: null,
                     children: [],
-                    icon: null, // Assigned once the levels are final
                 };
                 currentLevel.push(existingEntry);
             }
@@ -146,10 +112,8 @@ export const buildDiagnosticsTree = (diagnostics: any[]): DiagnosticsEntry[] => 
         });
     });
 
-    // Propagate overridden levels into the analyzer groups above them, then
-    // derive every icon from the final level.
+    // Propagate overridden levels into the analyzer groups above them.
     rollUpOverrides(root);
-    assignIcons(root);
 
     return root;
 };
