@@ -145,7 +145,15 @@ def main(argv=None) -> int:
             ).value
             self.rate_hz = float(self.declare_parameter("rate_hz", 5.0).value)
             self.stride = int(self.declare_parameter("stride", 2).value)
-            self.min_depth = float(self.declare_parameter("min_depth", 0.15).value)
+            # Near-Clip 0.35 m = Wrist-Selbst-Exklusion: RG6-Finger (~0.15-0.25 m
+            # vor der Kamera) und die GETRAGENE Fracht (haengt unter dem TCP,
+            # < ~0.3 m) liegen IMMER in diesem Band -- ihre Voxel kollidierten
+            # sonst mit dem attachten Objekt selbst (real 2026-07-29: Transport
+            # nach dem Grasp unplanbar, "<octomap> vs 'Robot attached'"; die
+            # Attached-Body-Maskierung des Occupancy-Monitors griff nicht).
+            # Nahe ECHTE Hindernisse deckt die Objekt-Box-Ebene ab (Workstation-seitig,
+            # min_depth dort 0.15).
+            self.min_depth = float(self.declare_parameter("min_depth", 0.35).value)
             self.max_depth = float(self.declare_parameter("max_depth", 2.5).value)
 
             self._depth = None  # letzte Depth-Message (Rohdaten)

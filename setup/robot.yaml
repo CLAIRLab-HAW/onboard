@@ -109,6 +109,15 @@ manipulators:
           padding_scale: 1.0
           max_update_rate: 5.0
           filtered_cloud_topic: ""
+        # Self-Filter-Robustheit (2026-07-29): der Shape-Mask-TF-Lookup zum
+        # Cloud-Stempel verpasste die Rad-Frames intermittierend (Default-Wait
+        # 0.05 s) -> "Missing transform for shape cylinder", Radpunkte wurden
+        # als Hindernis-Voxel eingefuegt und JEDER Plan aus einer Chassis-
+        # blickenden Pose scheiterte mit START_STATE_IN_COLLISION. 0.3 s Wait
+        # laesst den TF-Puffer aufholen; deep-merged neben cartesian_limits/
+        # joint_limits (Generator-Merge empirisch verifiziert).
+        robot_description_planning:
+          shape_transform_cache_lookup_wait_time: 0.3
   arms:
     - model: universal_robots
       parent: top_plate_front_mount
