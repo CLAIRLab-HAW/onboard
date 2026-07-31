@@ -15,6 +15,8 @@ import { SeverityIcon, severityLabel } from "../../src/components/SeverityIcon";
 import {
     LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_NONE, LEVEL_OK, LEVEL_STALE, LEVEL_WARN,
 } from "../../src/utils/severity";
+import live from "./agg-armed.json";
+import { buildDiagnosticsTree } from "../../src/components/RosConnectionManager";
 
 const problems: string[] = [];
 const check = (condition: boolean, what: string) => {
@@ -58,6 +60,40 @@ check(new Set(shapes).size === shapes.length, "every level needs a distinct symb
 check(markup(LEVEL_OK, true) === "", "with hideOk, LEVEL_OK must render nothing");
 check(markup(LEVEL_OK).includes("<svg"), "without hideOk, LEVEL_OK still renders its tick");
 check(markup(LEVEL_NONE) === "", "LEVEL_NONE has no status of its own and must render nothing");
+
+/* -------------------------------------------------------------- StatusBand */
+
+import { StatusBand } from "../../src/components/StatusBand";
+import { summarise } from "../../src/utils/summary";
+
+const band = (over: Partial<React.ComponentProps<typeof StatusBand>> = {}) =>
+    renderToStaticMarkup(React.createElement(StatusBand, {
+        namespace: "/a200_0553",
+        diagnostics: [],
+        timestamp: null,
+        bridgeConnected: true,
+        rateHz: 1,
+        isPaused: false,
+        onTogglePause: () => undefined,
+        onFilterLevel: () => undefined,
+        menuItems: null,
+        ...over,
+    }));
+
+const healthy = band();
+check(healthy.includes("operational"), "an empty tree reads as operational");
+check(healthy.includes("/a200_0553"), "the namespace is shown");
+check(!healthy.includes("Bridge disconnected"), "a connected bridge is not announced as disconnected");
+
+check(band({ bridgeConnected: false }).includes("Bridge disconnected"),
+      "a missing bridge is stated in the band, not only in the empty tree");
+
+// Counts must come from the leaves of the real capture, not from the statuses.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const realTree = buildDiagnosticsTree(live as any[]);
+const withData = band({ diagnostics: realTree });
+check(withData.includes("1 warning"), "the band states the warning from the capture");
+check(summarise(realTree).total === 15, "and counts 15 statuses");
 
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));

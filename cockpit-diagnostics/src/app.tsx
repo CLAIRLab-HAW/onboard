@@ -21,21 +21,16 @@ import React, { useState } from 'react';
 
 import {
     Alert,
-    Button,
-    Flex,
-    FlexItem,
     Page,
     PageSection,
     Stack,
-    Title
 } from "@patternfly/react-core";
-import { PauseIcon, PlayIcon } from "@patternfly/react-icons";
 
-import cockpit from 'cockpit';
 import { DiagnosticsStatus } from "./interfaces";
 import { DiagnosticsTable } from "./components/DiagnosticsTable";
 import { DiagnosticsTreeTable } from "./components/DiagnosticsTreeTable";
 import { RosConnectionManager } from "./components/RosConnectionManager";
+import { StatusBand } from "./components/StatusBand";
 import { useNamespace } from "./hooks/useNamespace";
 import { useWebSocketUrl } from "./hooks/useWebSocketUrl";
 import { DiagnosticsCapture } from "./components/DiagnosticsCapture";
@@ -43,8 +38,7 @@ import { ManipulatorPanel } from "./components/ManipulatorPanel";
 import { ManualNamespace } from "./components/ManualNamespace";
 import { HistorySelection } from "./components/HistorySelection";
 import { useDiagHistory } from './hooks/useDiagHistory';
-
-const _ = cockpit.gettext;
+import { updateRateHz } from "./utils/summary";
 
 export const Application = () => {
     const {
@@ -72,26 +66,20 @@ export const Application = () => {
         <Page id="ros2-diag" className='no-masthead-sidebar'>
             <PageSection>
                 <Stack hasGutter>
-                    <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
-                        <FlexItem>
-                            <Title headingLevel="h1" size="2xl">
-                                {_("ROS 2 Diagnostics")}
-                            </Title>
-                        </FlexItem>
-                        <FlexItem>
-                            <Button
-                                variant="secondary"
-                                icon={isPaused ? <PlayIcon /> : <PauseIcon />}
-                                onClick={() => {
-                                    if (isPaused) clearDiagHistory();
-                                    setIsPaused(!isPaused);
-                                }}
-                                aria-label={isPaused ? _("Resume diagnostics updates") : _("Pause diagnostics updates")}
-                            >
-                                {isPaused ? _("Resume") : _("Pause")}
-                            </Button>
-                        </FlexItem>
-                    </Flex>
+                    <StatusBand
+                        namespace={namespace}
+                        diagnostics={diagnostics}
+                        timestamp={diagStatusDisplay?.timestamp ?? null}
+                        bridgeConnected={bridgeConnected}
+                        rateHz={updateRateHz(diagHistory)}
+                        isPaused={isPaused}
+                        onTogglePause={() => {
+                            if (isPaused) clearDiagHistory();
+                            setIsPaused(!isPaused);
+                        }}
+                        onFilterLevel={() => undefined}
+                        menuItems={null}
+                    />
                     <HistorySelection
                         diagHistory={diagHistory}
                         setDiagStatusDisplay={setDiagStatusDisplay}

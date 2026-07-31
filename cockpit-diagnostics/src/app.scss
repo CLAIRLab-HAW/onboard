@@ -71,3 +71,60 @@
 .manipulator-out-of-service .pf-v6-c-progress {
     opacity: 0.65;
 }
+
+/* Status band ------------------------------------------------------------- */
+
+.status-band {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 10;
+    padding: var(--pf-t--global--spacer--md) var(--pf-t--global--spacer--lg) 0;
+    background: var(--pf-t--global--background--color--primary--default);
+    border-block-end: 1px solid var(--pf-t--global--border--color--default);
+}
+
+.status-headline {
+    font-size: var(--pf-t--global--font--size--lg);
+    font-weight: var(--pf-t--global--font--weight--heading--default);
+    margin: 0;
+}
+
+.status-headline-state {
+    font-weight: var(--pf-t--global--font--weight--body--default);
+}
+
+.status-facts {
+    color: var(--pf-t--global--text--color--subtle);
+    font-size: var(--pf-t--global--font--size--sm);
+    margin-block-start: var(--pf-t--global--spacer--xs);
+}
+
+.status-kpi {
+    text-align: end;
+    min-inline-size: 3.5rem;
+}
+
+.status-kpi-value {
+    display: block;
+    font-size: var(--pf-t--global--font--size--2xl);
+    font-weight: var(--pf-t--global--font--weight--body--default);
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
+}
+
+/* Only a counter that is not zero earns emphasis. */
+.status-kpi-hit {
+    opacity: 1;
+    font-weight: var(--pf-t--global--font--weight--heading--default);
+}
+
+.status-kpi-label {
+    font-size: var(--pf-t--global--font--size--xs);
+    color: var(--pf-t--global--text--color--subtle);
+}
+
+/* An out-of-service subsystem is not a fault; its symbol must not shout. */
+.severity-icon-inactive {
+    color: var(--pf-t--global--icon--color--subtle);
+}

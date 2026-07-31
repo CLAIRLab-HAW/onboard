@@ -20,19 +20,19 @@ msgstr ""
 msgid "ROS 2 Diagnostics"
 msgstr "ROS-2-Diagnose"
 
-#: src/app.tsx:89
+#: src/components/StatusBand.tsx:142
 msgid "Resume diagnostics updates"
 msgstr "Diagnose-Aktualisierung fortsetzen"
 
-#: src/app.tsx:89
+#: src/components/StatusBand.tsx:142
 msgid "Pause diagnostics updates"
 msgstr "Diagnose-Aktualisierung pausieren"
 
-#: src/app.tsx:91
+#: src/components/StatusBand.tsx:144
 msgid "Resume"
 msgstr "Fortsetzen"
 
-#: src/app.tsx:91
+#: src/components/StatusBand.tsx:144
 msgid "Pause"
 msgstr "Pause"
 
@@ -449,3 +449,23 @@ msgstr[1] "$0 veraltete Meldungen"
 #: src/utils/summary.ts:76
 msgid "operational"
 msgstr "betriebsbereit"
+
+#: src/components/StatusBand.tsx:105
+msgid "Bridge connected"
+msgstr "Bridge verbunden"
+
+#: src/components/StatusBand.tsx:105
+msgid "Bridge disconnected"
+msgstr "Bridge getrennt"
+
+#: src/components/StatusBand.tsx:108
+msgid "as of $0"
+msgstr "Stand $0"
+
+#: src/components/StatusBand.tsx:136
+msgid "Statuses"
+msgstr "Stati"
+
+#: src/components/StatusBand.tsx:156
+msgid "More actions"
+msgstr "Weitere Aktionen"
