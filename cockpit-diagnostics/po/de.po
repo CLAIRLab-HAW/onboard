@@ -202,7 +202,7 @@ msgstr "Veraltet"
 
 #: src/components/ManipulatorPanel.tsx:107
 msgid "Out of service"
-msgstr "Außer Betrieb"
+msgstr "Außer Dienst"
 
 #: src/components/ManipulatorPanel.tsx:109
 msgid "No data"
