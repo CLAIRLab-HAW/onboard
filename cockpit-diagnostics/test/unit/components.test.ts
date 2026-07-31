@@ -95,6 +95,18 @@ const withData = band({ diagnostics: realTree });
 check(withData.includes("1 warning"), "the band states the warning from the capture");
 check(summarise(realTree).total === 15, "and counts 15 statuses");
 
+// A counter at zero must not open a filter: "0 errors" is not something anybody
+// wants to click through to a threshold that would still list stale messages.
+// The Pause button and the ⋯ toggle are legitimate <button>s in the same band, so
+// a bare "<button" substring would prove nothing -- only a KPI counter carries the
+// "status-kpi" class on the button element itself.
+const kpiIsButton = (html: string) => /<button[^>]*\bclass="[^"]*\bstatus-kpi\b[^"]*"[^>]*>/.test(html);
+
+check(!kpiIsButton(healthy),
+      "with every counter at zero, no counter renders as a clickable button");
+check(kpiIsButton(withData),
+      "the Warnings counter (1, from the real capture) renders as a clickable button");
+
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));
     throw new Error(`${problems.length} component assertion(s) failed`);
