@@ -107,9 +107,35 @@ check(!kpiIsButton(healthy),
 check(kpiIsButton(withData),
       "the Warnings counter (1, from the real capture) renders as a clickable button");
 
+/* --------------------------------------------------------------- Timeline */
+
+import { Timeline } from "../../src/components/Timeline";
+import { DiagnosticsStatus } from "../../src/interfaces";
+
+const snapshotAt = (level: number): DiagnosticsStatus => ({ timestamp: Date.now(), level, diagnostics: [] });
+
+const timelineMarkup = (diagHistory: DiagnosticsStatus[]) =>
+    renderToStaticMarkup(React.createElement(Timeline, {
+        diagHistory,
+        setDiagStatusDisplay: () => undefined,
+        isPaused: false,
+        setIsPaused: () => undefined,
+    }));
+
+// HISTORY_SIZE is 30; two snapshots leave 28 unfilled slots, so both markers
+// below are present and their order in the markup reflects render order.
+const partial = timelineMarkup([snapshotAt(LEVEL_OK), snapshotAt(LEVEL_OK)]);
+check(partial.indexOf("timeline-slot-empty") < partial.indexOf("timeline-slot-ok"),
+      "unfilled slots render before real snapshots, keeping the newest one at the right edge");
+
+check(!partial.includes("timeline-slot-warn") &&
+      !partial.includes("timeline-slot-error") &&
+      !partial.includes("timeline-slot-stale"),
+      "an all-healthy history gets no status colour class");
+
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));
     throw new Error(`${problems.length} component assertion(s) failed`);
 }
 
-console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule)");
+console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + no colour on healthy)");

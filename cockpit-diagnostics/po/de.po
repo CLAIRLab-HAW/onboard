@@ -164,30 +164,6 @@ msgstr "Warte auf Diagnose-Nachrichten …"
 msgid "Attempting to connect to the Foxglove bridge..."
 msgstr "Verbindung zur Foxglove-Bridge wird aufgebaut …"
 
-#: src/components/HistorySelection.tsx:66
-msgid "Timeline:"
-msgstr "Zeitverlauf:"
-
-#: src/components/HistorySelection.tsx:69
-msgid "Diagnostics History"
-msgstr "Diagnose-Verlauf"
-
-#: src/components/HistorySelection.tsx:93
-msgid "diagnostics snapshot $0"
-msgstr "Diagnose-Momentaufnahme $0"
-
-#: src/components/HistorySelection.tsx:109
-msgid "Oldest Timestamp:"
-msgstr "Ältester Zeitstempel:"
-
-#: src/components/HistorySelection.tsx:113
-msgid "Selected Timestamp:"
-msgstr "Ausgewählter Zeitstempel:"
-
-#: src/components/HistorySelection.tsx:116
-msgid "Latest Timestamp:"
-msgstr "Neuester Zeitstempel:"
-
 #: src/components/ManipulatorPanel.tsx:101
 msgid "Warning"
 msgstr "Warnung"
@@ -469,3 +445,27 @@ msgstr "Stati"
 #: src/components/StatusBand.tsx:156
 msgid "More actions"
 msgstr "Weitere Aktionen"
+
+#: src/components/Timeline.tsx:74
+msgid "Diagnostics history"
+msgstr "Diagnoseverlauf"
+
+#: src/components/Timeline.tsx:85
+msgid "diagnostics snapshot $0"
+msgstr "Diagnose-Momentaufnahme $0"
+
+#: src/components/Timeline.tsx:97
+msgid "no history yet"
+msgstr "noch kein Verlauf"
+
+#: src/components/Timeline.tsx:99
+msgid "$0 snapshots · click to freeze"
+msgstr "$0 Schnappschüsse · Klick friert ein"
+
+#: src/components/Timeline.tsx:100
+msgid "frozen"
+msgstr "eingefroren"
+
+#: src/components/Timeline.tsx:100
+msgid "now"
+msgstr "jetzt"

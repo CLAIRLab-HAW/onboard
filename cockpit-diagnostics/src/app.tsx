@@ -36,7 +36,7 @@ import { useWebSocketUrl } from "./hooks/useWebSocketUrl";
 import { DiagnosticsCapture } from "./components/DiagnosticsCapture";
 import { ManipulatorPanel } from "./components/ManipulatorPanel";
 import { ManualNamespace } from "./components/ManualNamespace";
-import { HistorySelection } from "./components/HistorySelection";
+import { Timeline } from "./components/Timeline";
 import { useDiagHistory } from './hooks/useDiagHistory';
 import { updateRateHz } from "./utils/summary";
 
@@ -79,13 +79,14 @@ export const Application = () => {
                         }}
                         onFilterLevel={() => undefined}
                         menuItems={null}
-                    />
-                    <HistorySelection
-                        diagHistory={diagHistory}
-                        setDiagStatusDisplay={setDiagStatusDisplay}
-                        isPaused={isPaused}
-                        setIsPaused={setIsPaused}
-                    />
+                    >
+                        <Timeline
+                            diagHistory={diagHistory}
+                            setDiagStatusDisplay={setDiagStatusDisplay}
+                            isPaused={isPaused}
+                            setIsPaused={setIsPaused}
+                        />
+                    </StatusBand>
                     {invalidNamespaceMessage && (
                         <Alert
                             variant="danger"

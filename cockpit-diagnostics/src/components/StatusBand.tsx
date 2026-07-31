@@ -86,6 +86,7 @@ export const StatusBand = ({
     onTogglePause,
     onFilterLevel,
     menuItems,
+    children,
 }: {
     namespace: string,
     diagnostics: DiagnosticsEntry[],
@@ -96,6 +97,7 @@ export const StatusBand = ({
     onTogglePause: () => void,
     onFilterLevel: (level: FilterLevel) => void,
     menuItems: React.ReactNode,
+    children?: React.ReactNode,
 }) => {
     const [menuOpen, setMenuOpen] = React.useState(false);
     const summary = summarise(diagnostics);
@@ -167,6 +169,7 @@ export const StatusBand = ({
                     </Flex>
                 </FlexItem>
             </Flex>
+            {children}
         </div>
     );
 };
