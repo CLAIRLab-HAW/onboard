@@ -245,7 +245,7 @@ Zwei Bausteine, beide vom Installer (optionaler Schritt):
 **Zusammenspiel mit den Objekt-Collision-Objects:** MoveIts
 PlanningSceneMonitor maskiert bekannte World-Objects und attachte Bodies aus
 dem Octree (`excludeWorldObjectsFromOctree` / `excludeAttachedBodiesFromOctree`)
-— die vom Mac gepushten Würfel, der Boden-Slab und die Hindernis-Boxen erzeugen
+— die von der Workstation gepushten Würfel, der Boden-Slab und die Hindernis-Boxen erzeugen
 also keine blockierenden Voxel; Griffe bleiben planbar. Der Roboter selbst wird
 vom Updater geometrisch selbst-gefiltert (`padding_offset` 0.03).
 

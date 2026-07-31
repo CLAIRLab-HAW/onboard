@@ -6,7 +6,7 @@ Sicherheitsschicht): move_group bekommt ueber den Occupancy Map Monitor
 (``PointCloudOctomapUpdater``, s. clearpath-custom-setup.py Patch-Schritt 5)
 eine Punktwolke der Wrist-D435 und pflegt daraus einen probabilistischen
 Voxel-Octree -- Raycasts raeumen freigewordenen Raum automatisch, beliebige
-Formen werden bei Voxelaufloesung erfasst, und die vom Mac gepushten
+Formen werden bei Voxelaufloesung erfasst, und die von der Workstation gepushten
 Collision-Objects (Wuerfel, Boden-Slab, Hindernis-Boxen) maskiert MoveIt
 selbst aus dem Octree (PlanningSceneMonitor exclude*FromOctree).
 
@@ -31,7 +31,7 @@ nicht kuemmern), Subscriber SensorData (best effort, wie die Kamera).
 Aufruf (Service clearpath-custom-octomap-feed, s. Installer):
     octomap-feed --ros-args -p depth_topic:=... -p rate_hz:=5.0
 
-Selbsttest ohne ROS (nur numpy -- laeuft auch auf dem Mac):
+Selbsttest ohne ROS (nur numpy -- laeuft auch auf der Workstation):
     python3 octomap_feed.py --selftest
 """
 from __future__ import annotations

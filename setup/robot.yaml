@@ -158,7 +158,7 @@ sensors:
           # 30 fps setzt ZWEI Dinge voraus (beide seit 2026-07-23 erfuellt,
           # Details in docs/hrl-real-perception-plan.md):
           #  1. D435 an USB 3.2 (an USB 2 sind 15 fps das Limit bei 640x480).
-          #  2. Robot UND Offboard-Mac im 5-GHz-Band (HAWAX5): auf dem
+          #  2. Robot UND Offboard-Workstation im 5-GHz-Band (HAWAX5): auf dem
           #     2,4-GHz-Band saettigen color@30 + depth@30 (~4,5 MB/s) den
           #     Funkkanal -- gemessen: 8,7/s beim Client + 5,5 s stehender
           #     Lag im foxglove-Sendepuffer. Nach Reboot Band pruefen

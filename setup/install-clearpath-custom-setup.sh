@@ -66,7 +66,7 @@ RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
 # Octomap-Feed (Schritt 2 der HRL-Hindernis-Architektur): gedrosselte
 # Depth->PointCloud2-Quelle fuer MoveIts Occupancy Map Monitor, damit
 # move_group auch UNGETRACKTEN Hindernissen ausweicht (dichte Voxel-Schicht;
-# die objekt-basierten Boxen vom Mac bleiben fuer Task-Objekte + Twin).
+# die objekt-basierten Boxen von der Workstation bleiben fuer Task-Objekte + Twin).
 # Kanonische Quelle im Repo (scripts/octomap_feed.py, SSOT wie robot.yaml);
 # root-eigene Kopie unter /usr/local/bin, gestartet vom Boot-Service. Die
 # move_group-Sensorparameter setzt der Boot-Patcher (Schritt 5) NUR, wenn

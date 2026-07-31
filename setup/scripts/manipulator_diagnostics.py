@@ -48,7 +48,7 @@ Gelieferte Status (Prefix = Node-Name, so erwartet es der Analyzer)
 Aufruf (Service clearpath-custom-manipulator-diagnostics, s. Installer):
     manipulator-diagnostics --ros-args -p manipulator_ns:=/a200_0553/manipulators
 
-Selbsttest ohne ROS (reine Bewertungslogik -- laeuft auch auf dem Mac):
+Selbsttest ohne ROS (reine Bewertungslogik -- laeuft auch auf der Workstation):
     python3 manipulator_diagnostics.py --selftest
 """
 from __future__ import annotations
