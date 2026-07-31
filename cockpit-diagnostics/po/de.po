@@ -427,3 +427,25 @@ msgstr "ROS-2-Diagnose"
 #: src/index.html:20
 msgid "Cockpit ROS 2 Diagnostics"
 msgstr "Cockpit ROS-2-Diagnose"
+
+#: src/utils/summary.ts:70
+msgid "$0 error"
+msgid_plural "$0 errors"
+msgstr[0] "$0 Fehler"
+msgstr[1] "$0 Fehler"
+
+#: src/utils/summary.ts:72
+msgid "$0 warning"
+msgid_plural "$0 warnings"
+msgstr[0] "$0 Warnung"
+msgstr[1] "$0 Warnungen"
+
+#: src/utils/summary.ts:75
+msgid "$0 stale message"
+msgid_plural "$0 stale messages"
+msgstr[0] "$0 veraltete Meldung"
+msgstr[1] "$0 veraltete Meldungen"
+
+#: src/utils/summary.ts:76
+msgid "operational"
+msgstr "betriebsbereit"
