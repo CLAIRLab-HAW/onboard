@@ -84,15 +84,15 @@ msgstr "Fehler"
 msgid "Warnings"
 msgstr "Warnungen"
 
-#: src/components/DiagnosticsTreeTable.tsx:149
+#: src/components/DiagnosticsTreeTable.tsx:104
 msgid "Name"
 msgstr "Name"
 
-#: src/components/DiagnosticsTreeTable.tsx:154
+#: src/components/DiagnosticsTreeTable.tsx:109
 msgid "Message"
 msgstr "Meldung"
 
-#: src/components/DiagnosticsTreeTable.tsx:229
+#: src/components/DetailPanel.tsx:98
 msgid "N/A"
 msgstr "k. A."
 
@@ -104,63 +104,35 @@ msgstr "Keine Fehler"
 msgid "No Warnings"
 msgstr "Keine Warnungen"
 
-#: src/components/DiagnosticsTreeTable.tsx:52
-msgid "INACTIVE"
-msgstr "INAKTIV"
-
-#: src/components/DiagnosticsTreeTable.tsx:54
-msgid "STALE"
-msgstr "VERALTET"
-
-#: src/components/DiagnosticsTreeTable.tsx:56
-msgid "ERROR"
-msgstr "FEHLER"
-
-#: src/components/DiagnosticsTreeTable.tsx:58
-msgid "WARNING"
-msgstr "WARNUNG"
-
-#: src/components/DiagnosticsTreeTable.tsx:60
+#: src/components/SeverityIcon.tsx:63
 msgid "OK"
 msgstr "OK"
 
-#: src/components/DiagnosticsTreeTable.tsx:226
-msgid "Path"
-msgstr "Pfad"
-
-#: src/components/DiagnosticsTreeTable.tsx:227
+#: src/components/DetailPanel.tsx:98
 msgid "Hardware ID"
 msgstr "Hardware-ID"
 
-#: src/components/DiagnosticsTreeTable.tsx:228
-msgid "Level"
-msgstr "Stufe"
-
-#: src/components/DiagnosticsTreeTable.tsx:235
+#: src/components/DetailPanel.tsx:105
 msgid "Reported level"
 msgstr "Gemeldete Stufe"
 
-#: src/components/DiagnosticsTreeTable.tsx:244
+#: src/components/DetailPanel.tsx:115
 msgid "Values"
 msgstr "Werte"
 
-#: src/components/DiagnosticsTreeTable.tsx:245
-msgid "Diagnostic Values Table"
-msgstr "Tabelle der Diagnosewerte"
-
-#: src/components/DiagnosticsTreeTable.tsx:266
+#: src/components/DiagnosticsTreeTable.tsx:151
 msgid "All Diagnostics"
 msgstr "Alle Diagnosen"
 
-#: src/components/DiagnosticsTreeTable.tsx:271
+#: src/components/DiagnosticsTreeTable.tsx:153
 msgid "Diagnostics Tree Table"
 msgstr "Diagnose-Baumtabelle"
 
-#: src/components/DiagnosticsTreeTable.tsx:294
+#: src/components/DiagnosticsTreeTable.tsx:176
 msgid "Waiting for diagnostics messages..."
 msgstr "Warte auf Diagnose-Nachrichten …"
 
-#: src/components/DiagnosticsTreeTable.tsx:295
+#: src/components/DiagnosticsTreeTable.tsx:177
 msgid "Attempting to connect to the Foxglove bridge..."
 msgstr "Verbindung zur Foxglove-Bridge wird aufgebaut …"
 

@@ -155,9 +155,35 @@ const empty = issueMarkup([]);
 check(empty.includes("No issues"), "an empty list is one line, not an empty state");
 check(!empty.includes("<table"), "an empty list renders no table");
 
+/* --------------------------------------------------------------- DetailPanel */
+
+import { DetailPanel, findEntryByRawName } from "../../src/components/DetailPanel";
+
+const panelMarkup = (entry: DiagnosticsEntry | null) =>
+    renderToStaticMarkup(React.createElement(DetailPanel, { entry, onClose: () => undefined }));
+
+check(panelMarkup(null) === "", "with no status selected, the panel renders nothing");
+
+// The joystick in the real capture is a genuinely downgraded status: ROS
+// reports ERROR, this UI displays it as out of service (see utils/severity.ts).
+// A reclassified status must never look like the original, so both the
+// reported level and the reason it differs have to reach the markup.
+const joystick = findEntryByRawName(
+    realTree, "/Clearpath Diagnostics/Platform/Drive System/joy_node: Joystick Driver Status");
+check(joystick !== null, "the real capture must contain the downgraded joystick status");
+
+if (joystick) {
+    const joystickMarkup = panelMarkup(joystick);
+    check(joystickMarkup.includes(severityLabel(joystick.reported_level)),
+          "a reclassified status states the level ROS actually reported");
+    check(joystick.override_reason !== null && joystickMarkup.includes(joystick.override_reason),
+          "and states why the displayed level differs from it");
+}
+
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));
     throw new Error(`${problems.length} component assertion(s) failed`);
 }
 
-console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + no colour on healthy)");
+console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + " +
+            "no colour on healthy, detail panel empty/override-reason)");

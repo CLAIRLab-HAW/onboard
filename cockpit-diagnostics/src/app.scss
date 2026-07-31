@@ -193,3 +193,51 @@
     font-size: var(--pf-t--global--font--size--xs);
     color: var(--pf-t--global--text--color--subtle);
 }
+
+/* Detail panel ------------------------------------------------------------ */
+
+.detail-path {
+    font-size: var(--pf-t--global--font--size--xs);
+    color: var(--pf-t--global--text--color--subtle);
+    margin-block-end: var(--pf-t--global--spacer--sm);
+}
+
+.detail-message {
+    background: var(--pf-t--global--background--color--secondary--default);
+    border-radius: var(--pf-t--global--border--radius--small);
+    padding: var(--pf-t--global--spacer--sm);
+    margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.detail-values-title {
+    margin-block-start: var(--pf-t--global--spacer--md);
+    margin-block-end: var(--pf-t--global--spacer--sm);
+}
+
+.detail-values .pf-v6-c-description-list__description {
+    font-variant-numeric: tabular-nums;
+}
+
+/*
+ * On a narrow window a 28rem panel beside the content leaves neither of them
+ * usable. Below the same breakpoint at which the workspace stops being two
+ * columns, the panel covers the page instead.
+ *
+ * `inline-size`/`max-inline-size` do NOT do this: PatternFly's Drawer sizes
+ * the panel through `flex-basis` (driven by the
+ * --pf-v6-c-drawer__panel--md--FlexBasis custom property chain), and per the
+ * flexbox spec, `width`/`max-width` are not consulted for main-axis sizing
+ * once flex-basis is a definite (non-auto) value -- which it always is here.
+ * Verified empirically against the installed PatternFly 6.4.0 Drawer CSS: an
+ * `inline-size: 100%` rule left the panel unchanged at 28rem, while
+ * overriding the assembled --pf-v6-c-drawer__panel--FlexBasis variable
+ * directly resized it to 100% as expected. Overriding the *assembled*
+ * variable, not just the --md-- one, also means an in-progress resize drag
+ * (which only ever writes the --md-- variable) cannot fight this at a narrow
+ * width.
+ */
+@media (width <= 1200px) {
+    .pf-v6-c-drawer__panel {
+        --pf-v6-c-drawer__panel--FlexBasis: 100%;
+    }
+}

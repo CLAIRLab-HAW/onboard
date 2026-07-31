@@ -23,44 +23,18 @@ import {
     Card,
     CardBody,
     CardTitle,
-    Drawer,
-    DrawerContent,
-    DrawerContentBody,
-    DrawerPanelContent,
-    DrawerPanelBody,
-    DrawerHead,
-    DrawerActions,
-    DrawerCloseButton,
     EmptyState,
     EmptyStateVariant,
     EmptyStateBody,
-    Spinner,
-    Title
+    Spinner
 } from "@patternfly/react-core";
 import { Table, Thead, Tr, Th, Tbody, Td, TreeRowWrapper, TdProps } from "@patternfly/react-table";
 
 import cockpit from 'cockpit';
 
 import { DiagnosticsEntry } from "../interfaces";
-import { LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_STALE, LEVEL_WARN } from "../utils/severity";
-import { SeverityIcon } from "./SeverityIcon";
 
 const _ = cockpit.gettext;
-
-const levelName = (level: number): string => {
-    switch (level) {
-    case LEVEL_INACTIVE:
-        return _("INACTIVE");
-    case LEVEL_STALE:
-        return _("STALE");
-    case LEVEL_ERROR:
-        return _("ERROR");
-    case LEVEL_WARN:
-        return _("WARNING");
-    default:
-        return _("OK");
-    }
-};
 
 // Renders an expandable TreeTable of diagnostic messages
 export const DiagnosticsTreeTable = ({
@@ -75,26 +49,7 @@ export const DiagnosticsTreeTable = ({
     setSelectedRawName: (rawName: string | null) => void,
 }) => {
     const [expandedRows, setExpandedRows] = useState<string[]>([]);
-    const drawerRef = React.useRef<HTMLDivElement>(null); // Ref for focus management
-    const [triggerDrawerFocus, setTriggerDrawerFocus] = useState(false); // Used to ensure focus happens after the drawer renders
     const [lastExpandedRawName, setLastExpandedRawName] = useState<string | null>(null); // Track last expanded
-
-    useEffect(() => {
-        if (selectedRawName) {
-            setTriggerDrawerFocus(true);
-        }
-    }, [selectedRawName]);
-
-    useEffect(() => {
-        if (triggerDrawerFocus && drawerRef.current) {
-            drawerRef.current.focus();
-            setTriggerDrawerFocus(false);
-        }
-    }, [triggerDrawerFocus]);
-
-    const closeDrawer = () => {
-        setSelectedRawName(null);
-    };
 
     // Helper to toggle expansion for a given diagnostic rawName
     const toggleRowExpansion = (diagRawName: string) => {
@@ -158,20 +113,6 @@ export const DiagnosticsTreeTable = ({
         ];
     };
 
-    // Helper function to find the latest entry by path
-    const findEntryByRawName = (entries: DiagnosticsEntry[], rawName: string): DiagnosticsEntry | null => {
-        for (const entry of entries) {
-            if (entry.rawName === rawName) {
-                return entry;
-            }
-            const foundInChildren = findEntryByRawName(entry.children, rawName);
-            if (foundInChildren) {
-                return foundInChildren;
-            }
-        }
-        return null;
-    };
-
     // Helper to find the path (array of rawNames) from root to a given rawName
     const findPathToRawName = useCallback((entries: DiagnosticsEntry[], rawName: string, path: string[] = []): string[] | null => {
         for (const entry of entries) {
@@ -205,107 +146,43 @@ export const DiagnosticsTreeTable = ({
         }
     }, [selectedRawName, diagnostics, findPathToRawName, lastExpandedRawName]);
 
-    const selectedEntry = selectedRawName ? findEntryByRawName(diagnostics, selectedRawName) : null;
-
-    const drawerPanel = (
-        <DrawerPanelContent isResizable defaultSize="35%" maxSize="50%" minSize="20%">
-            {selectedEntry && (
-                <>
-                    <DrawerHead>
-                        <Title headingLevel="h3">
-                            Diagnostic Details
-                        </Title>
-                        <DrawerActions>
-                            <DrawerCloseButton onClick={closeDrawer} />
-                        </DrawerActions>
-                    </DrawerHead>
-                    <DrawerPanelBody>
-                        <div tabIndex={0} ref={drawerRef}>
-                            <Title headingLevel="h4" size="md">
-                                <SeverityIcon level={selectedEntry.severity_level} /> {selectedEntry.name}
-                            </Title>
-                            <p>&nbsp;</p>
-                            <p><strong>{_("Path")}:</strong> {selectedEntry.path}</p>
-                            <p><strong>{_("Hardware ID")}:</strong> {selectedEntry.hardware_id || _("N/A")}</p>
-                            <p><strong>{_("Level")}:</strong> {levelName(selectedEntry.severity_level)}</p>
-                            {/*
-                              * A reclassified status must never look like the original: show
-                              * what ROS actually reported and why it is displayed differently.
-                              */}
-                            {selectedEntry.override_reason && (
-                                <p>
-                                    <strong>{_("Reported level")}:</strong> {levelName(selectedEntry.reported_level)}
-                                    {" — "}
-                                    {_(selectedEntry.override_reason)}
-                                </p>
-                            )}
-                            <p><strong>{_("Message")}:</strong> {selectedEntry.message}</p>
-                            {selectedEntry.values && Object.keys(selectedEntry.values).length > 0 && (
-                                <>
-                                    <p>&nbsp;</p>
-                                    <p><strong>{_("Values")}:</strong></p>
-                                    <Table aria-label={_("Diagnostic Values Table")} borders={false} variant="compact">
-                                        <Tbody>
-                                            {Object.entries(selectedEntry.values).map(([key, value]) => (
-                                                <Tr key={key}>
-                                                    <Td noPadding style={{ padding: "2px 0px 2px 8px" }}>{key}</Td>
-                                                    <Td noPadding style={{ padding: "2px 0px 2px 8px" }}>{value}</Td>
-                                                </Tr>
-                                            ))}
-                                        </Tbody>
-                                    </Table>
-                                </>
-                            )}
-                        </div>
-                    </DrawerPanelBody>
-                </>
-            )}
-        </DrawerPanelContent>
-    );
-
     return (
         <Card>
             <CardTitle component="h2" className="diagnostics-title">{_("All Diagnostics")}</CardTitle>
             <CardBody>
-                <Drawer isExpanded={!!selectedEntry} isInline>
-                    <DrawerContent panelContent={drawerPanel}>
-                        <DrawerContentBody>
-                            <Table isTreeTable variant="compact" aria-label={_("Diagnostics Tree Table")} borders={false}>
-                                {diagnostics.length > 0 && (
-                                    <Thead>
-                                        <Tr>
-                                            <Th>{_("Name")}</Th>
-                                            <Th>{_("Message")}</Th>
-                                        </Tr>
-                                    </Thead>
-                                )}
-                                <Tbody>
-                                    {renderRows(diagnostics)}
-                                    {(diagnostics.length === 0) && (
-                                        <Tr>
-                                            <Td colSpan={2}>
-                                                <Bullseye>
-                                                    <EmptyState
-                                                        headingLevel="h2"
-                                                        titleText="Connecting"
-                                                        icon={Spinner}
-                                                        variant={EmptyStateVariant.xs}
-                                                    >
-                                                        <EmptyStateBody>
-                                                            { bridgeConnected
-                                                                ? _("Waiting for diagnostics messages...")
-                                                                : _("Attempting to connect to the Foxglove bridge...")}
-                                                        </EmptyStateBody>
-                                                    </EmptyState>
-                                                </Bullseye>
-                                            </Td>
-                                        </Tr>
-                                    )}
-                                </Tbody>
-                            </Table>
-                        </DrawerContentBody>
-                    </DrawerContent>
-                </Drawer>
+                <Table isTreeTable variant="compact" aria-label={_("Diagnostics Tree Table")} borders={false}>
+                    {diagnostics.length > 0 && (
+                        <Thead>
+                            <Tr>
+                                <Th>{_("Name")}</Th>
+                                <Th>{_("Message")}</Th>
+                            </Tr>
+                        </Thead>
+                    )}
+                    <Tbody>
+                        {renderRows(diagnostics)}
+                        {(diagnostics.length === 0) && (
+                            <Tr>
+                                <Td colSpan={2}>
+                                    <Bullseye>
+                                        <EmptyState
+                                            headingLevel="h2"
+                                            titleText="Connecting"
+                                            icon={Spinner}
+                                            variant={EmptyStateVariant.xs}
+                                        >
+                                            <EmptyStateBody>
+                                                { bridgeConnected
+                                                    ? _("Waiting for diagnostics messages...")
+                                                    : _("Attempting to connect to the Foxglove bridge...")}
+                                            </EmptyStateBody>
+                                        </EmptyState>
+                                    </Bullseye>
+                                </Td>
+                            </Tr>
+                        )}
+                    </Tbody>
+                </Table>
             </CardBody>
         </Card>
     );

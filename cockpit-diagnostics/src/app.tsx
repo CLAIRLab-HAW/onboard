@@ -21,12 +21,17 @@ import React, { useState } from 'react';
 
 import {
     Alert,
+    Drawer,
+    DrawerContent,
+    DrawerContentBody,
+    DrawerPanelContent,
     Page,
     PageSection,
     Stack,
 } from "@patternfly/react-core";
 
 import { DiagnosticsStatus } from "./interfaces";
+import { DetailPanel, findEntryByRawName } from "./components/DetailPanel";
 import { DiagnosticsTreeTable } from "./components/DiagnosticsTreeTable";
 import { IssueList } from "./components/IssueList";
 import { RosConnectionManager } from "./components/RosConnectionManager";
@@ -61,6 +66,9 @@ export const Application = () => {
 
     // Extract diagnostics array from DiagnosticsStatus for components that need it
     const diagnostics = diagStatusDisplay?.diagnostics || [];
+    // Resolved here, not inside the tree: the issue list and the manipulator
+    // panel select a status too, and the panel now lives above all three.
+    const selectedEntry = selectedRawName ? findEntryByRawName(diagnostics, selectedRawName) : null;
 
     return (
         <Page id="ros2-diag" className='no-masthead-sidebar'>
@@ -109,19 +117,39 @@ export const Application = () => {
                                 onConnectionStatusChange={setBridgeConnected}
                                 onClearHistory={clearDiagHistory}
                             />
-                            {diagnostics.length > 0 && (
-                                <>
-                                    <IssueList diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
-                                    {/* Renders itself only on robots that publish manipulator diagnostics. */}
-                                    <ManipulatorPanel diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
-                                </>
-                            )}
-                            <DiagnosticsTreeTable
-                                diagnostics={diagnostics}
-                                bridgeConnected={bridgeConnected}
-                                selectedRawName={selectedRawName}
-                                setSelectedRawName={setSelectedRawName}
-                            />
+                            {/*
+                              * The detail panel lives at page level, not inside the tree card: the
+                              * issue list, the manipulator panel and the tree all select through the
+                              * same setSelectedRawName, and isInline is deliberately not set so the
+                              * panel slides over the workspace instead of splitting its width.
+                              */}
+                            <Drawer isExpanded={!!selectedEntry} onExpand={() => undefined}>
+                                <DrawerContent
+                                    panelContent={
+                                        <DrawerPanelContent isResizable defaultSize="28rem" minSize="20rem">
+                                            <DetailPanel entry={selectedEntry} onClose={() => setSelectedRawName(null)} />
+                                        </DrawerPanelContent>
+                                    }
+                                >
+                                    <DrawerContentBody>
+                                        <Stack hasGutter>
+                                            {diagnostics.length > 0 && (
+                                                <>
+                                                    <IssueList diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
+                                                    {/* Renders itself only on robots that publish manipulator diagnostics. */}
+                                                    <ManipulatorPanel diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
+                                                </>
+                                            )}
+                                            <DiagnosticsTreeTable
+                                                diagnostics={diagnostics}
+                                                bridgeConnected={bridgeConnected}
+                                                selectedRawName={selectedRawName}
+                                                setSelectedRawName={setSelectedRawName}
+                                            />
+                                        </Stack>
+                                    </DrawerContentBody>
+                                </DrawerContent>
+                            </Drawer>
                         </>
                     )}
                 </Stack>
