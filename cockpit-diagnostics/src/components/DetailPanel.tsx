@@ -69,11 +69,18 @@ export const DetailPanel = ({
     onClose: () => void,
 }) => {
     const panelRef = React.useRef<HTMLDivElement>(null);
+    // `entry` is a freshly built tree object on every aggregator message --
+    // roughly 1 Hz -- while `rawName` only changes when the *selection*
+    // changes. Keying either effect below on `entry` itself re-runs it once a
+    // second for as long as anything is selected; keying on this instead
+    // brings both back to "once per selection", which is what they actually
+    // depend on.
+    const rawName = entry?.rawName ?? null;
 
     React.useEffect(() => {
-        if (entry && panelRef.current)
+        if (rawName !== null && panelRef.current)
             panelRef.current.focus();
-    }, [entry]);
+    }, [rawName]);
 
     /*
      * PatternFly's Drawer does not close itself on Escape: Drawer.js has no
@@ -88,7 +95,7 @@ export const DetailPanel = ({
      * selected, so a closed panel never leaves a global handler running.
      */
     React.useEffect(() => {
-        if (!entry) {
+        if (rawName === null) {
             return undefined;
         }
         const onKeyDown = (event: KeyboardEvent) => {
@@ -97,7 +104,7 @@ export const DetailPanel = ({
         };
         document.addEventListener("keydown", onKeyDown);
         return () => document.removeEventListener("keydown", onKeyDown);
-    }, [entry, onClose]);
+    }, [rawName, onClose]);
 
     if (!entry) {
         return null;

@@ -19,7 +19,7 @@
  */
 
 import { DiagnosticsEntry } from "../interfaces";
-import { DISPLAY_KEY, LEVEL_NONE } from "./severity";
+import { DISPLAY_KEY, LEVEL_ERROR, LEVEL_NONE, LEVEL_STALE, LEVEL_WARN } from "./severity";
 
 /*
  * Manipulator (arm + end effector) view over the aggregated diagnostics.
@@ -90,12 +90,23 @@ const findStatus = (entries: DiagnosticsEntry[], task: string): DiagnosticsEntry
  * Seeded from the entries that exist rather than from a fixed floor: INACTIVE
  * sorts *below* OK, so a fixed seed of LEVEL_NONE would swallow an all-inactive
  * group and report "no data" for a cleanly powered-down arm.
+ *
+ * Priority, not magnitude, decides between ERROR/WARN/STALE: a plain
+ * Math.max() would let LEVEL_STALE (3, e.g. Arm Joints stopped publishing)
+ * mask a LEVEL_ERROR (2, e.g. Arm Controllers actually faulted) among the same
+ * card's statuses, exactly the bug utils/summary.ts:headlineLevel exists to
+ * avoid for the status band. OK vs. INACTIVE has no such ordering problem --
+ * both fall through to the plain max of whatever is left.
  */
 export const worstLevel = (entries: (DiagnosticsEntry | null)[]): number => {
     const levels = entries
             .filter((entry): entry is DiagnosticsEntry => entry !== null)
             .map(entry => entry.severity_level);
-    return levels.length > 0 ? Math.max(...levels) : LEVEL_NONE;
+    if (levels.length === 0) return LEVEL_NONE;
+    if (levels.includes(LEVEL_ERROR)) return LEVEL_ERROR;
+    if (levels.includes(LEVEL_WARN)) return LEVEL_WARN;
+    if (levels.includes(LEVEL_STALE)) return LEVEL_STALE;
+    return Math.max(...levels);
 };
 
 /*

@@ -18,10 +18,10 @@ import live from "./agg-armed.json";
 import { buildDiagnosticsTree } from "../../src/components/RosConnectionManager";
 import { DiagnosticsEntry, DiagnosticsStatus } from "../../src/interfaces";
 import {
-    headline, issueEntries, leafEntries, summarise, updateRateHz,
+    headline, headlineLevel, issueEntries, leafEntries, summarise, updateRateHz, variantForLevel,
 } from "../../src/utils/summary";
 import {
-    LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_OK, LEVEL_STALE, LEVEL_WARN,
+    LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_NONE, LEVEL_OK, LEVEL_STALE, LEVEL_WARN,
 } from "../../src/utils/severity";
 
 const problems: string[] = [];
@@ -88,7 +88,26 @@ check(headline(summarise([group("g", [leaf("old", LEVEL_STALE)])])) === "1 stale
       "stale reaches the headline when nothing worse is present");
 check(headline(summarise([group("g", [leaf("fine", LEVEL_OK), leaf("off", LEVEL_INACTIVE)])])) === "operational",
       "OK and out of service together read as operational");
-check(headline(summarise([])) === "operational", "an empty tree does not claim a fault");
+// "operational" here would be exactly the false reassurance this redesign set
+// out to remove: with the bridge down (or robot.yaml not yet resolved) there
+// is no data at all, not a clean bill of health. Its icon must be silent too
+// -- LEVEL_NONE, not the LEVEL_INACTIVE "out of service" glyph `worst` would
+// otherwise fall back to for a tree with no leaves.
+check(headline(summarise([])) === "no data", "an empty tree states there is no data, not that it is operational");
+check(headlineLevel(summarise([])) === LEVEL_NONE, "an empty tree's icon level is LEVEL_NONE, so no symbol is drawn");
+
+/* ---------------------------------------------- icon level agrees with headline */
+
+// The regression this test exists to catch: `worst` is a Math.max() over the
+// leaves, and LEVEL_STALE (3) sorts above LEVEL_ERROR (2) numerically. A tree
+// with both an error and a stale leaf must present its single worst-level
+// symbol as the error, exactly like the sentence next to it does -- never as
+// stale, which is what a naive `summary.worst` (or any threshold table built
+// on top of it) would show instead.
+check(headlineLevel(s) === LEVEL_ERROR,
+      "a tree with an error and a stale leaf must not present as stale");
+check(variantForLevel(headlineLevel(s)) === "error",
+      "...and its CSS variant must be \"error\", not \"stale\"");
 
 /* ------------------------------------------------- urgency, not numeric order */
 

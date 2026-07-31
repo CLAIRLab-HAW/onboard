@@ -216,6 +216,16 @@
     background: var(--pf-t--global--color--nonstatus--gray--default);
 }
 
+/*
+ * Real snapshots are <button>s (unlike the empty placeholder <span>s, which
+ * are not clickable and must not look it) -- the timeline is the primary way
+ * to freeze the view, so it has to look clickable. The component this
+ * replaced set this inline.
+ */
+button.timeline-slot {
+    cursor: pointer;
+}
+
 .timeline-slot-empty {
     opacity: 0.25;
 }

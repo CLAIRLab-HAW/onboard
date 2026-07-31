@@ -17,12 +17,6 @@ class TestApplication(testlib.MachineCase):
         self.login_and_go("/ros2-diagnostics")
         self.browser.wait_visible(".status-band")
 
-    def checkConnecting(self): # Not yet fully implemented
-        b = self.browser
-
-        b.wait_text(".pf-v6-c-card__title-text", "All Diagnostics")
-        b.wait_text(".pf-v6-c-empty-state__title-text", "Connecting")
-
     def testBasic(self):
         b = self.browser
         m = self.machine

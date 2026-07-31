@@ -17,7 +17,7 @@
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import {
     Alert,
@@ -103,6 +103,11 @@ export const Application = () => {
     // Resolved here, not inside the tree: the issue list and the manipulator
     // panel select a status too, and the panel now lives above all three.
     const selectedEntry = selectedRawName ? findEntryByRawName(diagnostics, selectedRawName) : null;
+    // Stable identity: an inline closure here would re-create itself on every
+    // render of Application (roughly 1 Hz, driven by diagnostics updates),
+    // which re-hangs DetailPanel's document-level Escape listener just as
+    // often for no reason.
+    const closeDetailPanel = useCallback(() => setSelectedRawName(null), []);
 
     return (
         <Page id="ros2-diag" className='no-masthead-sidebar'>
@@ -173,7 +178,7 @@ export const Application = () => {
                                 <DrawerContent
                                     panelContent={
                                         <DrawerPanelContent isResizable defaultSize="28rem" minSize="20rem">
-                                            <DetailPanel entry={selectedEntry} onClose={() => setSelectedRawName(null)} />
+                                            <DetailPanel entry={selectedEntry} onClose={closeDetailPanel} />
                                         </DrawerPanelContent>
                                     }
                                 >

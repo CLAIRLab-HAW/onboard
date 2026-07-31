@@ -16,19 +16,19 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: src/components/StatusBand.tsx:142
+#: src/components/StatusBand.tsx:162
 msgid "Resume diagnostics updates"
 msgstr "Diagnose-Aktualisierung fortsetzen"
 
-#: src/components/StatusBand.tsx:142
+#: src/components/StatusBand.tsx:162
 msgid "Pause diagnostics updates"
 msgstr "Diagnose-Aktualisierung pausieren"
 
-#: src/components/StatusBand.tsx:144
+#: src/components/StatusBand.tsx:164
 msgid "Resume"
 msgstr "Fortsetzen"
 
-#: src/components/StatusBand.tsx:144
+#: src/components/StatusBand.tsx:164
 msgid "Pause"
 msgstr "Pause"
 
@@ -68,11 +68,15 @@ msgstr "Diagnose erfasst ($0)."
 msgid "Download Diagnostics File"
 msgstr "Diagnosedatei herunterladen"
 
-#: src/components/StatusBand.tsx:135
+#: src/components/StatusBand.tsx:81
+msgid "$0 $1"
+msgstr "$0 $1"
+
+#: src/components/StatusBand.tsx:153
 msgid "Errors"
 msgstr "Fehler"
 
-#: src/components/StatusBand.tsx:136
+#: src/components/StatusBand.tsx:154
 msgid "Warnings"
 msgstr "Warnungen"
 
@@ -88,7 +92,7 @@ msgstr "Name"
 msgid "Message"
 msgstr "Meldung"
 
-#: src/components/DetailPanel.tsx:98
+#: src/components/DetailPanel.tsx:129
 msgid "N/A"
 msgstr "k. A."
 
@@ -96,15 +100,15 @@ msgstr "k. A."
 msgid "OK"
 msgstr "OK"
 
-#: src/components/DetailPanel.tsx:98
+#: src/components/DetailPanel.tsx:129
 msgid "Hardware ID"
 msgstr "Hardware-ID"
 
-#: src/components/DetailPanel.tsx:105
+#: src/components/DetailPanel.tsx:136
 msgid "Reported level"
 msgstr "Gemeldete Stufe"
 
-#: src/components/DetailPanel.tsx:115
+#: src/components/DetailPanel.tsx:146
 msgid "Values"
 msgstr "Werte"
 
@@ -408,68 +412,72 @@ msgstr "ROS-2-Diagnose"
 msgid "Cockpit ROS 2 Diagnostics"
 msgstr "Cockpit ROS-2-Diagnose"
 
-#: src/utils/summary.ts:70
+#: src/utils/summary.ts:74
+msgid "no data"
+msgstr "keine Daten"
+
+#: src/utils/summary.ts:76
 msgid "$0 error"
 msgid_plural "$0 errors"
 msgstr[0] "$0 Fehler"
 msgstr[1] "$0 Fehler"
 
-#: src/utils/summary.ts:72
+#: src/utils/summary.ts:78
 msgid "$0 warning"
 msgid_plural "$0 warnings"
 msgstr[0] "$0 Warnung"
 msgstr[1] "$0 Warnungen"
 
-#: src/utils/summary.ts:75
+#: src/utils/summary.ts:81
 msgid "$0 stale message"
 msgid_plural "$0 stale messages"
 msgstr[0] "$0 veraltete Meldung"
 msgstr[1] "$0 veraltete Meldungen"
 
-#: src/utils/summary.ts:76
+#: src/utils/summary.ts:82
 msgid "operational"
 msgstr "betriebsbereit"
 
-#: src/components/StatusBand.tsx:105
+#: src/components/StatusBand.tsx:120
 msgid "Bridge connected"
 msgstr "Bridge verbunden"
 
-#: src/components/StatusBand.tsx:105
+#: src/components/StatusBand.tsx:120
 msgid "Bridge disconnected"
 msgstr "Bridge getrennt"
 
-#: src/components/StatusBand.tsx:108
+#: src/components/StatusBand.tsx:123
 msgid "as of $0"
 msgstr "Stand $0"
 
-#: src/components/StatusBand.tsx:136
+#: src/components/StatusBand.tsx:156
 msgid "Statuses"
 msgstr "Stati"
 
-#: src/components/StatusBand.tsx:156
+#: src/components/StatusBand.tsx:176
 msgid "More actions"
 msgstr "Weitere Aktionen"
 
-#: src/components/Timeline.tsx:74
+#: src/components/Timeline.tsx:78
 msgid "Diagnostics history"
 msgstr "Diagnoseverlauf"
 
-#: src/components/Timeline.tsx:85
+#: src/components/Timeline.tsx:95
 msgid "diagnostics snapshot $0"
 msgstr "Diagnose-Momentaufnahme $0"
 
-#: src/components/Timeline.tsx:97
+#: src/components/Timeline.tsx:107
 msgid "no history yet"
 msgstr "noch kein Verlauf"
 
-#: src/components/Timeline.tsx:99
+#: src/components/Timeline.tsx:109
 msgid "$0 snapshots · click to freeze"
 msgstr "$0 Schnappschüsse · Klick friert ein"
 
-#: src/components/Timeline.tsx:100
+#: src/components/Timeline.tsx:110
 msgid "frozen"
 msgstr "eingefroren"
 
-#: src/components/Timeline.tsx:100
+#: src/components/Timeline.tsx:110
 msgid "now"
 msgstr "jetzt"

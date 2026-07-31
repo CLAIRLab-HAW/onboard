@@ -21,7 +21,7 @@
 import cockpit from 'cockpit';
 
 import { DiagnosticsEntry, DiagnosticsStatus } from "../interfaces";
-import { LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_STALE, LEVEL_WARN } from "./severity";
+import { LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_NONE, LEVEL_STALE, LEVEL_WARN } from "./severity";
 
 const _ = cockpit.gettext;
 
@@ -66,6 +66,12 @@ export const summarise = (entries: DiagnosticsEntry[]): DiagnosticsSummary => {
  * the worst thing, not just its name.
  */
 export const headline = (summary: DiagnosticsSummary): string => {
+    // No leaves at all -- e.g. the bridge is down, or robot.yaml has not
+    // resolved a namespace yet. "operational" here would be exactly the false
+    // reassurance this redesign set out to remove: there is no data, not a
+    // clean bill of health.
+    if (summary.total === 0)
+        return _("no data");
     if (summary.errors > 0)
         return cockpit.format(cockpit.ngettext("$0 error", "$0 errors", summary.errors), summary.errors);
     if (summary.warnings > 0)
@@ -75,6 +81,51 @@ export const headline = (summary: DiagnosticsSummary): string => {
             cockpit.ngettext("$0 stale message", "$0 stale messages", summary.stale), summary.stale);
     return _("operational");
 };
+
+/*
+ * Which single level best represents a summary -- for an icon, or a CSS
+ * variant. Mirrors headline()'s own branch order (errors, then warnings, then
+ * stale) so the symbol drawn next to the sentence never contradicts it.
+ * `summary.worst` alone cannot do this: it is a Math.max() over the leaves,
+ * and LEVEL_STALE (3) is numerically above LEVEL_ERROR (2), so a tree with
+ * both an error and a stale leaf would report worst === LEVEL_STALE and the
+ * icon would show a calm blue clock next to a sentence naming the error.
+ *
+ * LEVEL_NONE when there are no leaves at all, so the caller can render no
+ * symbol (see SeverityIcon) instead of the grey "out of service" glyph that
+ * `worst` would otherwise fall back to for an empty tree.
+ */
+export const headlineLevel = (summary: DiagnosticsSummary): number => {
+    if (summary.total === 0)
+        return LEVEL_NONE;
+    if (summary.errors > 0)
+        return LEVEL_ERROR;
+    if (summary.warnings > 0)
+        return LEVEL_WARN;
+    if (summary.stale > 0)
+        return LEVEL_STALE;
+    return summary.worst;
+};
+
+export type StateVariant = "error" | "stale" | "warn" | "quiet";
+
+/*
+ * The CSS variant for a single, already-resolved level (an icon's level, or
+ * a card's rolled-up severity) -- never a raw Math.max() over several
+ * entries, which is exactly the mistake this replaces three near-identical
+ * copies of (StatusBand, Timeline, ManipulatorPanel all had their own
+ * `level >= LEVEL_STALE ? ...` chain). Exact equality, not thresholds: the
+ * six severity levels do not form a "worse than" ladder, so a `>=` chain is
+ * never the right tool here regardless of ordering.
+ */
+export const variantForLevel = (level: number): StateVariant =>
+    level === LEVEL_ERROR
+        ? "error"
+        : level === LEVEL_STALE
+            ? "stale"
+            : level === LEVEL_WARN
+                ? "warn"
+                : "quiet";
 
 /*
  * How urgent a level is for whoever is standing in front of the robot.

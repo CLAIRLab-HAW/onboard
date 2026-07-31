@@ -65,7 +65,7 @@ check(markup(LEVEL_NONE) === "", "LEVEL_NONE has no status of its own and must r
 /* -------------------------------------------------------------- StatusBand */
 
 import { StatusBand } from "../../src/components/StatusBand";
-import { summarise } from "../../src/utils/summary";
+import { headlineLevel, summarise } from "../../src/utils/summary";
 
 const band = (over: Partial<React.ComponentProps<typeof StatusBand>> = {}) =>
     renderToStaticMarkup(React.createElement(StatusBand, {
@@ -82,12 +82,24 @@ const band = (over: Partial<React.ComponentProps<typeof StatusBand>> = {}) =>
     }));
 
 const healthy = band();
-check(healthy.includes("operational"), "an empty tree reads as operational");
+check(healthy.includes("no data"), "an empty tree reads as no data, not falsely operational");
 check(healthy.includes("/a200_0553"), "the namespace is shown");
 check(!healthy.includes("Bridge disconnected"), "a connected bridge is not announced as disconnected");
 
 check(band({ bridgeConnected: false }).includes("Bridge disconnected"),
       "a missing bridge is stated in the band, not only in the empty tree");
+
+// With no namespace resolved yet (robot.yaml missing or not yet read) and no
+// diagnostics, the heading must not render a dangling "— no data" with
+// nothing in front of the separator, and its icon must stay silent -- LEVEL_NONE
+// renders no "severity-icon" wrapper at all (see SeverityIcon), not the grey
+// "out of service" glyph that `worst` alone would fall back to for an empty
+// tree. (The band still has other, unrelated <svg> icons -- Pause and the ⋯
+// menu toggle -- so those cannot be used to tell the headline icon apart.)
+const noNamespace = band({ namespace: "" });
+check(!noNamespace.includes(" — "), "with no namespace, the headline has no dangling separator");
+check(noNamespace.includes("no data"), "and still states that there is no data");
+check(!noNamespace.includes("severity-icon"), "and draws no headline icon at all for a fully empty state");
 
 // Counts must come from the leaves of the real capture, not from the statuses.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,6 +145,37 @@ check(!partial.includes("timeline-slot-warn") &&
       !partial.includes("timeline-slot-error") &&
       !partial.includes("timeline-slot-stale"),
       "an all-healthy history gets no status colour class");
+
+// The hover has to carry the state sentence, not just the time: the three
+// timestamp lines the previous component had were removed on the argument
+// that this information now lives in the hover (plus the band's own
+// timestamp), so the hover has to actually deliver it.
+const warningSnapshot: DiagnosticsStatus = { timestamp: Date.now(), level: LEVEL_WARN, diagnostics: realTree };
+check(timelineMarkup([warningSnapshot]).includes("1 warning"),
+      "a timeline slot's hover states its own snapshot's warning count");
+
+// The concrete regression: a snapshot with both an error and a stale leaf
+// used to paint blue (stale sorts above error numerically), which is worse
+// than the component this replaced -- that one at least painted red for
+// anything at or above LEVEL_ERROR. `.level` here is computed exactly the way
+// RosConnectionManager computes it in production.
+const errorLeaf: DiagnosticsEntry = {
+    name: "boom", path: "g/boom", rawName: "g/boom", message: "fault",
+    severity_level: LEVEL_ERROR, reported_level: LEVEL_ERROR, override_reason: null,
+    hardware_id: null, values: null, children: [],
+};
+const staleLeaf: DiagnosticsEntry = {
+    name: "old", path: "g/old", rawName: "g/old", message: "quiet",
+    severity_level: LEVEL_STALE, reported_level: LEVEL_STALE, override_reason: null,
+    hardware_id: null, values: null, children: [],
+};
+const mixedTree = [errorLeaf, staleLeaf];
+const mixedSnapshot: DiagnosticsStatus = {
+    timestamp: Date.now(), level: headlineLevel(summarise(mixedTree)), diagnostics: mixedTree,
+};
+const mixedMarkup = timelineMarkup([mixedSnapshot]);
+check(mixedMarkup.includes("timeline-slot-error"), "a snapshot with an error and a stale leaf paints as an error");
+check(!mixedMarkup.includes("timeline-slot-stale"), "...and must not paint as stale");
 
 /* ---------------------------------------------------------------- IssueList */
 

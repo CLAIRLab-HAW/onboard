@@ -26,6 +26,7 @@ import {
     overrideFor,
     rollUpOverrides,
 } from "../utils/severity";
+import { headlineLevel, summarise } from "../utils/summary";
 
 interface RosConnectionManagerProps {
     namespace: string;
@@ -34,21 +35,6 @@ interface RosConnectionManagerProps {
     onConnectionStatusChange: (connected: boolean) => void;
     onClearHistory: () => void;
 }
-
-// Helper function to calculate overall diagnostic level
-const calculateOverallLevel = (diagnostics: DiagnosticsEntry[]): number => {
-    let maxLevel = 0;
-
-    const checkEntry = (entry: DiagnosticsEntry) => {
-        if (entry.severity_level > maxLevel) {
-            maxLevel = entry.severity_level;
-        }
-        entry.children.forEach(checkEntry);
-    };
-
-    diagnostics.forEach(checkEntry);
-    return maxLevel;
-};
 
 // Helper function to build a nested DiagnosticsEntry tree
 // Exported so the severity-override behaviour can be tested against captured
@@ -173,8 +159,13 @@ export const RosConnectionManager: React.FC<RosConnectionManagerProps> = ({
                             }))
                         );
 
-                        // Calculate overall level from diagnostics tree
-                        const overallLevel = calculateOverallLevel(diagnosticsTree);
+                        // Calculate overall level from diagnostics tree. Priority, not
+                        // magnitude -- see utils/summary.ts:headlineLevel. A plain
+                        // Math.max() here previously fed Timeline's colour coding a
+                        // level that could not tell "only stale" from "error and stale
+                        // both present", because the reduction had already thrown the
+                        // distinction away.
+                        const overallLevel = headlineLevel(summarise(diagnosticsTree));
 
                         // Extract timestamp from ROS message header
                         let timestamp = Date.now(); // Default fallback

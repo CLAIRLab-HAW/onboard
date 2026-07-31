@@ -24,7 +24,7 @@ import cockpit from 'cockpit';
 
 import { DiagnosticsStatus } from "../interfaces";
 import { HISTORY_SIZE } from '../hooks/useDiagHistory';
-import { LEVEL_ERROR, LEVEL_STALE, LEVEL_WARN } from '../utils/severity';
+import { headline, summarise, variantForLevel } from '../utils/summary';
 
 const _ = cockpit.gettext;
 
@@ -37,12 +37,16 @@ const _ = cockpit.gettext;
  *
  * Unfilled slots are rendered on the left so the newest snapshot always ends at
  * the right edge and the band keeps its width while the history fills up.
+ *
+ * Colour comes from `variantForLevel` (utils/summary.ts) -- the one place that
+ * maps a level to a CSS variant, shared with ManipulatorPanel. "quiet" is that
+ * function's name for the neutral state; this band has always called it "ok"
+ * (see the "timeline-slot-ok" class below), so the two vocabularies are
+ * bridged right here instead of in the shared function.
  */
 const variantFor = (level: number): string => {
-    if (level >= LEVEL_STALE) return "stale";
-    if (level >= LEVEL_ERROR) return "error";
-    if (level >= LEVEL_WARN) return "warn";
-    return "ok";
+    const variant = variantForLevel(level);
+    return variant === "quiet" ? "ok" : variant;
 };
 
 export const Timeline = ({
@@ -81,7 +85,13 @@ export const Timeline = ({
                         key={index}
                         className={`timeline-slot timeline-slot-${variantFor(snapshot.level)}` +
                                    (isPaused && index === selected ? " timeline-slot-selected" : "")}
-                        title={new Date(snapshot.timestamp).toLocaleTimeString()}
+                        // The design spec promises the time *and* the state sentence on
+                        // hover -- that sentence used to live in three timestamp lines
+                        // this band replaced, so the hover has to actually carry it.
+                        // Recomputed per snapshot rather than cached: thirty walks of a
+                        // small tree per render is not a performance concern here.
+                        title={`${new Date(snapshot.timestamp).toLocaleTimeString()} — ` +
+                               headline(summarise(snapshot.diagnostics))}
                         aria-label={cockpit.format(_("diagnostics snapshot $0"), index + 1)}
                         onClick={() => {
                             setDiagStatusDisplay(snapshot);

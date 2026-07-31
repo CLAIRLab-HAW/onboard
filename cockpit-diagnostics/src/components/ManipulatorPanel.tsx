@@ -53,12 +53,12 @@ import {
     worstLevel,
 } from "../utils/manipulatorUtils";
 import {
-    LEVEL_ERROR,
     LEVEL_INACTIVE,
     LEVEL_OK,
     LEVEL_STALE,
     LEVEL_WARN,
 } from "../utils/severity";
+import { variantForLevel } from "../utils/summary";
 import { SeverityIcon, severityLabel } from "./SeverityIcon";
 
 const _ = cockpit.gettext;
@@ -73,15 +73,6 @@ const _ = cockpit.gettext;
  * operator actually looks for, and stays silent on robots without a
  * manipulator: no manipulator statuses in the tree -> nothing is rendered.
  */
-
-// The stripe is the card's only state carrier; OK is deliberately grey, because
-// "fine" is not something anybody scans for.
-const cardVariant = (level: number): string => {
-    if (level >= LEVEL_STALE) return "stale";
-    if (level >= LEVEL_ERROR) return "error";
-    if (level >= LEVEL_WARN) return "warn";
-    return "quiet";
-};
 
 const boolText = (value: boolean | null, yes: string, no: string): string => {
     if (value === null) return _("unknown");
@@ -171,7 +162,7 @@ const ArmCard = ({
     const isInactive = level === LEVEL_INACTIVE;
 
     return (
-        <div className={`state-card state-card-${cardVariant(level)}`}>
+        <div className={`state-card state-card-${variantForLevel(level)}`}>
             <h3 className="state-card-title">
                 {_("Arm")}
                 <span className="card-state">
@@ -284,7 +275,7 @@ const GripperCard = ({
     const isInactive = level === LEVEL_INACTIVE;
 
     return (
-        <div className={`state-card state-card-${cardVariant(level)}`}>
+        <div className={`state-card state-card-${variantForLevel(level)}`}>
             <h3 className="state-card-title">
                 {_("End effector")}
                 <span className="card-state">
@@ -367,8 +358,18 @@ export const ManipulatorPanel = ({
                 </Flex>
             </CardTitle>
             <CardBody>
+                {/*
+                  * `md`/etc. are viewport breakpoints, not container ones -- and since
+                  * Task 11 this panel sits in a column that is roughly half the page
+                  * (.workspace only stacks at <= 1200px). Between ~1200 and ~1500px
+                  * viewport width that put the two tiles side by side in ~350px and
+                  * ~250px, too narrow for the arm tile's four-column joint table
+                  * (nowrap cells that cannot shrink) and overflowing the page. `span`
+                  * (no breakpoint) always stacks them, which is the right call in a
+                  * column this narrow regardless of viewport width.
+                  */}
                 <Grid hasGutter>
-                    <GridItem md={7}>
+                    <GridItem span={12}>
                         <ArmCard
                             armMode={manipulator.armMode}
                             armControl={manipulator.armControl}
@@ -377,7 +378,7 @@ export const ManipulatorPanel = ({
                             setSelectedRawName={setSelectedRawName}
                         />
                     </GridItem>
-                    <GridItem md={5}>
+                    <GridItem span={12}>
                         <GripperCard
                             gripper={manipulator.gripper}
                             setSelectedRawName={setSelectedRawName}

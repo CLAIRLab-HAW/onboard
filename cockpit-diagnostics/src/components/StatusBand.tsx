@@ -34,7 +34,7 @@ import cockpit from 'cockpit';
 import { DiagnosticsEntry } from "../interfaces";
 import { FilterLevel } from "../utils/treeFilter";
 import { SeverityIcon } from "./SeverityIcon";
-import { headline, summarise } from "../utils/summary";
+import { headline, headlineLevel, summarise } from "../utils/summary";
 
 const _ = cockpit.gettext;
 
@@ -70,7 +70,16 @@ const Kpi = ({
         return <div className="status-kpi">{body}</div>;
     }
     return (
-        <Button variant="plain" className="status-kpi" onClick={onClick} aria-label={label}>
+        // `aria-label` overrides the element's content rather than adding to it,
+        // so a bare `label` here would read "Warnings" and drop the count -- on
+        // exactly the counters that are non-zero. The count has to be in the
+        // label itself.
+        <Button
+            variant="plain"
+            className="status-kpi"
+            onClick={onClick}
+            aria-label={cockpit.format(_("$0 $1"), value, label)}
+        >
             {body}
         </Button>
     );
@@ -101,6 +110,10 @@ export const StatusBand = ({
 }) => {
     const [menuOpen, setMenuOpen] = React.useState(false);
     const summary = summarise(diagnostics);
+    // Empty until robot.yaml resolves a namespace. Rendering the em dash
+    // anyway would leave a dangling "— operational" with nothing in front of
+    // it, so the separator only appears once there is a name to attach it to.
+    const displayNamespace = namespace.replace(/^\//, "");
 
     const facts = [
         namespace,
@@ -119,10 +132,15 @@ export const StatusBand = ({
             >
                 <FlexItem>
                     <h1 className="status-headline">
-                        <SeverityIcon level={summary.worst} />
+                        {/*
+                          * Same branch order headline() uses -- errors, then warnings,
+                          * then stale -- so the symbol never contradicts the sentence
+                          * next to it. `summary.worst` alone cannot do this: see
+                          * utils/summary.ts:headlineLevel.
+                          */}
+                        <SeverityIcon level={headlineLevel(summary)} />
                         {" "}
-                        {namespace.replace(/^\//, "")}
-                        {" — "}
+                        {displayNamespace && <>{displayNamespace}{" — "}</>}
                         <span className="status-headline-state">{headline(summary)}</span>
                     </h1>
                     <div className="status-facts">{facts.join(" · ")}</div>
