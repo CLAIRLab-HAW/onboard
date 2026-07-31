@@ -25,26 +25,31 @@ import {
     DrawerContent,
     DrawerContentBody,
     DrawerPanelContent,
+    DropdownItem,
     Page,
     PageSection,
     Stack,
 } from "@patternfly/react-core";
 
+import cockpit from 'cockpit';
+
 import { DiagnosticsStatus } from "./interfaces";
 import { DetailPanel, findEntryByRawName } from "./components/DetailPanel";
 import { DiagnosticsTreeTable } from "./components/DiagnosticsTreeTable";
+import { CaptureAlerts, useCapture } from "./components/DiagnosticsCapture";
 import { IssueList } from "./components/IssueList";
 import { RosConnectionManager } from "./components/RosConnectionManager";
 import { StatusBand } from "./components/StatusBand";
 import { useNamespace } from "./hooks/useNamespace";
 import { useWebSocketUrl } from "./hooks/useWebSocketUrl";
-import { DiagnosticsCapture } from "./components/DiagnosticsCapture";
 import { ManipulatorPanel } from "./components/ManipulatorPanel";
 import { ManualNamespace } from "./components/ManualNamespace";
 import { Timeline } from "./components/Timeline";
 import { useDiagHistory } from './hooks/useDiagHistory';
 import { FilterLevel } from "./utils/treeFilter";
 import { updateRateHz } from "./utils/summary";
+
+const _ = cockpit.gettext;
 
 export const Application = () => {
     const {
@@ -66,6 +71,7 @@ export const Application = () => {
         updateDiagHistory,
         clearDiagHistory
     } = useDiagHistory(isPaused);
+    const capture = useCapture(namespace);
 
     // Extract diagnostics array from DiagnosticsStatus for components that need it
     const diagnostics = diagStatusDisplay?.diagnostics || [];
@@ -89,7 +95,18 @@ export const Application = () => {
                             setIsPaused(!isPaused);
                         }}
                         onFilterLevel={setFilterLevel}
-                        menuItems={null}
+                        menuItems={
+                            <DropdownItem
+                                key="capture"
+                                isDisabled={!capture.adminAccess || capture.isCapturing}
+                                {...(!capture.adminAccess
+                                    ? { description: _("Enable admin access at the top of the page to enable diagnostics capture feature.") }
+                                    : {})}
+                                onClick={() => { capture.capture() }}
+                            >
+                                {capture.isCapturing ? _("Generating…") : _("Generate diagnostics capture")}
+                            </DropdownItem>
+                        }
                     >
                         <Timeline
                             diagHistory={diagHistory}
@@ -98,6 +115,7 @@ export const Application = () => {
                             setIsPaused={setIsPaused}
                         />
                     </StatusBand>
+                    <CaptureAlerts state={capture} />
                     {invalidNamespaceMessage && (
                         <Alert
                             variant="danger"
@@ -110,7 +128,6 @@ export const Application = () => {
                             namespace={namespace}
                         />
                     )}
-                    <DiagnosticsCapture namespace={namespace} />
                     { !invalidNamespaceMessage && (
                         <>
                             <RosConnectionManager

@@ -231,6 +231,34 @@ const filtered = treeMarkup({ query: "gyro" });
 check(!filtered.includes(okLeaf.message), "a query hides a sibling that does not match");
 check(filtered.includes(warnLeaf.message), "a query keeps the matching row");
 
+/* ------------------------------------------------------------- CaptureAlerts */
+
+// useCapture itself talks to cockpit.spawn/cockpit.permission through a
+// useEffect, neither of which exist in this stub, and renderToStaticMarkup
+// never runs effects anyway -- so only CaptureAlerts, the pure display half,
+// is honestly testable here. Its state is built by hand instead of by
+// calling useCapture.
+import { CaptureAlerts, CaptureState } from "../../src/components/DiagnosticsCapture";
+
+const idleCapture: CaptureState = {
+    isCapturing: false,
+    errorMessage: null,
+    downloadPath: null,
+    adminAccess: true,
+    capture: async () => undefined,
+};
+
+const alertsMarkup = (state: CaptureState) =>
+    renderToStaticMarkup(React.createElement(CaptureAlerts, { state }));
+
+check(alertsMarkup(idleCapture) === "", "with nothing captured yet, CaptureAlerts renders nothing");
+check(alertsMarkup({ ...idleCapture, isCapturing: true }).includes("several minutes"),
+      "a capture in progress shows the progress alert");
+check(alertsMarkup({ ...idleCapture, errorMessage: "boom" }).includes("boom"),
+      "a failed capture shows its error message");
+check(alertsMarkup({ ...idleCapture, downloadPath: "/tmp/x.tar.gz" }).includes("Download Diagnostics File"),
+      "a finished capture offers the download link");
+
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));
     throw new Error(`${problems.length} component assertion(s) failed`);

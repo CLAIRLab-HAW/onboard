@@ -18,14 +18,22 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Button, Alert, Card, CardBody, Flex, FlexItem, Title } from "@patternfly/react-core";
+import { Alert, Button } from "@patternfly/react-core";
 
 import cockpit from 'cockpit';
 import { downloadFile } from './Download';
 
 const _ = cockpit.gettext;
 
-export const DiagnosticsCapture = ({ namespace }: { namespace: string }) => {
+export interface CaptureState {
+    isCapturing: boolean;
+    errorMessage: string | null;
+    downloadPath: string | null;
+    adminAccess: boolean;
+    capture: () => Promise<void>;
+}
+
+export const useCapture = (namespace: string): CaptureState => {
     const [isCapturing, setIsCapturing] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [downloadPath, setDownloadPath] = useState<string | null>(null);
@@ -152,63 +160,31 @@ export const DiagnosticsCapture = ({ namespace }: { namespace: string }) => {
         }
     };
 
-    return (
-        <Card>
-            <CardBody>
-                <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsSm' }}>
-                    <Flex direction={{ default: 'row' }} spaceItems={{ default: 'spaceItemsMd' }}>
-                        <FlexItem>
-                            <Title headingLevel="h2" className="diagnostics-title"> {_("Capture Diagnostics")} </Title>
-                        </FlexItem>
-                        {adminAccess && (
-                            <FlexItem align={{ default: 'alignRight' }}>
-                                <Button
-                                    isLoading={isCapturing}
-                                    isDisabled={isCapturing}
-                                    onClick={handleCapture}
-                                >
-                                    {isCapturing ? _("Generating...") : _("Generate Capture")}
-                                </Button>
-                            </FlexItem>
-                        )}
-                    </Flex>
-                    {isCapturing && (
-                        <FlexItem align={{ default: 'alignRight' }}>
-                            <p>{_("Diagnostic capture may take several minutes to generate.")}</p>
-                        </FlexItem>
-                    )}
-                    {!adminAccess && (
-                        <FlexItem>
-                            <p>{_("Enable admin access at the top of the page to enable diagnostics capture feature.")}</p>
-                        </FlexItem>
-                    )}
-                    {!isCapturing && (
-                        <>
-                            {errorMessage && (
-                                <FlexItem>
-                                    <Alert variant="danger" title={errorMessage} />
-                                </FlexItem>
-                            )}
-                            {downloadPath && (
-                                <FlexItem>
-                                    <Alert
-                                        variant="success"
-                                        title={cockpit.format(_("Diagnostics captured successfully ($0)."), downloadPath)}
-                                    >
-                                        <Button
-                                            variant="link"
-                                            isInline
-                                            onClick={() => downloadFile(downloadPath)}
-                                        >
-                                            {_("Download Diagnostics File")}
-                                        </Button>
-                                    </Alert>
-                                </FlexItem>
-                            )}
-                        </>
-                    )}
-                </Flex>
-            </CardBody>
-        </Card>
-    );
+    return { isCapturing, errorMessage, downloadPath, adminAccess, capture: handleCapture };
 };
+
+export const CaptureAlerts = ({ state }: { state: CaptureState }) => (
+    <>
+        {state.isCapturing && (
+            <Alert
+                variant="info"
+                isInline
+                title={_("Diagnostic capture may take several minutes to generate.")}
+            />
+        )}
+        {!state.isCapturing && state.errorMessage && (
+            <Alert variant="danger" isInline title={state.errorMessage} />
+        )}
+        {!state.isCapturing && state.downloadPath && (
+            <Alert
+                variant="success"
+                isInline
+                title={cockpit.format(_("Diagnostics captured successfully ($0)."), state.downloadPath)}
+            >
+                <Button variant="link" isInline onClick={() => downloadFile(state.downloadPath as string)}>
+                    {_("Download Diagnostics File")}
+                </Button>
+            </Alert>
+        )}
+    </>
+);

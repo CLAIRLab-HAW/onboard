@@ -36,43 +36,39 @@ msgstr "Fortsetzen"
 msgid "Pause"
 msgstr "Pause"
 
-#: src/components/DiagnosticsCapture.tsx:55
+#: src/components/DiagnosticsCapture.tsx:63
 msgid "Incomplete diagnostic capture: Failed to execute commands: "
 msgstr "Unvollständige Diagnose-Erfassung: Befehle fehlgeschlagen: "
 
-#: src/components/DiagnosticsCapture.tsx:143
+#: src/components/DiagnosticsCapture.tsx:151
 msgid "View console log for details."
 msgstr "Details im Konsolen-Log."
 
-#: src/components/DiagnosticsCapture.tsx:149
+#: src/components/DiagnosticsCapture.tsx:157
 msgid "Failed to capture diagnostics. Please try again."
 msgstr "Diagnose-Erfassung fehlgeschlagen. Bitte erneut versuchen."
 
-#: src/components/DiagnosticsCapture.tsx:161
-msgid "Capture Diagnostics"
-msgstr "Diagnose erfassen"
+#: src/app.tsx:107
+msgid "Generating…"
+msgstr "Wird erzeugt…"
 
-#: src/components/DiagnosticsCapture.tsx:170
-msgid "Generating..."
-msgstr "Wird erstellt …"
+#: src/app.tsx:107
+msgid "Generate diagnostics capture"
+msgstr "Diagnose-Paket erzeugen"
 
-#: src/components/DiagnosticsCapture.tsx:170
-msgid "Generate Capture"
-msgstr "Erfassung erstellen"
-
-#: src/components/DiagnosticsCapture.tsx:177
+#: src/components/DiagnosticsCapture.tsx:172
 msgid "Diagnostic capture may take several minutes to generate."
 msgstr "Die Diagnose-Erfassung kann einige Minuten dauern."
 
-#: src/components/DiagnosticsCapture.tsx:182
+#: src/app.tsx:103
 msgid "Enable admin access at the top of the page to enable diagnostics capture feature."
 msgstr "Für die Diagnose-Erfassung oben auf der Seite den Administrator-Zugriff aktivieren."
 
-#: src/components/DiagnosticsCapture.tsx:196
+#: src/components/DiagnosticsCapture.tsx:182
 msgid "Diagnostics captured successfully ($0)."
 msgstr "Diagnose erfasst ($0)."
 
-#: src/components/DiagnosticsCapture.tsx:203
+#: src/components/DiagnosticsCapture.tsx:185
 msgid "Download Diagnostics File"
 msgstr "Diagnosedatei herunterladen"
 
