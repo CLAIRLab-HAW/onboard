@@ -203,7 +203,6 @@ const warnLeaf = treeNode("imu_0", LEVEL_WARN, "gyro bias not converged");
 const treeMarkup = (over: Partial<React.ComponentProps<typeof DiagnosticsTreeTable>> = {}) =>
     renderToStaticMarkup(React.createElement(DiagnosticsTreeTable, {
         diagnostics: [okLeaf, warnLeaf],
-        bridgeConnected: true,
         selectedRawName: null,
         setSelectedRawName: () => undefined,
         query: "",
@@ -230,6 +229,12 @@ check(cells[1].includes("<svg"), "a warning row's level cell carries the severit
 const filtered = treeMarkup({ query: "gyro" });
 check(!filtered.includes(okLeaf.message), "a query hides a sibling that does not match");
 check(filtered.includes(warnLeaf.message), "a query keeps the matching row");
+
+// Task 11 moved the "Connecting" empty state up to app.tsx: the whole
+// workspace is guarded there now, not just the tree, so the tree itself must
+// no longer carry it (and no longer take a bridgeConnected prop to drive it).
+const emptyTree = treeMarkup({ diagnostics: [] });
+check(!emptyTree.includes("Connecting"), "the tree no longer renders its own connecting state");
 
 /* ------------------------------------------------------------- CaptureAlerts */
 
@@ -259,10 +264,29 @@ check(alertsMarkup({ ...idleCapture, errorMessage: "boom" }).includes("boom"),
 check(alertsMarkup({ ...idleCapture, downloadPath: "/tmp/x.tar.gz" }).includes("Download Diagnostics File"),
       "a finished capture offers the download link");
 
+/* -------------------------------------------------------------- Application */
+
+// Application owns namespace/diagnostics state itself and populates it only
+// through effects (websocket messages, file watches) that renderToStaticMarkup
+// never runs -- so the one thing honestly reachable here, without those
+// effects firing, is the very first render: no diagnostics yet. That must
+// show the page-level connecting state added in Task 11, not the two-column
+// workspace (which would need data neither this render pass nor the stub
+// cockpit module can provide).
+import { Application } from "../../src/app";
+import { CookiesProvider } from "react-cookie";
+
+const appMarkup = renderToStaticMarkup(
+    React.createElement(CookiesProvider, null, React.createElement(Application)));
+check(appMarkup.includes("Connecting"), "with no diagnostics yet, the page shows the connecting state");
+check(!appMarkup.includes("All Diagnostics"), "and not the diagnostics tree");
+check(!appMarkup.includes("workspace-secondary"), "nor the two-column workspace grid");
+
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));
     throw new Error(`${problems.length} component assertion(s) failed`);
 }
 
 console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + " +
-            "no colour on healthy, detail panel empty/override-reason, tree level column + search filter)");
+            "no colour on healthy, detail panel empty/override-reason, tree level column + search filter, " +
+            "connecting state moved to app level)");

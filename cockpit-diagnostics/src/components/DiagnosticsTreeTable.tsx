@@ -28,7 +28,6 @@ import {
     EmptyStateVariant,
     EmptyStateBody,
     SearchInput,
-    Spinner,
     ToggleGroup,
     ToggleGroupItem,
 } from "@patternfly/react-core";
@@ -45,7 +44,6 @@ const _ = cockpit.gettext;
 // Renders an expandable TreeTable of diagnostic messages
 export const DiagnosticsTreeTable = ({
     diagnostics,
-    bridgeConnected,
     selectedRawName,
     setSelectedRawName,
     query,
@@ -54,7 +52,6 @@ export const DiagnosticsTreeTable = ({
     onFilterLevelChange,
 }: {
     diagnostics: DiagnosticsEntry[],
-    bridgeConnected: boolean,
     selectedRawName: string | null,
     setSelectedRawName: (rawName: string | null) => void,
     query: string,
@@ -233,26 +230,6 @@ export const DiagnosticsTreeTable = ({
                             </Tr>
                         )}
                         {(diagnostics.length === 0 || matches > 0) && renderRows(diagnostics)}
-                        {(diagnostics.length === 0) && (
-                            <Tr>
-                                <Td colSpan={3}>
-                                    <Bullseye>
-                                        <EmptyState
-                                            headingLevel="h2"
-                                            titleText="Connecting"
-                                            icon={Spinner}
-                                            variant={EmptyStateVariant.xs}
-                                        >
-                                            <EmptyStateBody>
-                                                { bridgeConnected
-                                                    ? _("Waiting for diagnostics messages...")
-                                                    : _("Attempting to connect to the Foxglove bridge...")}
-                                            </EmptyStateBody>
-                                        </EmptyState>
-                                    </Bullseye>
-                                </Td>
-                            </Tr>
-                        )}
                     </Tbody>
                 </Table>
             </CardBody>

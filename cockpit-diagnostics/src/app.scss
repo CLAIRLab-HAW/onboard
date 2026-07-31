@@ -264,3 +264,33 @@
         --pf-v6-c-drawer__panel--FlexBasis: 100%;
     }
 }
+
+/* Workspace --------------------------------------------------------------- */
+
+.workspace {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: var(--pf-t--global--spacer--lg);
+    align-items: start;
+}
+
+.workspace-primary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--pf-t--global--spacer--lg);
+    min-inline-size: 0;
+}
+
+.workspace-secondary {
+    min-inline-size: 0;
+}
+
+/*
+ * Below this width two columns stop helping: the joint table and the tree both
+ * need room for a name plus a path. Stack them, order unchanged.
+ */
+@media (width <= 1200px) {
+    .workspace {
+        grid-template-columns: 1fr;
+    }
+}

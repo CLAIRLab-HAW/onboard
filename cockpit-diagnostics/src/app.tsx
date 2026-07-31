@@ -21,13 +21,21 @@ import React, { useState } from 'react';
 
 import {
     Alert,
+    Bullseye,
+    Card,
+    CardBody,
+    CardTitle,
     Drawer,
     DrawerContent,
     DrawerContentBody,
     DrawerPanelContent,
     DropdownItem,
+    EmptyState,
+    EmptyStateBody,
+    EmptyStateVariant,
     Page,
     PageSection,
+    Spinner,
     Stack,
 } from "@patternfly/react-core";
 
@@ -50,6 +58,23 @@ import { FilterLevel } from "./utils/treeFilter";
 import { updateRateHz } from "./utils/summary";
 
 const _ = cockpit.gettext;
+
+/*
+ * With no diagnostics at all there is nothing to show in either workspace
+ * column, so this now guards the whole workspace rather than just the tree
+ * (which used to own it, back when it was the only thing on the page).
+ */
+const ConnectingState = ({ bridgeConnected }: { bridgeConnected: boolean }) => (
+    <Bullseye>
+        <EmptyState headingLevel="h2" titleText={_("Connecting")} icon={Spinner} variant={EmptyStateVariant.sm}>
+            <EmptyStateBody>
+                {bridgeConnected
+                    ? _("Waiting for diagnostics messages...")
+                    : _("Attempting to connect to the Foxglove bridge...")}
+            </EmptyStateBody>
+        </EmptyState>
+    </Bullseye>
+);
 
 export const Application = () => {
     const {
@@ -115,10 +140,10 @@ export const Application = () => {
                             setIsPaused={setIsPaused}
                         />
                     </StatusBand>
-                    <CaptureAlerts state={capture} />
                     {invalidNamespaceMessage && (
                         <Alert
                             variant="danger"
+                            isInline
                             title={invalidNamespaceMessage} // Display error message if namespace is invalid
                         />
                     )}
@@ -128,6 +153,7 @@ export const Application = () => {
                             namespace={namespace}
                         />
                     )}
+                    <CaptureAlerts state={capture} />
                     { !invalidNamespaceMessage && (
                         <>
                             <RosConnectionManager
@@ -152,25 +178,35 @@ export const Application = () => {
                                     }
                                 >
                                     <DrawerContentBody>
-                                        <Stack hasGutter>
-                                            {diagnostics.length > 0 && (
-                                                <>
-                                                    <IssueList diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
-                                                    {/* Renders itself only on robots that publish manipulator diagnostics. */}
-                                                    <ManipulatorPanel diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
-                                                </>
+                                        {diagnostics.length === 0
+                                            ? <ConnectingState bridgeConnected={bridgeConnected} />
+                                            : (
+                                                <div className="workspace">
+                                                    <div className="workspace-primary">
+                                                        {/* Renders itself only on robots that publish manipulator diagnostics. */}
+                                                        <ManipulatorPanel diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
+                                                        <Card>
+                                                            <CardTitle component="h2" className="diagnostics-title">
+                                                                {_("Issues")}
+                                                            </CardTitle>
+                                                            <CardBody>
+                                                                <IssueList diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
+                                                            </CardBody>
+                                                        </Card>
+                                                    </div>
+                                                    <div className="workspace-secondary">
+                                                        <DiagnosticsTreeTable
+                                                            diagnostics={diagnostics}
+                                                            selectedRawName={selectedRawName}
+                                                            setSelectedRawName={setSelectedRawName}
+                                                            query={query}
+                                                            filterLevel={filterLevel}
+                                                            onQueryChange={setQuery}
+                                                            onFilterLevelChange={setFilterLevel}
+                                                        />
+                                                    </div>
+                                                </div>
                                             )}
-                                            <DiagnosticsTreeTable
-                                                diagnostics={diagnostics}
-                                                bridgeConnected={bridgeConnected}
-                                                selectedRawName={selectedRawName}
-                                                setSelectedRawName={setSelectedRawName}
-                                                query={query}
-                                                filterLevel={filterLevel}
-                                                onQueryChange={setQuery}
-                                                onFilterLevelChange={setFilterLevel}
-                                            />
-                                        </Stack>
                                     </DrawerContentBody>
                                 </DrawerContent>
                             </Drawer>

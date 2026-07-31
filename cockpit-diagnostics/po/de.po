@@ -80,15 +80,15 @@ msgstr "Fehler"
 msgid "Warnings"
 msgstr "Warnungen"
 
-#: src/components/DiagnosticsTreeTable.tsx:124
+#: src/components/DiagnosticsTreeTable.tsx:121
 msgid "Level"
 msgstr "Level"
 
-#: src/components/DiagnosticsTreeTable.tsx:127
+#: src/components/DiagnosticsTreeTable.tsx:124
 msgid "Name"
 msgstr "Name"
 
-#: src/components/DiagnosticsTreeTable.tsx:132
+#: src/components/DiagnosticsTreeTable.tsx:129
 msgid "Message"
 msgstr "Meldung"
 
@@ -120,51 +120,55 @@ msgstr "Gemeldete Stufe"
 msgid "Values"
 msgstr "Werte"
 
-#: src/components/DiagnosticsTreeTable.tsx:174
+#: src/components/DiagnosticsTreeTable.tsx:171
 msgid "All Diagnostics"
 msgstr "Alle Diagnosen"
 
-#: src/components/DiagnosticsTreeTable.tsx:181
+#: src/components/DiagnosticsTreeTable.tsx:178
 msgid "Search name, path or message"
 msgstr "Name, Pfad oder Meldung durchsuchen"
 
-#: src/components/DiagnosticsTreeTable.tsx:182
+#: src/components/DiagnosticsTreeTable.tsx:179
 msgid "Search diagnostics"
 msgstr "Diagnosen durchsuchen"
 
-#: src/components/DiagnosticsTreeTable.tsx:184
+#: src/components/DiagnosticsTreeTable.tsx:181
 msgid "Severity filter"
 msgstr "Schweregrad-Filter"
 
-#: src/components/DiagnosticsTreeTable.tsx:186
+#: src/components/DiagnosticsTreeTable.tsx:183
 msgid "All"
 msgstr "Alle"
 
-#: src/components/DiagnosticsTreeTable.tsx:191
+#: src/components/DiagnosticsTreeTable.tsx:188
 msgid "≥ Warning"
 msgstr "≥ Warnung"
 
-#: src/components/DiagnosticsTreeTable.tsx:196
+#: src/components/DiagnosticsTreeTable.tsx:193
 msgid "≥ Error"
 msgstr "≥ Fehler"
 
-#: src/components/DiagnosticsTreeTable.tsx:202
+#: src/components/DiagnosticsTreeTable.tsx:199
 msgid "Diagnostics Tree Table"
 msgstr "Diagnose-Baumtabelle"
 
-#: src/components/DiagnosticsTreeTable.tsx:217
+#: src/components/DiagnosticsTreeTable.tsx:214
 msgid "Nothing matches"
 msgstr "Kein Treffer"
 
-#: src/components/DiagnosticsTreeTable.tsx:227
+#: src/components/DiagnosticsTreeTable.tsx:224
 msgid "Reset filters"
 msgstr "Filter zurücksetzen"
 
-#: src/components/DiagnosticsTreeTable.tsx:248
+#: src/app.tsx:69
+msgid "Connecting"
+msgstr "Verbindung wird hergestellt"
+
+#: src/app.tsx:72
 msgid "Waiting for diagnostics messages..."
 msgstr "Warte auf Diagnose-Nachrichten …"
 
-#: src/components/DiagnosticsTreeTable.tsx:249
+#: src/app.tsx:73
 msgid "Attempting to connect to the Foxglove bridge..."
 msgstr "Verbindung zur Foxglove-Bridge wird aufgebaut …"
 
@@ -172,7 +176,7 @@ msgstr "Verbindung zur Foxglove-Bridge wird aufgebaut …"
 msgid "No issues"
 msgstr "Keine Auffälligkeiten"
 
-#: src/components/IssueList.tsx:52
+#: src/components/IssueList.tsx:52 src/app.tsx:190
 msgid "Issues"
 msgstr "Auffälligkeiten"
 
