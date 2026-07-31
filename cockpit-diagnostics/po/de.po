@@ -16,10 +16,6 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: src/app.tsx:78
-msgid "ROS 2 Diagnostics"
-msgstr "ROS-2-Diagnose"
-
 #: src/components/StatusBand.tsx:142
 msgid "Resume diagnostics updates"
 msgstr "Diagnose-Aktualisierung fortsetzen"
@@ -95,14 +91,6 @@ msgstr "Meldung"
 #: src/components/DetailPanel.tsx:98
 msgid "N/A"
 msgstr "k. A."
-
-#: src/components/DiagnosticsTable.tsx:99
-msgid "No Errors"
-msgstr "Keine Fehler"
-
-#: src/components/DiagnosticsTable.tsx:99
-msgid "No Warnings"
-msgstr "Keine Warnungen"
 
 #: src/components/SeverityIcon.tsx:63
 msgid "OK"

@@ -56,6 +56,14 @@ The following instructions should be completed on the computer that is to be mon
 
 # Manipulator panel
 
+The page opens with a sticky status band — a headline sentence, error/warning/
+stale/status counters that double as one-click filters, and a timeline of past
+snapshots to freeze the view on. Below it, a two-column workspace holds the
+manipulator card and an issue list on the left and the diagnostics tree — with
+a level column, free-text search and a severity filter — on the right;
+selecting any row opens a detail panel that slides in from the page edge. The
+diagnostics capture button now lives in the status band's **⋯** menu.
+
 On top of the generic diagnostics tree, this fork renders a dedicated
 **Manipulator** card: an *Arm* tile (robot mode, safety mode, external control,
 motion link, joint table, controller chips) and an *End effector* tile (opening

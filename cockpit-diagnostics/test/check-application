@@ -15,7 +15,7 @@ class TestApplication(testlib.MachineCase):
 
     def enter_ros2_diagnostics(self):
         self.login_and_go("/ros2-diagnostics")
-        self.browser.wait_text(".pf-v6-c-title", "ROS 2 Diagnostics")
+        self.browser.wait_visible(".status-band")
 
     def checkConnecting(self): # Not yet fully implemented
         b = self.browser
