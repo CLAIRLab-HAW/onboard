@@ -27,8 +27,8 @@ import {
 } from "@patternfly/react-core";
 
 import { DiagnosticsStatus } from "./interfaces";
-import { DiagnosticsTable } from "./components/DiagnosticsTable";
 import { DiagnosticsTreeTable } from "./components/DiagnosticsTreeTable";
+import { IssueList } from "./components/IssueList";
 import { RosConnectionManager } from "./components/RosConnectionManager";
 import { StatusBand } from "./components/StatusBand";
 import { useNamespace } from "./hooks/useNamespace";
@@ -111,8 +111,7 @@ export const Application = () => {
                             />
                             {diagnostics.length > 0 && (
                                 <>
-                                    <DiagnosticsTable diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} variant="error" />
-                                    <DiagnosticsTable diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} variant="warning" />
+                                    <IssueList diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
                                     {/* Renders itself only on robots that publish manipulator diagnostics. */}
                                     <ManipulatorPanel diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
                                 </>

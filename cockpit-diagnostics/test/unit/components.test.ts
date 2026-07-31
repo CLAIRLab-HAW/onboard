@@ -17,6 +17,7 @@ import {
 } from "../../src/utils/severity";
 import live from "./agg-armed.json";
 import { buildDiagnosticsTree } from "../../src/components/RosConnectionManager";
+import { DiagnosticsEntry } from "../../src/interfaces";
 
 const problems: string[] = [];
 const check = (condition: boolean, what: string) => {
@@ -132,6 +133,27 @@ check(!partial.includes("timeline-slot-warn") &&
       !partial.includes("timeline-slot-error") &&
       !partial.includes("timeline-slot-stale"),
       "an all-healthy history gets no status colour class");
+
+/* ---------------------------------------------------------------- IssueList */
+
+import { IssueList } from "../../src/components/IssueList";
+
+const issueMarkup = (entries: DiagnosticsEntry[]) =>
+    renderToStaticMarkup(React.createElement(IssueList, {
+        diagnostics: entries,
+        setSelectedRawName: () => undefined,
+    }));
+
+const realIssues = issueMarkup(realTree);
+check(realIssues.includes("Hardware Components Activity"), "the warning is listed");
+check(!realIssues.includes("Joystick Driver Status"),
+      "an out-of-service status is not an issue to act on");
+
+// The old pair of tables claimed "No Errors" / "No Warnings" even while the
+// bridge was down. One quiet line, and only when there is genuinely nothing.
+const empty = issueMarkup([]);
+check(empty.includes("No issues"), "an empty list is one line, not an empty state");
+check(!empty.includes("<table"), "an empty list renders no table");
 
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));

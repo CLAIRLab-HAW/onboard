@@ -76,23 +76,23 @@ msgstr "Diagnose erfasst ($0)."
 msgid "Download Diagnostics File"
 msgstr "Diagnosedatei herunterladen"
 
-#: src/components/DiagnosticsTable.tsx:61
+#: src/components/StatusBand.tsx:135
 msgid "Errors"
 msgstr "Fehler"
 
-#: src/components/DiagnosticsTable.tsx:61
+#: src/components/StatusBand.tsx:136
 msgid "Warnings"
 msgstr "Warnungen"
 
-#: src/components/DiagnosticsTable.tsx:70
+#: src/components/DiagnosticsTreeTable.tsx:149
 msgid "Name"
 msgstr "Name"
 
-#: src/components/DiagnosticsTable.tsx:71
+#: src/components/DiagnosticsTreeTable.tsx:154
 msgid "Message"
 msgstr "Meldung"
 
-#: src/components/DiagnosticsTable.tsx:83
+#: src/components/DiagnosticsTreeTable.tsx:229
 msgid "N/A"
 msgstr "k. A."
 
@@ -163,6 +163,14 @@ msgstr "Warte auf Diagnose-Nachrichten …"
 #: src/components/DiagnosticsTreeTable.tsx:295
 msgid "Attempting to connect to the Foxglove bridge..."
 msgstr "Verbindung zur Foxglove-Bridge wird aufgebaut …"
+
+#: src/components/IssueList.tsx:48
+msgid "No issues"
+msgstr "Keine Auffälligkeiten"
+
+#: src/components/IssueList.tsx:52
+msgid "Issues"
+msgstr "Auffälligkeiten"
 
 #: src/components/ManipulatorPanel.tsx:101
 msgid "Warning"

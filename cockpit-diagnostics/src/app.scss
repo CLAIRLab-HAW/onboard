@@ -181,3 +181,15 @@
     color: var(--pf-t--global--text--color--subtle);
     margin-block-start: var(--pf-t--global--spacer--xs);
 }
+
+/* Issue list -------------------------------------------------------------- */
+
+.issue-empty {
+    color: var(--pf-t--global--text--color--subtle);
+    padding-block: var(--pf-t--global--spacer--sm);
+}
+
+.issue-path {
+    font-size: var(--pf-t--global--font--size--xs);
+    color: var(--pf-t--global--text--color--subtle);
+}
