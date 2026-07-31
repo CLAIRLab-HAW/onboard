@@ -43,6 +43,7 @@ import { ManipulatorPanel } from "./components/ManipulatorPanel";
 import { ManualNamespace } from "./components/ManualNamespace";
 import { Timeline } from "./components/Timeline";
 import { useDiagHistory } from './hooks/useDiagHistory';
+import { FilterLevel } from "./utils/treeFilter";
 import { updateRateHz } from "./utils/summary";
 
 export const Application = () => {
@@ -57,6 +58,8 @@ export const Application = () => {
     const [bridgeConnected, setBridgeConnected] = useState(false);
     const [selectedRawName, setSelectedRawName] = useState<string | null>(null); // Used as identifier for diag entry so that values get updated
     const [isPaused, setIsPaused] = useState(false); // Pause state for diagnostics updates
+    const [query, setQuery] = useState("");
+    const [filterLevel, setFilterLevel] = useState<FilterLevel>("all");
 
     const {
         diagHistory,
@@ -85,7 +88,7 @@ export const Application = () => {
                             if (isPaused) clearDiagHistory();
                             setIsPaused(!isPaused);
                         }}
-                        onFilterLevel={() => undefined}
+                        onFilterLevel={setFilterLevel}
                         menuItems={null}
                     >
                         <Timeline
@@ -145,6 +148,10 @@ export const Application = () => {
                                                 bridgeConnected={bridgeConnected}
                                                 selectedRawName={selectedRawName}
                                                 setSelectedRawName={setSelectedRawName}
+                                                query={query}
+                                                filterLevel={filterLevel}
+                                                onQueryChange={setQuery}
+                                                onFilterLevelChange={setFilterLevel}
                                             />
                                         </Stack>
                                     </DrawerContentBody>

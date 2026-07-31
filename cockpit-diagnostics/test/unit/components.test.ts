@@ -180,10 +180,61 @@ if (joystick) {
           "and states why the displayed level differs from it");
 }
 
+/* ---------------------------------------------------------- DiagnosticsTreeTable */
+
+import { DiagnosticsTreeTable } from "../../src/components/DiagnosticsTreeTable";
+
+const treeNode = (name: string, level: number, message: string): DiagnosticsEntry => ({
+    name,
+    path: `root/${name}`,
+    rawName: `root/${name}`,
+    message,
+    severity_level: level,
+    reported_level: level,
+    override_reason: null,
+    hardware_id: null,
+    values: null,
+    children: [],
+});
+
+const okLeaf = treeNode("camera_0", LEVEL_OK, "streaming 30 fps");
+const warnLeaf = treeNode("imu_0", LEVEL_WARN, "gyro bias not converged");
+
+const treeMarkup = (over: Partial<React.ComponentProps<typeof DiagnosticsTreeTable>> = {}) =>
+    renderToStaticMarkup(React.createElement(DiagnosticsTreeTable, {
+        diagnostics: [okLeaf, warnLeaf],
+        bridgeConnected: true,
+        selectedRawName: null,
+        setSelectedRawName: () => undefined,
+        query: "",
+        filterLevel: "all",
+        onQueryChange: () => undefined,
+        onFilterLevelChange: () => undefined,
+        ...over,
+    }));
+
+// The level column is the only place severity shows now (Task 2 removed the
+// icon that used to sit in front of the name), so an OK row must leave that
+// cell empty while a row that is not OK must not -- otherwise the column
+// would either shout at every healthy row or say nothing about a real one.
+const levelCells = (html: string): string[] =>
+    Array.from(html.matchAll(/<td[^>]*data-label="Level"[^>]*>([\s\S]*?)<\/td>/g), m => m[1]);
+
+const bothRows = treeMarkup();
+const cells = levelCells(bothRows);
+check(cells.length === 2, "both rows render a level cell");
+check(cells[0] === "", "an OK row's level cell is empty");
+check(cells[1].includes("<svg"), "a warning row's level cell carries the severity icon");
+
+// The tree must honour `visible` from filterTree, not just accept the props.
+const filtered = treeMarkup({ query: "gyro" });
+check(!filtered.includes(okLeaf.message), "a query hides a sibling that does not match");
+check(filtered.includes(warnLeaf.message), "a query keeps the matching row");
+
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));
     throw new Error(`${problems.length} component assertion(s) failed`);
 }
 
 console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + " +
-            "no colour on healthy, detail panel empty/override-reason)");
+            "no colour on healthy, detail panel empty/override-reason, tree level column + search filter)");

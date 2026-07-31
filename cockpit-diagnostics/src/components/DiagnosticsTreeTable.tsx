@@ -20,19 +20,25 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
     Bullseye,
+    Button,
     Card,
     CardBody,
     CardTitle,
     EmptyState,
     EmptyStateVariant,
     EmptyStateBody,
-    Spinner
+    SearchInput,
+    Spinner,
+    ToggleGroup,
+    ToggleGroupItem,
 } from "@patternfly/react-core";
 import { Table, Thead, Tr, Th, Tbody, Td, TreeRowWrapper, TdProps } from "@patternfly/react-table";
 
 import cockpit from 'cockpit';
 
 import { DiagnosticsEntry } from "../interfaces";
+import { FilterLevel, filterTree } from "../utils/treeFilter";
+import { SeverityIcon } from "./SeverityIcon";
 
 const _ = cockpit.gettext;
 
@@ -42,14 +48,24 @@ export const DiagnosticsTreeTable = ({
     bridgeConnected,
     selectedRawName,
     setSelectedRawName,
+    query,
+    filterLevel,
+    onQueryChange,
+    onFilterLevelChange,
 }: {
     diagnostics: DiagnosticsEntry[],
     bridgeConnected: boolean,
     selectedRawName: string | null,
     setSelectedRawName: (rawName: string | null) => void,
+    query: string,
+    filterLevel: FilterLevel,
+    onQueryChange: (query: string) => void,
+    onFilterLevelChange: (level: FilterLevel) => void,
 }) => {
     const [expandedRows, setExpandedRows] = useState<string[]>([]);
     const [lastExpandedRawName, setLastExpandedRawName] = useState<string | null>(null); // Track last expanded
+
+    const { visible, expand, matches } = filterTree(diagnostics, query, filterLevel);
 
     // Helper to toggle expansion for a given diagnostic rawName
     const toggleRowExpansion = (diagRawName: string) => {
@@ -69,7 +85,11 @@ export const DiagnosticsTreeTable = ({
     ): React.ReactNode[] => {
         if (!diag) return [];
 
-        const isExpanded = expandedRows.includes(diag.rawName);
+        if (!visible.has(diag.rawName)) {
+            return renderRows(remainingDiag, indentLevel, posinset, rowIndex, isHidden);
+        }
+
+        const isExpanded = expandedRows.includes(diag.rawName) || expand.has(diag.rawName);
 
         const treeRow: TdProps["treeRow"] = {
             onCollapse: (event) => {
@@ -101,6 +121,9 @@ export const DiagnosticsTreeTable = ({
                     toggleRowExpansion(diag.rawName);
                 }}
             >
+                <Td dataLabel={_("Level")} className="tree-level">
+                    <SeverityIcon level={diag.severity_level} hideOk />
+                </Td>
                 <Td dataLabel={_("Name")} treeRow={treeRow}>
                     <span className="diagnostics-table-name">{diag.name}</span>
                     <br />
@@ -150,20 +173,69 @@ export const DiagnosticsTreeTable = ({
         <Card>
             <CardTitle component="h2" className="diagnostics-title">{_("All Diagnostics")}</CardTitle>
             <CardBody>
+                <div className="tree-controls">
+                    <SearchInput
+                        value={query}
+                        onChange={(_event, value) => onQueryChange(value)}
+                        onClear={() => onQueryChange("")}
+                        placeholder={_("Search name, path or message")}
+                        aria-label={_("Search diagnostics")}
+                    />
+                    <ToggleGroup aria-label={_("Severity filter")}>
+                        <ToggleGroupItem
+                            text={_("All")}
+                            isSelected={filterLevel === "all"}
+                            onChange={() => onFilterLevelChange("all")}
+                        />
+                        <ToggleGroupItem
+                            text={_("≥ Warning")}
+                            isSelected={filterLevel === "warn"}
+                            onChange={() => onFilterLevelChange("warn")}
+                        />
+                        <ToggleGroupItem
+                            text={_("≥ Error")}
+                            isSelected={filterLevel === "error"}
+                            onChange={() => onFilterLevelChange("error")}
+                        />
+                    </ToggleGroup>
+                </div>
                 <Table isTreeTable variant="compact" aria-label={_("Diagnostics Tree Table")} borders={false}>
                     {diagnostics.length > 0 && (
                         <Thead>
                             <Tr>
+                                <Th screenReaderText={_("Level")} className="tree-level" />
                                 <Th>{_("Name")}</Th>
                                 <Th>{_("Message")}</Th>
                             </Tr>
                         </Thead>
                     )}
                     <Tbody>
-                        {renderRows(diagnostics)}
+                        {diagnostics.length > 0 && matches === 0 && (
+                            <Tr>
+                                <Td colSpan={3}>
+                                    <Bullseye>
+                                        <EmptyState headingLevel="h2" titleText={_("Nothing matches")} variant={EmptyStateVariant.xs}>
+                                            <EmptyStateBody>
+                                                <Button
+                                                    variant="link"
+                                                    isInline
+                                                    onClick={() => {
+                                                        onQueryChange("");
+                                                        onFilterLevelChange("all");
+                                                    }}
+                                                >
+                                                    {_("Reset filters")}
+                                                </Button>
+                                            </EmptyStateBody>
+                                        </EmptyState>
+                                    </Bullseye>
+                                </Td>
+                            </Tr>
+                        )}
+                        {(diagnostics.length === 0 || matches > 0) && renderRows(diagnostics)}
                         {(diagnostics.length === 0) && (
                             <Tr>
-                                <Td colSpan={2}>
+                                <Td colSpan={3}>
                                     <Bullseye>
                                         <EmptyState
                                             headingLevel="h2"
