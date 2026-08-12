@@ -506,3 +506,20 @@ button.timeline-slot {
 .rg6-visual .rg6-figure {
     margin-block-end: var(--pf-t--global--spacer--sm);
 }
+
+/*
+ * The expand chevron, centred in a two-line row.
+ *
+ * PatternFly pulls the toggle button up with a negative block-start margin so
+ * the chevron sits on the first text line of a single-line row. These rows
+ * carry a name with its path underneath, so they are twice as tall and the
+ * chevron came out 9px above the middle. Centring the cell and dropping the
+ * pull puts it back -- measured at 0px offset on every row.
+ */
+.workspace-secondary .pf-v6-c-table__toggle {
+    align-self: center;
+}
+
+.workspace-secondary .pf-v6-c-table__toggle button {
+    margin-block-start: 0;
+}
