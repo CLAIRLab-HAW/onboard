@@ -59,7 +59,7 @@ import {
 import { variantForLevel } from "../utils/summary";
 import { GripperControl } from "./GripperControl";
 import { GripperGraphic } from "./GripperGraphic";
-import { SeverityIcon } from "./SeverityIcon";
+import { severityLabel } from "./SeverityIcon";
 
 const _ = cockpit.gettext;
 
@@ -165,9 +165,13 @@ const ArmCard = ({
         <div className={`state-card state-card-${variantForLevel(level)}`}>
             <h3 className="state-card-title">
                 {_("Arm")}
-                <span className="card-state">
-                    <SeverityIcon level={level} />
-                </span>
+                {/*
+                  * No visible state marker here: the card's left stripe is the
+                  * one carrier, per the rule that a surface encodes its state
+                  * exactly once. The word stays for screen readers, which the
+                  * stripe cannot reach.
+                  */}
+                <span className="pf-v6-screen-reader">{severityLabel(level)}</span>
             </h3>
             <div className="manipulator-subtitle">{valueOf(armMode, "robot_ip")
                 ? cockpit.format(_("UR5 at $0"), valueOf(armMode, "robot_ip"))
@@ -288,9 +292,13 @@ const GripperCard = ({
         <div className={`state-card state-card-${variantForLevel(level)}`}>
             <h3 className="state-card-title">
                 {_("End effector")}
-                <span className="card-state">
-                    <SeverityIcon level={level} />
-                </span>
+                {/*
+                  * No visible state marker here: the card's left stripe is the
+                  * one carrier, per the rule that a surface encodes its state
+                  * exactly once. The word stays for screen readers, which the
+                  * stripe cannot reach.
+                  */}
+                <span className="pf-v6-screen-reader">{severityLabel(level)}</span>
             </h3>
             <div className="manipulator-subtitle">{_("OnRobot RG6")}</div>
             <div {...(isInactive ? { className: "manipulator-out-of-service" } : {})}>
@@ -381,8 +389,8 @@ export const ManipulatorPanel = ({
                 <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
                     <FlexItem>{_("Manipulator")}</FlexItem>
                     <FlexItem>
-                        <span className="card-state">
-                            <SeverityIcon level={manipulator.level} />
+                        <span className="pf-v6-screen-reader">
+                            {severityLabel(manipulator.level)}
                         </span>
                     </FlexItem>
                 </Flex>
