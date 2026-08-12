@@ -560,6 +560,58 @@ check(renderToStaticMarkup(React.createElement(GripperControl, {
 })) === "", "without a granted admin permission the control renders nothing at all");
 
 
+/* --------------------------------------------- service schema resolution */
+
+/*
+ * The bug this pins down cost a live debugging round: calling a service failed
+ * with "Cannot read properties of undefined (reading 'split')" deep inside the
+ * message parser. Cause: the Foxglove protocol carries a service's schema two
+ * ways -- the deprecated flat `requestSchema`/`responseSchema`, and the nested
+ * `request`/`response` definitions that current bridges (foxglove_bridge 3.x on
+ * this robot) actually send. The client read only the deprecated pair.
+ */
+import { serviceSchemaOf } from "../../src/components/../roslib/Impl";
+
+const nested = {
+    id: 1, name: "/rg6_control/close", type: "std_srvs/srv/Trigger",
+    request: { encoding: "cdr", schemaName: "std_srvs/srv/Trigger_Request", schemaEncoding: "ros2msg", schema: "" },
+    response: {
+        encoding: "cdr", schemaName: "std_srvs/srv/Trigger_Response",
+        schemaEncoding: "ros2msg", schema: "bool success\nstring message",
+    },
+};
+const flat = {
+    id: 2, name: "/rg6_control/open", type: "std_srvs/srv/Trigger",
+    requestSchema: "", responseSchema: "bool success\nstring message",
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+check(serviceSchemaOf(nested as any, "response").schema === "bool success\nstring message",
+      "the nested response definition is read -- this is the shape the robot's bridge sends");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+check(serviceSchemaOf(nested as any, "response").schemaEncoding === "ros2msg",
+      "and its schemaEncoding travels with it, not from the channel branch");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+check(serviceSchemaOf(flat as any, "response").schema === "bool success\nstring message",
+      "the deprecated flat form still works, so an older bridge keeps functioning");
+
+// An empty request schema is legitimate: std_srvs/srv/Trigger takes no
+// arguments, so both shapes carry "" and neither may be treated as missing.
+// A truthiness check here would fall through to the deprecated field, find
+// nothing, and throw on the one service this feature exists to call.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+check(serviceSchemaOf(nested as any, "request").schema === "",
+      "an empty request schema is a value, not a missing field");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+check(serviceSchemaOf(flat as any, "request").schema === "",
+      "same for the deprecated flat form");
+
+let threw = false;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+try { serviceSchemaOf({ id: 3, name: "/x", type: "t" } as any, "request"); } catch { threw = true }
+check(threw, "a service advertised with no schema at all fails loudly, naming the service");
+
+
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));
     throw new Error(`${problems.length} component assertion(s) failed`);
@@ -568,4 +620,4 @@ if (problems.length > 0) {
 console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + " +
             "no colour on healthy, detail panel empty/override-reason, tree level column + search filter, " +
             "connecting state moved to app level, manipulator out-of-service dimming reaches its selectors + " +
-            "stripe variants + no stray Label, gripper drawing scales with the measurement, gripper command guards)");
+            "stripe variants + no stray Label, gripper drawing scales with the measurement, gripper command guards, service schema resolution)");

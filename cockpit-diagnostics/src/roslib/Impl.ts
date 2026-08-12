@@ -54,6 +54,40 @@ export interface Subscription {
   unsubscribe: () => void;
 }
 
+/*
+ * Where a service's schema actually lives.
+ *
+ * The Foxglove protocol carries it two ways. The flat `requestSchema` /
+ * `responseSchema` pair is deprecated; current bridges (foxglove_bridge 3.x)
+ * send nested `request` / `response` definitions instead, which also carry
+ * their own `schemaEncoding`. Reading only the deprecated fields yields
+ * `undefined` and the parser then fails deep inside with
+ * "Cannot read properties of undefined (reading 'split')", which says nothing
+ * about the real cause.
+ *
+ * Exported so the resolution can be tested without a live bridge.
+ */
+export const serviceSchemaOf = (
+    service: Service,
+    side: 'request' | 'response',
+): { schema: string; schemaEncoding: string | undefined } => {
+    // Presence, not truthiness: an empty schema is legitimate and common --
+    // std_srvs/srv/Trigger takes no arguments, so its request schema is "".
+    // Treating "" as missing would break exactly the service this was built for.
+    const nested = side === 'request' ? service.request : service.response;
+    if (nested?.schema !== undefined) {
+        return { schema: nested.schema, schemaEncoding: nested.schemaEncoding };
+    }
+    const flat = side === 'request' ? service.requestSchema : service.responseSchema;
+    if (flat !== undefined) {
+        return { schema: flat, schemaEncoding: undefined };
+    }
+    throw new Error(
+        `Service ${service.name} (${service.type}) advertised no ${side} schema; ` +
+        `the bridge sent neither ${side} nor ${side}Schema`,
+    );
+};
+
 export class Impl {
     readonly emitter = new EventEmitter<EventTypes>();
 
@@ -356,18 +390,18 @@ export class Impl {
       'schemaEncoding' in channelOrService
           ? channelOrService.schemaEncoding
           : undefined;
-        const schema =
+        const resolved =
       'schema' in channelOrService
-          ? channelOrService.schema
-          : channelOrService.responseSchema;
+          ? { schema: channelOrService.schema, schemaEncoding }
+          : serviceSchemaOf(channelOrService, 'response');
         return (
             this.#messageReaders.get(name) ??
       (() => {
           const reader =
             new Ros2MessageReader(
-                schemaEncoding === 'ros2idl'
-                    ? parseRos2idl(schema)
-                    : parse(schema, { ros2: true }),
+                resolved.schemaEncoding === 'ros2idl'
+                    ? parseRos2idl(resolved.schema)
+                    : parse(resolved.schema, { ros2: true }),
             );
           this.#messageReaders.set(name, reader);
           return reader;
@@ -384,17 +418,17 @@ export class Impl {
       'schemaEncoding' in channelOrService
           ? channelOrService.schemaEncoding
           : undefined;
-        const schema =
+        const resolved =
       'schema' in channelOrService
-          ? channelOrService.schema
-          : channelOrService.requestSchema;
+          ? { schema: channelOrService.schema, schemaEncoding }
+          : serviceSchemaOf(channelOrService, 'request');
         return (
             this.#messageWriters.get(name) ??
       (() => {
           const writer = new Ros2MessageWriter(
-              schemaEncoding === 'ros2idl'
-                  ? parseRos2idl(schema)
-                  : parse(schema, { ros2: true }),
+              resolved.schemaEncoding === 'ros2idl'
+                  ? parseRos2idl(resolved.schema)
+                  : parse(resolved.schema, { ros2: true }),
           );
           this.#messageWriters.set(name, writer);
           return writer;
