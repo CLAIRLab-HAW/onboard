@@ -543,8 +543,7 @@ check(guard({ percent: null }) === "No opening is being reported.",
       "no measurement blocks the command -- without tool voltage the RG6 reports nothing");
 check(guard({ busy: true }) === "The gripper is still moving.",
       "a moving gripper blocks the command");
-check(guard({ externalControlRunning: true })
-        === "The arm is under external control - a gripper command would abort its program.",
+check(guard({ externalControlRunning: true }) === "The arm is under external control.",
       "external control blocks the command: every gripper command tears ExternalControl down");
 
 // Unknown is not permission. `busy: null` means the driver did not say.

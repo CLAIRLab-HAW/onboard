@@ -406,11 +406,11 @@ msgstr "Vom Publisher als außer Betrieb gemeldet."
 
 #: src/manifest.json:8
 msgid "ROS 2 diagnostics"
-msgstr "ROS-2-Diagnose"
+msgstr "ROS2 Diagnose"
 
 #: src/index.html:20
 msgid "Cockpit ROS 2 Diagnostics"
-msgstr "Cockpit ROS-2-Diagnose"
+msgstr "Cockpit ROS2 Diagnose"
 
 #: src/utils/summary.ts:74
 msgid "no data"
@@ -499,8 +499,8 @@ msgid "The gripper is still moving."
 msgstr "Der Greifer bewegt sich noch."
 
 #: src/components/GripperControl.tsx:86
-msgid "The arm is under external control - a gripper command would abort its program."
-msgstr "Der Arm steht unter externer Steuerung – ein Greifbefehl würde sein Programm abbrechen."
+msgid "The arm is under external control."
+msgstr "Der Arm steht unter externer Steuerung."
 
 #: src/components/GripperControl.tsx:128
 msgid "Close gripper"

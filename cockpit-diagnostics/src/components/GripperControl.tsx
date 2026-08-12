@@ -100,7 +100,7 @@ export const gripperBlockedReason = (state: GripperGuardState): string | null =>
     if (state.percent === null) return _("No opening is being reported.");
     if (state.busy === true) return _("The gripper is still moving.");
     if (state.externalControlRunning)
-        return _("The arm is under external control - a gripper command would abort its program.");
+        return _("The arm is under external control.");
     return null;
 };
 
