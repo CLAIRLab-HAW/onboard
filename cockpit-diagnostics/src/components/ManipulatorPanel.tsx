@@ -295,50 +295,61 @@ const GripperCard = ({
             <div className="manipulator-subtitle">{_("OnRobot RG6")}</div>
             <div {...(isInactive ? { className: "manipulator-out-of-service" } : {})}>
                 <StatusAlerts entries={[gripper]} setSelectedRawName={setSelectedRawName} />
-                <GripperGraphic
-                    percent={percent}
-                    widthMm={widthMm}
-                    strokeMm={strokeMm}
-                    gripDetected={gripDetected}
-                />
-                {namespace && (
-                    <GripperControl
-                        ros={ros}
-                        namespace={namespace}
-                        percent={percent}
-                        busy={busy}
-                        isInactive={isInactive}
-                        externalControlRunning={externalControlRunning}
-                    />
-                )}
-                <DescriptionList isHorizontal isCompact>
-                    <Term label={_("Grip detected")}>
-                        {boolText(gripDetected, _("object held"), _("no object"))}
-                    </Term>
-                    <Term label={_("Motion")}>
-                        {boolText(busy, _("moving"), _("settled"))}
-                    </Term>
-                    {/*
+                {/*
+                  * Readings and picture side by side: stacked, the drawing pushed
+                  * six short rows of text a screenful down for no gain. They wrap
+                  * back to one column when the card gets narrow.
+                  */}
+                <div className="rg6-layout">
+                    <div className="rg6-readings">
+                        <DescriptionList isHorizontal isCompact>
+                            <Term label={_("Grip detected")}>
+                                {boolText(gripDetected, _("object held"), _("no object"))}
+                            </Term>
+                            <Term label={_("Motion")}>
+                                {boolText(busy, _("moving"), _("settled"))}
+                            </Term>
+                            {/*
                       * Without tool voltage the RG6 reports neither analog nor digital
                       * values. After an arm restart that is briefly normal -- rg6_control
                       * raises the voltage itself on the program-running edge.
                       */}
-                    <Term label={_("Tool power")}>
-                        {boolText(toolPower, _("on"), _("off"))}
-                        {signalValid === false && toolPower === true && (
-                            <span className="manipulator-hint">{_("commanded, no signal")}</span>
+                            <Term label={_("Tool power")}>
+                                {boolText(toolPower, _("on"), _("off"))}
+                                {signalValid === false && toolPower === true && (
+                                    <span className="manipulator-hint">{_("commanded, no signal")}</span>
+                                )}
+                            </Term>
+                            <Term label={_("Force preset")}>
+                                {boolText(highForce, _("high"), _("normal"))}
+                            </Term>
+                            <Term label={_("Last command")}>
+                                {valueOf(gripper, "last_command") ?? _("unknown")}
+                            </Term>
+                            <Term label={_("Force signal")}>
+                                {forceRaw === null ? _("unknown") : `${forceRaw.toFixed(2)} V`}
+                            </Term>
+                        </DescriptionList>
+                    </div>
+                    <div className="rg6-visual">
+                        <GripperGraphic
+                            percent={percent}
+                            widthMm={widthMm}
+                            strokeMm={strokeMm}
+                            gripDetected={gripDetected}
+                        />
+                        {namespace && (
+                            <GripperControl
+                                ros={ros}
+                                namespace={namespace}
+                                percent={percent}
+                                busy={busy}
+                                isInactive={isInactive}
+                                externalControlRunning={externalControlRunning}
+                            />
                         )}
-                    </Term>
-                    <Term label={_("Force preset")}>
-                        {boolText(highForce, _("high"), _("normal"))}
-                    </Term>
-                    <Term label={_("Last command")}>
-                        {valueOf(gripper, "last_command") ?? _("unknown")}
-                    </Term>
-                    <Term label={_("Force signal")}>
-                        {forceRaw === null ? _("unknown") : `${forceRaw.toFixed(2)} V`}
-                    </Term>
-                </DescriptionList>
+                    </div>
+                </div>
             </div>
         </div>
     );

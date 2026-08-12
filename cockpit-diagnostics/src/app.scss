@@ -206,10 +206,20 @@
 
 /* Status band ------------------------------------------------------------- */
 
+/*
+ * Above the workspace, not under it.
+ *
+ * 200 rather than a modest 10 for a measured reason: PatternFly's
+ * `.pf-v6-c-drawer__content` carries `z-index: 100` while being
+ * `position: static`, which normally makes it inert -- except it is a flex item
+ * of `.pf-v6-c-drawer__main`, and z-index applies to flex items regardless of
+ * position. That puts the whole work surface in a stacking context at 100, and
+ * a band at 10 scrolled underneath its own cards.
+ */
 .status-band {
     position: sticky;
     inset-block-start: 0;
-    z-index: 10;
+    z-index: 200;
     padding: var(--pf-t--global--spacer--md) var(--pf-t--global--spacer--lg) 0;
     background: var(--pf-t--global--background--color--primary--default);
     border-block-end: 1px solid var(--pf-t--global--border--color--default);
@@ -435,4 +445,28 @@ button.timeline-slot {
 .rg6-control-failure {
     margin-block-start: var(--pf-t--global--spacer--sm);
     text-align: start;
+}
+
+/* End effector: readings beside the drawing ------------------------------- */
+
+.rg6-layout {
+    display: flex;
+    gap: var(--pf-t--global--spacer--lg);
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.rg6-readings {
+    flex: 1 1 14rem;
+    min-inline-size: 0;
+}
+
+.rg6-visual {
+    flex: 0 1 15rem;
+    min-inline-size: 0;
+}
+
+/* Beside the readings the figure no longer needs a gap under it. */
+.rg6-visual .rg6-figure {
+    margin-block-end: var(--pf-t--global--spacer--sm);
 }

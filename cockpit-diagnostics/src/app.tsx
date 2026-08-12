@@ -200,6 +200,13 @@ export const Application = () => {
                                                             ros={ros}
                                                             namespace={namespace}
                                                         />
+                                                    </div>
+                                                    <div className="workspace-secondary">
+                                                        {/*
+                                                          * Issues sit above the tree in the same column: they are
+                                                          * the shortlist of what the tree below holds, and reading
+                                                          * one straight into the other beats crossing the page.
+                                                          */}
                                                         <Card>
                                                             <CardTitle component="h2" className="diagnostics-title">
                                                                 {_("Issues")}
@@ -208,8 +215,6 @@ export const Application = () => {
                                                                 <IssueList diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
                                                             </CardBody>
                                                         </Card>
-                                                    </div>
-                                                    <div className="workspace-secondary">
                                                         <DiagnosticsTreeTable
                                                             diagnostics={diagnostics}
                                                             selectedRawName={selectedRawName}
