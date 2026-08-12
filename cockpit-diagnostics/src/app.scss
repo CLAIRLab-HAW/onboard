@@ -403,16 +403,20 @@ button.timeline-slot {
     align-items: start;
 }
 
-.workspace-primary {
+/*
+ * Both columns stack their cards the same way. The gap belongs to the column,
+ * not to the cards: a column that holds one card today and two tomorrow must
+ * not change how it spaces them -- which is exactly what went wrong when the
+ * issue list moved over and landed flush against the tree.
+ */
+.workspace-primary,
+.workspace-secondary {
     display: flex;
     flex-direction: column;
     gap: var(--pf-t--global--spacer--lg);
     min-inline-size: 0;
 }
 
-.workspace-secondary {
-    min-inline-size: 0;
-}
 
 /*
  * Below this width two columns stop helping: the joint table and the tree both
