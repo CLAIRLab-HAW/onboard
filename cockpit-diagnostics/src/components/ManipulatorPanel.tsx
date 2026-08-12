@@ -34,8 +34,6 @@ import {
     Grid,
     GridItem,
     Label,
-    Progress,
-    ProgressMeasureLocation,
 } from "@patternfly/react-core";
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
 
@@ -59,6 +57,7 @@ import {
     LEVEL_WARN,
 } from "../utils/severity";
 import { variantForLevel } from "../utils/summary";
+import { GripperGraphic } from "./GripperGraphic";
 import { SeverityIcon, severityLabel } from "./SeverityIcon";
 
 const _ = cockpit.gettext;
@@ -285,18 +284,12 @@ const GripperCard = ({
             <div className="manipulator-subtitle">{_("OnRobot RG6")}</div>
             <div {...(isInactive ? { className: "manipulator-out-of-service" } : {})}>
                 <StatusAlerts entries={[gripper]} setSelectedRawName={setSelectedRawName} />
-                {percent !== null && (
-                    <Progress
-                        value={percent}
-                        title={_("Opening")}
-                        label={widthMm && strokeMm
-                            ? cockpit.format(_("$0 of $1 mm"), widthMm, strokeMm)
-                            : `${percent.toFixed(0)} %`}
-                        measureLocation={ProgressMeasureLocation.top}
-                        aria-label={_("Gripper opening")}
-                        className="manipulator-opening"
-                    />
-                )}
+                <GripperGraphic
+                    percent={percent}
+                    widthMm={widthMm}
+                    strokeMm={strokeMm}
+                    gripDetected={gripDetected}
+                />
                 <DescriptionList isHorizontal isCompact>
                     <Term label={_("Grip detected")}>
                         {boolText(gripDetected, _("object held"), _("no object"))}

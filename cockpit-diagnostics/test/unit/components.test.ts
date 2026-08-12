@@ -369,8 +369,12 @@ check(armReadings.includes("pf-v6-c-description-list"),
 check(armReadings.includes("pf-v6-c-table"),
       "the arm's joint table sits inside the out-of-service wrapper too -- a joint angle from a powered-down " +
       "arm must read as dimmed, not current");
-check(gripperReadings.includes("pf-v6-c-progress"),
-      "the gripper's opening bar sits inside the out-of-service wrapper");
+// The drawing replaced the progress bar here. It has to stay inside the
+// wrapper for the same reason the joint table does: a jaw position drawn at
+// full confidence while nothing is being measured is the most convincing wrong
+// thing this panel could show.
+check(gripperReadings.includes("rg6-figure"),
+      "the gripper drawing sits inside the out-of-service wrapper");
 check(gripperReadings.includes("pf-v6-c-description-list"),
       "the gripper's description list sits inside the out-of-service wrapper");
 
@@ -454,6 +458,64 @@ check(appMarkup.includes("Connecting"), "with no diagnostics yet, the page shows
 check(!appMarkup.includes("All Diagnostics"), "and not the diagnostics tree");
 check(!appMarkup.includes("workspace-secondary"), "nor the two-column workspace grid");
 
+/* ------------------------------------------------------- GripperGraphic */
+
+/*
+ * The drawing replaced a labelled PatternFly Progress bar. Two things must
+ * survive that swap or it is a regression dressed up as a feature: the value
+ * has to reach a screen reader, and the picture has to be open exactly as far
+ * as the measurement says -- not approximately, and not at a guessed pose when
+ * nothing was measured at all.
+ */
+import { GripperGraphic } from "../../src/components/GripperGraphic";
+
+const gripperMarkup = (
+    percent: number | null,
+    widthMm: string | null,
+    strokeMm: string | null,
+    gripDetected: boolean | null = false,
+) => renderToStaticMarkup(React.createElement(GripperGraphic, {
+    percent, widthMm, strokeMm, gripDetected,
+}));
+
+check(gripperMarkup(null, null, null) === "",
+      "without a measurement the gripper draws nothing rather than a guessed pose");
+
+const openMarkup = gripperMarkup(100, "160.0", "160");
+const shutMarkup = gripperMarkup(0, "0.0", "160");
+
+check(openMarkup.includes('aria-label="Opening: 160.0 of 160 mm"'),
+      "the reading reaches a screen reader, as the replaced Progress bar did");
+check(gripperMarkup(50, null, null).includes('aria-label="Opening: 50 %"'),
+      "without width/stroke it falls back to the percentage, as the bar did");
+
+// The jaws are the two <rect class="rg6-jaw">; their x is the jaw centre minus
+// half the jaw thickness, so it grows with the opening.
+const jawXs = (html: string) => [...html.matchAll(/class="rg6-jaw"[^>]*?x="(-?[\d.]+)"/g)]
+        .map(m => Number(m[1]));
+const jawXsAlt = (html: string) => [...html.matchAll(/x="(-?[\d.]+)"[^>]*?class="rg6-jaw"/g)]
+        .map(m => Number(m[1]));
+const jaws = (html: string) => { const a = jawXs(html); return a.length ? a : jawXsAlt(html); };
+
+const openJaws = jaws(openMarkup);
+const shutJaws = jaws(shutMarkup);
+check(openJaws.length === 2 && shutJaws.length === 2, "two jaws are drawn");
+// Fully open must put the jaws further apart than fully shut -- if the width
+// were ignored, these two renders would be identical.
+check(Math.max(...openJaws) > Math.max(...shutJaws),
+      "the jaw gap follows the measured width");
+check(openMarkup !== shutMarkup, "0 % and 100 % are not the same picture");
+
+check(!gripperMarkup(60, "96.0", "160", false).includes('class="rg6-object"'),
+      "no object is drawn when none is held");
+check(gripperMarkup(60, "96.0", "160", true).includes('class="rg6-object"'),
+      "a held object is drawn as a shape between the jaws");
+
+// Severity colour must not leak into a measurement.
+check(!/rg6-(jaw|link|object|body)[^>]*(danger|warning|success|status)/.test(openMarkup),
+      "the drawing carries no status colour");
+
+
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));
     throw new Error(`${problems.length} component assertion(s) failed`);
@@ -462,4 +524,4 @@ if (problems.length > 0) {
 console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + " +
             "no colour on healthy, detail panel empty/override-reason, tree level column + search filter, " +
             "connecting state moved to app level, manipulator out-of-service dimming reaches its selectors + " +
-            "stripe variants + no stray Label)");
+            "stripe variants + no stray Label, gripper drawing scales with the measurement)");

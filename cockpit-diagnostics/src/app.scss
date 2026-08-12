@@ -69,8 +69,73 @@
     margin-block-end: var(--pf-t--global--spacer--sm);
 }
 
-.manipulator-opening {
-    margin-block-end: var(--pf-t--global--spacer--md);
+/*
+ * End effector drawing.
+ *
+ * Ink only -- no status colour anywhere in here. Colour on this page means
+ * severity, and an opening width is a measurement, not a severity. The whole
+ * figure inherits the card's dimming when the gripper is out of service,
+ * because a drawing of a jaw position nobody is measuring right now would be
+ * the most convincing wrong thing on the page.
+ */
+.rg6-figure {
+    margin: 0 0 var(--pf-t--global--spacer--md);
+    text-align: center;
+}
+
+.rg6-graphic {
+    inline-size: 100%;
+    max-inline-size: 15rem;
+    block-size: auto;
+    color: var(--pf-t--global--icon--color--subtle);
+}
+
+.rg6-body {
+    fill: var(--pf-t--global--background--color--secondary--default);
+    stroke: currentcolor;
+    stroke-width: 2;
+}
+
+.rg6-link {
+    stroke: currentcolor;
+    stroke-width: 5;
+    stroke-linecap: round;
+}
+
+.rg6-link-thin {
+    stroke-width: 3;
+    opacity: 0.7;
+}
+
+.rg6-pivot {
+    fill: var(--pf-t--global--background--color--primary--default);
+    stroke: currentcolor;
+    stroke-width: 2;
+}
+
+.rg6-jaw {
+    fill: var(--pf-t--global--background--color--secondary--default);
+    stroke: currentcolor;
+    stroke-width: 2;
+}
+
+/* A held object is a shape, not a colour. */
+.rg6-object {
+    fill: currentcolor;
+    opacity: 0.35;
+}
+
+.rg6-dim {
+    stroke: currentcolor;
+    stroke-width: 1.5;
+    opacity: 0.55;
+}
+
+.rg6-caption {
+    font-size: var(--pf-t--global--font--size--sm);
+    color: var(--pf-t--global--text--color--subtle);
+    font-variant-numeric: tabular-nums;
+    margin-block-start: var(--pf-t--global--spacer--xs);
 }
 
 .manipulator-joints,
@@ -91,7 +156,7 @@
  */
 .manipulator-out-of-service .pf-v6-c-description-list,
 .manipulator-out-of-service .pf-v6-c-table,
-.manipulator-out-of-service .pf-v6-c-progress {
+.manipulator-out-of-service .rg6-figure {
     opacity: 0.65;
 }
 
