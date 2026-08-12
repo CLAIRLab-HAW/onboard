@@ -1743,7 +1743,14 @@ const selectedEntry = selectedRawName ? findEntryByRawName(diagnostics, selected
 </Drawer>
 ```
 
-`isInline` wird **nicht** gesetzt: das Panel soll sich über die Arbeitsfläche schieben, damit die beiden Spalten aus Task 11 ihre Breite behalten.
+`isInline` **muss** gesetzt werden — die ursprüngliche Vorgabe hier war falsch.
+
+Ohne `isInline` bekommt der Drawer-Inhalt von PatternFly `flex: 0 0 100%`, kann also
+nicht schrumpfen, während das Panel in derselben Flex-Reihe seine 336 px beansprucht.
+Die Reihe läuft über, und weil sie beschneidet, wird der Inhalt um genau diese Breite
+nach links aus dem Sichtfeld gedrückt (gemessen: −300 px, linke Werte unlesbar). Mit
+`isInline` wird daraus `0 1 100%`, und das Panel nimmt seinen Platz vom Inhalt, statt
+ihn hinauszuschieben. Am Roboter gemessen (2026-08-12).
 
 Esc muss **selbst verdrahtet** werden. Ein PatternFly-Drawer schließt sich nicht von allein: `Drawer.js` hat überhaupt keinen Tastatur-Listener, der einzige Escape-Handler im Drawer-Paket sitzt im Resize-Splitter von `DrawerPanelContent`, und der `FocusTrap` greift nur, wenn das `focusTrap`-Prop gesetzt ist. Geprüft gegen PatternFly 6.4.0 (Task 8).
 

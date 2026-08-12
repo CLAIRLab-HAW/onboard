@@ -176,10 +176,17 @@ export const Application = () => {
                             {/*
                               * The detail panel lives at page level, not inside the tree card: the
                               * issue list, the manipulator panel and the tree all select through the
-                              * same setSelectedRawName, and isInline is deliberately not set so the
-                              * panel slides over the workspace instead of splitting its width.
+                              * same setSelectedRawName.
+                              *
+                              * `isInline` is required, not cosmetic. Without it PatternFly gives the
+                              * drawer content `flex: 0 0 100%` -- it cannot shrink -- while the panel
+                              * still takes its 336px in the same flex row. The row overflows, and
+                              * since the row clips, the content is pushed that far off the left edge:
+                              * measured at -300px, with the leftmost readings simply unreachable.
+                              * `isInline` makes it `0 1 100%`, so the panel takes its space from the
+                              * content instead of shoving it out of view.
                               */}
-                            <Drawer isExpanded={!!selectedEntry}>
+                            <Drawer isExpanded={!!selectedEntry} isInline>
                                 <DrawerContent
                                     panelContent={
                                         <DrawerPanelContent isResizable defaultSize="28rem" minSize="20rem">
