@@ -86,6 +86,10 @@ export const Application = () => {
     const url = useWebSocketUrl(); // Use custom hook for WebSocket URL
     const [diagStatusDisplay, setDiagStatusDisplay] = useState<DiagnosticsStatus | null>(null); // DiagStatus data for display
     const [bridgeConnected, setBridgeConnected] = useState(false);
+    // Held so the end effector's control can call a service over the same
+    // connection the diagnostics arrive on. null whenever the link is down.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [ros, setRos] = useState<any | null>(null);
     const [selectedRawName, setSelectedRawName] = useState<string | null>(null); // Used as identifier for diag entry so that values get updated
     const [isPaused, setIsPaused] = useState(false); // Pause state for diagnostics updates
     const [query, setQuery] = useState("");
@@ -162,6 +166,7 @@ export const Application = () => {
                     { !invalidNamespaceMessage && (
                         <>
                             <RosConnectionManager
+                                onRosChange={setRos}
                                 namespace={namespace}
                                 url={url}
                                 onDiagnosticsUpdate={updateDiagHistory}
@@ -189,7 +194,12 @@ export const Application = () => {
                                                 <div className="workspace">
                                                     <div className="workspace-primary">
                                                         {/* Renders itself only on robots that publish manipulator diagnostics. */}
-                                                        <ManipulatorPanel diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
+                                                        <ManipulatorPanel
+                                                            diagnostics={diagnostics}
+                                                            setSelectedRawName={setSelectedRawName}
+                                                            ros={ros}
+                                                            namespace={namespace}
+                                                        />
                                                         <Card>
                                                             <CardTitle component="h2" className="diagnostics-title">
                                                                 {_("Issues")}

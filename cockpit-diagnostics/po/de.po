@@ -481,3 +481,35 @@ msgstr "eingefroren"
 #: src/components/Timeline.tsx:110
 msgid "now"
 msgstr "jetzt"
+
+#: src/components/GripperControl.tsx:81
+msgid "Not connected to the robot."
+msgstr "Keine Verbindung zum Roboter."
+
+#: src/components/GripperControl.tsx:82
+msgid "The end effector is out of service."
+msgstr "Der Endeffektor ist außer Dienst."
+
+#: src/components/GripperControl.tsx:83
+msgid "No opening is being reported."
+msgstr "Es wird keine Öffnungsweite gemeldet."
+
+#: src/components/GripperControl.tsx:84
+msgid "The gripper is still moving."
+msgstr "Der Greifer bewegt sich noch."
+
+#: src/components/GripperControl.tsx:86
+msgid "The arm is under external control - a gripper command would abort its program."
+msgstr "Der Arm steht unter externer Steuerung – ein Greifbefehl würde sein Programm abbrechen."
+
+#: src/components/GripperControl.tsx:128
+msgid "Close gripper"
+msgstr "Greifer schließen"
+
+#: src/components/GripperControl.tsx:128
+msgid "Open gripper"
+msgstr "Greifer öffnen"
+
+#: src/components/GripperControl.tsx:151
+msgid "The gripper refused the command."
+msgstr "Der Greifer hat den Befehl abgelehnt."

@@ -516,6 +516,50 @@ check(!/rg6-(jaw|link|object|body)[^>]*(danger|warning|success|status)/.test(ope
       "the drawing carries no status colour");
 
 
+/* ------------------------------------------------------- GripperControl */
+
+/*
+ * The only control on this page that moves hardware. Its guards are tested as
+ * a pure function because the component itself cannot be exercised here:
+ * `renderToStaticMarkup` never runs effects, so the admin permission is never
+ * read and the component always renders its fail-closed empty output. That
+ * fail-closed default is asserted too -- it is the behaviour a broken or
+ * missing permission lookup falls back to.
+ */
+import { GripperControl, gripperBlockedReason } from "../../src/components/GripperControl";
+
+const guard = (over: Partial<Parameters<typeof gripperBlockedReason>[0]> = {}) =>
+    gripperBlockedReason({
+        connected: true, isInactive: false, percent: 80, busy: false,
+        externalControlRunning: false, ...over,
+    });
+
+check(guard() === null, "a connected, idle, in-service gripper may be commanded");
+check(guard({ connected: false }) === "Not connected to the robot.",
+      "no connection blocks the command");
+check(guard({ isInactive: true }) === "The end effector is out of service.",
+      "an out-of-service end effector blocks the command");
+check(guard({ percent: null }) === "No opening is being reported.",
+      "no measurement blocks the command -- without tool voltage the RG6 reports nothing");
+check(guard({ busy: true }) === "The gripper is still moving.",
+      "a moving gripper blocks the command");
+check(guard({ externalControlRunning: true })
+        === "The arm is under external control - a gripper command would abort its program.",
+      "external control blocks the command: every gripper command tears ExternalControl down");
+
+// Unknown is not permission. `busy: null` means the driver did not say.
+check(guard({ busy: null }) === null, "an unreported busy flag does not block by itself");
+
+// The most fundamental obstacle wins, so the operator is told the actionable one.
+check(guard({ connected: false, busy: true }) === "Not connected to the robot.",
+      "the connection is reported before the movement");
+
+check(renderToStaticMarkup(React.createElement(GripperControl, {
+    ros: {}, namespace: "/a200_0553", percent: 80, busy: false,
+    isInactive: false, externalControlRunning: false,
+})) === "", "without a granted admin permission the control renders nothing at all");
+
+
 if (problems.length > 0) {
     console.error(problems.map(p => "  FAIL " + p).join("\n"));
     throw new Error(`${problems.length} component assertion(s) failed`);
@@ -524,4 +568,4 @@ if (problems.length > 0) {
 console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + " +
             "no colour on healthy, detail panel empty/override-reason, tree level column + search filter, " +
             "connecting state moved to app level, manipulator out-of-service dimming reaches its selectors + " +
-            "stripe variants + no stray Label, gripper drawing scales with the measurement)");
+            "stripe variants + no stray Label, gripper drawing scales with the measurement, gripper command guards)");

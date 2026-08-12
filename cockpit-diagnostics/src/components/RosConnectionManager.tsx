@@ -34,6 +34,14 @@ interface RosConnectionManagerProps {
     onDiagnosticsUpdate: (diagnosticsStatus: DiagnosticsStatus) => void;
     onConnectionStatusChange: (connected: boolean) => void;
     onClearHistory: () => void;
+    /*
+     * Hands the live connection out so the one control that actuates hardware
+     * can call a service over it. Fires with the instance once connected and
+     * with null when the link drops, so a button can never sit enabled over a
+     * dead socket.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onRosChange?: (ros: any | null) => void;
 }
 
 // Helper function to build a nested DiagnosticsEntry tree
@@ -109,7 +117,8 @@ export const RosConnectionManager: React.FC<RosConnectionManagerProps> = ({
     url,
     onDiagnosticsUpdate,
     onConnectionStatusChange,
-    onClearHistory
+    onClearHistory,
+    onRosChange
 }) => {
     const staleTimeoutId = useRef(0);
     const retryTimeoutId = useRef(0);
@@ -142,6 +151,7 @@ export const RosConnectionManager: React.FC<RosConnectionManagerProps> = ({
                 onClearHistory();
                 console.log("Connected to Foxglove bridge at " + url);
                 onConnectionStatusChange(true);
+                onRosChange?.(ros);
 
                 diagnosticsTopic.subscribe((message) => {
                     // Clear the timeout if a new message is received
@@ -207,6 +217,7 @@ export const RosConnectionManager: React.FC<RosConnectionManagerProps> = ({
 
             ros.on("close", () => {
                 onConnectionStatusChange(false);
+                onRosChange?.(null);
                 console.log("Connection to Foxglove bridge closed");
                 onClearHistory();
                 clearTimeout(staleTimeoutId.current);
@@ -229,7 +240,7 @@ export const RosConnectionManager: React.FC<RosConnectionManagerProps> = ({
             clearTimeout(retryTimeoutId.current);
             ros.close();
         };
-    }, [namespace, url, onDiagnosticsUpdate, onConnectionStatusChange, onClearHistory]);
+    }, [namespace, url, onDiagnosticsUpdate, onConnectionStatusChange, onClearHistory, onRosChange]);
 
     return null; // This component does not render anything
 };

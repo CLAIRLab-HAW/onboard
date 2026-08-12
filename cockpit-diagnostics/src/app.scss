@@ -413,3 +413,26 @@ button.timeline-slot {
         grid-template-columns: 1fr;
     }
 }
+
+/* End effector control ---------------------------------------------------- */
+
+.rg6-control {
+    margin-block-end: var(--pf-t--global--spacer--md);
+    text-align: center;
+}
+
+/*
+ * Why the button is unavailable, spelled out. A disabled control with no
+ * reason is a puzzle, and this one is disabled for reasons an operator needs
+ * to act on -- the arm is under external control, the gripper is still moving.
+ */
+.rg6-control-reason {
+    font-size: var(--pf-t--global--font--size--sm);
+    color: var(--pf-t--global--text--color--subtle);
+    margin-block-start: var(--pf-t--global--spacer--xs);
+}
+
+.rg6-control-failure {
+    margin-block-start: var(--pf-t--global--spacer--sm);
+    text-align: start;
+}

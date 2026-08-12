@@ -57,6 +57,7 @@ import {
     LEVEL_WARN,
 } from "../utils/severity";
 import { variantForLevel } from "../utils/summary";
+import { GripperControl } from "./GripperControl";
 import { GripperGraphic } from "./GripperGraphic";
 import { SeverityIcon, severityLabel } from "./SeverityIcon";
 
@@ -248,9 +249,19 @@ const ArmCard = ({
 const GripperCard = ({
     gripper,
     setSelectedRawName,
+    ros,
+    namespace,
+    externalControlRunning,
 }: {
     gripper: DiagnosticsEntry | null,
     setSelectedRawName: (rawName: string | null) => void,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ros?: any,
+    // Union rather than optional: `exactOptionalPropertyTypes` forbids handing
+    // an optional prop an explicit undefined, and the panel's own namespace is
+    // undefined until the robot config has been read.
+    namespace: string | undefined,
+    externalControlRunning: boolean,
 }) => {
     const percent = gripperPercent(gripper);
     const widthMm = valueOf(gripper, "width_mm");
@@ -290,6 +301,16 @@ const GripperCard = ({
                     strokeMm={strokeMm}
                     gripDetected={gripDetected}
                 />
+                {namespace && (
+                    <GripperControl
+                        ros={ros}
+                        namespace={namespace}
+                        percent={percent}
+                        busy={busy}
+                        isInactive={isInactive}
+                        externalControlRunning={externalControlRunning}
+                    />
+                )}
                 <DescriptionList isHorizontal isCompact>
                     <Term label={_("Grip detected")}>
                         {boolText(gripDetected, _("object held"), _("no object"))}
@@ -326,9 +347,14 @@ const GripperCard = ({
 export const ManipulatorPanel = ({
     diagnostics,
     setSelectedRawName,
+    ros,
+    namespace,
 }: {
     diagnostics: DiagnosticsEntry[],
     setSelectedRawName: (rawName: string | null) => void,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ros?: any,
+    namespace?: string,
 }) => {
     const manipulator = collectManipulator(diagnostics);
 
@@ -375,6 +401,11 @@ export const ManipulatorPanel = ({
                         <GripperCard
                             gripper={manipulator.gripper}
                             setSelectedRawName={setSelectedRawName}
+                            ros={ros}
+                            namespace={namespace}
+                            externalControlRunning={
+                                valueOf(manipulator.armControl, "external_control") === "running"
+                            }
                         />
                     </GridItem>
                 </Grid>
