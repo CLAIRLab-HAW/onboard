@@ -231,6 +231,20 @@
     font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Room for the labels.
+ *
+ * PatternFly's horizontal term column is about 12ch, which at Cockpit's root
+ * size comes out as 83px -- enough for "Safety mode" but not for the German
+ * "Sicherheitsmodus", which wrapped onto a second line while the value column
+ * next to it sat on 584px of unused space. A fixed width rather than
+ * max-content so the labels of the arm and the end effector line up with each
+ * other instead of each card finding its own.
+ */
+.state-card .pf-v6-c-description-list {
+    --pf-v6-c-description-list--m-horizontal__term--width: 17ch;
+}
+
 /* Status band ------------------------------------------------------------- */
 
 /*
