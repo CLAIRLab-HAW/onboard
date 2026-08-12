@@ -33,8 +33,7 @@ import cockpit from 'cockpit';
 
 import { DiagnosticsEntry } from "../interfaces";
 import { FilterLevel } from "../utils/treeFilter";
-import { SeverityIcon } from "./SeverityIcon";
-import { headline, headlineLevel, summarise } from "../utils/summary";
+import { headline, summarise } from "../utils/summary";
 
 const _ = cockpit.gettext;
 
@@ -113,7 +112,6 @@ export const StatusBand = ({
     // Empty until robot.yaml resolves a namespace. Rendering the em dash
     // anyway would leave a dangling "— operational" with nothing in front of
     // it, so the separator only appears once there is a name to attach it to.
-    const displayNamespace = namespace.replace(/^\//, "");
 
     const facts = [
         namespace,
@@ -133,25 +131,21 @@ export const StatusBand = ({
                 <FlexItem>
                     <h1 className="status-headline">
                         {/*
-                          * Same branch order headline() uses -- errors, then warnings,
-                          * then stale -- so the symbol never contradicts the sentence
-                          * next to it. `summary.worst` alone cannot do this: see
-                          * utils/summary.ts:headlineLevel.
+                          * A plain title. The robot's state is carried by the
+                          * counters beside it and the timeline below, and its name
+                          * by the facts line underneath -- repeating either here
+                          * only made the heading noisy.
                           */}
-                        <SeverityIcon level={headlineLevel(summary)} />
-                        {" "}
-                        {displayNamespace}
+                        {_("Diagnostics")}
                         {/*
-                          * The sentence is dropped once there are counters to read
-                          * it off: "a200_0553 — 3 errors" beside a bold "3 / Errors"
-                          * says the same thing twice. It stays for the no-data case,
-                          * where the counters all read zero and would otherwise look
-                          * like a healthy robot -- the exact false reassurance this
-                          * band was built to remove.
+                          * One exception: with no data at all the counters read
+                          * zero, which looks exactly like a healthy robot. That is
+                          * the false reassurance this band exists to remove, so the
+                          * sentence stays for that case.
                           */}
                         {summary.total === 0 && (
                             <span className="status-headline-state">
-                                {displayNamespace ? " — " : ""}{headline(summary)}
+                                {" — "}{headline(summary)}
                             </span>
                         )}
                     </h1>

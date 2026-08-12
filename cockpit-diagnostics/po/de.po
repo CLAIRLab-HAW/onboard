@@ -513,3 +513,7 @@ msgstr "Greifer öffnen"
 #: src/components/GripperControl.tsx:151
 msgid "The gripper refused the command."
 msgstr "Der Greifer hat den Befehl abgelehnt."
+
+#: src/components/StatusBand.tsx:136
+msgid "Diagnostics"
+msgstr "Diagnose"

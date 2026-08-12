@@ -96,14 +96,19 @@ check(band({ bridgeConnected: false }).includes("Bridge disconnected"),
 // "out of service" glyph that `worst` alone would fall back to for an empty
 // tree. (The band still has other, unrelated <svg> icons -- Pause and the ⋯
 // menu toggle -- so those cannot be used to tell the headline icon apart.)
-const noNamespace = band({ namespace: "" });
-check(!noNamespace.includes(" — "), "with no namespace, the headline has no dangling separator");
-check(noNamespace.includes("no data"), "and still states that there is no data");
-check(!noNamespace.includes("severity-icon"), "and draws no headline icon at all for a fully empty state");
-
 // Counts must come from the leaves of the real capture, not from the statuses.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const realTree = buildDiagnosticsTree(live as any[]);
+const noNamespace = band({ namespace: "" });
+check(noNamespace.includes("no data"), "with no namespace it still states that there is no data");
+// The facts line is built by joining what is known; an unresolved namespace
+// must drop out of it rather than leave a leading separator.
+check(!/class="status-facts">\s*·/.test(noNamespace),
+      "an unresolved namespace leaves no dangling separator in the facts line");
+// The heading carries no state any more -- the counters and the timeline do.
+check(!band({ diagnostics: realTree }).includes("severity-icon"),
+      "the heading draws no severity symbol, with or without data");
+
 const withData = band({ diagnostics: realTree });
 // With counters to read it off, the sentence is redundant and gone: the band
 // says "a200_0553" and the Warnings counter carries the number. What must NOT
