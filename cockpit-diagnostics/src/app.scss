@@ -535,3 +535,15 @@ button.timeline-slot {
 .workspace-secondary tbody td {
     vertical-align: middle;
 }
+
+/*
+ * Breathing room beside the detail panel's splitter.
+ *
+ * With the panel open the workspace ends exactly where the splitter begins --
+ * measured at 0px -- so the right-hand column ran flush into the divider. Only
+ * while expanded: closed, the panel takes no width and a permanent inset on the
+ * right would just be a stray gap.
+ */
+.pf-v6-c-drawer.pf-m-expanded > .pf-v6-c-drawer__main > .pf-v6-c-drawer__content {
+    padding-inline-end: var(--pf-t--global--spacer--lg);
+}
