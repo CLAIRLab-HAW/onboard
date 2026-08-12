@@ -53,10 +53,16 @@
 
 /* Manipulator panel (arm + end effector) */
 
+/*
+ * Title and subtitle belong together and stay tight; the readings below are a
+ * separate thing and get room. Without this the description list started flush
+ * against "UR5 at ..." and the card read as one undifferentiated block.
+ */
 .manipulator-subtitle {
     color: var(--pf-t--global--text--color--subtle);
     font-size: var(--pf-t--global--font--size--sm);
     font-weight: var(--pf-t--global--font--weight--body--default);
+    margin-block-end: var(--pf-t--global--spacer--md);
 }
 
 .manipulator-hint {
