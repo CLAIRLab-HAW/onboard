@@ -51,11 +51,10 @@ const BODY_W = 68;
 const BODY_H = 30;
 const PIVOT_X = 24.1; // URDF: outer knuckle origin, +/-0.024112 m
 const PIVOT_Y = BODY_H;
-const INNER_PIVOT_X = 12.7; // URDF: inner knuckle origin, +/-0.012720 m
-const INNER_PIVOT_Y = BODY_H + 6;
 const JAW_T = 11;
-const JAW_TOP = 64;
-const JAW_BOT = 120;
+const JAW_TOP = 58;
+const JAW_BOT = 138; // long fingers: the RG6's are long relative to its body
+const PAD_T = 3.5; // gripping face, drawn on the inner side of each finger
 
 export const GripperGraphic = ({
     percent,
@@ -89,31 +88,35 @@ export const GripperGraphic = ({
     // a screen reader.
     const label = `${_("Opening")}: ${reading}`;
 
+    /*
+     * One coupler per side and nothing else. An earlier version also drew the
+     * inner knuckle of the four-bar; at the size this renders it was invisible
+     * behind the body and the coupler, so it cost strokes and told nobody
+     * anything.
+     */
     const arm = (sign: number) => {
         const px = sign * PIVOT_X;
-        const ix = sign * INNER_PIVOT_X;
         const cx = sign * carrier;
+        const inner = sign * half; // the face that touches the object
         return (
             <g key={sign}>
-                {/* coupler: pivot -> jaw carrier */}
-                <line x1={px} y1={PIVOT_Y} x2={cx} y2={JAW_TOP + 4} className="rg6-link" />
-                {/* inner knuckle: the second bar that keeps the jaw parallel */}
-                <line
-                    x1={ix}
-                    y1={INNER_PIVOT_Y}
-                    x2={px + (cx - px) * 0.55}
-                    y2={PIVOT_Y + (JAW_TOP + 4 - PIVOT_Y) * 0.55}
-                    className="rg6-link rg6-link-thin"
-                />
+                <line x1={px} y1={PIVOT_Y} x2={cx} y2={JAW_TOP + 6} className="rg6-link" />
                 <circle cx={px} cy={PIVOT_Y} r={2.6} className="rg6-pivot" />
-                {/* jaw */}
                 <rect
                     x={cx - JAW_T / 2}
                     y={JAW_TOP}
                     width={JAW_T}
                     height={JAW_BOT - JAW_TOP}
-                    rx={2}
+                    rx={2.5}
                     className="rg6-jaw"
+                />
+                {/* gripping face, so it reads as a finger rather than a post */}
+                <rect
+                    x={sign > 0 ? inner : inner - PAD_T}
+                    y={JAW_TOP + 22}
+                    width={PAD_T}
+                    height={JAW_BOT - JAW_TOP - 32}
+                    className="rg6-pad"
                 />
             </g>
         );
@@ -152,10 +155,15 @@ export const GripperGraphic = ({
                         className="rg6-object"
                     />
                 )}
-                {/* dimension line across the gap, so the drawing states what it measures */}
-                <line x1={-half} y1={JAW_BOT + 8} x2={half} y2={JAW_BOT + 8} className="rg6-dim" />
-                <line x1={-half} y1={JAW_BOT + 4} x2={-half} y2={JAW_BOT + 12} className="rg6-dim" />
-                <line x1={half} y1={JAW_BOT + 4} x2={half} y2={JAW_BOT + 12} className="rg6-dim" />
+                {/*
+                  * A slim dimension line between the fingertips, so it is
+                  * visible which distance the caption underneath is quoting.
+                  * Only the ticks and the rule -- the number lives in the
+                  * caption, printing it twice would just be noise.
+                  */}
+                <line x1={-half} y1={JAW_BOT + 7} x2={half} y2={JAW_BOT + 7} className="rg6-dim" />
+                <line x1={-half} y1={JAW_BOT + 3} x2={-half} y2={JAW_BOT + 11} className="rg6-dim" />
+                <line x1={half} y1={JAW_BOT + 3} x2={half} y2={JAW_BOT + 11} className="rg6-dim" />
             </svg>
             <figcaption className="rg6-caption">{label}</figcaption>
         </figure>
