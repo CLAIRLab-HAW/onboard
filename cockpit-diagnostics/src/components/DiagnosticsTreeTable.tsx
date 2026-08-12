@@ -219,13 +219,19 @@ export const DiagnosticsTreeTable = ({
                         />
                     </ToggleGroup>
                 </div>
-                <Table isTreeTable variant="compact" aria-label={_("Diagnostics Tree Table")} borders={false}>
+                <Table
+                    isTreeTable
+                    variant="compact"
+                    aria-label={_("Diagnostics Tree Table")}
+                    borders={false}
+                    className="diagnostics-tree"
+                >
                     {diagnostics.length > 0 && (
                         <Thead>
                             <Tr>
                                 <Th screenReaderText={_("Level")} className="tree-level" modifier="fitContent" />
-                                <Th>{_("Name")}</Th>
-                                <Th>{_("Message")}</Th>
+                                <Th width={60}>{_("Name")}</Th>
+                                <Th width={40}>{_("Message")}</Th>
                             </Tr>
                         </Thead>
                     )}

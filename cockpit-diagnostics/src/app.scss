@@ -555,3 +555,21 @@ button.timeline-slot {
 .pf-v6-c-drawer.pf-m-expanded > .pf-v6-c-drawer__main > .pf-v6-c-drawer__content {
     padding-inline-end: var(--pf-t--global--spacer--lg);
 }
+
+/*
+ * Column widths that do not move.
+ *
+ * With `table-layout: auto` the browser re-measures every time a branch opens,
+ * so the Message column slid back and forth by 106px while reading -- 502px,
+ * then 543px, then 437px with everything expanded. Fixed layout plus a stated
+ * split takes the content out of that decision. The 60/40 matches what the
+ * automatic layout settled on when fully expanded, which is the case where the
+ * name column needs the most room.
+ */
+.diagnostics-tree {
+    table-layout: fixed;
+}
+
+.diagnostics-tree .tree-level {
+    inline-size: 2.25rem;
+}
