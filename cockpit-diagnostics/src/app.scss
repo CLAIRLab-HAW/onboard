@@ -40,11 +40,25 @@
 }
 
 /*
- * The column keeps its width even while every row in view is OK, so switching
- * the filter does not shift the names sideways.
+ * The level column of both stacked tables.
+ *
+ * They sit in the same column of the workspace now -- issues above, the tree
+ * below -- so they have to line up. Both cells carry `fitContent`, which sizes
+ * them to the one icon they hold; without it on the tree its column came out
+ * 69px against the list's 41px and the two lists were visibly offset.
+ *
+ * The inline padding is PatternFly's `first-last-child` value (1.5rem, which is
+ * 18px at Cockpit's root size) -- generous for a column that holds a single
+ * 16px glyph. Both the variable and the longhand are set: the variable is the
+ * idiomatic lever, the longhand guarantees it regardless of which rule PF ends
+ * up applying.
  */
-.tree-level {
-    inline-size: 1.75rem;
+.tree-level,
+.issue-level {
+    --pf-v6-c-table--cell--first-last-child--PaddingInline: var(--pf-t--global--spacer--sm);
+
+    padding-inline-start: var(--pf-t--global--spacer--sm);
+    padding-inline-end: var(--pf-t--global--spacer--sm);
 }
 
 .pf-v6-c-progress-stepper__step-main {

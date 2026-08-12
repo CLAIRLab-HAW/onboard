@@ -118,7 +118,7 @@ export const DiagnosticsTreeTable = ({
                     toggleRowExpansion(diag.rawName);
                 }}
             >
-                <Td dataLabel={_("Level")} className="tree-level">
+                <Td dataLabel={_("Level")} className="tree-level" modifier="fitContent">
                     <SeverityIcon level={diag.severity_level} hideOk />
                 </Td>
                 <Td dataLabel={_("Name")} treeRow={treeRow}>
@@ -200,7 +200,7 @@ export const DiagnosticsTreeTable = ({
                     {diagnostics.length > 0 && (
                         <Thead>
                             <Tr>
-                                <Th screenReaderText={_("Level")} className="tree-level" />
+                                <Th screenReaderText={_("Level")} className="tree-level" modifier="fitContent" />
                                 <Th>{_("Name")}</Th>
                                 <Th>{_("Message")}</Th>
                             </Tr>
