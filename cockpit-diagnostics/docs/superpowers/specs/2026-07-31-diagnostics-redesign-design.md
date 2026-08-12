@@ -91,8 +91,17 @@ Rechts vier Kennzahlen in gleicher, ruhiger Type: **Fehler · Warnungen · Veral
 Stati**. Eingefärbt und kräftiger wird nur der Wert, der nicht null ist. Daneben
 Pause/Weiter und das ⋯-Menü.
 
-Der Zustandssatz ergibt sich aus dem schlechtesten angezeigten Level aller
-Blattknoten:
+Zustandssatz **und** Gesamtsymbol richten sich nach der Dringlichkeitsrangfolge
+**Fehler → Veraltet → Warnung**, nicht nach dem numerisch höchsten Level. Das ist
+kein Detail: `LEVEL_STALE` ist 3 und liegt über `LEVEL_ERROR` = 2, ein
+`Math.max` über die Blätter liefert bei gleichzeitigem Fehler und veralteter
+Meldung also „veraltet“ — und das größte Zustandszeichen der Seite zeigte dann
+eine blaue Uhr, während der Satz daneben von einem Fehler spricht. Dieselbe
+Rangfolge gilt für die Segmentfarbe der Zeitachse und den Randstreifen der
+Manipulator-Karten; sie gehört an genau eine Stelle in `utils/summary.ts` und
+wird von allen dreien benutzt.
+
+Der Zustandssatz ergibt sich daraus so:
 
 | schlechtester Level | Satz |
 |---|---|

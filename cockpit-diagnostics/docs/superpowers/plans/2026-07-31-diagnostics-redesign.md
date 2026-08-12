@@ -1743,7 +1743,9 @@ const selectedEntry = selectedRawName ? findEntryByRawName(diagnostics, selected
 </Drawer>
 ```
 
-`isInline` wird **nicht** gesetzt: das Panel soll sich über die Arbeitsfläche schieben, damit die beiden Spalten aus Task 11 ihre Breite behalten. Esc schließt einen PatternFly-Drawer von selbst.
+`isInline` wird **nicht** gesetzt: das Panel soll sich über die Arbeitsfläche schieben, damit die beiden Spalten aus Task 11 ihre Breite behalten.
+
+Esc muss **selbst verdrahtet** werden. Ein PatternFly-Drawer schließt sich nicht von allein: `Drawer.js` hat überhaupt keinen Tastatur-Listener, der einzige Escape-Handler im Drawer-Paket sitzt im Resize-Splitter von `DrawerPanelContent`, und der `FocusTrap` greift nur, wenn das `focusTrap`-Prop gesetzt ist. Geprüft gegen PatternFly 6.4.0 (Task 8).
 
 - [ ] **Schritt 4: SCSS ergänzen**
 
@@ -1779,11 +1781,16 @@ const selectedEntry = selectedRawName ? findEntryByRawName(diagnostics, selected
  */
 @media (width <= 1200px) {
     .pf-v6-c-drawer__panel {
-        inline-size: 100%;
-        max-inline-size: 100%;
+        --pf-v6-c-drawer__panel--FlexBasis: 100%;
     }
 }
 ```
+
+PatternFly setzt die Panelbreite über die eigene Custom Property
+`--pf-v6-c-drawer__panel--FlexBasis`, nicht über `inline-size`. Ein direktes
+`inline-size: 100%` bleibt deshalb wirkungslos — die Regel greift, aber
+`flex-basis` gewinnt und das Panel behält seine 28 rem. Empirisch gegen
+PatternFly 6.4.0 im Browser geprüft (Task 8).
 
 - [ ] **Schritt 5: Übersetzungen ergänzen**
 
@@ -2044,7 +2051,7 @@ menuItems={
         description={!capture.adminAccess
             ? _("Enable admin access at the top of the page to enable diagnostics capture feature.")
             : undefined}
-        onClick={() => { void capture.capture() }}
+        onClick={() => { capture.capture() }}
     >
         {capture.isCapturing ? _("Generating…") : _("Generate diagnostics capture")}
     </DropdownItem>
