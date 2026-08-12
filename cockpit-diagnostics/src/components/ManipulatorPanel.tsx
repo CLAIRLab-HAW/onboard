@@ -59,7 +59,7 @@ import {
 import { variantForLevel } from "../utils/summary";
 import { GripperControl } from "./GripperControl";
 import { GripperGraphic } from "./GripperGraphic";
-import { SeverityIcon, severityLabel } from "./SeverityIcon";
+import { SeverityIcon } from "./SeverityIcon";
 
 const _ = cockpit.gettext;
 
@@ -166,7 +166,7 @@ const ArmCard = ({
             <h3 className="state-card-title">
                 {_("Arm")}
                 <span className="card-state">
-                    <SeverityIcon level={level} /> {severityLabel(level)}
+                    <SeverityIcon level={level} />
                 </span>
             </h3>
             <div className="manipulator-subtitle">{valueOf(armMode, "robot_ip")
@@ -289,7 +289,7 @@ const GripperCard = ({
             <h3 className="state-card-title">
                 {_("End effector")}
                 <span className="card-state">
-                    <SeverityIcon level={level} /> {severityLabel(level)}
+                    <SeverityIcon level={level} />
                 </span>
             </h3>
             <div className="manipulator-subtitle">{_("OnRobot RG6")}</div>
@@ -382,7 +382,7 @@ export const ManipulatorPanel = ({
                     <FlexItem>{_("Manipulator")}</FlexItem>
                     <FlexItem>
                         <span className="card-state">
-                            <SeverityIcon level={manipulator.level} /> {severityLabel(manipulator.level)}
+                            <SeverityIcon level={manipulator.level} />
                         </span>
                     </FlexItem>
                 </Flex>

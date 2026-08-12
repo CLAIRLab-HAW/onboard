@@ -105,7 +105,15 @@ check(!noNamespace.includes("severity-icon"), "and draws no headline icon at all
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const realTree = buildDiagnosticsTree(live as any[]);
 const withData = band({ diagnostics: realTree });
-check(withData.includes("1 warning"), "the band states the warning from the capture");
+// With counters to read it off, the sentence is redundant and gone: the band
+// says "a200_0553" and the Warnings counter carries the number. What must NOT
+// happen is losing it in the no-data case, where the counters all read zero --
+// that is asserted above and is the reason the branch exists at all.
+check(!withData.includes("1 warning"),
+      "the sentence is dropped once a counter states the same thing");
+check(!withData.includes(" — "),
+      "and the separator goes with it, leaving the robot name alone");
+check(withData.includes("Warnings"), "the counter is still there to carry it");
 check(summarise(realTree).total === 15, "and counts 15 statuses");
 
 // A counter at zero must not open a filter: "0 errors" is not something anybody

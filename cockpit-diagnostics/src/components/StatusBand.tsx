@@ -140,8 +140,20 @@ export const StatusBand = ({
                           */}
                         <SeverityIcon level={headlineLevel(summary)} />
                         {" "}
-                        {displayNamespace && <>{displayNamespace}{" — "}</>}
-                        <span className="status-headline-state">{headline(summary)}</span>
+                        {displayNamespace}
+                        {/*
+                          * The sentence is dropped once there are counters to read
+                          * it off: "a200_0553 — 3 errors" beside a bold "3 / Errors"
+                          * says the same thing twice. It stays for the no-data case,
+                          * where the counters all read zero and would otherwise look
+                          * like a healthy robot -- the exact false reassurance this
+                          * band was built to remove.
+                          */}
+                        {summary.total === 0 && (
+                            <span className="status-headline-state">
+                                {displayNamespace ? " — " : ""}{headline(summary)}
+                            </span>
+                        )}
                     </h1>
                     <div className="status-facts">{facts.join(" · ")}</div>
                 </FlexItem>
