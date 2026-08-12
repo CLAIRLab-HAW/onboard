@@ -139,10 +139,17 @@
     stroke-width: 2;
 }
 
-/* A held object is a shape, not a colour. */
+/*
+ * A held object is a shape, not a colour -- "something is gripped" is not a
+ * severity, and colour on this page means severity. A filled block with its
+ * own outline so it reads as an object between the jaws at a glance; at the
+ * previous 0.35 flat opacity it was easy to miss in a figure this small.
+ */
 .rg6-object {
     fill: currentcolor;
-    opacity: 0.35;
+    fill-opacity: 0.45;
+    stroke: currentcolor;
+    stroke-width: 1.5;
 }
 
 .rg6-dim {
