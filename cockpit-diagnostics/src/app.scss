@@ -520,7 +520,15 @@ button.timeline-slot {
     align-self: center;
 }
 
-.workspace-secondary .pf-v6-c-table__toggle button {
+/*
+ * PatternFly pulls the chevron up with `margin-block-start: -50%` on
+ * `.pf-v6-c-table__tree-view-main > .pf-v6-c-table__toggle .pf-v6-c-button`.
+ * A percentage margin resolves against the containing block's *width*, so the
+ * pull is not even a fixed number -- it was -16.875px here and would move with
+ * the column. The selector mirrors PatternFly's own and adds one class, because
+ * a shorter one loses on specificity: this needs to beat three classes.
+ */
+.workspace-secondary .pf-v6-c-table__tree-view-main > .pf-v6-c-table__toggle .pf-v6-c-button {
     margin-block-start: 0;
 }
 
