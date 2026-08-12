@@ -523,3 +523,15 @@ button.timeline-slot {
 .workspace-secondary .pf-v6-c-table__toggle button {
     margin-block-start: 0;
 }
+
+/*
+ * Cell contents centred in a two-line row.
+ *
+ * Both tables put a name over its path, so a row is about 45px tall, while
+ * PatternFly aligns cell content to the top. The severity symbol sat 9 to 15px
+ * above the middle of its own row and the message hung at the ceiling. Measured
+ * at -1px after this, which is rounding.
+ */
+.workspace-secondary tbody td {
+    vertical-align: middle;
+}
