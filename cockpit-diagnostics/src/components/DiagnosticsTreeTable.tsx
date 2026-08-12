@@ -17,7 +17,7 @@
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Bullseye,
     Button,
@@ -64,6 +64,29 @@ export const DiagnosticsTreeTable = ({
 
     const { visible, expand, matches } = filterTree(diagnostics, query, filterLevel);
 
+    /*
+     * Fold the forced expansion into the user's own once, when it changes.
+     *
+     * It used to be OR-ed into `isExpanded` on every render, which made those
+     * rows impossible to collapse: the toggle wrote into `expandedRows`, but
+     * the OR kept reading `true` from the filter's set regardless, so the row
+     * sprang straight back open. Merging into state instead means the filter
+     * opens a path once and the reader stays in charge of it afterwards.
+     *
+     * The dependency is the set flattened to a string: `expand` is rebuilt on
+     * every render, so depending on the Set itself would re-run this forever.
+     */
+    const expandKey = [...expand].sort().join("\u0000");
+    const appliedExpandKey = useRef("");
+
+    useEffect(() => {
+        if (expandKey === appliedExpandKey.current) return;
+        appliedExpandKey.current = expandKey;
+        if (expandKey === "") return;
+        setExpandedRows(previous =>
+            Array.from(new Set([...previous, ...expandKey.split("\u0000")])));
+    }, [expandKey]);
+
     // Helper to toggle expansion for a given diagnostic rawName
     const toggleRowExpansion = (diagRawName: string) => {
         setExpandedRows(prevExpanded =>
@@ -86,7 +109,7 @@ export const DiagnosticsTreeTable = ({
             return renderRows(remainingDiag, indentLevel, posinset, rowIndex, isHidden);
         }
 
-        const isExpanded = expandedRows.includes(diag.rawName) || expand.has(diag.rawName);
+        const isExpanded = expandedRows.includes(diag.rawName);
 
         const treeRow: TdProps["treeRow"] = {
             onCollapse: (event) => {
