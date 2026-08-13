@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# guten-morgen.sh - Gegenstueck zu feierabend.sh: Roboterarm aus der
-#                   Feierabend-Pose "packed" zurueck in die Arbeitspose
-#                   ("home", per Default aus robot.yaml) fahren.
+# wakeup.sh - Gegenstueck zu shutdown.sh: Roboterarm aus der Ruhepose
+#             "packed" zurueck in die Arbeitspose ("home", per Default
+#             aus robot.yaml) fahren.
 #
 # Laeuft DIREKT auf dem Roboter-PC (a200-0553) gegen den lokalen ROS-2-Graph.
 # Ablauf:
@@ -32,11 +32,11 @@
 #   -h, --help          diese Hilfe
 #
 # Env:
-#   CLEARPATH_NS              Roboter-Namespace (Default a200_0553)
-#   ROBOT_YAML                Pfad zur robot.yaml (Default: Suche, s.u.)
-#   GUTEN_MORGEN_ARM_TIME     Fahrzeit in s (Default 10.0 - grosse Bewegung)
-#   GUTEN_MORGEN_GOAL_TIMEOUT Max. Warten auf Trajectory-Ergebnis in s (Default 60)
-#   GUTEN_MORGEN_TOL          Toleranz der Startpose-Pruefung in rad (Default 0.35)
+#   CLEARPATH_NS        Roboter-Namespace (Default a200_0553)
+#   ROBOT_YAML          Pfad zur robot.yaml (Default: Suche, s.u.)
+#   WAKEUP_ARM_TIME     Fahrzeit in s (Default 10.0 - grosse Bewegung)
+#   WAKEUP_GOAL_TIMEOUT Max. Warten auf Trajectory-Ergebnis in s (Default 60)
+#   WAKEUP_TOL          Toleranz der Startpose-Pruefung in rad (Default 0.35)
 #
 set -euo pipefail
 
@@ -45,15 +45,15 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 NS="${CLEARPATH_NS:-a200_0553}"
 MANIP_NS="${NS}/manipulators"
-ARM_TIME="${GUTEN_MORGEN_ARM_TIME:-10.0}"
-GOAL_TIMEOUT="${GUTEN_MORGEN_GOAL_TIMEOUT:-60}"
-START_TOL="${GUTEN_MORGEN_TOL:-0.35}"
+ARM_TIME="${WAKEUP_ARM_TIME:-10.0}"
+GOAL_TIMEOUT="${WAKEUP_GOAL_TIMEOUT:-60}"
+START_TOL="${WAKEUP_TOL:-0.35}"
 
 POSE_NAME="home"
 POSE_FALLBACKS="forward"     # probiert, wenn POSE_NAME nicht in robot.yaml steht
 JOINTS_CSV=""                # via --joints; leer -> aus robot.yaml aufloesen
 
-# Erwartete Startpose = "packed" aus robot.yaml (identisch zu feierabend.sh).
+# Erwartete Startpose = "packed" aus robot.yaml (identisch zu shutdown.sh).
 # Nur fuer die Plausibilitaets-Pruefung, nicht als Fahrziel.
 PACKED_JOINTS=(
   -0.000695530568258107
@@ -97,16 +97,16 @@ while [ $# -gt 0 ]; do
     --time)          ARM_TIME="$2"; shift 2 ;;
     --ns)            NS="$2"; MANIP_NS="${NS}/manipulators"; shift 2 ;;
     -h|--help)       usage ;;
-    *) echo "guten-morgen: unbekannte Option: $1" >&2; exit 2 ;;
+    *) echo "wakeup: unbekannte Option: $1" >&2; exit 2 ;;
   esac
 done
 
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
-log()  { printf '\033[1;32m[guten-morgen]\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33m[guten-morgen]\033[0m %s\n' "$*" >&2; }
-die()  { printf '\033[1;31m[guten-morgen]\033[0m %s\n' "$*" >&2; exit 1; }
+log()  { printf '\033[1;32m[wakeup]\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m[wakeup]\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[1;31m[wakeup]\033[0m %s\n' "$*" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
 # ROS-Umgebung
@@ -127,7 +127,7 @@ elif [ -f /opt/ros/jazzy/setup.bash ]; then
   : "${ROS_DOMAIN_ID:=0}";        export ROS_DOMAIN_ID
   : "${RMW_IMPLEMENTATION:=rmw_zenoh_cpp}"; export RMW_IMPLEMENTATION
 else
-  die "/etc/clearpath/setup.bash und /opt/ros/jazzy/setup.bash fehlen - guten-morgen.sh laeuft auf dem Roboter-PC?"
+  die "/etc/clearpath/setup.bash und /opt/ros/jazzy/setup.bash fehlen - wakeup.sh laeuft auf dem Roboter-PC?"
 fi
 for ws in /opt/ros/clearpath/setup.bash /opt/ros/robot/setup.bash \
           /home/robot/ros2_ws/install/setup.bash /ros2_ws/install/setup.bash; do
@@ -203,7 +203,7 @@ try:
     with open(path) as fh:
         cfg = yaml.safe_load(fh) or {}
 except Exception as exc:                       # kaputte/unlesbare YAML -> naechster Kandidat
-    print(f"guten-morgen: {path} nicht lesbar: {exc}", file=sys.stderr)
+    print(f"wakeup: {path} nicht lesbar: {exc}", file=sys.stderr)
     sys.exit(1)
 
 poses = {}
@@ -216,11 +216,11 @@ for name in names:
     j = poses.get(name.strip())
     if j and len(j) == 6:
         # stderr = Diagnose fuer den Bediener, stdout = reines Ergebnis fuer bash
-        print(f"guten-morgen: Pose '{name.strip()}' aus {path}", file=sys.stderr)
+        print(f"wakeup: Pose '{name.strip()}' aus {path}", file=sys.stderr)
         print(",".join(repr(float(v)) for v in j))
         sys.exit(0)
 
-print(f"guten-morgen: keine der Posen {names} in {path} "
+print(f"wakeup: keine der Posen {names} in {path} "
       f"(vorhanden: {sorted(poses)})", file=sys.stderr)
 sys.exit(1)
 PY
@@ -315,7 +315,7 @@ def fail(node, msg, code=1):
     node.destroy_node(); rclpy.shutdown(); sys.exit(code)
 
 rclpy.init()
-node = Node("guten_morgen_move")
+node = Node("wakeup_move")
 
 # --- Startpose lesen (advisory): der JTC veroeffentlicht seinen Ist-Zustand.
 # Reine Diagnose - schlaegt sie fehl, wird nur gewarnt, denn die Bewegung ist
@@ -337,7 +337,7 @@ if not latest:
 else:
     idx = {n: i for i, n in enumerate(latest["names"])}
     cur = [latest["pos"][idx[n]] if n in idx else float("nan") for n in joints]
-    print("[guten-morgen] Ist-Pose: " + ", ".join(f"{v:+.3f}" for v in cur), flush=True)
+    print("[wakeup] Ist-Pose: " + ", ".join(f"{v:+.3f}" for v in cur), flush=True)
     dev = [abs(c - p) for c, p in zip(cur, packed)]
     worst = max(dev)
     if worst > tol:
@@ -349,11 +349,11 @@ else:
             fail(node, msg + " Mit --from-any trotzdem fahren.")
         print(f"WARNUNG: {msg} (--from-any gesetzt, fahre trotzdem)", file=sys.stderr)
     else:
-        print(f"[guten-morgen] Startpose ok (max. Abweichung {worst:.3f} rad)", flush=True)
+        print(f"[wakeup] Startpose ok (max. Abweichung {worst:.3f} rad)", flush=True)
 
 # --- Fahrt
 cli = ActionClient(node, FollowJointTrajectory, action)
-print(f"[guten-morgen] warte auf Action-Server {action} ...", flush=True)
+print(f"[wakeup] warte auf Action-Server {action} ...", flush=True)
 if not cli.wait_for_server(timeout_sec=15.0):
     fail(node, "Action-Server nicht erreichbar - laeuft der JTC?")
 
@@ -361,7 +361,7 @@ traj = JointTrajectory()
 traj.joint_names = joints
 traj.points = [JointTrajectoryPoint(positions=targets, time_from_start=to_dur(arm_time))]
 goal = FollowJointTrajectory.Goal(); goal.trajectory = traj
-print(f"[guten-morgen] sende Trajectory nach {pose_name} (Fahrzeit {arm_time}s)", flush=True)
+print(f"[wakeup] sende Trajectory nach {pose_name} (Fahrzeit {arm_time}s)", flush=True)
 
 gh = cli.send_goal_async(goal)
 rclpy.spin_until_future_complete(node, gh, timeout_sec=15.0)
@@ -375,7 +375,7 @@ if res is None:
     fail(node, f"kein Ergebnis innerhalb {goal_to}s")
 ec = res.result.error_code
 if ec == FollowJointTrajectory.Result.SUCCESSFUL:
-    print(f"[guten-morgen] Arm in {pose_name} (error_code={ec})", flush=True)
+    print(f"[wakeup] Arm in {pose_name} (error_code={ec})", flush=True)
     ok = 0
 else:
     print(f"FEHLER: Trajectory nicht erfolgreich (error_code={ec})", file=sys.stderr)
@@ -387,4 +387,4 @@ if [ "$MOVE_RC" -ne 0 ]; then
   die "Fahrt nach '${POSE_NAME}' fehlgeschlagen (rc=${MOVE_RC}) - Arm bleibt stehen, bestromt."
 fi
 
-log "Guten Morgen: Arm steht in '${POSE_NAME}', bestromt und im Trajectory-Modus (MoveIt-bereit)."
+log "Wakeup: Arm steht in '${POSE_NAME}', bestromt und im Trajectory-Modus (MoveIt-bereit)."

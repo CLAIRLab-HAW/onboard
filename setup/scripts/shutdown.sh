@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# feierabend.sh - Roboterarm in die Pose "packed" fahren und die Anlage
-#                 kontrolliert herunterfahren.
+# shutdown.sh - Roboterarm in die Pose "packed" fahren und die Anlage
+#               kontrolliert herunterfahren.
 #
 # Laeuft DIREKT auf dem Roboter-PC (a200-0553) gegen den lokalen ROS-2-Graph.
 # Ablauf:
@@ -25,9 +25,9 @@
 #   -h, --help          diese Hilfe
 #
 # Env:
-#   CLEARPATH_NS            Roboter-Namespace (Default a200_0553)
-#   FEIERABEND_ARM_TIME     Fahrzeit nach packed in s (Default 10.0 - grosse Bewegung)
-#   FEIERABEND_GOAL_TIMEOUT Max. Warten auf Trajectory-Ergebnis in s (Default 60)
+#   CLEARPATH_NS          Roboter-Namespace (Default a200_0553)
+#   SHUTDOWN_ARM_TIME     Fahrzeit nach packed in s (Default 10.0 - grosse Bewegung)
+#   SHUTDOWN_GOAL_TIMEOUT Max. Warten auf Trajectory-Ergebnis in s (Default 60)
 #
 set -euo pipefail
 
@@ -36,8 +36,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 NS="${CLEARPATH_NS:-a200_0553}"
 MANIP_NS="${NS}/manipulators"
-ARM_TIME="${FEIERABEND_ARM_TIME:-10.0}"
-GOAL_TIMEOUT="${FEIERABEND_GOAL_TIMEOUT:-60}"
+ARM_TIME="${SHUTDOWN_ARM_TIME:-10.0}"
+GOAL_TIMEOUT="${SHUTDOWN_GOAL_TIMEOUT:-60}"
 
 # Pose "packed" aus husky-custom-setup/robot.yaml (UR-Kanonische Reihenfolge:
 # shoulder_pan, shoulder_lift, elbow, wrist_1, wrist_2, wrist_3). Bei Aenderung
@@ -75,16 +75,16 @@ while [ $# -gt 0 ]; do
     --no-services)   DO_SERVICES=0; shift ;;
     --ns)            NS="$2"; MANIP_NS="${NS}/manipulators"; shift 2 ;;
     -h|--help)       usage ;;
-    *) echo "feierabend: unbekannte Option: $1" >&2; exit 2 ;;
+    *) echo "shutdown: unbekannte Option: $1" >&2; exit 2 ;;
   esac
 done
 
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
-log()  { printf '\033[1;34m[feierabend]\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33m[feierabend]\033[0m %s\n' "$*" >&2; }
-die()  { printf '\033[1;31m[feierabend]\033[0m %s\n' "$*" >&2; exit 1; }
+log()  { printf '\033[1;34m[shutdown]\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m[shutdown]\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[1;31m[shutdown]\033[0m %s\n' "$*" >&2; exit 1; }
 
 run() { log "$*"; "$@"; }
 
@@ -93,7 +93,7 @@ run() { log "$*"; "$@"; }
 # ---------------------------------------------------------------------------
 # Kanonischer Einstieg ist /etc/clearpath/setup.bash: sie sourct das
 # Jazzy-Setup, onrobot-rg6 und - ENTSCHEIDEND - setzt ROS_DOMAIN_ID und
-# RMW_IMPLEMENTATION (rmw_zenoh_cpp). Ohne letzteres laeuft feierabend im
+# RMW_IMPLEMENTATION (rmw_zenoh_cpp). Ohne letzteres laeuft das Script im
 # ROS-Jazzy-Default (FastDDS) und ist NICHT im selben Graph wie die
 # Roboter-Stacks -> ros2 service call haengt ("waiting for service to
 # become available"). Daher VOR dem nackten /opt/ros-Pfad probieren.
@@ -110,7 +110,7 @@ elif [ -f /opt/ros/jazzy/setup.bash ]; then
   : "${ROS_DOMAIN_ID:=0}";        export ROS_DOMAIN_ID
   : "${RMW_IMPLEMENTATION:=rmw_zenoh_cpp}"; export RMW_IMPLEMENTATION
 else
-  die "/etc/clearpath/setup.bash und /opt/ros/jazzy/setup.bash fehlen - feierabend.sh laeuft auf dem Roboter-PC?"
+  die "/etc/clearpath/setup.bash und /opt/ros/jazzy/setup.bash fehlen - shutdown.sh laeuft auf dem Roboter-PC?"
 fi
 # Falls es ein lokales Workspace-Setup gibt, zusätzlich sourcen (ohne Fehler).
 for ws in /opt/ros/clearpath/setup.bash /opt/ros/robot/setup.bash \
@@ -201,9 +201,9 @@ def to_dur(s):
     sec = int(s); return Duration(sec=sec, nanosec=int(round((s-sec)*1e9)))
 
 rclpy.init()
-node = Node("feierabend_park")
+node = Node("shutdown_park")
 cli = ActionClient(node, FollowJointTrajectory, action)
-print(f"[feierabend] warte auf Action-Server {action} ...", flush=True)
+print(f"[shutdown] warte auf Action-Server {action} ...", flush=True)
 if not cli.wait_for_server(timeout_sec=15.0):
     print("FEHLER: Action-Server nicht erreichbar - laeuft der JTC?", file=sys.stderr)
     node.destroy_node(); rclpy.shutdown(); sys.exit(1)
@@ -212,7 +212,7 @@ traj = JointTrajectory()
 traj.joint_names = joints
 traj.points = [JointTrajectoryPoint(positions=targets, time_from_start=to_dur(arm_time))]
 goal = FollowJointTrajectory.Goal(); goal.trajectory = traj
-print(f"[feierabend] sende Trajectory nach packed (Fahrzeit {arm_time}s)", flush=True)
+print(f"[shutdown] sende Trajectory nach packed (Fahrzeit {arm_time}s)", flush=True)
 
 gh = cli.send_goal_async(goal)
 rclpy.spin_until_future_complete(node, gh, timeout_sec=15.0)
@@ -228,7 +228,7 @@ if res is None:
     node.destroy_node(); rclpy.shutdown(); sys.exit(1)
 ec = res.result.error_code
 if ec == FollowJointTrajectory.Result.SUCCESSFUL:
-    print(f"[feierabend] Arm in packed (error_code={ec})", flush=True)
+    print(f"[shutdown] Arm in packed (error_code={ec})", flush=True)
     ok = 0
 else:
     print(f"FEHLER: Trajectory nicht erfolgreich (error_code={ec})", file=sys.stderr)
@@ -279,5 +279,5 @@ if [ "$DO_POWEROFF" -eq 1 ]; then
   run sudo systemctl poweroff
 else
   log "Schritt 6/6: uebersprungen (--no-poweroff) - PC bleibt an."
-  log "Feierabend: Arm geparkt + stromlos, Services gestoppt. Bis morgen."
+  log "Shutdown: Arm geparkt + stromlos, Services gestoppt. Bis morgen."
 fi
