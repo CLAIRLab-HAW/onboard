@@ -1768,6 +1768,150 @@ else
     echo ">>> Manipulator-Diagnose: uebersprungen."
 fi
 
+# --- RTDE-Input-Recipe ohne Tool-DO ----------------------------------------
+# Voraussetzung dafuer, dass der ur_robot_driver neben der OnRobot-URCap
+# ueberhaupt startet: die URCap ist selbst RTDE-Client und belegt
+# tool_digital_output_mask, der Treiber stirbt sonst beim RTDE-Setup an
+# "controlled by another RTDE client". robot.yaml zeigt FEST auf
+# /home/robot/rtde_input_recipe_no_tool.txt -- fehlt die Datei nach einem
+# Neuaufsetzen, startet der Treiber nicht, und zwar ohne Hinweis auf sie.
+RTDE_RECIPE_SRC="$(dirname "$0")/rtde_input_recipe_no_tool.txt"
+RTDE_RECIPE_DST="${USER_HOME}/rtde_input_recipe_no_tool.txt"
+if [ -f "$RTDE_RECIPE_SRC" ]; then
+    install -m 0644 -o "$REAL_USER" -g "$REAL_USER" \
+        "$RTDE_RECIPE_SRC" "$RTDE_RECIPE_DST"
+    echo ">>> RTDE-Recipe -> ${RTDE_RECIPE_DST}"
+else
+    echo "    WARN: ${RTDE_RECIPE_SRC} fehlt - der UR-Treiber startet ohne sie NICHT."
+fi
+
+# --- RG6-Greifer-Bruecke (XML-RPC an die OnRobot-URCap) --------------------
+# Ersetzt den rg6_control-Tool-DO-Pfad, den das Recipe oben totlegt: ROS kann
+# kein Tool-DO mehr setzen, also kommandiert dieser Node den Greifer direkt
+# per XML-RPC (rg_grip auf 192.168.131.40:41414). Er laeuft ONBOARD, weil der
+# Endpoint am Arm-Subnetz haengt -- von der Workstation gibt es dorthin keine
+# Route -- und weil der Roboter auch ohne Funkstrecke greifen koennen muss.
+RG6_BRIDGE_BIN="${BIN_DIR}/rg6-grip-bridge"
+RG6_BRIDGE_WRAPPER="${BIN_DIR}/rg6-grip-bridge-wrapper"
+RG6_BRIDGE_UNIT="clearpath-custom-rg6-grip-bridge.service"
+RG6_BRIDGE_UNIT_PATH="/etc/systemd/system/${RG6_BRIDGE_UNIT}"
+RC_DST="/usr/local/lib/spact"
+RC_REPO="https://github.com/CLAIRLab-HAW/robot-contract.git"
+
+DO_RG6_BRIDGE=1
+if [ -f "$RG6_BRIDGE_UNIT_PATH" ]; then
+    confirm ">>> ${RG6_BRIDGE_UNIT} ist bereits installiert. Aktualisieren?" || DO_RG6_BRIDGE=0
+else
+    confirm ">>> RG6-Greifer-Bruecke installieren (kommandiert den Greifer per XML-RPC an die OnRobot-URCap; ersetzt den toten rg6_control-Tool-DO-Pfad)?" || DO_RG6_BRIDGE=0
+fi
+
+if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
+    # Lokale Repo-Kopie ZUERST -- kein Download-first wie bei octomap_feed.
+    # Wer den Installer aus dem Checkout laufen laesst, will den Stand des
+    # Checkouts; die umgekehrte Reihenfolge ist genau das Muster, aus dem der
+    # octomap_feed.py-Drift in drei Fassungen entstanden ist.
+    RG6_SRC="$(dirname "$0")/scripts/rg6_grip_bridge.py"
+    if [ ! -f "$RG6_SRC" ]; then
+        echo "    WARN: ${RG6_SRC} fehlt - RG6-Bruecke uebersprungen."
+        DO_RG6_BRIDGE=0
+    elif ! python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$RG6_SRC"; then
+        echo "    WARN: ${RG6_SRC} ist kein gueltiges Python - verwerfe."
+        DO_RG6_BRIDGE=0
+    fi
+fi
+
+if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
+    # robot_contract ist der DRAHT-Vertrag (parse_gripper_command /
+    # gripper_result). Er wird mitgeliefert statt im Node nachgebaut: eine
+    # zweite Fassung ist dieselbe Driftquelle wie oben -- und sie traefe hier
+    # das Protokoll, nicht einen Parameter. Reines Python (pyyaml + numpy,
+    # beides auf dem Roboter vorhanden).
+    #
+    # DREI Suchpfade, dann erst das Netz -- dasselbe Muster wie die
+    # wakeup.sh-Wrapper. Auf der Workstation liegt das Repo im Workspace
+    # daneben; auf dem Roboter liegt husky-custom-setup ALLEIN in ~, dort
+    # gibt es "../../contract/..." nicht.
+    RC_SRC=""
+    for cand in \
+        "${ROBOT_CONTRACT_SRC:-}" \
+        "$(dirname "$0")/../../contract/robot-contract/src/robot_contract" \
+        "${USER_HOME}/robot-contract/src/robot_contract" \
+        "${USER_HOME}/clearpath/contract/robot-contract/src/robot_contract"
+    do
+        [ -n "$cand" ] && [ -d "$cand" ] && { RC_SRC="$cand"; break; }
+    done
+    RC_TMP=""
+    if [ -z "$RC_SRC" ]; then
+        echo "    robot_contract nicht lokal gefunden - hole ${RC_REPO}"
+        RC_TMP="$(mktemp -d)"
+        if git clone --depth 1 "$RC_REPO" "${RC_TMP}/robot-contract" >/dev/null 2>&1; then
+            RC_SRC="${RC_TMP}/robot-contract/src/robot_contract"
+        fi
+    fi
+    if [ -n "$RC_SRC" ] && [ -d "$RC_SRC" ]; then
+        install -d -m 0755 "$RC_DST"
+        rm -rf "${RC_DST}/robot_contract"
+        cp -a "$RC_SRC" "${RC_DST}/robot_contract"
+        find "${RC_DST}/robot_contract" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+        echo "    robot_contract -> ${RC_DST}/robot_contract  (aus ${RC_SRC})"
+    else
+        echo "    WARN: robot_contract nicht auffindbar - der Node startet ohne es NICHT."
+        echo "          Abhilfe: ROBOT_CONTRACT_SRC=<pfad/zu/src/robot_contract> setzen."
+        DO_RG6_BRIDGE=0
+    fi
+    [ -n "$RC_TMP" ] && rm -rf "$RC_TMP"
+fi
+
+if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
+    echo ">>> Installiere ${RG6_BRIDGE_BIN}"
+    install -m 0755 -o root -g root "$RG6_SRC" "$RG6_BRIDGE_BIN"
+    # Selbsttest ohne ROS -- Einheiten, float-Zwang, Klemmung, Timeout,
+    # Draht-Vertrag, Getriebe, Nebenlaeufigkeit.
+    PYTHONPATH="${RC_DST}:${PYTHONPATH:-}" python3 "$RG6_BRIDGE_BIN" --selftest \
+        || echo "    WARN: Selbsttest fehlgeschlagen - Service wird trotzdem installiert (Logs pruefen)."
+
+    cat > "$RG6_BRIDGE_WRAPPER" <<EOF
+#!/usr/bin/env bash
+# RG6-Greifer per XML-RPC an die OnRobot-URCap (rg6_grip_bridge).
+source /etc/clearpath/setup.bash
+export PYTHONPATH="${RC_DST}:\${PYTHONPATH:-}"
+exec python3 ${RG6_BRIDGE_BIN}
+EOF
+    chmod 0755 "$RG6_BRIDGE_WRAPPER"
+
+    cat > "$RG6_BRIDGE_UNIT_PATH" <<EOF
+[Unit]
+Description=RG6 gripper bridge (XML-RPC an die OnRobot-URCap)
+After=clearpath-manipulators.service
+Wants=clearpath-manipulators.service
+PartOf=clearpath-robot.service clearpath-manipulators.service
+# OHNE diese beiden dreht eine kaputte Unit ENDLOS: die systemd-Voreinstellung
+# ist Burst=5 in 10 s, bei RestartSec=5 passen da nur zwei Versuche hinein --
+# die Grenze wird nie erreicht. Am 2026-08-17 an der rg6-bringup-Unit
+# nachgerechnet. 120 s, weil fuenf Versuche a 5 s rund 25 s dauern; die Unit
+# bleibt danach sichtbar als 'failed' stehen, statt sich selbst zu verdecken.
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=${REAL_USER}
+ExecStart=${RG6_BRIDGE_WRAPPER}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    chmod 0644 "$RG6_BRIDGE_UNIT_PATH"
+    systemctl daemon-reload
+    systemctl enable "$RG6_BRIDGE_UNIT" >/dev/null 2>&1 \
+        || echo "    WARN: systemctl enable ${RG6_BRIDGE_UNIT} fehlgeschlagen."
+    echo ">>> ${RG6_BRIDGE_UNIT} installiert und aktiviert."
+else
+    echo ">>> RG6-Greifer-Bruecke: uebersprungen."
+fi
+
 # --- Cockpit-Plugin mit Manipulator-Panel (optional) ------------------------
 # Fork von clearpathrobotics/cockpit-ros2-diagnostics: zusaetzlich zum
 # generischen Diagnose-Baum eine eigene Manipulator-Ansicht (Arm-Mode/Safety/
