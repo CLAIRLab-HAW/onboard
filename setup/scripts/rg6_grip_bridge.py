@@ -125,6 +125,39 @@ class Rg6Client:
                            f"({exc})") from exc
 
 
+def result_payload(request_id: str, phase: str, *, state, reason: str = "",
+                   detail: str = "", elapsed_s: float = 0.0) -> dict:
+    """``/twin/result``-Nutzlast — gebaut von robot_contract, nicht von hier.
+
+    Warum importiert statt nachgebaut:  eine zweite Fassung des Vertrags ist
+    genau das Muster, an dem octomap_feed.py schon einmal in drei Fassungen
+    auseinandergelaufen ist -- und es traefe diesmal den DRAHT, nicht einen
+    Parameter.  robot_contract haengt nur an pyyaml und numpy, beide sind auf
+    dem Roboter da; der Installer legt es mit ab.
+
+    ``io_states_received`` heisst im Vertrag "es liegt echter Geraetestatus
+    vor".  Beim rg6_control-Pfad kam der aus Tool-DI0, hier aus
+    ``rg_get_grip_detected`` -- dieselbe Aussage, andere Quelle.  Ohne
+    ``state`` ist er False, und der Vertrag macht ``grasped`` dann zwingend
+    None.
+    """
+    from robot_contract import twin_protocol as tp
+
+    return tp.gripper_result(
+        request_id, phase,
+        source="real",
+        reason=reason,
+        detail=detail,
+        elapsed_s=elapsed_s,
+        grasped=None if state is None else state.grip_detected,
+        reached_goal=False,
+        width_m=None if state is None else state.width_m,
+        force_raw=None,
+        io_states_received=state is not None,
+        tool_data_received=state is not None,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Selbsttest -- ohne ROS, damit er auch auf der Workstation laeuft.
 # ---------------------------------------------------------------------------
@@ -192,11 +225,28 @@ def selftest() -> int:
             pass
         else:                                    # pragma: no cover
             raise AssertionError("toter Endpoint haette Rg6Error geben muessen")
+
+        # 5. Der Draht-Vertrag kommt aus robot_contract, nicht von hier.
+        from robot_contract import twin_protocol as tp
+        cmd = tp.parse_gripper_command(
+            json.dumps({"close": True, "request_id": "r1", "width_m": 0.1}))
+        assert cmd["request_id"] == "r1" and cmd["width_m"] == 0.1
+
+        st = Rg6State(width_m=0.1032, busy=False, grip_detected=True,
+                      status=0, safety_failed=False)
+        payload = result_payload("r1", "succeeded", state=st, elapsed_s=0.4)
+        assert payload["grasped"] is True, payload
+        assert abs(payload["width_m"] - 0.1032) < 1e-9, payload
+
+        # Ohne Geraetestatus ist 'grasped' DREIWERTIG None, nicht False --
+        # sonst hiesse "keine Daten" dasselbe wie "nichts gegriffen".
+        blind = result_payload("r2", "failed", state=None, reason="not_available")
+        assert blind["grasped"] is None, blind
     finally:
         srv.shutdown()
 
     print("rg6_grip_bridge selftest: OK (Einheiten, float-Zwang, Klemmung, "
-          "Timeout)")
+          "Timeout, Draht-Vertrag)")
     return 0
 
 
