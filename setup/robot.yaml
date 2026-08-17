@@ -127,6 +127,18 @@ manipulators:
       robot_ip: 192.168.131.40
       headless_mode: true
       kinematics_parameters_file: "/home/robot/ur5_a200_0553_calibration.yaml" # "$(find ur_description)/config/ur5/default_kinematics.yaml"
+      # RTDE-Input-Recipe ohne tool_digital_output_mask/tool_digital_output.
+      # Die OnRobot-URCap ist selbst RTDE-Client und belegt diese beiden
+      # Input-Variablen; RTDE laesst pro Input-Variable nur EINEN schreibenden
+      # Client zu. Mit dem Standard-Recipe scheitert der ur_robot_driver beim
+      # Setup ("Variable 'tool_digital_output_mask' is currently controlled by
+      # another RTDE client"), ros2_control_node stirbt mit exit -6 und alle
+      # Controller-Spawner laufen in "Failed to acquire lock".
+      # Folge dieser Zeile: ROS kann kein Tool-DO und keine Tool-Spannung mehr
+      # setzen -- das Tool-I/O gehoert der URCap, der Arm gehoert ROS. Damit ist
+      # der rg6_control-Pfad (Tool-DO0-Flanken) endgueltig ausgeschlossen.
+      # Zurueck zum Custom-Treiber: Zeile entfernen UND URCap deaktivieren.
+      input_recipe_filename: "/home/robot/rtde_input_recipe_no_tool.txt"
       poses:
         - name: packed
           joints: [-0.000695530568258107, -3.1283000151263636, 2.8355469703674316, -3.193974320088522, 1.5455983877182007, -8.374849428349762e-05]
