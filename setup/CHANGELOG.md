@@ -2,13 +2,30 @@
 
 Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md).
 
+## 2026-08-17
+
+- `clearpath-custom-rg6-bringup.service` gibt jetzt auf, statt endlos neu zu
+  starten: `StartLimitIntervalSec=120` und `StartLimitBurst=5` im
+  `[Unit]`-Block. Vorher griff systemds Voreinstellung **nie** — am Roboter
+  nachgemessen: `StartLimitIntervalUSec=10s`, `StartLimitBurst=5`, aber
+  `RestartSec=5`. In ein 10-Sekunden-Fenster passen bei 5 s Abstand nur zwei
+  Neustarts, die Grenze von fünf wurde also nicht erreicht, und ein
+  fehlgeschlagener `colcon`-Build erzeugte eine endlose Fünf-Sekunden-Schleife,
+  die Logs flutete und CPU zog, ohne je grün zu werden. Fünf Versuche dauern
+  jetzt rund 25 s, danach bleibt die Unit als `failed` sichtbar stehen, statt
+  sich selbst zu verdecken.
+- Die Umbenennung vom 2026-08-13 ist am a200-0553 **ausgerollt**: `~/wakeup.sh`
+  und `~/shutdown.sh` sind Symlinks auf `scripts/` (keine Kopien mehr — genau
+  die Konstruktion, aus der der `octomap_feed.py`-Drift entstand),
+  `~/guten-morgen.sh` und `~/feierabend.sh` sind entfernt.
+
 ## 2026-08-13
 
 - Die Tagesskripte heissen englisch: `guten-morgen.sh` → `wakeup.sh`,
   `feierabend.sh` → `shutdown.sh`. Auf dem provisionierten a200-0553 sind noch
   die alten Namen ausgerollt (`~/guten-morgen.sh`, `~/feierabend.sh` bzw. das
   Checkout unter `~/husky-custom-setup`) — dort muss der Name einmal
-  nachgezogen werden.
+  nachgezogen werden. *(Am 2026-08-17 nachgezogen, s. o.)*
 
 ## 2026-07-29
 

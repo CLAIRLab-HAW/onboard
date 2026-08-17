@@ -1040,6 +1040,17 @@ Wants=clearpath-manipulators.service
 # nicht mit-restarten. Daher an BEIDE Wurzeln: robot (praktischer Stack-Restart)
 # + manipulators (direkter Treiber-Restart). Stop clearpath-robot stoppt ihn mit.
 PartOf=clearpath-robot.service clearpath-manipulators.service
+# Aufgeben statt endlos neu starten. Ohne diese zwei Zeilen greift systemds
+# Voreinstellung (DefaultStartLimitIntervalSec=10s, Burst=5) NIE: bei
+# RestartSec=5 passen in ein 10-s-Fenster nur zwei Neustarts, die Grenze von
+# fuenf wird nicht erreicht -- ein fehlgeschlagener colcon-Build erzeugt dann
+# eine endlose 5-Sekunden-Schleife, die Logs flutet und CPU zieht, ohne je
+# gruen zu werden. Am 2026-08-17 am Roboter nachgemessen (ROBOTER-TODO R5):
+# StartLimitIntervalUSec=10s, StartLimitBurst=5, RestartSec=5.
+# 120 s Fenster: fuenf Versuche dauern ~25 s, danach bleibt die Unit 'failed'
+# stehen und ist als Fehler sichtbar, statt sich selbst zu verdecken.
+StartLimitIntervalSec=120
+StartLimitBurst=5
 
 [Service]
 User=${REAL_USER}
