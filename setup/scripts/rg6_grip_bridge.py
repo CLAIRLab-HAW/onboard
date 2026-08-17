@@ -250,13 +250,110 @@ def selftest() -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# ROS-Node -- rclpy wird ERST HIER importiert, damit --selftest auch auf der
+# Workstation laeuft, wo kein rclpy liegt.
+# ---------------------------------------------------------------------------
+def run(argv) -> int:
+    import rclpy
+    from rclpy.node import Node
+    from std_msgs.msg import String
+    from robot_contract import load_profile
+    from robot_contract import twin_protocol as tp
+
+    profile = load_profile()
+
+    rclpy.init(args=argv)
+    node = Node("rg6_grip_bridge")
+    log = node.get_logger()
+
+    node.declare_parameter("endpoint_url", DEFAULT_URL)
+    node.declare_parameter("tool_index", 0)
+    node.declare_parameter("timeout_s", 3.0)
+    node.declare_parameter("default_force_n",
+                           float(profile.gripper.default_effort_n))
+    node.declare_parameter("open_width_m",
+                           float(profile.gripper.linkage.max_width_m))
+
+    def _p(name):
+        return node.get_parameter(name).value
+
+    client = Rg6Client(_p("endpoint_url"), int(_p("tool_index")),
+                       float(_p("timeout_s")))
+    results = node.create_publisher(String, tp.RESULT_TOPIC, 10)
+
+    # EIN Befehl je Zeit.  Ein zweiter waehrend der Fahrt wird ABGELEHNT, nicht
+    # eingereiht: am 2026-08-17 haben zehn aufeinandergestapelte Goals den
+    # alten Treiber in busy=true mit width_raw am Anschlag festgefahren.
+    inflight = threading.Lock()
+    seen: set = set()
+
+    def _emit(payload: dict) -> None:
+        results.publish(String(data=json.dumps(payload)))
+
+    def _work(cmd: dict) -> None:
+        request_id = cmd["request_id"]
+        started = time.monotonic()
+        try:
+            width_m = cmd.get("width_m")
+            if width_m is None:
+                # Ohne Zielweite bedeutet close=True "ganz zu", close=False
+                # "ganz auf".  Der Endpoint kennt keine Presets, nur Weiten.
+                width_m = 0.0 if cmd["close"] else float(_p("open_width_m"))
+            force_n = float(cmd.get("force_n") or _p("default_force_n"))
+            client.grip(float(width_m), force_n)
+            state = client.state()
+            _emit(result_payload(request_id, "succeeded", state=state,
+                                 elapsed_s=time.monotonic() - started))
+            log.info(f"gripper {width_m * 1000:.0f} mm @ {force_n:.0f} N -> "
+                     f"{state.width_m * 1000:.1f} mm "
+                     f"grip={state.grip_detected} [{request_id}]")
+        except Rg6Error as exc:
+            log.error(f"gripper failed: {exc}")
+            _emit(result_payload(request_id, "failed", state=None,
+                                 reason="not_available", detail=str(exc),
+                                 elapsed_s=time.monotonic() - started))
+        finally:
+            inflight.release()
+
+    def on_gripper(msg) -> None:
+        try:
+            cmd = tp.parse_gripper_command(msg.data)
+        except ValueError as exc:
+            log.warn(f"bad gripper_cmd: {exc}")
+            return
+        request_id = cmd["request_id"]
+        if request_id in seen:
+            return
+        seen.add(request_id)
+        if not inflight.acquire(blocking=False):
+            _emit(result_payload(request_id, "failed", state=None,
+                                 reason="busy",
+                                 detail="ein Greifbefehl laeuft noch"))
+            return
+        _emit(result_payload(request_id, "started", state=None))
+        # xmlrpc.client blockiert.  Im Callback wuerde ein haengender Endpoint
+        # den Executor anhalten -- und mit ihm den joint_states-Publisher.
+        threading.Thread(target=_work, args=(cmd,), daemon=True).start()
+
+    node.create_subscription(String, tp.GRIPPER_CMD_TOPIC, on_gripper, 10)
+    log.info(f"rg6_grip_bridge bereit: {client.url} "
+             f"<- {tp.GRIPPER_CMD_TOPIC}")
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+    return 0
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if "--selftest" in argv:
         return selftest()
-    # 'run' definiert Task 3 in dieser Datei.  Der Aufruf steht schon hier,
-    # damit --selftest von Anfang an der einzige Weg ohne ROS ist.
-    return run(argv)                                   # noqa: F821
+    return run(argv)
 
 
 if __name__ == "__main__":
