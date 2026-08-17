@@ -86,6 +86,11 @@ class Rg6Client:
         transport.timeout = float(timeout_s)
         self._proxy = xmlrpc.client.ServerProxy(url, transport=transport,
                                                 allow_none=True)
+        # ServerProxy ist NICHT thread-sicher: Proxy und Transport teilen sich
+        # EINE HTTP-Verbindung.  Hier greifen zwei Threads darauf zu -- der
+        # Greif-Worker und der Zustands-Poller des Fingergelenks -- und ohne
+        # diese Sperre verschraenken sich ihre Requests auf dem Socket.
+        self._lock = threading.Lock()
 
     @property
     def url(self) -> str:
@@ -116,7 +121,8 @@ class Rg6Client:
 
     def _call(self, method: str, *args):
         try:
-            return getattr(self._proxy, method)(*args)
+            with self._lock:
+                return getattr(self._proxy, method)(*args)
         except xmlrpc.client.Fault as exc:
             raise Rg6Error(f"{method}: Fault {exc.faultCode} "
                            f"{exc.faultString}") from exc
@@ -242,11 +248,44 @@ def selftest() -> int:
         # sonst hiesse "keine Daten" dasselbe wie "nichts gegriffen".
         blind = result_payload("r2", "failed", state=None, reason="not_available")
         assert blind["grasped"] is None, blind
+
+        # 6. Weite -> Fingergelenk kommt aus der Getriebegeometrie des Profils,
+        #    nicht aus einem Ankerpaar (R19).
+        from robot_contract import load_profile
+        linkage = load_profile().gripper.linkage
+        # Monoton fallend: weiter offen -> kleinerer (negativerer) Gelenkwert.
+        assert linkage.angle_from_width(0.100) < linkage.angle_from_width(0.045)
+        # Ganz zu ist die obere Gelenkgrenze, ganz auf die untere -- und die
+        # WEITE wird geklemmt, nicht das acos-Argument: eine negative Weite
+        # laege sonst still jenseits der geschlossenen Stellung.
+        assert linkage.angle_from_width(-0.05) == linkage.angle_from_width(0.0)
+        assert (linkage.angle_from_width(0.300)
+                == linkage.angle_from_width(linkage.max_width_m))
+
+        # 7. Zwei Threads auf EINER ServerProxy -- im Node sind das der
+        #    Greif-Worker und der Fingergelenk-Poller.  Ohne die Sperre in
+        #    _call verschraenken sich ihre Requests auf dem gemeinsamen
+        #    Socket; das aeussert sich als ResponseNotReady/BadStatusLine.
+        errors = []
+
+        def _hammer():
+            try:
+                for _ in range(25):
+                    cli.state()
+            except Exception as exc:             # noqa: BLE001
+                errors.append(exc)
+
+        threads = [threading.Thread(target=_hammer) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert not errors, errors
     finally:
         srv.shutdown()
 
     print("rg6_grip_bridge selftest: OK (Einheiten, float-Zwang, Klemmung, "
-          "Timeout, Draht-Vertrag)")
+          "Timeout, Draht-Vertrag, Getriebe, Nebenlaeufigkeit)")
     return 0
 
 
@@ -281,6 +320,49 @@ def run(argv) -> int:
     client = Rg6Client(_p("endpoint_url"), int(_p("tool_index")),
                        float(_p("timeout_s")))
     results = node.create_publisher(String, tp.RESULT_TOPIC, 10)
+
+    # -- Fingergelenk ------------------------------------------------------
+    # Seit rg6-bringup tot ist, fehlt rg6_finger_joint in /joint_states (am
+    # 2026-08-17 gemessen).  move_group sieht den Greifer seitdem in seiner
+    # DEFAULT-Stellung, und jede Freiraumpruefung um die Hand rechnet gegen
+    # eine Stellung, die er nicht hat -- dieselbe Klasse wie R15, nur
+    # beweglich.  Dieser Node hat die gemessene Weite ohnehin.
+    from sensor_msgs.msg import JointState
+
+    node.declare_parameter("joint_state_rate_hz", 5.0)
+    finger_joint = profile.gripper.driver_joint
+    linkage = profile.gripper.linkage
+    joints = node.create_publisher(
+        JointState, f"{profile.manipulators.ns}/endeffectors/joint_states", 10)
+
+    def _poll_joint() -> None:
+        """Den Fingerwert aus der GEMESSENEN Weite, nicht aus dem Befehl.
+
+        Eigener Thread und KEIN ROS-Timer:  ``client.state()`` ist ein
+        blockierender XML-RPC-Aufruf.  Im Timer-Callback haenge er am
+        Executor -- bei totem Endpoint 3 s (der Transport-Timeout) alle
+        200 ms, und der Greifbefehl kaeme in derselben Zeit nicht durch.
+        Das ist derselbe Grund, aus dem schon ``_work`` ausgelagert ist.
+
+        Die Umrechnung Weite -> Gelenk macht die Getriebegeometrie des
+        Profils (R19), nicht dieser Node -- es ist dieselbe Kinematik, die
+        auch das URDF traegt.
+        """
+        period = 1.0 / float(_p("joint_state_rate_hz"))
+        while rclpy.ok():
+            try:
+                width_m = client.state().width_m
+            except Rg6Error:
+                time.sleep(period)      # still bleiben ist besser als luegen
+                continue
+            msg = JointState()
+            msg.header.stamp = node.get_clock().now().to_msg()
+            msg.name = [finger_joint]
+            msg.position = [float(linkage.angle_from_width(width_m))]
+            joints.publish(msg)
+            time.sleep(period)
+
+    threading.Thread(target=_poll_joint, daemon=True).start()
 
     # EIN Befehl je Zeit.  Ein zweiter waehrend der Fahrt wird ABGELEHNT, nicht
     # eingereiht: am 2026-08-17 haben zehn aufeinandergestapelte Goals den
