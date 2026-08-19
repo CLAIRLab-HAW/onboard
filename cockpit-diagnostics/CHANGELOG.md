@@ -4,7 +4,12 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
 
 Rückwirkend aus der Commit-Historie angelegt.
 
-## 2026-08-19
+Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
+die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
+
+## [Unreleased]
+
+## [0.2.0] - 2026-08-19
 
 - **Dem Greifer auf die URCap-Brücke gefolgt statt auf das stillgelegte
   `rg6_control`.** Der Zustand kommt als flaches JSON auf `rg6/bridge_state`
@@ -15,6 +20,19 @@ Rückwirkend aus der Commit-Historie angelegt.
   to be OR-ed into `isExpanded`" wird „deliberately not OR-ed into
   `isExpanded`: that makes those rows impossible to collapse".
 
+---
+
+**Vor der Einführung von SemVer (2026-08-19)** wurde nach Datum
+geführt. Die Abschnitte darunter behalten ihre Datumsüberschrift — ihnen
+nachträglich Versionsnummern zu geben, würde eine Release-Historie
+erfinden, die es nicht gab.
+- **SemVer eingeführt.** Version auf `0.2.0`, dieses Changelog folgt
+  [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Tag `v0.2.0`.
+  Ältere Abschnitte behalten ihre Datumsüberschrift — ihnen nachträglich
+  Versionsnummern zu geben, würde eine Release-Historie erfinden.
+- **README nach dem Workspace-Schema** (readme.so): Features · Tech Stack ·
+  Installation · Usage · Running Tests · Related · Versioning · License. Die
+  vorhandene Prosa ist erhalten und unter den passenden Abschnitt gewandert.
 ## 2026-08-12 (Lesbarkeit der Tabelle)
 
 - Die Baumspalten wandern beim Lesen nicht mehr; der Chevron sitzt mittig in

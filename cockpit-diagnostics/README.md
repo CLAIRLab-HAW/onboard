@@ -74,7 +74,22 @@ It is a pure read over the aggregated diagnostics the app already subscribes to
 it unchanged. On a robot without manipulator diagnostics the panel renders
 nothing at all.
 
-## Where the data comes from
+## Features
+
+- **ROS 2 diagnostics as a Cockpit panel**, fed from the foxglove bridge.
+- **Manipulator panel** for the arm and the end effector (fork addition).
+- **An out-of-service level**: a deliberately powered-off arm reads grey, not
+  red — encoded as OK plus `display=inactive` so third-party consumers and the
+  aggregator's rollups keep working.
+- **Severity overrides** per entry.
+- **German translation.**
+
+## Tech Stack
+
+TypeScript, React, PatternFly, Cockpit starter kit; roslibjs-foxglove for the
+bridge connection. Node ≥ 18.
+
+### Where the data comes from
 
 The panel looks for these statuses in `<namespace>/diagnostics_agg`:
 
@@ -127,7 +142,7 @@ else.
 things are missing for an operator view, and this fork adds both in
 `src/utils/severity.ts`.
 
-## The INACTIVE level
+### The INACTIVE level
 
 A subsystem that is deliberately switched off is neither OK (it is not working)
 nor a fault (nobody needs to do anything). Painting a powered-down arm yellow or
@@ -144,7 +159,7 @@ leaving the level at OK. That keeps the message standards-compliant — every
 other consumer (`rqt_robot_monitor`, the diagnostics capture) sees a plain OK
 with an explanatory message — and only this UI paints it grey.
 
-## Overrides
+### Overrides
 
 Some upstream nodes classify harmless, permanent conditions as ERROR, which
 drags the whole robot's rollup to red and buries real faults. `SEVERITY_OVERRIDES`
@@ -200,7 +215,7 @@ that way; upstream Clearpath statuses remain English.
 
 To add a language, copy `po/de.po`, translate, and rebuild.
 
-## Installing this fork on a robot
+## Installation
 
 Cockpit searches `~/.local/share/cockpit`, `/etc/cockpit`,
 `/usr/local/share/cockpit`, `/usr/share/cockpit` in that order, so installing to
@@ -234,13 +249,13 @@ installs, drop that line from `.gitignore` and commit the build output.)
 
 # Development and Source Instructions
 
-## Development dependencies
+### Development dependencies
 
 On Ubuntu:
 
     sudo apt install gettext nodejs npm make
 
-## Getting and building the source
+### Getting and building the source
 
 These commands check out the source and build it into the `dist/` directory:
 
@@ -250,7 +265,7 @@ cd cockpit-ros2-diagnostics
 make
 ```
 
-## Installing
+### Installing
 
 `make install` compiles and installs the package in `/usr/local/share/cockpit/`. The
 convenience targets `srpm` and `rpm` build the source and binary rpms,
@@ -299,7 +314,7 @@ remove manually the symlink:
 
     rm ~/.local/share/cockpit/cockpit-ros2-diagnostics
 
-## Running eslint
+### Running eslint
 
 Cockpit Starter Kit uses [ESLint](https://eslint.org/) to automatically check
 JavaScript/TypeScript code style in `.js[x]` and `.ts[x]` files.
@@ -316,7 +331,7 @@ Violations of some rules can be fixed automatically by:
 
 Rules configuration can be found in the `.eslintrc.json` file.
 
-## Running stylelint
+### Running stylelint
 
 Cockpit uses [Stylelint](https://stylelint.io/) to automatically check CSS code
 style in `.css` and `scss` files.
@@ -333,7 +348,13 @@ Violations of some rules can be fixed automatically by:
 
 Rules configuration can be found in the `.stylelintrc.json` file.
 
-## Running tests locally
+## Usage
+
+Open Cockpit on the robot (`http://<robot>:9090`) and pick **ROS 2
+Diagnostics**. The panel connects to the foxglove bridge; the Manipulator card
+carries the arm and gripper tiles.
+
+## Running Tests
 
 ** **These tests are still under development** **
 
@@ -365,3 +386,17 @@ It is possible to setup the test environment without running the tests:
 You can also run the test against a different Cockpit image, for example:
 
     TEST_OS=fedora-40 make check
+
+## Related
+
+- [husky-custom-setup](../husky-custom-setup/README.md) — the node that
+  publishes the manipulator diagnostics this panel renders
+
+## Versioning
+
+[Semantic Versioning](https://semver.org/); see [CHANGELOG.md](CHANGELOG.md).
+Upstream stays the merge base — the version here numbers the fork.
+
+## License
+
+See the upstream project; fork additions under the same terms.
