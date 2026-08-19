@@ -81,6 +81,10 @@ def main() -> int:
             continue
         rows.append({
             "commanded_mm": width_mm,
+            # Wanduhr des Zustandslesens.  Ohne sie laesst sich die Zeile
+            # NICHT mit der parallel mitgeschriebenen AI2-Spur verknuepfen --
+            # und ohne AI2 misst der Durchlauf nur sich selbst.
+            "t_read": time.time(),
             "device_width_mm": st.width_m * 1000.0,
             "busy": st.busy,
             "grip_detected": st.grip_detected,
