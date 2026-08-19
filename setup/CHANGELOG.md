@@ -2,6 +2,31 @@
 
 Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md).
 
+## 2026-08-19 (MoveIt-Greiferwerte in robot.yaml)
+
+- **`robot.yaml` traegt den GripperCommand-Controller des RG6.** Neu unter
+  `manipulators.moveit.ros_parameters.move_group`: der
+  `moveit_simple_controller_manager`-Eintrag
+  `manipulators/rg6_gripper_controller` (Typ `GripperCommand`, `action_ns`
+  `gripper_cmd`, `max_effort` 60 N) und
+  `robot_description_planning.joint_limits.rg6_finger_joint` (TOTG braucht ein
+  Beschleunigungslimit, sonst scheitert die Zeitparametrierung der
+  gripper-Gruppe). Beides stand bisher im `rg6_moveit_patch` und wurde nach
+  jeder Generierung nachtraeglich in die erzeugte `moveit.yaml` geschrieben.
+  Im Container nachgemessen: das Ergebnis ist identisch bis auf die
+  Reihenfolge in `controller_names`. Derselbe Weg, den 2026-07-29 schon die
+  Occupancy-Map-Parameter genommen haben (A4).
+
+  Zwei Dinge, die man dabei wissen muss: `merge_dict` **verlaengert Listen**,
+  statt sie zu ersetzen -- in `controller_names` darf deshalb nur *unser*
+  Controller stehen, der Arm-Controller kaeme sonst doppelt. Und weil
+  `clearpath-robot-check` `robot.yaml` per md5 im Sekundentakt beobachtet,
+  startet diese Aenderung am Roboter den kompletten Stack neu.
+- **Der Installer-Schritt 4 patcht nur noch die SRDF.** Kommentar und
+  Docstring von `run_rg6_moveit_patch` sagen jetzt, warum die SRDF den Umweg
+  ueber das Tool braucht und die `moveit.yaml` nicht: `clearpath_config` kennt
+  das Wort `srdf` nicht, und der Greifer-Enum hat keinen RG6.
+
 ## 2026-08-19
 
 - **Der Roboter braucht `robot_contract` nicht mehr.** Die Greiferbrücke

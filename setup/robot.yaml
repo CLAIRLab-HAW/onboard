@@ -118,6 +118,39 @@ manipulators:
         # joint_limits (Generator-Merge empirisch verifiziert).
         robot_description_planning:
           shape_transform_cache_lookup_wait_time: 0.3
+          # Beschleunigungslimit des Greifer-Treibergelenks. Ohne das scheitert
+          # die TOTG-Zeitparametrierung (AddTimeOptimalParameterization) fuer
+          # die gripper-Gruppe. Stand bis 2026-08-19 im rg6_moveit_patch --
+          # der Generator deep-merged es hier neben die sechs Arm-Gelenke.
+          joint_limits:
+            rg6_finger_joint:
+              has_velocity_limits: true
+              max_velocity: 2.0
+              has_acceleration_limits: true
+              max_acceleration: 4.0
+        # GripperCommand-Controller fuer den OnRobot RG6. Clearpath kennt den
+        # RG6 nicht -- Gripper.MODEL ist ein geschlossenes Enum (franka_gripper,
+        # kinova_2f_lite, robotiq_2f_140, robotiq_2f_85), ein `gripper:`-Eintrag
+        # unter arms wuerde mit ValueError abbrechen. Der Generator schreibt hier
+        # aber jeden Boot einen moveit_simple_controller_manager mit dem Arm-
+        # Controller, und unser Block wird hineingemerged statt ihn zu ersetzen.
+        # Bedient wird die Action am Roboter von rg6_grip_bridge, im Container-
+        # Mock von rg6_control_sim (beide unter demselben Namen).
+        # ACHTUNG: merge_dict VERLAENGERT Listen, es ersetzt sie nicht. In
+        # controller_names darf deshalb NICHT der Arm-Controller stehen, den der
+        # Generator selbst schreibt -- er stuende sonst doppelt.
+        moveit_simple_controller_manager:
+          controller_names:
+            - manipulators/rg6_gripper_controller
+          manipulators/rg6_gripper_controller:
+            action_ns: gripper_cmd
+            default: true
+            joints:
+              - rg6_finger_joint
+            type: GripperCommand
+            # Greifkraft der MoveIt-Goals [N]; 0 liesse die Bruecke auf ihren
+            # eigenen Default zurueckfallen. Wird dort auf 25...120 geklemmt.
+            max_effort: 60.0
   arms:
     - model: universal_robots
       parent: top_plate_front_mount

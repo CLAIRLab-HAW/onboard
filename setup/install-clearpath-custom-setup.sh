@@ -683,8 +683,12 @@ def run_rg6_moveit_patch(label):
     """RG6 in die frisch generierte MoveIt-Config einhaengen.
 
     Delegiert an die root-eigene Kopie des selbst-enthaltenen Tools aus dem
-    onrobot-rg6-Repo (rg6_moveit_patch: robot.srdf + manipulators/config/
-    moveit.yaml, idempotent), die der Installer nach /usr/local/bin kopiert.
+    onrobot-rg6-Repo (rg6_moveit_patch: robot.srdf, idempotent), die der
+    Installer nach /usr/local/bin kopiert.  moveit.yaml patcht es seit dem
+    2026-08-19 NICHT mehr - Greifer-Controller und joint_limits kommen aus
+    robot.yaml (manipulators.moveit.ros_parameters.move_group); das Tool
+    prueft nur noch, ob sie angekommen sind, und quittiert mit Exit-Code 1,
+    wenn nicht.
     Bewusst KEIN Aufruf direkt aus /home/*: dieser Service laeuft als root -
     Code aus einem user-schreibbaren Workspace waere eine Rechteausweitung
     (Workspace-/Repo-Schreibzugriff -> root bei jedem Boot). Die Kopie aendert
@@ -726,8 +730,12 @@ def main():
     # 3) Phase 2: Arm-JSB joint_states raus aus dem platform-Namespace ->
     #    manipulators/joint_states (Relay + Aggregator via clearpath-custom-joint-states.service).
     move_arm_joint_states("arm joint_states -> manipulators")
-    # 4) RG6 in MoveIt: robot.srdf (Gruppe 'gripper' + EE) und moveit.yaml
-    #    (GripperCommand-Controller + joint_limits) patchen (onrobot-rg6-Tool).
+    # 4) RG6 in MoveIt: robot.srdf (Gruppe 'gripper' + EE) patchen
+    #    (onrobot-rg6-Tool).  Fuer die SRDF gibt es in robot.yaml keinen
+    #    Hebel -- clearpath_config kennt das Wort 'srdf' nicht, und der
+    #    Greifer-Enum (franka/kinova/robotiq) hat keinen RG6.  Die frueher
+    #    hier mitgepatchten moveit.yaml-Werte stehen seit dem 2026-08-19 in
+    #    robot.yaml; das Tool prueft sie nur noch.
     run_rg6_moveit_patch("rg6 moveit")
     # 5) ENTFERNT 2026-07-29 (A4): die Occupancy-Map-Monitor-Sensorparameter
     #    stehen jetzt nativ in robot.yaml unter
