@@ -18,7 +18,8 @@ In dieser Kette fehlt der Manipulator vollstaendig:
   NICHT auf den Topic, den der Aggregator abonniert.
 * Der ``ur_robot_driver`` publiziert Mode/Safety/ExternalControl ueberhaupt
   nicht als ``diagnostic_msgs``, sondern als eigene ``ur_dashboard_msgs``.
-* Der RG6-Zustand existiert nur als ``rg6_msgs/GripperState``.
+* Der RG6-Zustand kommt als JSON von ``rg6_grip_bridge`` (seit dem
+  rg6_control-Ruhestand; vorher ``rg6_msgs/GripperState``).
 
 Dieser Node uebersetzt all das in ``diagnostic_msgs/DiagnosticArray`` und
 publiziert es auf ``/a200_0553/diagnostics``.  Zusammen mit dem Analyzer-Block,
@@ -119,7 +120,9 @@ SAFETY_WARN = {2, 4, 10, 11}
 # E-Stop ist per Software NICHT loesbar -> eigene Klartextmeldung.
 SAFETY_ESTOP = {6, 7}
 
-# RG6-Kommandokonstanten (rg6_msgs/GripperState.COMMAND_*).
+# Was zuletzt an den Greifer ging.  Die Bruecke schickt den Klartext direkt
+# (rg6_grip_bridge.COMMAND_*); die alten rg6_msgs-Zahlen werden weiter
+# uebersetzt, damit eine Aufzeichnung von frueher lesbar bleibt.
 GRIPPER_COMMANDS = {0: "NONE", 1: "OPEN", 2: "CLOSE", 3: "GRIP"}
 
 # robot_mode-Werte, in denen der Arm bestromt ist -- und damit auch die 24-V-
@@ -282,19 +285,72 @@ def arm_controllers_level(controllers, required, arm_off=False):
     return Verdict(OK, summary)
 
 
+#: Felder, die ``rg6_grip_bridge.status_payload`` liefert, mit dem Typ, den
+#: sie haben muessen.  Was fehlt, wird None -- ein aelterer Bruecken-Stand
+#: soll den Panel nicht leerraeumen, sondern nur die fehlende Zeile.
+BRIDGE_FIELDS = {
+    "width_m": (int, float),
+    "busy": bool,
+    "grip_detected": bool,
+    "status": int,
+    "safety_failed": bool,
+    "last_command": str,
+}
+
+
+def parse_bridge_state(data):
+    """JSON von ``<ns>/rg6/bridge_state`` -> dict, oder None wenn unbrauchbar.
+
+    Warum ueberhaupt geparst wird:  seit dem rg6_control-Ruhestand kommt der
+    Greiferzustand von ``rg6_grip_bridge`` als JSON in einem
+    ``std_msgs/String`` -- rg6_msgs/GripperState hat keinen Publisher mehr.
+    Der String kostet dafuer die Typpruefung, die ein .msg geschenkt bekommt,
+    also steht sie hier.
+
+    Nichts hiervon darf werfen:  ein Callback, der an einer fremden Nutzlast
+    stirbt, nimmt den ganzen Diagnose-Node mit -- und dann fehlt auch die
+    Aussage ueber den ARM, die mit dem Greifer nichts zu tun hat.
+    """
+    import json
+
+    try:
+        raw = json.loads(data)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for name, want in BRIDGE_FIELDS.items():
+        value = raw.get(name)
+        if value is None:
+            out[name] = None
+        elif want is bool:
+            out[name] = value if isinstance(value, bool) else None
+        elif isinstance(value, bool):
+            # bool ist in Python eine int-Unterklasse -- ohne diesen Zweig
+            # ginge ein "width_m": true als Zahl durch.
+            out[name] = None
+        else:
+            out[name] = value if isinstance(value, want) else None
+    if out["width_m"] is None and raw.get("width_m") is not None:
+        return None                 # eine Weite, die keine Zahl ist: unbrauchbar
+    return out
+
+
 def gripper_signal_valid(width_raw, force_raw, dead_threshold):
     """Liefert der RG6 ueberhaupt ein gueltiges Tool-Signal? -> bool.
 
-    Dieselbe Probe, die rg6_control und der rg6_joint_state_broadcaster
-    intern verwenden (Parameter ``dead_input_threshold``, 0.2 V): liegt keine
-    24-V-Tool-Spannung an, sinken AI2 (Weite) und AI3 (Kraft) auf ~0.05 V.
+    Dieselbe Probe, die der stillgelegte rg6_control intern verwendete
+    (Parameter ``dead_input_threshold``, 0.2 V): liegt keine 24-V-Tool-
+    Spannung an, sinken AI2 (Weite) und AI3 (Kraft) auf ~0.05 V.
 
-    Der Grund, warum die Flags aus ``rg6_msgs/GripperState`` dafuer NICHT
-    taugen: ``tool_data_received``/``io_states_received`` sind Latches im
-    Sinne von "schon mal empfangen" (sie bleiben true, wenn das Tool spaeter
-    stromlos wird), und ``tool_power_on`` ist der zuletzt vom TREIBER
-    kommandierte Sollwert, kein Hardware-Feedback.  Genau daran hat der
-    Greifer am ausgeschalteten Arm "OK" gemeldet.
+    Warum weiterhin die SPANNUNG und nicht die Antwort des XML-RPC-Endpoints:
+    der Endpoint sitzt in der Control-Box und antwortet auch dann, wenn am
+    Tool-Anschluss nichts anliegt.  Er weiss, was er zuletzt kommandiert hat
+    -- AI2/AI3 wissen, was die Hardware tut.  Aus demselben Grund taugten
+    schon die Flags des alten ``rg6_msgs/GripperState`` nicht: sie waren
+    Latches bzw. der Treiber-Sollwert, und genau daran hat der Greifer am
+    ausgeschalteten Arm "OK" gemeldet.
     """
     if width_raw is None or force_raw is None:
         return False
@@ -311,9 +367,13 @@ def gripper_level(state_age, timeout, signal_valid, robot_mode, width_raw,
     Zustand, in dem er bestromt sein sollte).
     """
     if state_age is None:
-        return Verdict(ERROR, "kein rg6/state - laeuft rg6_control?")
+        return Verdict(ERROR, "kein rg6/bridge_state - laeuft rg6-grip-bridge?")
     if state_age > timeout:
-        return Verdict(ERROR, f"rg6/state seit {state_age:.1f}s stumm - rg6_control tot?")
+        # Die Bruecke SCHWEIGT, wenn der XML-RPC-Endpoint nicht antwortet
+        # (sie meldet lieber nichts als einen alten Wert).  Ein zu altes
+        # Status ist deshalb genau das Signal fuer "Endpoint weg".
+        return Verdict(ERROR, f"rg6/bridge_state seit {state_age:.1f}s stumm - "
+                              "rg6-grip-bridge tot oder URCap-Endpoint weg?")
 
     if not signal_valid:
         raw = "n/a" if width_raw is None else f"{width_raw:.2f} V"
@@ -323,12 +383,14 @@ def gripper_level(state_age, timeout, signal_valid, robot_mode, width_raw,
         if arm_is_powered(robot_mode) is False:
             return Verdict(WARN, f"Arm nicht bestromt ({robot_mode_name(robot_mode)}) "
                                  f"- Greifer ohne Versorgung (Tool-Signal {raw})")
-        # Arm bestromt, trotzdem kein Signal: Tool-Spannung aus oder der
-        # Greifer wurde seit dem Einschalten nie geprimed (AI2 wird erst durch
-        # ein Kommando gueltig).  Behebbar per set_tool_power + open.
+        # Arm bestromt, trotzdem kein Signal: die 24-V-Tool-Versorgung liegt
+        # nicht an.  Sie zu setzen ist seit dem rg6_control-Ruhestand Sache
+        # der OnRobot-URCap -- der ROS-Weg dorthin ging ueber Tool-DO, und den
+        # hat der RTDE-Recipe-Split stillgelegt.  Kein ROS-Service kann das
+        # hier noch reparieren; nachzusehen ist am Panel.
         return Verdict(WARN, f"kein gueltiges Tool-Signal ({raw} < "
-                             f"{dead_threshold:.2f} V) - Tool stromlos oder "
-                             "nicht geprimed (rg6_control/set_tool_power + open)")
+                             f"{dead_threshold:.2f} V) - Tool stromlos: "
+                             "laeuft das URCap-Programm auf dem Panel?")
     return Verdict(OK, "betriebsbereit")
 
 
@@ -422,10 +484,28 @@ def selftest() -> int:
     # aber ueber der Totschwelle -- darf NICHT als stromlos gelten.
     assert gripper_signal_valid(0.56, 0.9, DEAD), "geschlossener Greifer ist nicht tot"
 
+    # --- Gripper: Zustand von der Bruecke ----------------------------------
+    # Seit dem rg6_control-Ruhestand kommt der Greiferzustand als JSON von
+    # rg6_grip_bridge, nicht mehr als rg6_msgs/GripperState.
+    good = parse_bridge_state(
+        '{"width_m": 0.1032, "busy": false, "grip_detected": true,'
+        ' "status": 0, "safety_failed": false, "last_command": "GRIP"}')
+    assert good["width_m"] == 0.1032 and good["grip_detected"] is True, good
+    # Kaputte oder fremde Nutzlast darf den Node NICHT umbringen -- sie ist
+    # dasselbe wie "kein Status": lieber grau/rot melden als abstuerzen.
+    assert parse_bridge_state("kein json") is None
+    assert parse_bridge_state("[1, 2, 3]") is None
+    assert parse_bridge_state('{"width_m": "breit"}') is None, "Weite muss Zahl sein"
+    # Fehlende Felder sind erlaubt und werden zu None -- ein aelterer
+    # Bruecken-Stand soll den Panel nicht leerraeumen.
+    assert parse_bridge_state('{"width_m": 0.05}')["busy"] is None
+
     # --- Gripper: Bewertung -----------------------------------------------
     assert gripper_level(0.05, 2.0, True, 7, 10.0, DEAD).level == OK
-    assert gripper_level(9.0, 2.0, True, 7, 10.0, DEAD).level == ERROR, "rg6/state stumm"
-    assert gripper_level(None, 2.0, True, 7, None, DEAD).level == ERROR, "kein rg6/state"
+    stale = gripper_level(9.0, 2.0, True, 7, 10.0, DEAD)
+    assert stale.level == ERROR and "bridge" in stale.message, stale.message
+    never = gripper_level(None, 2.0, True, 7, None, DEAD)
+    assert never.level == ERROR and "bridge" in never.message, never.message
     # DER Fall aus dem Bugreport: Arm POWER_OFF, Greifer ohne Versorgung.
     dead_off = gripper_level(0.05, 2.0, False, 3, 0.0, DEAD)
     assert dead_off.inactive and dead_off.level == OK, "Arm aus -> Greifer grau, nicht OK"
@@ -433,7 +513,10 @@ def selftest() -> int:
     # Arm bestromt, Greifer trotzdem ohne Signal -> echte Warnung mit Rezept.
     dead_on = gripper_level(0.05, 2.0, False, 7, 0.056, DEAD)
     assert dead_on.level == WARN and not dead_on.inactive
-    assert "set_tool_power" in dead_on.message, "Warnung muss den Ausweg nennen"
+    # Der Ausweg hat sich mit dem rg6_control-Ruhestand geaendert: die
+    # Tool-Spannung setzt jetzt die URCap, nicht mehr ein ROS-Service.
+    assert "URCap" in dead_on.message, "Warnung muss den Ausweg nennen"
+    assert "set_tool_power" not in dead_on.message, "der Service existiert nicht mehr"
     # Arm in einem unbestromten Nicht-POWER_OFF-Zustand (z.B. BOOTING).
     assert gripper_level(0.05, 2.0, False, 2, 0.0, DEAD).level == WARN
 
@@ -474,7 +557,7 @@ def main(argv=None) -> int:
 
     from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
     from sensor_msgs.msg import JointState
-    from std_msgs.msg import Bool
+    from std_msgs.msg import Bool, String
 
     # Optionale Abhaengigkeiten: fehlt eine, faellt NUR der betroffene Status
     # aus (mit Klartext), der Rest laeuft weiter.  So bleibt der Node auch auf
@@ -486,12 +569,16 @@ def main(argv=None) -> int:
         RobotMode = SafetyMode = None
         UR_MSGS_ERROR = str(exc)
 
+    # ToolDataMsg traegt AI2/AI3 und die Tool-Spannung -- die einzigen
+    # Greiferzahlen, die NICHT von der Bruecke kommen.  Frueher stand hier
+    # rg6_msgs/GripperState; das Paket faellt mit rg6_control aus dem
+    # Bootpfad, und der Zustand kommt seitdem als JSON von rg6_grip_bridge.
     try:
-        from rg6_msgs.msg import GripperState
-        RG6_MSGS_ERROR = None
+        from ur_msgs.msg import ToolDataMsg
+        TOOL_MSGS_ERROR = None
     except ImportError as exc:  # pragma: no cover
-        GripperState = None
-        RG6_MSGS_ERROR = str(exc)
+        ToolDataMsg = None
+        TOOL_MSGS_ERROR = str(exc)
 
     try:
         from controller_manager_msgs.srv import ListControllers
@@ -542,9 +629,9 @@ def main(argv=None) -> int:
             self.gripper_timeout = float(
                 self.declare_parameter("gripper_timeout", 2.0).value)
             self.stroke_m = float(self.declare_parameter("stroke_m", 0.160).value)
-            # Muss zum gleichnamigen rg6_control-Parameter passen: unterhalb
-            # dieser Spannung liefert der RG6 kein gueltiges Tool-Signal
-            # (rg6_joint_state_broadcaster loggt exakt diese Schwelle).
+            # Uebernommen aus dem stillgelegten rg6_control (gleichnamiger
+            # Parameter): unterhalb dieser Spannung liefert der RG6 kein
+            # gueltiges Tool-Signal.
             self.dead_input_threshold = float(
                 self.declare_parameter("dead_input_threshold", 0.2).value)
             # Rauschen der Gelenkgeschwindigkeit am STILLSTEHENDEN Arm: bestromt
@@ -571,8 +658,9 @@ def main(argv=None) -> int:
             self._program_running = None
             self._js_stamps = deque(maxlen=64)   # monotone Empfangszeiten (Arm)
             self._joints = {}                    # kurzname -> (pos, vel, eff)
-            self._gripper = None                 # letzte GripperState-Nachricht
+            self._gripper = None                 # letzter Bruecken-Zustand (dict)
             self._gripper_time = None
+            self._tool = None                    # letzte ToolDataMsg (AI2/AI3)
             self._controllers = None             # {name: state} | None
             self._controllers_time = None
             self._cm_future = None
@@ -590,9 +678,12 @@ def main(argv=None) -> int:
                 self._on_program_running, LATCHED)
             self.create_subscription(
                 JointState, f"{ns}/joint_states", self._on_joint_states, 10)
-            if GripperState is not None:
+            self.create_subscription(
+                String, f"{ns}/rg6/bridge_state", self._on_gripper, 10)
+            if ToolDataMsg is not None:
                 self.create_subscription(
-                    GripperState, f"{ns}/rg6/state", self._on_gripper, 10)
+                    ToolDataMsg, f"{ns}/io_and_status_controller/tool_data",
+                    self._on_tool_data, 10)
 
             # ---- controller_manager --------------------------------------
             self._cm_client = None
@@ -610,7 +701,7 @@ def main(argv=None) -> int:
                 f"manipulator_diagnostics: {ns} -> {self.diagnostics_topic} "
                 f"@ {self.rate_hz:.1f} Hz")
             for missing, what in ((UR_MSGS_ERROR, "ur_dashboard_msgs"),
-                                  (RG6_MSGS_ERROR, "rg6_msgs"),
+                                  (TOOL_MSGS_ERROR, "ur_msgs"),
                                   (CM_MSGS_ERROR, "controller_manager_msgs")):
                 if missing:
                     self.get_logger().error(
@@ -630,10 +721,10 @@ def main(argv=None) -> int:
         def _on_joint_states(self, msg: JointState) -> None:
             """Nur Arm-Gelenke zaehlen.
 
-            Auf ``<ns>/joint_states`` publizieren ZWEI Broadcaster: der
-            Arm-JSB und der rg6_joint_state_broadcaster.  Fuer die Motion-Link-
-            Bewertung zaehlt ausschliesslich der Arm-Strom -- der RG6-JSB laeuft
-            aus ``tool_data`` weiter, auch wenn das Arm-Hardware-Interface tot
+            Auf ``<ns>/joint_states`` liegen ZWEI Quellen: der Arm-JSB und
+            der Fingerwert der Greiferbruecke.  Fuer die Motion-Link-Bewertung
+            zaehlt ausschliesslich der Arm-Strom -- die Bruecke pollt ihren
+            XML-RPC-Endpoint weiter, auch wenn das Arm-Hardware-Interface tot
             ist, und wuerde einen Abriss sonst kaschieren.
             """
             found = False
@@ -650,8 +741,23 @@ def main(argv=None) -> int:
                 self._js_stamps.append(time.monotonic())
 
         def _on_gripper(self, msg) -> None:
-            self._gripper = msg
+            """JSON von rg6_grip_bridge.  Muell aendert den Zustand NICHT.
+
+            Der alte Zeitstempel bleibt dann stehen und altert -- damit meldet
+            der Panel "stumm" statt "OK mit Unsinn", und das ist die richtige
+            Aussage: eine unlesbare Nutzlast ist kein Zustand.
+            """
+            state = parse_bridge_state(msg.data)
+            if state is None:
+                self.get_logger().warn(
+                    f"unlesbarer rg6/bridge_state: {msg.data[:120]!r}",
+                    throttle_duration_sec=10.0)
+                return
+            self._gripper = state
             self._gripper_time = time.monotonic()
+
+        def _on_tool_data(self, msg) -> None:
+            self._tool = msg
 
         def _poll_controllers(self) -> None:
             """list_controllers asynchron abfragen (nie im Timer blockieren)."""
@@ -788,54 +894,67 @@ def main(argv=None) -> int:
                                 self.arm_hardware_id, values)
 
         def _gripper_status(self):
-            if GripperState is None:
-                return self._status(
-                    "Gripper", Verdict(ERROR, f"rg6_msgs fehlt ({RG6_MSGS_ERROR})"),
-                    self.gripper_hardware_id, {})
-            age = self._age(self._gripper_time)
-            msg = self._gripper
-            dead = self.dead_input_threshold
-            # Gueltigkeit ausschliesslich am Analogsignal festmachen -- die
-            # *_received-Flags und tool_power_on aus der Message taugen dafuer
-            # nicht (s. gripper_signal_valid).
-            valid = bool(msg) and gripper_signal_valid(
-                msg.width_raw, msg.force_raw, dead)
-            verdict = gripper_level(
-                age, self.gripper_timeout, valid, self._robot_mode,
-                msg.width_raw if msg else None, dead)
-            if msg is None:
-                return self._status("Gripper", verdict, self.gripper_hardware_id,
-                                    {"state_age_s": "never"})
+            """Zwei Quellen, absichtlich getrennt gehalten.
 
-            width = msg.width if valid else None
+            Der ZUSTAND (Weite, busy, grip_detected) kommt von der Bruecke und
+            damit vom Geraet selbst.  Die SPANNUNGEN AI2/AI3 kommen aus
+            ``tool_data`` und beantworten eine andere Frage: liegt am
+            Tool-Anschluss ueberhaupt Versorgung an?  Sie hier zusammenzulegen
+            hiesse, die am 2026-08-19 als um bis zu 17 mm falsch geeicht
+            gemessene AI2-Kennlinie (R19) wieder zur Weitenquelle zu machen.
+            """
+            unknown = "unbekannt"
+            age = self._age(self._gripper_time)
+            state = self._gripper
+            tool = self._tool
+            dead = self.dead_input_threshold
+            width_raw = None if tool is None else float(tool.analog_input2)
+            force_raw = None if tool is None else float(tool.analog_input3)
+            # Gueltigkeit ausschliesslich am Analogsignal festmachen: es ist
+            # das einzige HARDWARE-Feedback ueber die Tool-Versorgung.
+            valid = gripper_signal_valid(width_raw, force_raw, dead)
+            verdict = gripper_level(age, self.gripper_timeout, valid,
+                                    self._robot_mode, width_raw, dead)
+            if state is None:
+                return self._status("Gripper", verdict, self.gripper_hardware_id,
+                                    {"state_age_s": "never",
+                                     "width_raw_v": (unknown if width_raw is None
+                                                     else f"{width_raw:.3f}")})
+
+            width = state["width_m"] if valid else None
             if verdict.level == OK and not verdict.inactive:
                 verdict = Verdict(verdict.level, gripper_summary(
-                    width, msg.grip_detected, msg.busy, self.stroke_m))
-            unknown = "unbekannt"
+                    width, state["grip_detected"], state["busy"], self.stroke_m))
+            last = state["last_command"]
             values = {
                 "width_m": unknown if width is None else f"{width:.4f}",
                 "width_mm": unknown if width is None else f"{width * 1000.0:.1f}",
                 "width_percent": (unknown if width is None or self.stroke_m <= 0.0
                                   else f"{100.0 * width / self.stroke_m:.0f}"),
                 "stroke_mm": f"{self.stroke_m * 1000.0:.0f}",
-                # Rohwerte immer zeigen: sie sind die Diagnose selbst.
-                "width_raw_v": f"{msg.width_raw:.3f}",
-                "force_raw_v": f"{msg.force_raw:.3f}",
+                # Rohwerte immer zeigen: sie sind die Diagnose selbst.  Sie
+                # stammen NICHT aus derselben Quelle wie die Weite -- deshalb
+                # taugen sie als Gegenprobe.
+                "width_raw_v": unknown if width_raw is None else f"{width_raw:.3f}",
+                "force_raw_v": unknown if force_raw is None else f"{force_raw:.3f}",
                 "signal_valid": str(valid).lower(),
                 "dead_input_threshold_v": f"{dead:.2f}",
-                # Ohne Tool-Spannung liegen auch die Tool-DIs auf low -- DI1
-                # invertiert ergaebe dauerhaft "busy", DI0 dauerhaft "kein
-                # Objekt". Beides waere frei erfunden.
-                "grip_detected": (str(bool(msg.grip_detected)).lower() if valid
-                                  else unknown),
-                "busy": str(bool(msg.busy)).lower() if valid else unknown,
-                "high_force_preset": str(bool(msg.high_force_preset)).lower(),
-                "last_command": GRIPPER_COMMANDS.get(
-                    int(msg.last_command), str(msg.last_command)),
-                # Treibersicht, KEIN Hardware-Feedback -- als solche benannt.
-                "tool_power_commanded": str(bool(msg.tool_power_on)).lower(),
-                "io_states_received": str(bool(msg.io_states_received)).lower(),
-                "tool_data_received": str(bool(msg.tool_data_received)).lower(),
+                # Ohne Tool-Spannung meldet auch das Geraet nichts Belastbares.
+                "grip_detected": (unknown if not valid or state["grip_detected"] is None
+                                  else str(state["grip_detected"]).lower()),
+                "busy": (unknown if not valid or state["busy"] is None
+                         else str(state["busy"]).lower()),
+                # Geraetestatus, direkt vom Endpoint (rg_get_status /
+                # rg_get_safety_failed) -- das gab es ueber den Tool-DO-Pfad nie.
+                "device_status": unknown if state["status"] is None else str(state["status"]),
+                "safety_failed": (unknown if state["safety_failed"] is None
+                                  else str(state["safety_failed"]).lower()),
+                "last_command": (unknown if last is None
+                                 else GRIPPER_COMMANDS.get(last, str(last))),
+                # ECHTES Hardware-Feedback, anders als das frueher hier
+                # gezeigte tool_power_on (das war der Treiber-Sollwert).
+                "tool_output_voltage_v": (unknown if tool is None
+                                          else f"{float(tool.tool_output_voltage):.0f}"),
                 "state_age_s": f"{age:.2f}",
             }
             return self._status("Gripper", verdict, self.gripper_hardware_id, values)
