@@ -2,6 +2,41 @@
 
 Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md).
 
+## 2026-08-19
+
+- **`rg6_control` ist ausser Dienst.** Die Unit
+  `clearpath-custom-rg6-bringup` wird nicht mehr geschrieben, sondern beim
+  Installer-Lauf **abgeräumt** (disable, stop, `rm` — samt Wrapper
+  `rg6-bringup.sh` und den `.bak`-Handabschaltungen vom 2026-08-17). Nur
+  nicht mehr zu schreiben hätte sie auf jedem bestehenden Roboter stehen
+  lassen, wo sie beim nächsten Boot gegen einen Treiber startet, der über
+  Tool-DO nichts mehr bewirken kann. Der **Workspace** `onrobot-rg6` wird
+  weiter gebaut: `rg6_description` trägt das Greifermodell im URDF,
+  `rg6_moveit_patch` die SRDF-Anpassung, und `clearpath-custom-joint-states`
+  startet das Relay aus `rg6_control`. Weg ist ausschliesslich der laufende
+  Treiber-Knoten.
+- **Die Manipulator-Diagnose liest den Greifer bei der Brücke.** Sie hing an
+  `rg6_msgs/GripperState` auf `<ns>/rg6/state` — ein Topic ohne Publisher,
+  seit der Treiber steht; das Cockpit-Panel meldete „kein rg6/state". Jetzt
+  liest sie `<ns>/rg6/bridge_state` (JSON) und holt AI2/AI3 direkt aus
+  `tool_data`. Die beiden Quellen bleiben **getrennt**: der Zustand kommt vom
+  Gerät, die Spannung sagt, ob am Tool-Anschluss überhaupt Versorgung
+  anliegt. Neu im Panel: `device_status`, `safety_failed` und
+  `tool_output_voltage_v` — letzteres ist echtes Hardware-Feedback und
+  ersetzt das frühere `tool_power_commanded` (den Treiber-Sollwert). Der
+  Diagnose-Wrapper braucht das `onrobot-rg6`-Overlay damit nicht mehr.
+- **Die Brücke publiziert ihren Gerätezustand** auf
+  `<ns>/rg6/bridge_state` (`std_msgs/String`, JSON, im selben 5-Hz-Poll, der
+  schon das Fingergelenk trägt). Kein eigenes Message-Paket: `rg6_msgs` fällt
+  mit `rg6_control` aus dem Bootpfad, und ein Statustopf, der ein totes Paket
+  braucht, wäre genau die Abhängigkeit, die hier abgebaut wird. Antwortet der
+  Endpoint nicht, **schweigt** die Brücke — die Diagnose meldet den Ausfall
+  über das Alter des letzten Statuses.
+- `scripts/rg6_kennlinie.py` stempelt jede Zeile mit `t_read`. Ohne die
+  Wanduhr lässt sich eine Stützstelle nicht mit der parallel
+  mitgeschriebenen AI2-Spur verknüpfen — und ohne AI2 misst der Durchlauf nur
+  sich selbst.
+
 ## 2026-08-17
 
 - Der Greifer wird per **XML-RPC** kommandiert, nicht mehr über Tool-DO0.

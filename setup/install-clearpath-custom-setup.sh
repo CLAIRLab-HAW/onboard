@@ -11,8 +11,9 @@
 #   - optional: UR-Kinematik-Kalibrierung (ros-jazzy-ur-calibration -> YAML;
 #     robot.yaml-Pfad muss man selbst eintragen)
 #   - onrobot-rg6 per git klonen + bauen (colcon)
-#   - clearpath-custom-rg6-bringup.service: startet rg6_control + joint_state_broadcaster + urscript_interface beim Boot
-#     (io_and_status_controller wird von Clearpath aus der robot.yaml gespawnt)
+#   - clearpath-custom-rg6-grip-bridge.service: kommandiert den RG6 per XML-RPC an die
+#     OnRobot-URCap und publiziert Fingergelenk + Greiferzustand (loest rg6-bringup ab,
+#     das seit dem RTDE-Recipe-Split nichts mehr bewirken konnte)
 #   - optional: clearpath-custom-ur-dashboard.service: startet den ur_robot_driver dashboard_client
 #     (power_on/brake_release/unlock_protective_stop/restart_safety) beim Boot
 #   - optional: clearpath-custom-ur-state-manager.service: klont+baut ur-state-manager und startet
@@ -55,9 +56,27 @@ UNIT_NAME="clearpath-custom-setup.service"
 UNIT_PATH="/etc/systemd/system/${UNIT_NAME}"
 FOXGLOVE_YAML="/etc/clearpath/platform/config/foxglove_bridge.yaml"
 
+# rg6-bringup ist STILLGELEGT (2026-08-19).  Der Custom-Treiber rg6_control
+# steuerte den Greifer ausschliesslich ueber Tool-DO0, und dieser Weg ist seit
+# dem RTDE-Recipe-Split (31a45d0) tot: die OnRobot-URCap ist selbst RTDE-Client
+# und belegt tool_digital_output_mask, weshalb der ur_robot_driver auf einem
+# Input-Recipe OHNE die tool_digital_output*-Zeilen laeuft.  Kommandiert wird
+# der Greifer seitdem per XML-RPC an die URCap (rg6-grip-bridge, s.u.).
+# Die Namen bleiben hier stehen, weil der Installer die Unit ABRAEUMEN muss --
+# ein blosses Nicht-mehr-Schreiben laesst sie auf jedem bestehenden Roboter
+# stehen, und dort startet sie beim naechsten Boot in eine Endlosschleife
+# gegen einen Treiber, der nichts mehr bewirken kann.
 RG6_WRAPPER="${BIN_DIR}/rg6-bringup.sh"
 RG6_UNIT="clearpath-custom-rg6-bringup.service"
 RG6_UNIT_PATH="/etc/systemd/system/${RG6_UNIT}"
+# RG6-Greifer-Bruecke: kommandiert den Greifer per XML-RPC an die OnRobot-URCap
+# (Block weiter unten).  Die NAMEN stehen hier oben, weil die Diagnose-Unit sie
+# in ihrem After= braucht und weiter oben geschrieben wird -- unter 'set -u'
+# waere eine spaetere Definition ein Abbruch, kein leeres Feld.
+RG6_BRIDGE_BIN="${BIN_DIR}/rg6-grip-bridge"
+RG6_BRIDGE_WRAPPER="${BIN_DIR}/rg6-grip-bridge-wrapper"
+RG6_BRIDGE_UNIT="clearpath-custom-rg6-grip-bridge.service"
+RG6_BRIDGE_UNIT_PATH="/etc/systemd/system/${RG6_BRIDGE_UNIT}"
 # Root-eigene Kopie des rg6_moveit_patch-Tools (siehe Kopier-Schritt nach dem
 # rg6-Build). Der Boot-Service clearpath-custom-setup (root) ruft NUR diese
 # Kopie auf - nie direkt den user-schreibbaren Workspace.
@@ -180,7 +199,14 @@ OLD_UNITS=(
   "manipulators-watchdog.timer"
   "robot-yaml-update.service"
 )
-OLD_FILES=("${BIN_DIR}/set-update-rate.py" "${BIN_DIR}/wait-for-clearpath.sh")
+# STILLGELEGTE Units (nicht umbenannt, sondern abgeschafft): sie werden
+# genauso disable+stop+rm behandelt wie die alten Namen, stehen aber getrennt,
+# weil der Grund ein anderer ist -- hier ist die FUNKTION weg, nicht der Name.
+RETIRED_UNITS=(
+  "${RG6_UNIT}"
+)
+OLD_FILES=("${BIN_DIR}/set-update-rate.py" "${BIN_DIR}/wait-for-clearpath.sh"
+           "${RG6_WRAPPER}")
 # Verwaiste Drop-in-Verzeichnisse der alten Namen (Prefix-Rename -> Drop-in-Pfad
 # passt nicht mehr zur neuen Unit; Inhalt ist PartOf=clearpath-manipulators, das
 # die neue Unit ohnehin schon selbst traegt -> sicher zu entfernen).
@@ -255,7 +281,7 @@ fi
 # dagegen braucht die Unit-Datei -> getrennt und Fehler dort tolerieren.
 # Stop-Fehler NICHT verschlucken, sondern laut warnen (sonst laufen alte
 # Prozesse unbemerkt neben den neuen Units weiter).
-for u in "${OLD_UNITS[@]}"; do
+for u in "${OLD_UNITS[@]}" "${RETIRED_UNITS[@]}"; do
     known=0
     systemctl list-unit-files 2>/dev/null | grep -q "^${u}" && known=1
     state="$(systemctl is-active "${u}" 2>/dev/null || true)"
@@ -279,6 +305,10 @@ done
 # beim Installer behoben; alte .bak.* vom letzten Stand liegen aber noch auf Platte).
 rm -f /etc/systemd/system/manipulators-watchdog.service.bak.* \
       /usr/local/bin/manipulators-watchdog.sh.bak.* 2>/dev/null || true
+# Handabschaltungen der rg6-bringup-Unit (2026-08-17 am Roboter angelegt, um
+# PartOf= auszukommentieren).  Sie ueberleben sonst jeden Installer-Lauf und
+# sehen beim naechsten Blick wie ein zweiter, echter Unit-Stand aus.
+rm -f "${RG6_UNIT_PATH}".bak* 2>/dev/null || true
 
 DO_BOOT=1
 if systemctl list-unit-files | grep -q "^${UNIT_NAME}" && [ -f "$PY_PATH" ]; then
@@ -985,9 +1015,15 @@ if [ "$DO_RG6" -eq 1 ]; then
     # rg6_description = Greifermodell + Meshes + clearpath_extras (Glue);
     # rg6_control = Treiber/Broadcaster. (onrobot_rg6_visualization wurde in
     # rg6_description gemergt.)
+    #
+    # Der Workspace wird WEITER gebaut, obwohl der rg6_control-TREIBER
+    # stillgelegt ist (s. RETIRED_UNITS oben): rg6_description traegt das
+    # Greifermodell im URDF, rg6_moveit_patch die SRDF-Anpassung, und
+    # clearpath-custom-joint-states startet das Relay aus rg6_control.  Was
+    # entfaellt, ist ausschliesslich der laufende Treiber-Knoten.
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
         "source /etc/clearpath/setup.bash && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_msgs rg6_control" \
-        || echo "    WARN: colcon build fehlgeschlagen - rg6-bringup wird erst nach erfolgreichem Build laufen."
+        || echo "    WARN: colcon build fehlgeschlagen - ohne rg6_description fehlt der Greifer im URDF, ohne rg6_control das joint-states-Relay."
 else
     echo ">>> onrobot-rg6: uebersprungen (vorhandener Stand bleibt)."
 fi
@@ -1012,56 +1048,6 @@ elif [ -f "$RG6_MOVEIT_PATCH_BIN" ]; then
 else
     echo "    WARN: rg6_moveit_patch nicht gefunden (onrobot-rg6 geklont/gebaut?) - RG6-MoveIt-Patch beim Boot inaktiv, bis der Installer mit vorhandenem Workspace erneut laeuft."
 fi
-
-# --- rg6-bringup Wrapper + Service -----------------------------------------
-echo ">>> Installiere ${RG6_WRAPPER} + ${RG6_UNIT}"
-cat > "$RG6_WRAPPER" <<EOF
-#!/usr/bin/env bash
-# Startet rg6_control + joint_state_broadcaster im manipulators-Namespace.
-# (io_and_status_controller spawnt Clearpath selbst aus der robot.yaml-ros_parameters.)
-source /etc/clearpath/setup.bash
-source ${RG6_WS}/install/setup.bash
-exec ros2 launch rg6_control rg6_bringup.launch.py
-EOF
-chmod 0755 "$RG6_WRAPPER"
-
-cat > "$RG6_UNIT_PATH" <<EOF
-[Unit]
-Description=OnRobot RG6 bringup (rg6_control + joint_state_broadcaster)
-After=clearpath-manipulators.service
-Wants=clearpath-manipulators.service
-# Mit-Neustart: bei einem Restart von clearpath-manipulators wird der
-# controller_manager neu gespawnt und der joint_state_broadcaster verworfen ->
-# dieser Service muss ihn neu laden.
-# PartOf propagiert Stop/Restart NUR eine Hop-Ebene und NUR bei DIREKTEM Job auf
-# der Ziel-Unit (propagierte Jobs werden NICHT weitergereicht). Stack-Restart in
-# der Praxis: 'systemctl restart clearpath-robot' -> clearpath-manipulators
-# startet nur indirekt neu -> OHNE PartOf=clearpath-robot wuerde dieser Service
-# nicht mit-restarten. Daher an BEIDE Wurzeln: robot (praktischer Stack-Restart)
-# + manipulators (direkter Treiber-Restart). Stop clearpath-robot stoppt ihn mit.
-PartOf=clearpath-robot.service clearpath-manipulators.service
-# Aufgeben statt endlos neu starten. Ohne diese zwei Zeilen greift systemds
-# Voreinstellung (DefaultStartLimitIntervalSec=10s, Burst=5) NIE: bei
-# RestartSec=5 passen in ein 10-s-Fenster nur zwei Neustarts, die Grenze von
-# fuenf wird nicht erreicht -- ein fehlgeschlagener colcon-Build erzeugt dann
-# eine endlose 5-Sekunden-Schleife, die Logs flutet und CPU zieht, ohne je
-# gruen zu werden. Am 2026-08-17 am Roboter nachgemessen (ROBOTER-TODO R5):
-# StartLimitIntervalUSec=10s, StartLimitBurst=5, RestartSec=5.
-# 120 s Fenster: fuenf Versuche dauern ~25 s, danach bleibt die Unit 'failed'
-# stehen und ist als Fehler sichtbar, statt sich selbst zu verdecken.
-StartLimitIntervalSec=120
-StartLimitBurst=5
-
-[Service]
-User=${REAL_USER}
-ExecStart=${RG6_WRAPPER}
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-chmod 0644 "$RG6_UNIT_PATH"
 
 # --- UR dashboard_client als Boot-Service (optional) -----------------------
 # Liefert die Dashboard-Services (power_on/brake_release/unlock_protective_stop/
@@ -1727,14 +1713,12 @@ if [ "$DO_MD" -eq 1 ]; then
         python3 "$MD_BIN" --selftest || echo "    WARN: Selbsttest fehlgeschlagen - Service wird trotzdem installiert (Logs pruefen)."
 
         echo ">>> Installiere ${MD_WRAPPER} + ${MD_UNIT}"
-        # rg6_msgs kommt aus dem onrobot-rg6-Workspace; /etc/clearpath/setup.bash
-        # zieht ihn ueber system.ros2.workspaces schon mit, das explizite source
-        # ist die Absicherung fuer den Fall, dass der Eintrag mal fehlt.
         cat > "$MD_WRAPPER" <<EOF
 #!/usr/bin/env bash
 # UR5 + OnRobot RG6 als diagnostic_msgs fuer den Clearpath-diagnostic_aggregator.
+# Kein onrobot-rg6-Overlay noetig: der Greiferzustand kommt seit dem
+# rg6_control-Ruhestand als JSON von der Bruecke, nicht als rg6_msgs/GripperState.
 source /etc/clearpath/setup.bash
-[ -f ${RG6_WS}/install/setup.bash ] && source ${RG6_WS}/install/setup.bash
 exec python3 ${MD_BIN} --ros-args \\
     -p manipulator_ns:=${MANIP_NS} \\
     -p robot_ip:=${ARM_ROBOT_IP}
@@ -1744,10 +1728,10 @@ EOF
         cat > "$MD_UNIT_PATH" <<EOF
 [Unit]
 Description=Manipulator-Diagnose: UR5 + RG6 -> diagnostic_msgs (Cockpit/diagnostics_agg)
-After=clearpath-manipulators.service ${RG6_UNIT}
+After=clearpath-manipulators.service ${RG6_BRIDGE_UNIT}
 Wants=clearpath-manipulators.service
-# Wie rg6-bringup an BEIDE Wurzeln haengen: der praktische Stack-Restart laeuft
-# ueber clearpath-robot, der direkte Treiber-Restart ueber clearpath-manipulators.
+# An BEIDE Wurzeln haengen: der praktische Stack-Restart laeuft ueber
+# clearpath-robot, der direkte Treiber-Restart ueber clearpath-manipulators.
 PartOf=clearpath-robot.service clearpath-manipulators.service
 
 [Service]
@@ -1791,10 +1775,6 @@ fi
 # per XML-RPC (rg_grip auf 192.168.131.40:41414). Er laeuft ONBOARD, weil der
 # Endpoint am Arm-Subnetz haengt -- von der Workstation gibt es dorthin keine
 # Route -- und weil der Roboter auch ohne Funkstrecke greifen koennen muss.
-RG6_BRIDGE_BIN="${BIN_DIR}/rg6-grip-bridge"
-RG6_BRIDGE_WRAPPER="${BIN_DIR}/rg6-grip-bridge-wrapper"
-RG6_BRIDGE_UNIT="clearpath-custom-rg6-grip-bridge.service"
-RG6_BRIDGE_UNIT_PATH="/etc/systemd/system/${RG6_BRIDGE_UNIT}"
 RC_DST="/usr/local/lib/spact"
 RC_REPO="https://github.com/CLAIRLab-HAW/robot-contract.git"
 
@@ -1989,21 +1969,26 @@ systemctl daemon-reload
 # starten -> der ganze Custom-Stack (inkl. ur-state-manager/auto_recover + Watchdog-
 # Timer) bliebe bis zum Reboot tot. Wants=clearpath-manipulators zieht den Treiber
 # hoch, falls er noch nicht laeuft; After= sichert die Reihenfolge.
-systemctl enable --now "$UNIT_NAME" "$RG6_UNIT" "$JS_UNIT"
+systemctl enable --now "$UNIT_NAME" "$JS_UNIT"
 [ -f "$UR_DASH_UNIT_PATH" ] && systemctl enable --now "$UR_DASH_UNIT"
 [ -f "$USM_UNIT_PATH" ] && systemctl enable --now "$USM_UNIT"
 # Watchdog: den TIMER aktivieren + starten (die .service ist der oneshot-Check, den er triggert).
 [ -f "$WD_TIMER_PATH" ] && systemctl enable --now "$WD_TIMER"
 [ -f "$OCTO_UNIT_PATH" ] && systemctl enable --now "$OCTO_UNIT"
 [ -f "$MD_UNIT_PATH" ] && systemctl enable --now "$MD_UNIT"
+# Die Bruecke ebenfalls SOFORT starten, nicht erst beim naechsten Boot: ohne
+# sie fehlt rg6_finger_joint in /joint_states, und move_group plant bis zum
+# Reboot gegen eine Hand in Default-Stellung (R22).
+[ -f "$RG6_BRIDGE_UNIT_PATH" ] && systemctl enable --now "$RG6_BRIDGE_UNIT"
 
 echo ">>> Unit-Syntax pruefen"
-VERIFY_UNITS=("$UNIT_PATH" "$RG6_UNIT_PATH" "$JS_UNIT_PATH")
+VERIFY_UNITS=("$UNIT_PATH" "$JS_UNIT_PATH")
 [ -f "$UR_DASH_UNIT_PATH" ] && VERIFY_UNITS+=("$UR_DASH_UNIT_PATH")
 [ -f "$USM_UNIT_PATH" ] && VERIFY_UNITS+=("$USM_UNIT_PATH")
 [ -f "$WD_UNIT_PATH" ] && VERIFY_UNITS+=("$WD_UNIT_PATH" "$WD_TIMER_PATH")
 [ -f "$OCTO_UNIT_PATH" ] && VERIFY_UNITS+=("$OCTO_UNIT_PATH")
 [ -f "$MD_UNIT_PATH" ] && VERIFY_UNITS+=("$MD_UNIT_PATH")
+[ -f "$RG6_BRIDGE_UNIT_PATH" ] && VERIFY_UNITS+=("$RG6_BRIDGE_UNIT_PATH")
 systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    Units OK."
 
 # --- Patches jetzt einmal anwenden -----------------------------------------
@@ -2017,7 +2002,6 @@ echo "=============================================================="
 echo "Installation abgeschlossen."
 echo "  ${UNIT_NAME} : patcht Configs bei jedem Boot"
 echo "  ${ROBOT_YAML_PATH} -> ${SETUP_WS}/robot.yaml (Symlink, SSOT im Repo)"
-echo "  ${RG6_UNIT}            : startet rg6_control + joint_state_broadcaster + urscript_interface"
 echo "  ${JS_UNIT}           : joint_state_aggregator + Legacy-Bus-Relays (Phase 2)"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  ${UR_DASH_UNIT}           : startet ur_robot_driver dashboard_client"
@@ -2032,6 +2016,8 @@ echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-eigene Kopie des rg6_moveit_patch (vo
 echo "  ${OCTO_UNIT}   : Depth->PointCloud2 fuer MoveIts Octomap (Patch-Schritt 5 setzt die move_group-Sensorparameter beim Boot)"
 [ -f "$MD_UNIT_PATH" ] && \
 echo "  ${MD_UNIT} : UR5 + RG6 -> diagnostic_msgs (Patch-Schritt 6 traegt die Analyzer beim Boot ein)"
+[ -f "$RG6_BRIDGE_UNIT_PATH" ] && \
+echo "  ${RG6_BRIDGE_UNIT} : RG6 per XML-RPC an die OnRobot-URCap (Greifbefehle, Fingergelenk, Greiferzustand)"
 [ -d "$CKPT_PKG_DIR" ] && \
 echo "  ${CKPT_PKG_DIR} : Cockpit-Plugin mit Manipulator-Panel (ueberdeckt das apt-Plugin unter /usr/share)"
 echo
@@ -2041,7 +2027,6 @@ echo
 echo "Logs:"
 echo "  journalctl -t clearpath-custom-setup -b"
 echo "  journalctl -t robot-yaml-update -b"
-echo "  journalctl -u ${RG6_UNIT} -b"
 echo "  journalctl -u ${JS_UNIT} -b"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  journalctl -u ${UR_DASH_UNIT} -b"
@@ -2053,6 +2038,8 @@ echo "  journalctl -t manipulators-watchdog -b   # + 'systemctl list-timers ${WD
 echo "  journalctl -u ${OCTO_UNIT} -b"
 [ -f "$MD_UNIT_PATH" ] && \
 echo "  journalctl -u ${MD_UNIT} -b   # + 'ros2 topic echo ${MANIP_NS%/manipulators}/diagnostics_agg'"
+[ -f "$RG6_BRIDGE_UNIT_PATH" ] && \
+echo "  journalctl -u ${RG6_BRIDGE_UNIT} -b   # + 'ros2 topic echo ${MANIP_NS}/rg6/bridge_state'"
 echo
 echo "Hinweis: robot.yaml wird ab jetzt aus dem Git-Repo verwaltet (SSOT)."
 echo "  Aenderungen (platform.extras.urdf, system.ros2.workspaces, Arm-/Sensor-Config)"
