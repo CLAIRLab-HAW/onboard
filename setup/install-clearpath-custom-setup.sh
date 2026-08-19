@@ -260,6 +260,38 @@ USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
 RG6_WS="${USER_HOME}/onrobot-rg6"
 USM_WS="${USER_HOME}/ur-state-manager"
 SETUP_WS="${USER_HOME}/husky-custom-setup"   # versionierte robot.yaml (Symlink-Ziel)
+
+# Eine Datei DIESES Repos finden.  Der Installer laeuft NICHT zwingend aus dem
+# Checkout -- er wird standalone aufgerufen, dann ist "$(dirname "$0")" ein
+# beliebiges Verzeichnis und jede Annahme "die Datei liegt neben mir" faellt um.
+# Am 2026-08-19 genau daran gescheitert: install(1) bekam Quelle == Ziel und
+# brach mit "are the same file" ab, und weil set -e gilt, starb der ganze Lauf
+# mitten im Ausrollen.
+#
+# Reihenfolge: neben dem Skript, dann der Klon, den der Installer fuer die
+# robot.yaml ohnehin pflegt (SETUP_WS, s. o.), erst danach das Netz.  Lokal VOR
+# GitHub, sonst ueberschreibt main still einen ausgecheckten Stand -- das ist
+# ROBOTER-TODO R6.  Gibt den Pfad auf stdout aus; Rueckgabe != 0 heisst
+# "nirgends gefunden", und der Aufrufer entscheidet, ob das ein WARN oder ein
+# Abbruch ist.  Abbrechen tut hier NIEMAND.
+repo_file() {
+    local rel="$1" kandidat tmp
+    for kandidat in "$(dirname "$0")/${rel}" "${SETUP_WS}/${rel}"; do
+        if [ -f "$kandidat" ]; then
+            printf '%s\n' "$kandidat"
+            return 0
+        fi
+    done
+    tmp="$(mktemp)"
+    if curl -fsSL --connect-timeout 5 --max-time 30 \
+         "https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/${rel}" \
+         -o "$tmp"; then
+        printf '%s\n' "$tmp"
+        return 0
+    fi
+    rm -f "$tmp"
+    return 1
+}
 CKPT_WS="${USER_HOME}/cockpit-ros2-diagnostics"
 
 if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
@@ -1759,14 +1791,21 @@ fi
 # "controlled by another RTDE client". robot.yaml zeigt FEST auf
 # /home/robot/rtde_input_recipe_no_tool.txt -- fehlt die Datei nach einem
 # Neuaufsetzen, startet der Treiber nicht, und zwar ohne Hinweis auf sie.
-RTDE_RECIPE_SRC="$(dirname "$0")/rtde_input_recipe_no_tool.txt"
 RTDE_RECIPE_DST="${USER_HOME}/rtde_input_recipe_no_tool.txt"
-if [ -f "$RTDE_RECIPE_SRC" ]; then
-    install -m 0644 -o "$REAL_USER" -g "$REAL_USER" \
-        "$RTDE_RECIPE_SRC" "$RTDE_RECIPE_DST"
-    echo ">>> RTDE-Recipe -> ${RTDE_RECIPE_DST}"
+if RTDE_RECIPE_SRC="$(repo_file rtde_input_recipe_no_tool.txt)"; then
+    if [ "$RTDE_RECIPE_SRC" -ef "$RTDE_RECIPE_DST" ]; then
+        # Quelle und Ziel sind dieselbe Datei -- passiert, wenn der Installer
+        # aus ${USER_HOME} heraus laeuft.  install(1) bricht dann ab, und mit
+        # set -e nimmt es den ganzen Lauf mit.  Hier ist schlicht nichts zu tun.
+        echo ">>> RTDE-Recipe liegt bereits an seinem Platz (${RTDE_RECIPE_DST})"
+    else
+        install -m 0644 -o "$REAL_USER" -g "$REAL_USER" \
+            "$RTDE_RECIPE_SRC" "$RTDE_RECIPE_DST"
+        echo ">>> RTDE-Recipe -> ${RTDE_RECIPE_DST}  (aus ${RTDE_RECIPE_SRC})"
+    fi
 else
-    echo "    WARN: ${RTDE_RECIPE_SRC} fehlt - der UR-Treiber startet ohne sie NICHT."
+    echo "    WARN: rtde_input_recipe_no_tool.txt weder lokal noch abrufbar -"
+    echo "          der UR-Treiber startet ohne sie NICHT."
 fi
 
 # --- RG6-Greifer-Bruecke (XML-RPC an die OnRobot-URCap) --------------------
@@ -1790,10 +1829,11 @@ if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
     # Wer den Installer aus dem Checkout laufen laesst, will den Stand des
     # Checkouts; die umgekehrte Reihenfolge ist genau das Muster, aus dem der
     # octomap_feed.py-Drift in drei Fassungen entstanden ist.
-    RG6_SRC="$(dirname "$0")/scripts/rg6_grip_bridge.py"
-    if [ ! -f "$RG6_SRC" ]; then
-        echo "    WARN: ${RG6_SRC} fehlt - RG6-Bruecke uebersprungen."
+    if ! RG6_SRC="$(repo_file scripts/rg6_grip_bridge.py)"; then
+        echo "    WARN: scripts/rg6_grip_bridge.py weder lokal noch abrufbar -"
+        echo "          RG6-Bruecke uebersprungen."
         DO_RG6_BRIDGE=0
+        RG6_SRC=""
     elif ! python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$RG6_SRC"; then
         echo "    WARN: ${RG6_SRC} ist kein gueltiges Python - verwerfe."
         DO_RG6_BRIDGE=0
