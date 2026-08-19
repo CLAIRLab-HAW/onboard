@@ -254,6 +254,15 @@ def result_payload(request_id: str, phase: str, *, state, reason: str = "",
     Parameter.  robot_contract haengt nur an pyyaml und numpy, beide sind auf
     dem Roboter da; der Installer legt es mit ab.
 
+    KEIN Versionshandschlag, und das ist eine Entscheidung, keine Luecke:
+    ``twin_protocol`` fuehrt zwar ``PROTOCOL_VERSION`` und veroeffentlicht sie
+    auf ``/twin/server_info``, aber dieser Node tut es nicht und prueft sie
+    nicht.  Am 2026-08-19 vom Owner entschieden:  am Roboter laeuft nichts
+    produktiv, beide Seiten werden von Hand zusammen ausgerollt, und ein
+    Handschlag waere Aufwand ohne Gegenwert.  Wer hier spaeter eine
+    Versionspruefung vermisst, vermisst sie zu Recht -- aber erst, wenn der
+    Roboter etwas traegt, das jemand anderes deployt.
+
     ``io_states_received`` heisst im Vertrag "es liegt echter Geraetestatus
     vor".  Beim rg6_control-Pfad kam der aus Tool-DI0, hier aus
     ``rg_get_grip_detected`` -- dieselbe Aussage, andere Quelle.  Ohne
