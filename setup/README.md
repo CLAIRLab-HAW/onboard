@@ -142,14 +142,20 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
    verwirren. Der Status bleibt daher **OK** (es ist ja nichts kaputt) und
    trägt zusätzlich den Wert `display=inactive`; nur Cockpit färbt daraus grau.
 
-2. **Boot-Patcher Schritt 6** (`clearpath-custom-setup.py`,
-   `add_manipulator_analyzers`): trägt idempotent eine AnalyzerGroup
-   `Manipulator` mit den Untergruppen `Arm` und `Gripper` in das generierte
-   `/etc/clearpath/platform/config/diagnostic_aggregator.yaml` ein — **nur**
-   wenn die Unit-Datei existiert (die Datei ist der Feature-Schalter, wie beim
-   octomap-feed). Die Analyzer listen ihre Status als `expected`: stirbt der
-   Node, bleiben sie als **STALE** in der Anzeige stehen statt spurlos zu
-   verschwinden.
+2. **`robot.yaml`** unter `platform.extras.ros_parameters.diagnostic_aggregator`:
+   eine AnalyzerGroup `Manipulator` mit den Untergruppen `Arm` und `Gripper`.
+   Der Clearpath-Generator merged sie in die erzeugte
+   `/etc/clearpath/platform/config/diagnostic_aggregator.yaml` und flacht die
+   Verschachtelung selbst auf die Punkt-Keys ab, die ROS erwartet; die 20
+   Upstream-`platform.analyzers.*` und die Sensor-Analyzer bleiben unangetastet.
+   Die Analyzer listen ihre Status als `expected`: stirbt der Node, bleiben sie
+   als **STALE** in der Anzeige stehen statt spurlos zu verschwinden.
+
+   Bis zum 2026-08-19 stand das im Boot-Patcher (Schritt 6) und lief **nur**,
+   wenn die Unit-Datei existierte — die Datei war der Feature-Schalter. Diese
+   Kopplung gibt es nicht mehr: der Block steht bedingungslos in `robot.yaml`.
+   Ohne den Diagnose-Node zeigt Cockpit die Gruppe darum als STALE, statt sie
+   verschwinden zu lassen. Rückbau = Block aus `robot.yaml` entfernen.
 
 3. **Cockpit-Plugin-Fork**
    ([`CLAIRLab-HAW/cockpit-ros2-diagnostics`](https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics),
@@ -198,8 +204,9 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
 
 1. `journalctl -u clearpath-custom-manipulator-diagnostics -b` → Startzeile mit
    Namespace/Topic/Rate.
-2. `journalctl -t clearpath-custom-setup -b | grep -i manipulator` →
-   „Analyzer-Gruppe 'Manipulator' … eingetragen" (bzw. „bereits korrekt").
+2. `grep -A2 "manipulator.type" /etc/clearpath/platform/config/diagnostic_aggregator.yaml`
+   → `diagnostic_aggregator/AnalyzerGroup` (der Generator hat den robot.yaml-Block
+   übernommen; im Journal des Patchers steht dazu nichts mehr).
 3. `ros2 topic echo /a200_0553/diagnostics_agg --once` → Einträge unter
    `/Clearpath Diagnostics/Manipulator/Arm/…` und `…/Gripper`.
 4. Cockpit (`http://<robot>:9090` → ROS 2 Diagnostics): Karte **Manipulator**
@@ -213,9 +220,10 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
    Programm-Flanke von `rg6_control` reicht dafür nicht; solange meldet der
    Status WARNUNG mit genau diesem Rezept.)
 7. Rückbau-Probe: `systemctl disable --now
-   clearpath-custom-manipulator-diagnostics`, Unit-Datei löschen, Reboot → die
-   Analyzer verschwinden wieder aus der generierten YAML (`.bak` liegt daneben),
-   das Panel rendert nichts mehr.
+   clearpath-custom-manipulator-diagnostics` → die Analyzer **bleiben** in der
+   generierten YAML und die Gruppe steht als **STALE** in `diagnostics_agg`;
+   das Panel rendert dann nichts mehr. Sollen auch die Analyzer weg, den Block
+   aus `robot.yaml` entfernen (wirkt über `clearpath-robot-check` sofort).
 
 ## `clearpath-custom-octomap-feed.service` (MoveIt-Octomap: dichte Hindernis-Schicht)
 

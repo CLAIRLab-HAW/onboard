@@ -54,7 +54,6 @@ BIN_DIR="/usr/local/bin"
 PY_PATH="${BIN_DIR}/clearpath-custom-setup.py"
 UNIT_NAME="clearpath-custom-setup.service"
 UNIT_PATH="/etc/systemd/system/${UNIT_NAME}"
-FOXGLOVE_YAML="/etc/clearpath/platform/config/foxglove_bridge.yaml"
 
 # rg6-bringup ist STILLGELEGT (2026-08-19).  Der Custom-Treiber rg6_control
 # steuerte den Greifer ausschliesslich ueber Tool-DO0, und dieser Weg ist seit
@@ -381,88 +380,15 @@ import os
 import re
 import shutil
 import sys
-import tempfile
 
 TAG = "clearpath-custom-setup"
 
-# ---- Konfiguration ---------------------------------------------------------
-FOXGLOVE_YAML = "/etc/clearpath/platform/config/foxglove_bridge.yaml"
-
-# Korrekte, EINFACH-escapte Regex (wie im funktionierenden Template
-# clearpath_diagnostics/config/foxglove_bridge.yaml). In YAML-Single-Quotes
-# bleibt '\w' ein Wortzeichen-Match; '\\w' waere ein literaler Backslash.
-# Nur package:// (file:// serviert die foxglove_bridge ohnehin nicht; Sensor-
-# Meshes werden per fix_realsense_mesh_uris auf package:// umgestellt).
-FOXGLOVE_ALLOWLIST = (
-    r"['^package://(?:[-\w%]+/)*[-\w%]+\.(?:dae|fbx|glb|gltf|jpeg|jpg|mtl|obj|"
-    r"png|stl|tif|tiff|urdf|webp|xacro)$']"
-)
 # ---------------------------------------------------------------------------
 
 
 def log(msg, err=False):
     """Logzeile (stdout/stderr); von journald via SyslogIdentifier erfasst."""
     print(f"{TAG}: {msg}", file=(sys.stderr if err else sys.stdout), flush=True)
-
-
-def set_scalar_line(path, key, new_value_str, label):
-    """Ersetzt chirurgisch den Wert einer eindeutigen `key: ...`-Zeile.
-
-    Nur die Einrueckung wird erhalten; der bisherige Wert wird durch
-    new_value_str ersetzt. Idempotent. Gibt True zurueck, wenn geaendert.
-    """
-    if not os.path.isfile(path):
-        log(f"WARN: {label}: Datei nicht gefunden, uebersprungen: {path}", err=True)
-        return False
-
-    with open(path, "r") as f:
-        lines = f.readlines()
-
-    # <indent><key>: <wert>   (Wert muss vorhanden sein -> \S nach dem Doppelpunkt)
-    rx = re.compile(
-        r"^(?P<indent>[^\S\n]*)" + re.escape(key) + r"[^\S\n]*:[^\S\n]*\S.*$"
-    )
-    idx = [i for i, ln in enumerate(lines) if rx.match(ln.rstrip("\n"))]
-
-    if not idx:
-        log(f"WARN: {label}: '{key}' nicht in {path} gefunden, uebersprungen.", err=True)
-        return False
-    if len(idx) > 1:
-        nums = ", ".join(str(i + 1) for i in idx)
-        log(f"WARN: {label}: '{key}' mehrfach in {path} (Zeilen {nums}), "
-            f"uebersprungen.", err=True)
-        return False
-
-    i = idx[0]
-    m = rx.match(lines[i].rstrip("\n"))
-    newline = "\n" if lines[i].endswith("\n") else ""
-    new_line = f"{m.group('indent')}{key}: {new_value_str}{newline}"
-
-    if lines[i] == new_line:
-        log(f"{label}: bereits korrekt (Zeile {i + 1}), keine Aenderung.")
-        return False
-
-    backup = path + ".bak"
-    if not os.path.exists(backup):
-        shutil.copy2(path, backup)
-        log(f"{label}: Backup erstellt: {backup}")
-
-    lines[i] = new_line
-
-    dir_name = os.path.dirname(path) or "."
-    fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.writelines(lines)
-        shutil.copymode(path, tmp)
-        os.replace(tmp, path)
-    except Exception:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise
-
-    log(f"{label}: gesetzt (Zeile {i + 1}).")
-    return True
 
 
 def fix_realsense_mesh_uris(label):
@@ -563,122 +489,6 @@ def move_arm_joint_states(label):
 
 
 
-AGGREGATOR_YAML = "/etc/clearpath/platform/config/diagnostic_aggregator.yaml"
-MANIPULATOR_UNIT_FILE = (
-    "/etc/systemd/system/clearpath-custom-manipulator-diagnostics.service")
-MANIPULATOR_STATUS_PREFIX = "manipulator_diagnostics"
-
-# Analyzer-Block fuer den Manipulator, flach mit Punkt-Keys geschrieben.
-# ROS 2 behandelt 'a.b: 1' und 'a: {b: 1}' identisch (beides ergibt den
-# Parameter 'a.b') -- flach zu schreiben macht den Patch unabhaengig davon,
-# ob der Generator die uebrigen Analyzer verschachtelt oder flach ablegt.
-# 'expected' ist wichtig: fehlt ein Status (Node tot), erzeugt der Aggregator
-# dafuer einen STALE-Eintrag, statt ihn stillschweigend verschwinden zu lassen.
-MANIPULATOR_ANALYZERS = {
-    "manipulator.type": "diagnostic_aggregator/AnalyzerGroup",
-    "manipulator.path": "Manipulator",
-    "manipulator.analyzers.arm.type": "diagnostic_aggregator/GenericAnalyzer",
-    "manipulator.analyzers.arm.path": "Arm",
-    "manipulator.analyzers.arm.startswith": [f"{MANIPULATOR_STATUS_PREFIX}: Arm"],
-    "manipulator.analyzers.arm.expected": [
-        f"{MANIPULATOR_STATUS_PREFIX}: Arm Mode",
-        f"{MANIPULATOR_STATUS_PREFIX}: Arm Control",
-        f"{MANIPULATOR_STATUS_PREFIX}: Arm Joints",
-        f"{MANIPULATOR_STATUS_PREFIX}: Arm Controllers",
-    ],
-    "manipulator.analyzers.gripper.type": "diagnostic_aggregator/GenericAnalyzer",
-    "manipulator.analyzers.gripper.path": "Gripper",
-    "manipulator.analyzers.gripper.startswith": [
-        f"{MANIPULATOR_STATUS_PREFIX}: Gripper"],
-    "manipulator.analyzers.gripper.expected": [
-        f"{MANIPULATOR_STATUS_PREFIX}: Gripper"],
-}
-
-
-def add_manipulator_analyzers(label):
-    """Manipulator-Analyzer in die generierte diagnostic_aggregator.yaml (Schritt 6).
-
-    clearpath_generator_common erzeugt Analyzer nur fuer Platform (Power,
-    E-Stop, Drive) und Sensoren -- Arm und Greifer kommen im Generator gar
-    nicht vor.  Ohne diesen Block landen die Status des
-    manipulator_diagnostics-Node im Catch-All des Aggregators (bzw. gar nicht)
-    und tauchen in Cockpit nicht als eigene Gruppe auf.
-
-    Nur aktiv, wenn der manipulator-diagnostics-Boot-Service installiert ist
-    (die Unit-Datei ist der Schalter, wie beim octomap-feed): Datei loeschen
-    + Reboot = Analyzer wieder weg.  Idempotent, .bak, atomar.
-    """
-    if not os.path.exists(MANIPULATOR_UNIT_FILE):
-        log(f"{label}: manipulator-diagnostics nicht installiert - uebersprungen.")
-        return False
-    try:
-        import yaml
-    except ImportError:
-        log(f"{label}: PyYAML fehlt (apt: python3-yaml) - uebersprungen.", err=True)
-        return False
-    if not os.path.isfile(AGGREGATOR_YAML):
-        log(f"{label}: {AGGREGATOR_YAML} fehlt (Generierung gelaufen?) - "
-            "uebersprungen.", err=True)
-        return False
-    try:
-        with open(AGGREGATOR_YAML) as f:
-            data = yaml.safe_load(f)
-    except (OSError, yaml.YAMLError) as e:
-        log(f"{label}: {AGGREGATOR_YAML} nicht lesbar: {e}", err=True)
-        return False
-    if not isinstance(data, dict):
-        log(f"{label}: {AGGREGATOR_YAML} hat unerwartetes Format - uebersprungen.",
-            err=True)
-        return False
-
-    # Der Generator schreibt <namespace>: <node>: ros__parameters: ...
-    # Die Namespace-Ebene kann je nach Version fehlen -> beide Formen suchen.
-    params = None
-    if "diagnostic_aggregator" in data:
-        params = data["diagnostic_aggregator"].get("ros__parameters")
-    else:
-        for val in data.values():
-            if isinstance(val, dict) and "diagnostic_aggregator" in val:
-                params = val["diagnostic_aggregator"].get("ros__parameters")
-                break
-    if not isinstance(params, dict):
-        log(f"{label}: kein diagnostic_aggregator.ros__parameters - uebersprungen.",
-            err=True)
-        return False
-
-    # Schon verschachtelt vorhanden (z.B. von Hand eingetragen)? Dann nicht
-    # zusaetzlich flach danebenschreiben - das gaebe doppelte Analyzer.
-    if isinstance(params.get("manipulator"), dict):
-        log(f"{label}: bereits (verschachtelt) vorhanden.")
-        return False
-
-    changed = False
-    for key, value in MANIPULATOR_ANALYZERS.items():
-        if params.get(key) != value:
-            params[key] = value
-            changed = True
-    if not changed:
-        log(f"{label}: bereits korrekt.")
-        return False
-
-    backup = AGGREGATOR_YAML + ".bak"
-    if not os.path.exists(backup):
-        try:
-            shutil.copy2(AGGREGATOR_YAML, backup)
-        except OSError:
-            pass
-    tmp = AGGREGATOR_YAML + ".tmp"
-    try:
-        with open(tmp, "w") as f:
-            yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
-        os.replace(tmp, AGGREGATOR_YAML)
-    except OSError as e:
-        log(f"{label}: kann {AGGREGATOR_YAML} nicht schreiben: {e}", err=True)
-        return False
-    log(f"{label}: Analyzer-Gruppe 'Manipulator' (Arm + Gripper) eingetragen.")
-    return True
-
-
 def run_rg6_moveit_patch(label):
     """RG6 in die frisch generierte MoveIt-Config einhaengen.
 
@@ -722,9 +532,15 @@ def main():
     # Hinweis: 'update_rate' (125) und 'io_and_status_controller' werden NICHT mehr
     # hier gepatcht -> beide laufen ueber robot.yaml arm-level 'ros_parameters'
     # (clearpath_common PR #347), verifiziert 2026-06.
-    # 1) foxglove asset_uri_allowlist
-    set_scalar_line(FOXGLOVE_YAML, "asset_uri_allowlist", FOXGLOVE_ALLOWLIST,
-                    "foxglove asset_uri_allowlist")
+    # 1) ENTFERNT 2026-08-19: die foxglove-Allowlist steht jetzt in robot.yaml
+    #    unter platform.extras.ros_parameters.foxglove_bridge -- allerdings
+    #    BACKSLASH-FREI ([A-Za-z0-9_] statt \w, [.] statt \.). Der ParamWriter
+    #    des Generators serialisiert Listen ueber Pythons repr und verdoppelt
+    #    dabei jeden Backslash; YAML-Single-Quotes lesen ihn literal zurueck,
+    #    und die Regex matcht nichts mehr. Ohne Backslashes geht der Wert
+    #    unveraendert durch. Gegen std::regex -- die Engine der
+    #    foxglove_bridge, s. utils.hpp isWhitelisted -- sind beide Fassungen
+    #    auf einem Korpus aus Treffern und Nicht-Treffern deckungsgleich.
     # 2) Sensor-Meshes file:// -> package:// (foxglove_bridge serviert nur package://)
     fix_realsense_mesh_uris("sensor mesh package://")
     # 3) Phase 2: Arm-JSB joint_states raus aus dem platform-Namespace ->
@@ -741,11 +557,13 @@ def main():
     #    stehen jetzt nativ in robot.yaml unter
     #    manipulators.moveit.ros_parameters.move_group - der Generator
     #    schreibt sie selbst in moveit.yaml. Kein Patch mehr noetig.
-    # 6) Manipulator-Analyzer in die generierte diagnostic_aggregator.yaml --
-    #    NUR wenn der manipulator-diagnostics-Boot-Service installiert ist.
-    #    Erst damit erscheinen Arm + Greifer als eigene Gruppe in
-    #    diagnostics_agg (Cockpit, rqt_robot_monitor, Diagnose-Capture).
-    add_manipulator_analyzers("manipulator analyzers")
+    # 6) ENTFERNT 2026-08-19: die Manipulator-Analyzer stehen jetzt in
+    #    robot.yaml unter platform.extras.ros_parameters.diagnostic_aggregator
+    #    -- der Generator flacht die Verschachtelung selbst auf die Punkt-Keys
+    #    ab, die ROS erwartet. Unterschied zum Patcher: der lief nur bei
+    #    installiertem manipulator-diagnostics-Service (die Unit-Datei war der
+    #    Schalter), robot.yaml kennt diese Bedingung nicht -- ohne den Node
+    #    zeigt Cockpit die Gruppe als STALE, statt sie verschwinden zu lassen.
     log("Fertig.")
     return 0
 
@@ -2011,7 +1829,11 @@ VERIFY_UNITS=("$UNIT_PATH" "$JS_UNIT_PATH")
 systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    Units OK."
 
 # --- Patches jetzt einmal anwenden -----------------------------------------
-if [ -f "$FOXGLOVE_YAML" ]; then
+# Wache war frueher die generierte foxglove_bridge.yaml -- die patcht der
+# Patcher seit 2026-08-19 nicht mehr. robot.yaml belegt genauso, dass
+# /etc/clearpath eingerichtet ist; die verbliebenen Schritte sind einzeln
+# gegen fehlende Dateien abgesichert.
+if [ -f "$ROBOT_YAML_PATH" ]; then
     echo ">>> Wende Config-Patches jetzt einmalig an"
     "$PY_PATH" || true
 fi

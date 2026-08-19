@@ -28,6 +28,80 @@ platform:
       controller_manager:
         update_rate: 10 # mcu is slow so we give more time
         # cycle_time_error_threshold: 0.1
+      # Asset-Allowlist der foxglove_bridge. Stand bis 2026-08-19 im
+      # Boot-Patcher (Schritt 1).
+      #
+      # WARUM DAS HIER UEBERHAUPT STEHEN MUSS: die foxglove_bridge bringt einen
+      # korrekten Default mit (am Node gemessen: '^package://(?:[-\w%]+/)*
+      # [-\w%.]+\.(...)$'). Er kommt nur nie zum Zug -- Clearpaths Vorlage
+      # clearpath_diagnostics/config/foxglove_bridge.yaml SETZT den Parameter,
+      # und ein gesetzter Parameter verdeckt den Node-Default. Der Generator
+      # schreibt ihn dabei verstuemmelt (s. u.), also traegt die generierte
+      # Datei ohne diesen Block eine Allowlist, die NICHTS matcht -- auch kein
+      # package://. Weglassen ginge nur, wenn der Schluessel gar nicht
+      # generiert wuerde; ros_parameters kann aber nur ueberschreiben, nicht
+      # loeschen. Dieser Block stellt also her, was ohne den Writer-Bug
+      # ohnehin gaelte.
+      #
+      # ACHTUNG, DER GRUND FUER DIE UNGEWOHNTE SCHREIBWEISE: hier darf KEIN
+      # Backslash vorkommen. Der ParamWriter des Generators schreibt Skalare
+      # zwar korrekt in Single-Quotes, LISTEN aber ueber Pythons repr --
+      # und das verdoppelt jeden Backslash. YAML-Single-Quotes lesen ihn dann
+      # literal zurueck, aus '\w' wird ein Backslash-Backslash-w, und die
+      # Regex matcht NICHTS mehr. Nachgemessen: mit \w ist die generierte
+      # Datei kaputt, egal ob gepatcht oder nicht.
+      #
+      # Deshalb die backslash-freie, exakt gleichwertige Fassung:
+      #   \w -> [A-Za-z0-9_]   (in std::regex/ECMAScript genau das, was \w ist)
+      #   \. -> [.]            (im Zeichenklassen-Ausdruck ist . literal)
+      # foxglove_bridge haelt die Muster als std::vector<std::regex> und
+      # vergleicht mit std::regex_match (utils.hpp, isWhitelisted) -- gegen
+      # diese Engine sind beide Fassungen auf einem Korpus aus Treffern und
+      # Nicht-Treffern deckungsgleich, inklusive Nicht-ASCII.
+      #
+      # Der Wert spiegelt bewusst Clearpaths Vorlage, nicht den Node-Default:
+      # genau das schrieb bis zum 2026-08-19 der Patcher, das Verhalten am
+      # Roboter aendert sich also nicht. Der einzige Unterschied waere ein
+      # Punkt im Dateinamen-Stamm -- von 409 Meshes unter /opt/ros/jazzy/share
+      # hat keines einen.
+      foxglove_bridge:
+        asset_uri_allowlist:
+          - '^package://(?:[-A-Za-z0-9_%]+/)*[-A-Za-z0-9_%]+[.](?:dae|fbx|glb|gltf|jpeg|jpg|mtl|obj|png|stl|tif|tiff|urdf|webp|xacro)$'
+      # Analyzer-Gruppe "Manipulator" fuer den diagnostic_aggregator. Der
+      # Clearpath-Generator kennt nur Platform- und Sensor-Analyzer; ohne
+      # diesen Block landen die Status des manipulator_diagnostics-Node im
+      # Catch-All und erscheinen in Cockpit nicht als eigene Gruppe. Stand bis
+      # 2026-08-19 im Boot-Patcher (Schritt 6); der Generator flacht die
+      # Verschachtelung selbst auf die Punkt-Keys ab, die ROS erwartet.
+      #
+      # UNTERSCHIED ZUM PATCHER: der lief nur, wenn
+      # clearpath-custom-manipulator-diagnostics.service installiert war (die
+      # Unit-Datei war der Schalter). Hier steht der Block bedingungslos --
+      # laeuft der Diagnose-Node nicht, zeigt Cockpit die Gruppe als STALE,
+      # statt sie verschwinden zu lassen. Das ist der sichtbarere Zustand;
+      # rueckgaengig macht man ihn, indem man diesen Block entfernt.
+      diagnostic_aggregator:
+        manipulator:
+          type: diagnostic_aggregator/AnalyzerGroup
+          path: Manipulator
+          analyzers:
+            arm:
+              type: diagnostic_aggregator/GenericAnalyzer
+              path: Arm
+              startswith: ['manipulator_diagnostics: Arm']
+              # 'expected' ist wichtig: fehlt ein Status (Node tot), erzeugt
+              # der Aggregator dafuer einen STALE-Eintrag, statt ihn
+              # stillschweigend verschwinden zu lassen.
+              expected:
+                - 'manipulator_diagnostics: Arm Mode'
+                - 'manipulator_diagnostics: Arm Control'
+                - 'manipulator_diagnostics: Arm Joints'
+                - 'manipulator_diagnostics: Arm Controllers'
+            gripper:
+              type: diagnostic_aggregator/GenericAnalyzer
+              path: Gripper
+              startswith: ['manipulator_diagnostics: Gripper']
+              expected: ['manipulator_diagnostics: Gripper']
   battery:
     model: HE2411
     configuration: S1P4

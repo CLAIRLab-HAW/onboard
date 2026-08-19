@@ -2,6 +2,68 @@
 
 Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md).
 
+## 2026-08-19 (Boot-Patcher von 5 auf 3 Schritte)
+
+- **Die Manipulator-Analyzer stehen in `robot.yaml`, nicht mehr im Patcher.**
+  Neu unter `platform.extras.ros_parameters.diagnostic_aggregator`: die
+  AnalyzerGroup `Manipulator` mit `Arm` und `Gripper`. Der Generator merged sie
+  in die erzeugte `diagnostic_aggregator.yaml` und flacht die Verschachtelung
+  selbst auf die Punkt-Keys ab, die ROS erwartet. Im Container nachgemessen:
+  **alle 10 Analyzer-Keys wertgleich** zum frueheren Patch, die 20
+  Upstream-`platform.analyzers.*` und die 8 Sensor-Keys unangetastet.
+
+  **Eine Kopplung entfaellt dabei:** `add_manipulator_analyzers` lief nur, wenn
+  `clearpath-custom-manipulator-diagnostics.service` installiert war -- die
+  Unit-Datei war der Feature-Schalter. `robot.yaml` kennt diese Bedingung
+  nicht. Laeuft der Diagnose-Node nicht, zeigt Cockpit die Gruppe jetzt als
+  STALE, statt sie verschwinden zu lassen; Rueckbau = Block entfernen.
+- **Die foxglove-Allowlist auch -- der Trick ist eine backslash-freie Regex.**
+  Bisher galt der Patch als unverschiebbar, und der Grund stimmte: der
+  `ParamWriter` des Generators schreibt Skalare korrekt in Single-Quotes,
+  serialisiert **Listen** aber ueber Pythons `repr` und verdoppelt dabei jeden
+  Backslash. YAML-Single-Quotes lesen ihn literal zurueck, aus `\w` wird ein
+  totes Muster. Gemessen: die generierte `foxglove_bridge.yaml` ist dadurch
+  **im Auslieferungszustand kaputt** -- ihre Allowlist matcht keine einzige
+  `package://`-URI, gepatcht oder nicht.
+
+  **Der Node-Default waere in Ordnung -- er kommt nur nie zum Zug.** Am
+  laufenden `foxglove_bridge` gemessen (`ros2 param get`): ohne jede Config
+  meldet er `^package://(?:[-\w%]+/)*[-\w%.]+\.(...)$`, also die korrekte
+  Fassung. Clearpaths Vorlage
+  (`clearpath_diagnostics/config/foxglove_bridge.yaml`) **setzt** den Parameter
+  aber immer, und ein gesetzter Parameter verdeckt den Default; mit der
+  generierten Datei sieht der Node `[-\\w%]`. Weglassen ginge nur, wenn der
+  Schluessel gar nicht generiert wuerde -- `ros_parameters` kann nur
+  ueberschreiben, nicht loeschen. Dieser Eintrag ist also weder Dublette noch
+  zusaetzliche Einschraenkung, sondern stellt her, was ohne den Writer-Bug
+  ohnehin gaelte.
+
+  **Ein Generator-Upgrade hilft nicht.** Am neuesten Upstream-Tag 2.9.15
+  nachgesehen (sieben Releases nach unserer 2.9.8, `jazzy`-HEAD identisch):
+  `write_key_value_pair` ist weiterhin `self.write(f'{key}: {value}')` ohne
+  Listenbehandlung und ohne Escaping, und die Vorlage setzt
+  `asset_uri_allowlist` weiterhin mit der `\w`-Regex. Der Eintrag ist damit
+  ein Dauerzustand, kein Uebergangs-Workaround.
+
+  Der Ausweg braucht keinen Backslash: `[A-Za-z0-9_]` statt `\w`, `[.]` statt
+  `\.`. Der Wert geht dann unveraendert durch den Writer. Belegt gegen die
+  echte Engine -- `foxglove_bridge` haelt die Muster als
+  `std::vector<std::regex>` und vergleicht mit `std::regex_match`
+  (`utils.hpp::isWhitelisted`): auf einem Korpus aus 14 Treffern und
+  Nicht-Treffern **null Divergenzen** zur korrekten `\w`-Fassung, inklusive
+  des Nicht-ASCII-Falls, in dem sich Pythons `re` und C++ unterscheiden.
+- **Der Patcher ist damit auf drei Schritte geschrumpft** (Mesh-URIs,
+  joint_states-Bus, RG6-SRDF) und rund 6,7 KB kleiner. Mit `set_scalar_line`
+  und `add_manipulator_analyzers` sind auch `FOXGLOVE_YAML`,
+  `FOXGLOVE_ALLOWLIST`, `AGGREGATOR_YAML`, `MANIPULATOR_ANALYZERS`,
+  `MANIPULATOR_UNIT_FILE`, `MANIPULATOR_STATUS_PREFIX` und der ungenutzte
+  `tempfile`-Import entfallen. Was bleibt, patcht **apt-Pakete** (dort hat
+  `robot.yaml` prinzipiell keinen Hebel) oder die SRDF.
+- Die Wache vor dem einmaligen Patcher-Lauf im Installer haengt jetzt an
+  `robot.yaml` statt an der generierten `foxglove_bridge.yaml` -- die patcht er
+  ja nicht mehr. Die verbliebenen Schritte sind einzeln gegen fehlende Dateien
+  abgesichert.
+
 ## 2026-08-19 (MoveIt-Greiferwerte in robot.yaml)
 
 - **`robot.yaml` traegt den GripperCommand-Controller des RG6.** Neu unter
