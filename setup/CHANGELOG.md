@@ -32,10 +32,21 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
   braucht, wäre genau die Abhängigkeit, die hier abgebaut wird. Antwortet der
   Endpoint nicht, **schweigt** die Brücke — die Diagnose meldet den Ausfall
   über das Alter des letzten Statuses.
+- **Die Erfolgsmeldung der Brücke trug die Weite von *vor* der Fahrt.**
+  `rg_grip` quittiert die Annahme, nicht das Ergebnis: `succeeded` kam nach
+  0,16 s mit dem Startwert (am Draht gemessen: befohlene 60 mm, gemeldete
+  2,8 mm). Betroffen war auch `grasped` — das Feld, wegen dem der Rückweg
+  existiert. `await_settled` wartet jetzt auf **beide** `busy`-Flanken; die
+  erste ist nötig, weil `busy` nach dem Kommando noch rund 0,4 s auf false
+  steht und ein blosses „warte, solange busy" sofort zurückkehrte. Timeouts
+  als Parameter (`settle_start_timeout_s`, `settle_motion_timeout_s`,
+  `settle_poll_s`), damit ein Kommando ohne Arbeit antwortet statt zu hängen.
 - `scripts/rg6_kennlinie.py` stempelt jede Zeile mit `t_read`. Ohne die
   Wanduhr lässt sich eine Stützstelle nicht mit der parallel
   mitgeschriebenen AI2-Spur verknüpfen — und ohne AI2 misst der Durchlauf nur
-  sich selbst.
+  sich selbst. Dazu `--settle`, `--force` und `--both`: 2,5 s Ruhe reichen für
+  eine Eichung nicht (der gemeldete Wert kriecht danach noch ~0,9 mm weiter),
+  und das Handbuch nennt die Sollkraft ausdrücklich als Genauigkeitsbremse.
 
 ## 2026-08-17
 
