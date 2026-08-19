@@ -21,18 +21,17 @@ Subnetz nicht).  Und der Roboter muss greifen koennen, auch wenn die
 Funkstrecke weg ist -- dasselbe Argument, mit dem R16 die Reflexschicht
 onboard verortet.
 
-Der Endpoint kann mehr, als frueher notiert war: neben ``rg_grip`` gibt es
-einen vollstaendigen Status-Rueckweg (``rg_get_width``, ``rg_get_busy``,
+Der Endpoint bietet mehr als ``rg_grip``: es gibt einen vollstaendigen
+Status-Rueckweg (``rg_get_width``, ``rg_get_busy``,
 ``rg_get_grip_detected``, ``rg_get_status``, ``rg_get_safety_failed``).  Die
 Spannungsnaeherung ueber AI2 wird dadurch ueberfluessig -- und AI2 ist am
 2026-08-17 als um ~17 mm falsch geeicht aufgefallen, gemessen gegen genau
 diese Getter.
 
-Was dieser Node NICHT tut, seit dem 2026-08-19:  er spricht das
-``/twin/*``-JSON-Protokoll nicht mehr.  Das tut ``plan_server`` im
-Offboard-Container, der den Vertrag ohnehin fuehrt, und zwar auf ``mock`` und
-``real`` gleich -- ein Codepfad statt zweier.  Hier bleiben ausschliesslich
-Standard-ROS-Schnittstellen:
+Was dieser Node NICHT tut:  er spricht das ``/twin/*``-JSON-Protokoll nicht.
+Das tut ``plan_server`` im Offboard-Container, der den Vertrag ohnehin fuehrt,
+und zwar auf ``mock`` und ``real`` gleich -- ein Codepfad statt zweier.  Hier
+gibt es ausschliesslich Standard-ROS-Schnittstellen:
 
     control_msgs/GripperCommand  (Action)   <- MoveIt und plan_server
     sensor_msgs/JointState       (Topic)    -> rg6_finger_joint
@@ -295,10 +294,10 @@ def goal_result(state, target_width_m: float, force_n: float, linkage,
 def status_payload(state, last_command: str = COMMAND_NONE) -> dict:
     """Geraetezustand fuer ``<ns>/rg6/bridge_state`` -- flach, als JSON.
 
-    Warum ein eigenes Topic und nicht rg6_msgs/GripperState:  mit dem
-    rg6_control-Ruhestand faellt das ganze rg6_msgs-Paket aus dem Bootpfad,
-    und ein Statustopf, der ein totes Paket braucht, waere genau die
-    Abhaengigkeit, die hier abgebaut wird.  JSON in einem std_msgs/String
+    Warum ein eigenes Topic und nicht rg6_msgs/GripperState:  rg6_msgs liegt
+    nicht im Bootpfad des Roboters, und ein Statustopf, der ein Paket von dort
+    braucht, waere genau die Abhaengigkeit, die hier abgebaut wird.  JSON in
+    einem std_msgs/String
     kostet keinen Build und keinen Overlay -- dieselbe Entscheidung, die auf
     ``/twin/*`` schon getragen hat.
 
@@ -449,8 +448,7 @@ def selftest() -> int:
                            tolerance_m=0.008)["reached_goal"] is False
 
         # 5b. Der Statustopf traegt den GERAETEZUSTAND, nicht den Befehl --
-        #     die Manipulator-Diagnose bewertet ihn, seit rg6_control und mit
-        #     ihm rg6_msgs/GripperState in Ruhestand gehen.
+        #     genau das bewertet die Manipulator-Diagnose.
         st = Rg6State(width_m=0.1032, busy=False, grip_detected=True,
                       status=0, safety_failed=False)
         status = status_payload(st, COMMAND_GRIP)
@@ -571,9 +569,8 @@ def run(argv) -> int:
     finger_joint = str(_p("driver_joint"))
     joints = node.create_publisher(
         JointState, f"{manip_ns}/endeffectors/joint_states", 10)
-    # Derselbe Poll traegt den Zustand fuer die Manipulator-Diagnose.  Sie las
-    # ihn bis zum rg6_control-Ruhestand aus rg6_msgs/GripperState auf
-    # <ns>/rg6/state; dieses Topic hat seitdem keinen Publisher mehr.
+    # Derselbe Poll traegt den Zustand fuer die Manipulator-Diagnose.  Sie
+    # liest ihn hier -- <ns>/rg6/state hat keinen Publisher.
     states = node.create_publisher(
         String, f"{manip_ns}/rg6/bridge_state", 10)
     last_command = [COMMAND_NONE]
@@ -618,8 +615,8 @@ def run(argv) -> int:
     inflight = threading.Lock()
 
     # -- MoveIt ------------------------------------------------------------
-    # Zweiter Eingang zum selben Geraet: die GripperCommand-Action, die
-    # rg6_control bis zu seinem Ruhestand angeboten hat.  Ohne sie zeigt der
+    # Zweiter Eingang zum selben Geraet: die GripperCommand-Action.  Ohne sie
+    # zeigt der
     # Controller-Eintrag in moveit.yaml auf nichts, und ein Greifbefehl aus
     # RViz oder MoveGroupInterface laeuft auf `real` in einen Timeout statt
     # in ein "kann ich nicht".  Im Mock bedient rg6_control_sim denselben

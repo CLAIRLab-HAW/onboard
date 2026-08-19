@@ -134,12 +134,11 @@ USM_WRAPPER="${BIN_DIR}/ur-state-manager.sh"
 USM_UNIT="clearpath-custom-ur-state-manager.service"
 USM_UNIT_PATH="/etc/systemd/system/${USM_UNIT}"
 
-# arm-controllers: laedt die Extra-Controller (--inactive) + Mode-Manager beim Boot.
-# Nutzt denselben ur-state-manager-Workspace (kein eigener Build).
-# arm-controllers: 2026-07-29 ABGELOEST. Die Extra-Controller (--inactive) und der
-# ur_controller_mode_manager kommen jetzt aus ur_state_manager.launch.py
-# (Argument load_arm_controllers, Default true): gleiches Paket, gleicher Workspace,
-# gleicher User, identischer Lifecycle -> kein Grund fuer eine zweite Unit.
+# arm-controllers: eine abgeschaffte Unit, die der Installer nur noch AUFRAEUMT.
+# Die Extra-Controller (--inactive) und der ur_controller_mode_manager kommen aus
+# ur_state_manager.launch.py (Argument load_arm_controllers, Default true):
+# gleiches Paket, gleicher Workspace, gleicher User, identischer Lifecycle -> kein
+# Grund fuer eine zweite Unit.
 ARM_CTRL_OLD_UNIT="clearpath-custom-arm-controllers.service"
 ARM_CTRL_OLD_WRAPPER="${BIN_DIR}/arm-controllers.sh"
 
@@ -549,9 +548,8 @@ def main():
     # 4) RG6 in MoveIt: robot.srdf (Gruppe 'gripper' + EE) patchen
     #    (onrobot-rg6-Tool).  Fuer die SRDF gibt es in robot.yaml keinen
     #    Hebel -- clearpath_config kennt das Wort 'srdf' nicht, und der
-    #    Greifer-Enum (franka/kinova/robotiq) hat keinen RG6.  Die frueher
-    #    hier mitgepatchten moveit.yaml-Werte stehen seit dem 2026-08-19 in
-    #    robot.yaml; das Tool prueft sie nur noch.
+    #    Greifer-Enum (franka/kinova/robotiq) hat keinen RG6.  Die
+    #    moveit.yaml-Werte stehen in robot.yaml; das Tool prueft sie nur.
     run_rg6_moveit_patch("rg6 moveit")
     # 5) ENTFERNT 2026-07-29 (A4): die Occupancy-Map-Monitor-Sensorparameter
     #    stehen jetzt nativ in robot.yaml unter
@@ -871,8 +869,7 @@ if [ "$DO_RG6" -eq 1 ]; then
     fi
     echo ">>> Baue Workspace (colcon)"
     # rg6_description = Greifermodell + Meshes + clearpath_extras (Glue);
-    # rg6_control = Treiber/Broadcaster. (onrobot_rg6_visualization wurde in
-    # rg6_description gemergt.)
+    # rg6_control = Simulations-Greifer, joint_state-Hilfsnodes, rg6_moveit_patch.
     #
     # Der Workspace wird WEITER gebaut, obwohl der rg6_control-TREIBER
     # stillgelegt ist (s. RETIRED_UNITS oben): rg6_description traegt das
@@ -1414,9 +1411,9 @@ chmod 0644 "$JS_UNIT_PATH"
 
 # --- robot.yaml: versionierte Datei per Symlink (offizieller Clearpath-Weg) ---
 # Clearpath sieht vor, die robot.yaml versioniert zu halten und per SYMLINK nach
-# /etc/clearpath/robot.yaml zu legen (Customization-Package-Konzept). Das ersetzt
-# den frueheren Boot-Download (clearpath-custom-robot-yaml-update.service, 2026-07-29
-# entfernt): keine Netzabhaengigkeit im Bootpfad, reproduzierbare Konfiguration, und
+# /etc/clearpath/robot.yaml zu legen (Customization-Package-Konzept). Gegenueber
+# einem Boot-Download (die abgeschaffte clearpath-custom-robot-yaml-update.service,
+# unten aufgeraeumt): keine Netzabhaengigkeit im Bootpfad, reproduzierbar, und
 # ein 'git pull' wirkt SOFORT statt erst beim naechsten Boot -- clearpath-robot-check
 # md5summt /etc/clearpath/robot.yaml im Sekundentakt und startet den Stack bei
 # Aenderung neu (md5sum folgt dem Symlink).
@@ -1574,8 +1571,8 @@ if [ "$DO_MD" -eq 1 ]; then
         cat > "$MD_WRAPPER" <<EOF
 #!/usr/bin/env bash
 # UR5 + OnRobot RG6 als diagnostic_msgs fuer den Clearpath-diagnostic_aggregator.
-# Kein onrobot-rg6-Overlay noetig: der Greiferzustand kommt seit dem
-# rg6_control-Ruhestand als JSON von der Bruecke, nicht als rg6_msgs/GripperState.
+# Kein onrobot-rg6-Overlay noetig: der Greiferzustand kommt als JSON von der
+# Bruecke (rg6/bridge_state), nicht als rg6_msgs-Typ.
 source /etc/clearpath/setup.bash
 exec python3 ${MD_BIN} --ros-args \\
     -p manipulator_ns:=${MANIP_NS} \\
@@ -1829,10 +1826,10 @@ VERIFY_UNITS=("$UNIT_PATH" "$JS_UNIT_PATH")
 systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    Units OK."
 
 # --- Patches jetzt einmal anwenden -----------------------------------------
-# Wache war frueher die generierte foxglove_bridge.yaml -- die patcht der
-# Patcher seit 2026-08-19 nicht mehr. robot.yaml belegt genauso, dass
-# /etc/clearpath eingerichtet ist; die verbliebenen Schritte sind einzeln
-# gegen fehlende Dateien abgesichert.
+# Wache ist robot.yaml: sie belegt, dass /etc/clearpath eingerichtet ist. Die
+# generierte foxglove_bridge.yaml taugt dafuer nicht mehr, weil der Patcher sie
+# nicht anfasst; die verbliebenen Schritte sind einzeln gegen fehlende Dateien
+# abgesichert.
 if [ -f "$ROBOT_YAML_PATH" ]; then
     echo ">>> Wende Config-Patches jetzt einmalig an"
     "$PY_PATH" || true

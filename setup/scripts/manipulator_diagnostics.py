@@ -18,8 +18,8 @@ In dieser Kette fehlt der Manipulator vollstaendig:
   NICHT auf den Topic, den der Aggregator abonniert.
 * Der ``ur_robot_driver`` publiziert Mode/Safety/ExternalControl ueberhaupt
   nicht als ``diagnostic_msgs``, sondern als eigene ``ur_dashboard_msgs``.
-* Der RG6-Zustand kommt als JSON von ``rg6_grip_bridge`` (seit dem
-  rg6_control-Ruhestand; vorher ``rg6_msgs/GripperState``).
+* Der RG6-Zustand kommt als JSON von ``rg6_grip_bridge`` auf
+  ``rg6/bridge_state``, nicht als typisierte Message.
 
 Dieser Node uebersetzt all das in ``diagnostic_msgs/DiagnosticArray`` und
 publiziert es auf ``/a200_0553/diagnostics``.  Zusammen mit dem Analyzer-Block,
@@ -121,8 +121,8 @@ SAFETY_WARN = {2, 4, 10, 11}
 SAFETY_ESTOP = {6, 7}
 
 # Was zuletzt an den Greifer ging.  Die Bruecke schickt den Klartext direkt
-# (rg6_grip_bridge.COMMAND_*); die alten rg6_msgs-Zahlen werden weiter
-# uebersetzt, damit eine Aufzeichnung von frueher lesbar bleibt.
+# (rg6_grip_bridge.COMMAND_*); die numerischen rg6_msgs-Werte werden mit
+# uebersetzt, damit archivierte Aufzeichnungen lesbar bleiben.
 GRIPPER_COMMANDS = {0: "NONE", 1: "OPEN", 2: "CLOSE", 3: "GRIP"}
 
 # robot_mode-Werte, in denen der Arm bestromt ist -- und damit auch die 24-V-
@@ -301,11 +301,10 @@ BRIDGE_FIELDS = {
 def parse_bridge_state(data):
     """JSON von ``<ns>/rg6/bridge_state`` -> dict, oder None wenn unbrauchbar.
 
-    Warum ueberhaupt geparst wird:  seit dem rg6_control-Ruhestand kommt der
-    Greiferzustand von ``rg6_grip_bridge`` als JSON in einem
-    ``std_msgs/String`` -- rg6_msgs/GripperState hat keinen Publisher mehr.
-    Der String kostet dafuer die Typpruefung, die ein .msg geschenkt bekommt,
-    also steht sie hier.
+    Warum ueberhaupt geparst wird:  ``rg6_grip_bridge`` meldet den
+    Greiferzustand als JSON in einem ``std_msgs/String``, nicht als typisierte
+    Message.  Der String kostet dafuer die Typpruefung, die ein .msg geschenkt
+    bekommt, also steht sie hier.
 
     Nichts hiervon darf werfen:  ein Callback, der an einer fremden Nutzlast
     stirbt, nimmt den ganzen Diagnose-Node mit -- und dann fehlt auch die
@@ -384,10 +383,9 @@ def gripper_level(state_age, timeout, signal_valid, robot_mode, width_raw,
             return Verdict(WARN, f"Arm nicht bestromt ({robot_mode_name(robot_mode)}) "
                                  f"- Greifer ohne Versorgung (Tool-Signal {raw})")
         # Arm bestromt, trotzdem kein Signal: die 24-V-Tool-Versorgung liegt
-        # nicht an.  Sie zu setzen ist seit dem rg6_control-Ruhestand Sache
-        # der OnRobot-URCap -- der ROS-Weg dorthin ging ueber Tool-DO, und den
-        # hat der RTDE-Recipe-Split stillgelegt.  Kein ROS-Service kann das
-        # hier noch reparieren; nachzusehen ist am Panel.
+        # nicht an.  Sie zu setzen ist Sache der OnRobot-URCap -- der ROS-Weg
+        # dorthin ginge ueber Tool-DO, und das belegt die URCap selbst.  Kein
+        # ROS-Service kann das hier reparieren; nachzusehen ist am Panel.
         return Verdict(WARN, f"kein gueltiges Tool-Signal ({raw} < "
                              f"{dead_threshold:.2f} V) - Tool stromlos: "
                              "laeuft das URCap-Programm auf dem Panel?")
@@ -485,8 +483,7 @@ def selftest() -> int:
     assert gripper_signal_valid(0.56, 0.9, DEAD), "geschlossener Greifer ist nicht tot"
 
     # --- Gripper: Zustand von der Bruecke ----------------------------------
-    # Seit dem rg6_control-Ruhestand kommt der Greiferzustand als JSON von
-    # rg6_grip_bridge, nicht mehr als rg6_msgs/GripperState.
+    # Der Greiferzustand kommt als JSON von rg6_grip_bridge.
     good = parse_bridge_state(
         '{"width_m": 0.1032, "busy": false, "grip_detected": true,'
         ' "status": 0, "safety_failed": false, "last_command": "GRIP"}')
@@ -513,8 +510,8 @@ def selftest() -> int:
     # Arm bestromt, Greifer trotzdem ohne Signal -> echte Warnung mit Rezept.
     dead_on = gripper_level(0.05, 2.0, False, 7, 0.056, DEAD)
     assert dead_on.level == WARN and not dead_on.inactive
-    # Der Ausweg hat sich mit dem rg6_control-Ruhestand geaendert: die
-    # Tool-Spannung setzt jetzt die URCap, nicht mehr ein ROS-Service.
+    # Die Tool-Spannung setzt die URCap, kein ROS-Service -- die Warnung muss
+    # deshalb ans Panel verweisen und darf keinen Service nennen.
     assert "URCap" in dead_on.message, "Warnung muss den Ausweg nennen"
     assert "set_tool_power" not in dead_on.message, "der Service existiert nicht mehr"
     # Arm in einem unbestromten Nicht-POWER_OFF-Zustand (z.B. BOOTING).
@@ -951,8 +948,8 @@ def main(argv=None) -> int:
                                   else str(state["safety_failed"]).lower()),
                 "last_command": (unknown if last is None
                                  else GRIPPER_COMMANDS.get(last, str(last))),
-                # ECHTES Hardware-Feedback, anders als das frueher hier
-                # gezeigte tool_power_on (das war der Treiber-Sollwert).
+                # ECHTES Hardware-Feedback: die gemessene Spannung, kein
+                # kommandierter Sollwert.
                 "tool_output_voltage_v": (unknown if tool is None
                                           else f"{float(tool.tool_output_voltage):.0f}"),
                 "state_age_s": f"{age:.2f}",

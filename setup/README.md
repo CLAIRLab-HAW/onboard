@@ -44,9 +44,10 @@ recovery runs (no driver-restart loop against an unpowered arm). Once the operat
 powers the arm, the watchdog reconnects the motion link on the next tick. Protective /
 safety stops (`safety_mode != NORMAL`) are **not** auto-cleared — `resend` is skipped,
 manual clear required. The restarted driver reconnects, the JSC stream resumes, and
-`ur_state_manager`'s `auto_recover` (plus `rg6_control`'s tool-power/prime on the
-program-running edge) brings the **gripper** up once the arm is powered and the program
-runs. A generous `JS_TIMEOUT` (25 s) grace window prevents false alarms during the ~15 s
+`ur_state_manager`'s `auto_recover` brings the arm's motion link back once the arm is
+powered and the program runs. The **gripper** is not part of that: it hangs off the
+OnRobot URCap, and no ROS service can power its tool connector — see the gripper section
+below. A generous `JS_TIMEOUT` (25 s) grace window prevents false alarms during the ~15 s
 the JSC needs to come up after a restart; it stays silent on a healthy boot (JSC
 streaming) and while the arm is off (not pingable). Logs:
 `journalctl -t manipulators-watchdog -b`; schedule:
@@ -74,15 +75,15 @@ und zwar an drei Stellen gleichzeitig:
 * Der `controller_manager` des Arms publiziert seine Diagnose in den
   *manipulators*-Namespace (`/a200_0553/manipulators/diagnostics`) — nicht auf
   `/a200_0553/diagnostics`, das der Aggregator abonniert.
-* `ur_robot_driver` und `rg6_control` liefern ihren Zustand als
-  `ur_dashboard_msgs` bzw. `rg6_msgs/GripperState`, nicht als `diagnostic_msgs`.
+* `ur_robot_driver` liefert seinen Zustand als `ur_dashboard_msgs`, der Greifer als
+  flaches JSON auf `rg6/bridge_state` — beides nicht als `diagnostic_msgs`.
 
 Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
 
 1. **`manipulator-diagnostics`** (`scripts/manipulator_diagnostics.py`,
-   root-eigene Kopie unter `/usr/local/bin`, Wrapper sourct zusätzlich den
-   `onrobot-rg6`-Workspace für `rg6_msgs`): publiziert mit 1 Hz fünf Status auf
-   `/a200_0553/diagnostics`:
+   root-eigene Kopie unter `/usr/local/bin`): publiziert mit 1 Hz fünf Status auf
+   `/a200_0553/diagnostics`. Ein `onrobot-rg6`-Overlay braucht der Wrapper nicht —
+   der Greiferzustand kommt als JSON, nicht als `rg6_msgs`-Typ:
 
    | Status | Inhalt |
    |---|---|
@@ -99,24 +100,23 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
 
    **Der Armzustand entscheidet über den Greifer.** Der RG6 hängt
    am UR-Tool-Anschluss — ohne bestromten Arm kann er gar keine Versorgung
-   haben. Die Flags aus `rg6_msgs/GripperState` taugen als Nachweis dafür
-   *nicht*: `tool_data_received`/`io_states_received` sind Latches im Sinne von
-   „schon mal empfangen" und bleiben `true`, wenn das Tool später stromlos wird,
-   und `tool_power_on` ist der zuletzt vom **Treiber kommandierte** Sollwert,
-   kein Hardware-Feedback. Genau daran meldete der Greifer am ausgeschalteten
-   Arm „OK, in Bewegung, 0 mm": AI2/AI3 fallen auf ~0,05 V, die Tool-DIs auf
-   low → `busy` (DI1 invertiert) dauerhaft `true`, Weite rechnerisch 0 mm.
+   haben. Der Zustand, den `rg6_grip_bridge` auf `rg6/bridge_state` meldet,
+   taugt als Nachweis dafür *nicht*: die Brücke fragt den XML-RPC-Endpoint in
+   der Control-Box, und der antwortet auch dann, wenn am Tool-Anschluss nichts
+   anliegt — er weiß, was er zuletzt kommandiert hat, nicht was die Hardware
+   tut.
 
-   Maßgeblich ist deshalb **dieselbe Probe, die `rg6_control` und der
-   `rg6_joint_state_broadcaster` intern schon benutzen**: Analogsignal unter
+   Maßgeblich ist deshalb weiterhin die **Tool-Spannung**: Analogsignal unter
    `dead_input_threshold` (0,2 V) = kein gültiges Tool-Signal. Gemessen am
-   a200-0553: bestromt AI2 10,00 V / AI3 1,33 V, stromlos beide ~0,056 V.
+   a200-0553: bestromt AI2 10,00 V / AI3 1,33 V, stromlos beide ~0,056 V. Als
+   *Weitenquelle* taugt AI2 nicht (bis zu 17 mm falsch geeicht) — die Frage,
+   die es beantwortet, ist allein „liegt am Tool-Anschluss Versorgung an".
    Ist das Signal ungültig, meldet der Status je nach Ursache
 
    | Lage | Meldung |
    |---|---|
    | Arm `POWER_OFF` | **außer Betrieb** (grau): „Arm ausgeschaltet – Greifer ohne Versorgung" |
-   | Arm bestromt, kein Signal | **WARNUNG** mit Rezept: `rg6_control/set_tool_power` + `open` |
+   | Arm bestromt, kein Signal | **WARNUNG**: „Tool stromlos — läuft das URCap-Programm auf dem Panel?" |
    | Arm sonst unbestromt (z. B. `BOOTING`) | **WARNUNG**: „Arm nicht bestromt" |
 
    und Weite/Prozent/`grip_detected`/`busy` stehen dann auf `unbekannt` statt
@@ -215,10 +215,10 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
 6. Abschaltprobe (`ur_state_manager/power_off`): Manipulator-Kachel, Arm- und
    Greifer-Kachel werden **grau/„Außer Betrieb"**, der Öffnungsbalken
    verschwindet, `grip_detected`/`busy`/`moving` stehen auf `unbekannt`.
-   Danach `prepare` + `rg6_control/set_tool_power` + `open` → wieder alles grün.
-   (Der Greifer primt sich nach einem Power-Cycle **nicht** von selbst — die
-   Programm-Flanke von `rg6_control` reicht dafür nicht; solange meldet der
-   Status WARNUNG mit genau diesem Rezept.)
+   Danach `prepare` und das URCap-Programm am Panel starten → wieder alles grün.
+   (Die Tool-Versorgung setzt die OnRobot-URCap, nicht ROS: der Weg dorthin ging
+   über Tool-DO, und den belegt die URCap selbst. Kein ROS-Service kann das hier
+   reparieren; solange meldet der Status WARNUNG mit genau diesem Hinweis.)
 7. Rückbau-Probe: `systemctl disable --now
    clearpath-custom-manipulator-diagnostics` → die Analyzer **bleiben** in der
    generierten YAML und die Gruppe steht als **STALE** in `diagnostics_agg`;

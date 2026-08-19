@@ -2,6 +2,35 @@
 
 Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md).
 
+## 2026-08-19 (README-Greiferteil auf den Ist-Zustand)
+
+- **Der Diagnose-Abschnitt der README stand noch vor der URCap-Uebergabe.** Er
+  nannte `rg6_msgs/GripperState` als Zustandsquelle, begruendete die
+  Spannungsprobe mit `rg6_control` und dem `rg6_joint_state_broadcaster`, liess
+  den Wrapper den `onrobot-rg6`-Workspace fuer `rg6_msgs` sourcen und gab dem
+  Bediener zweimal das Rezept `rg6_control/set_tool_power` + `open`.
+
+  Nichts davon existiert. Der schaerfste Fall: `manipulator_diagnostics.py`
+  prueft im Selbsttest ausdruecklich `assert "set_tool_power" not in
+  dead_on.message, "der Service existiert nicht mehr"` -- der Code testete
+  also aktiv gegen die Empfehlung, die die README gab. Jetzt steht dort, was
+  gilt: Zustand als JSON auf `rg6/bridge_state`, Tool-Spannung als
+  Versorgungsfrage (nicht als Weitenquelle, AI2 ist bis zu 17 mm falsch
+  geeicht), und als Ausweg das URCap-Programm am Panel.
+- **`auto_recover` holt den Greifer nicht mit hoch.** Die README behauptete
+  das ueber die Programmflanke von `rg6_control`; die gibt es nicht mehr, und
+  kein ROS-Service kann die Tool-Versorgung setzen.
+- **Historische Bezuege aus den Quellkommentaren entfernt** (`installer`,
+  `manipulator_diagnostics.py`, `rg6_grip_bridge.py`): das wiederholte "seit
+  dem rg6_control-Ruhestand" steht hier und muss nicht in jeder Datei noch
+  einmal erzaehlt werden. Die Begruendungen selbst sind geblieben, nur ohne
+  Vorgeschichte. Kommentare an **Aufraeumcode** (`RETIRED_UNITS`, das
+  Entfernen der abgeloesten Units) bleiben unveraendert -- dort *ist* die
+  Migration die Funktion.
+- Nebenbei korrigiert: der Build-Kommentar nannte `rg6_control` weiterhin
+  "Treiber/Broadcaster"; das Paket enthaelt heute den Simulations-Greifer, die
+  joint_state-Hilfsnodes und `rg6_moveit_patch`.
+
 ## 2026-08-19 (Boot-Patcher von 5 auf 3 Schritte)
 
 - **Die Manipulator-Analyzer stehen in `robot.yaml`, nicht mehr im Patcher.**
