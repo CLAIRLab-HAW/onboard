@@ -131,6 +131,40 @@ class Rg6Client:
                            f"({exc})") from exc
 
 
+#: Was zuletzt an den Greifer ging.  Bewusst dieselben Namen wie in
+#: rg6_msgs/GripperState.COMMAND_* -- die Manipulator-Diagnose zeigt sie an,
+#: und ein Namenswechsel haette dort nur den Klartext kaputtgemacht.
+COMMAND_NONE = "NONE"
+COMMAND_GRIP = "GRIP"
+COMMAND_STOP = "STOP"
+
+
+def status_payload(state, last_command: str = COMMAND_NONE) -> dict:
+    """Geraetezustand fuer ``<ns>/rg6/bridge_state`` -- flach, als JSON.
+
+    Warum ein eigenes Topic und nicht rg6_msgs/GripperState:  mit dem
+    rg6_control-Ruhestand faellt das ganze rg6_msgs-Paket aus dem Bootpfad,
+    und ein Statustopf, der ein totes Paket braucht, waere genau die
+    Abhaengigkeit, die hier abgebaut wird.  JSON in einem std_msgs/String
+    kostet keinen Build und keinen Overlay -- dieselbe Entscheidung, die auf
+    ``/twin/*`` schon getragen hat.
+
+    NICHT enthalten sind AI2/AI3:  die Rohspannungen stehen auf
+    ``io_and_status_controller/tool_data``, und wer sie braucht, liest sie
+    dort.  Sie hier zu spiegeln hiesse, eine zweite Quelle fuer dieselbe Zahl
+    zu schaffen -- und AI2 ist am 2026-08-19 als um bis zu 17 mm falsch
+    geeicht gemessen worden (R19), also gerade keine gute Zweitmeinung.
+    """
+    return {
+        "width_m": state.width_m,
+        "busy": state.busy,
+        "grip_detected": state.grip_detected,
+        "status": state.status,
+        "safety_failed": state.safety_failed,
+        "last_command": last_command,
+    }
+
+
 def result_payload(request_id: str, phase: str, *, state, reason: str = "",
                    detail: str = "", elapsed_s: float = 0.0) -> dict:
     """``/twin/result``-Nutzlast — gebaut von robot_contract, nicht von hier.
@@ -249,6 +283,19 @@ def selftest() -> int:
         blind = result_payload("r2", "failed", state=None, reason="not_available")
         assert blind["grasped"] is None, blind
 
+        # 5b. Der Statustopf traegt den GERAETEZUSTAND, nicht den Befehl --
+        #     die Manipulator-Diagnose bewertet ihn, seit rg6_control und mit
+        #     ihm rg6_msgs/GripperState in Ruhestand gehen.
+        status = status_payload(st, COMMAND_GRIP)
+        assert status["width_m"] == st.width_m, status
+        assert status["grip_detected"] is True, status
+        assert status["last_command"] == COMMAND_GRIP, status
+        # Er muss durch json.dumps passen -- er geht als String auf den Draht.
+        assert json.loads(json.dumps(status)) == status, status
+        # AI2/AI3 gehoeren NICHT hinein (s. Docstring): eine zweite Quelle
+        # fuer dieselbe Zahl, und die schlechtere.
+        assert "width_raw" not in status and "force_raw" not in status, status
+
         # 6. Weite -> Fingergelenk kommt aus der Getriebegeometrie des Profils,
         #    nicht aus einem Ankerpaar (R19).
         from robot_contract import load_profile
@@ -285,7 +332,7 @@ def selftest() -> int:
         srv.shutdown()
 
     print("rg6_grip_bridge selftest: OK (Einheiten, float-Zwang, Klemmung, "
-          "Timeout, Draht-Vertrag, Getriebe, Nebenlaeufigkeit)")
+          "Timeout, Draht-Vertrag, Statustopf, Getriebe, Nebenlaeufigkeit)")
     return 0
 
 
@@ -334,6 +381,12 @@ def run(argv) -> int:
     linkage = profile.gripper.linkage
     joints = node.create_publisher(
         JointState, f"{profile.manipulators.ns}/endeffectors/joint_states", 10)
+    # Derselbe Poll traegt den Zustand fuer die Manipulator-Diagnose.  Sie las
+    # ihn bis zum rg6_control-Ruhestand aus rg6_msgs/GripperState auf
+    # <ns>/rg6/state; dieses Topic hat seitdem keinen Publisher mehr.
+    states = node.create_publisher(
+        String, f"{profile.manipulators.ns}/rg6/bridge_state", 10)
+    last_command = [COMMAND_NONE]
 
     def _poll_joint() -> None:
         """Den Fingerwert aus der GEMESSENEN Weite, nicht aus dem Befehl.
@@ -351,15 +404,20 @@ def run(argv) -> int:
         period = 1.0 / float(_p("joint_state_rate_hz"))
         while rclpy.ok():
             try:
-                width_m = client.state().width_m
+                state = client.state()
             except Rg6Error:
-                time.sleep(period)      # still bleiben ist besser als luegen
+                # Still bleiben ist besser als luegen -- und das SCHWEIGEN ist
+                # zugleich das Signal: die Diagnose bewertet das Alter des
+                # letzten Statuses und meldet den Ausfall daraus.
+                time.sleep(period)
                 continue
             msg = JointState()
             msg.header.stamp = node.get_clock().now().to_msg()
             msg.name = [finger_joint]
-            msg.position = [float(linkage.angle_from_width(width_m))]
+            msg.position = [float(linkage.angle_from_width(state.width_m))]
             joints.publish(msg)
+            states.publish(String(
+                data=json.dumps(status_payload(state, last_command[0]))))
             time.sleep(period)
 
     threading.Thread(target=_poll_joint, daemon=True).start()
@@ -383,6 +441,7 @@ def run(argv) -> int:
                 # "ganz auf".  Der Endpoint kennt keine Presets, nur Weiten.
                 width_m = 0.0 if cmd["close"] else float(_p("open_width_m"))
             force_n = float(cmd.get("force_n") or _p("default_force_n"))
+            last_command[0] = COMMAND_GRIP
             client.grip(float(width_m), force_n)
             state = client.state()
             _emit(result_payload(request_id, "succeeded", state=state,
