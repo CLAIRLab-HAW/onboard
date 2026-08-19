@@ -61,8 +61,7 @@ const _ = cockpit.gettext;
 
 /*
  * With no diagnostics at all there is nothing to show in either workspace
- * column, so this now guards the whole workspace rather than just the tree
- * (which used to own it, back when it was the only thing on the page).
+ * column, so this guards the whole workspace rather than just the tree.
  */
 const ConnectingState = ({ bridgeConnected }: { bridgeConnected: boolean }) => (
     <Bullseye>

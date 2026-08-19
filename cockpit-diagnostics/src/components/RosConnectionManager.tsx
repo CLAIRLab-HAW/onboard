@@ -171,9 +171,9 @@ export const RosConnectionManager: React.FC<RosConnectionManagerProps> = ({
 
                         // Calculate overall level from diagnostics tree. Priority, not
                         // magnitude -- see utils/summary.ts:headlineLevel. A plain
-                        // Math.max() here previously fed Timeline's colour coding a
-                        // level that could not tell "only stale" from "error and stale
-                        // both present", because the reduction had already thrown the
+                        // Math.max() here would feed Timeline's colour coding a level
+                        // that cannot tell "only stale" from "error and stale both
+                        // present", because the reduction has already thrown the
                         // distinction away.
                         const overallLevel = headlineLevel(summarise(diagnosticsTree));
 

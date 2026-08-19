@@ -67,11 +67,11 @@ export const DiagnosticsTreeTable = ({
     /*
      * Fold the forced expansion into the user's own once, when it changes.
      *
-     * It used to be OR-ed into `isExpanded` on every render, which made those
-     * rows impossible to collapse: the toggle wrote into `expandedRows`, but
-     * the OR kept reading `true` from the filter's set regardless, so the row
-     * sprang straight back open. Merging into state instead means the filter
-     * opens a path once and the reader stays in charge of it afterwards.
+     * Deliberately not OR-ed into `isExpanded` on every render: that makes
+     * those rows impossible to collapse, because the toggle writes into
+     * `expandedRows` while the OR keeps reading `true` from the filter's set
+     * regardless, so the row springs straight back open. Merging into state
+     * means the filter opens a path once and the reader stays in charge.
      *
      * The dependency is the set flattened to a string: `expand` is rebuilt on
      * every render, so depending on the Set itself would re-run this forever.

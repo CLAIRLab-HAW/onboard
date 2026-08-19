@@ -85,9 +85,8 @@ export const Timeline = ({
                         key={index}
                         className={`timeline-slot timeline-slot-${variantFor(snapshot.level)}` +
                                    (isPaused && index === selected ? " timeline-slot-selected" : "")}
-                        // The design spec promises the time *and* the state sentence on
-                        // hover -- that sentence used to live in three timestamp lines
-                        // this band replaced, so the hover has to actually carry it.
+                        // The design spec promises the time *and* the state sentence
+                        // on hover, and this band is the only place carrying it.
                         // Recomputed per snapshot rather than cached: thirty walks of a
                         // small tree per render is not a performance concern here.
                         title={`${new Date(snapshot.timestamp).toLocaleTimeString()} — ` +
