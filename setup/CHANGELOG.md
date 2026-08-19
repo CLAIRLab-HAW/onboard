@@ -4,6 +4,37 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
 
 ## 2026-08-19
 
+- **Der Roboter braucht `robot_contract` nicht mehr.** Die Greiferbrücke
+  importierte den Vertrag für zehn Dinge; der Installer rollte ihn dafür nach
+  `/usr/local/lib/spact` aus. Das Paket ist **privat** — vom Roboter aus nicht
+  einmal klonbar (`could not read Username for 'https://github.com'`) —, und
+  der Installer hat die Brücke deshalb kommentarlos übersprungen. Eine
+  Abhängigkeit, die das Ausrollen verhindert, sichert nichts.
+  Aufgeteilt statt verschoben:
+
+  | | wo jetzt |
+  |---|---|
+  | XML-RPC an die URCap, Fingergelenk, `GripperCommand`-Action | onboard, dieser Node |
+  | `/twin/gripper_cmd` + `/twin/result` | `plan_server` im Container, der den Vertrag ohnehin führt |
+
+  Der Node spricht damit **nur noch Standard-ROS** (`control_msgs`,
+  `sensor_msgs`, `std_msgs`) und importiert ausserhalb der Standardbibliothek
+  nichts. Namen und Kraftgrenzen sind ROS-Parameter; die Getriebekinematik
+  kommt als **erzeugte Tabelle** (`scripts/rg6_finger_kinematics.json`, 27
+  Stützstellen, max. Interpolationsfehler 0,047 mm — unter der
+  Fingerpositionsauflösung von 0,1 mm). Erzeugt aus dem generierten URDF von
+  `onrobot-rg6/tools/derive_finger_kinematics.py`, nicht von Hand gepflegt.
+  Am Gerät belegt: Selbsttest und Node laufen dort, wo `import robot_contract`
+  mit `ModuleNotFoundError` scheitert; ein 100-mm-Ziel über die Action ging
+  durch (`SUCCEEDED`, `reached_goal: true`).
+- **Der Installer findet seine Dateien jetzt auch standalone.** `install(1)`
+  bekam Quelle == Ziel und brach ab; mit `set -e` starb der ganze Lauf, vier
+  Zeilen vor dem Block der Greiferbrücke. Neu: `repo_file` sucht neben dem
+  Skript, dann im Klon, den der Installer für die `robot.yaml` ohnehin pflegt,
+  und erst danach auf GitHub — lokal vor dem Netz (R6), und **nie** mit
+  Abbruch. Quelle == Ziel heisst „nichts zu tun".
+
+
 - **`rg6_control` ist ausser Dienst.** Die Unit
   `clearpath-custom-rg6-bringup` wird nicht mehr geschrieben, sondern beim
   Installer-Lauf **abgeräumt** (disable, stop, `rm` — samt Wrapper

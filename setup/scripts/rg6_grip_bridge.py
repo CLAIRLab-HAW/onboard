@@ -28,12 +28,29 @@ Spannungsnaeherung ueber AI2 wird dadurch ueberfluessig -- und AI2 ist am
 2026-08-17 als um ~17 mm falsch geeicht aufgefallen, gemessen gegen genau
 diese Getter.
 
+Was dieser Node NICHT tut, seit dem 2026-08-19:  er spricht das
+``/twin/*``-JSON-Protokoll nicht mehr.  Das tut ``plan_server`` im
+Offboard-Container, der den Vertrag ohnehin fuehrt, und zwar auf ``mock`` und
+``real`` gleich -- ein Codepfad statt zweier.  Hier bleiben ausschliesslich
+Standard-ROS-Schnittstellen:
+
+    control_msgs/GripperCommand  (Action)   <- MoveIt und plan_server
+    sensor_msgs/JointState       (Topic)    -> rg6_finger_joint
+    std_msgs/String              (Topic)    -> rg6/bridge_state, eigenes JSON
+
+Damit braucht der Roboter ``robot_contract`` NICHT mehr.  Das Paket ist privat
+(vom Roboter aus nicht einmal klonbar), und der Installer hat die Bruecke
+deshalb kommentarlos uebersprungen -- eine Abhaengigkeit, die das Deployment
+verhindert, ist keine Absicherung.  Was blieb, sind Namen (ROS-Parameter) und
+die Getriebekinematik (erzeugte Tabelle, s. FingerKinematics).
+
 Selbsttest ohne ROS (laeuft auch auf der Workstation):
     python3 rg6_grip_bridge.py --selftest
 """
 from __future__ import annotations
 
 import json
+import pathlib
 import sys
 import threading
 import time
@@ -165,6 +182,63 @@ def await_settled(client, start_timeout_s: float = 1.0,
     return state
 
 
+class FingerKinematics:
+    """Gelenkwinkel <-> Greifweite, aus einer erzeugten Tabelle.
+
+    Warum eine Tabelle und kein Import:  dieser Node laeuft auf dem ROBOTER
+    und soll dort nichts brauchen, was nicht zum Roboter gehoert.  Frueher kam
+    die Umrechnung aus ``robot_contract.load_profile()``; das Paket ist privat,
+    liess sich vom Roboter aus nicht einmal klonen, und der Installer hat die
+    Bruecke deshalb kommentarlos uebersprungen.
+
+    Warum eine Tabelle und keine Formel:  die Finger des rg6_v2 sind eine
+    Viergelenkkette, fuer die es keine geschlossene Form gibt.  Eine
+    danebengestellte Naeherung waere die Zweitfassung, an der das alte Modell
+    und sein Treiber schon einmal auseinandergelaufen sind (R19).
+
+    Die Datei erzeugt ``tools/derive_finger_kinematics.py`` aus dem
+    GENERIERTEN URDF; sie ist Daten, kein Code, und traegt ihre Herkunft im
+    Kopf.  27 Stuetzstellen halten den Interpolationsfehler bei 0,047 mm --
+    unter der Fingerpositionsaufloesung des RG6 (0,1 mm laut Datenblatt).
+    """
+
+    def __init__(self, pfad: str) -> None:
+        with open(pfad, "r", encoding="utf-8") as fh:
+            roh = json.load(fh)
+        tab = roh["table_q_rad_width_m"]
+        self._q = [float(z[0]) for z in tab]
+        self._w = [float(z[1]) for z in tab]
+        if sorted(self._q) != self._q:
+            raise ValueError(f"{pfad}: Stuetzstellen nicht aufsteigend in q")
+        # Die Weite MUSS fallen: darauf beruht die Umkehrung.  Steigt sie
+        # irgendwo, sind Stuetzstellen jenseits des Nulldurchgangs erwischt
+        # worden, wo die Finger im Modell durcheinander hindurchfahren.
+        if any(b >= a for a, b in zip(self._w, self._w[1:])):
+            raise ValueError(f"{pfad}: Weite faellt nicht monoton")
+        self.joint = str(roh.get("joint", "rg6_finger_joint"))
+        self.q_min, self.q_max = self._q[0], self._q[-1]
+        self.max_width_m, self.min_width_m = self._w[0], self._w[-1]
+        self.quelle = pfad
+
+    def width_from_angle(self, q: float) -> float:
+        """Geklemmt auf den Tabellenrand: jenseits des Anschlags gilt der Anschlag."""
+        q = min(max(float(q), self.q_min), self.q_max)
+        for i in range(1, len(self._q)):
+            if q <= self._q[i]:
+                t = (q - self._q[i - 1]) / (self._q[i] - self._q[i - 1])
+                return self._w[i - 1] + t * (self._w[i] - self._w[i - 1])
+        return self._w[-1]
+
+    def angle_from_width(self, width_m: float) -> float:
+        """Umkehrung, ebenfalls geklemmt.  Die Tabelle faellt, also rueckwaerts."""
+        w = min(max(float(width_m), self.min_width_m), self.max_width_m)
+        for i in range(1, len(self._w)):
+            if w >= self._w[i]:
+                t = (self._w[i - 1] - w) / (self._w[i - 1] - self._w[i])
+                return self._q[i - 1] + t * (self._q[i] - self._q[i - 1])
+        return self._q[-1]
+
+
 #: Was zuletzt an den Greifer ging.  Bewusst dieselben Namen wie in
 #: rg6_msgs/GripperState.COMMAND_* -- die Manipulator-Diagnose zeigt sie an,
 #: und ein Namenswechsel haette dort nur den Klartext kaputtgemacht.
@@ -242,48 +316,6 @@ def status_payload(state, last_command: str = COMMAND_NONE) -> dict:
         "safety_failed": state.safety_failed,
         "last_command": last_command,
     }
-
-
-def result_payload(request_id: str, phase: str, *, state, reason: str = "",
-                   detail: str = "", elapsed_s: float = 0.0) -> dict:
-    """``/twin/result``-Nutzlast — gebaut von robot_contract, nicht von hier.
-
-    Warum importiert statt nachgebaut:  eine zweite Fassung des Vertrags ist
-    genau das Muster, an dem octomap_feed.py schon einmal in drei Fassungen
-    auseinandergelaufen ist -- und es traefe diesmal den DRAHT, nicht einen
-    Parameter.  robot_contract haengt nur an pyyaml und numpy, beide sind auf
-    dem Roboter da; der Installer legt es mit ab.
-
-    KEIN Versionshandschlag, und das ist eine Entscheidung, keine Luecke:
-    ``twin_protocol`` fuehrt zwar ``PROTOCOL_VERSION`` und veroeffentlicht sie
-    auf ``/twin/server_info``, aber dieser Node tut es nicht und prueft sie
-    nicht.  Am 2026-08-19 vom Owner entschieden:  am Roboter laeuft nichts
-    produktiv, beide Seiten werden von Hand zusammen ausgerollt, und ein
-    Handschlag waere Aufwand ohne Gegenwert.  Wer hier spaeter eine
-    Versionspruefung vermisst, vermisst sie zu Recht -- aber erst, wenn der
-    Roboter etwas traegt, das jemand anderes deployt.
-
-    ``io_states_received`` heisst im Vertrag "es liegt echter Geraetestatus
-    vor".  Beim rg6_control-Pfad kam der aus Tool-DI0, hier aus
-    ``rg_get_grip_detected`` -- dieselbe Aussage, andere Quelle.  Ohne
-    ``state`` ist er False, und der Vertrag macht ``grasped`` dann zwingend
-    None.
-    """
-    from robot_contract import twin_protocol as tp
-
-    return tp.gripper_result(
-        request_id, phase,
-        source="real",
-        reason=reason,
-        detail=detail,
-        elapsed_s=elapsed_s,
-        grasped=None if state is None else state.grip_detected,
-        reached_goal=False,
-        width_m=None if state is None else state.width_m,
-        force_raw=None,
-        io_states_received=state is not None,
-        tool_data_received=state is not None,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -370,23 +402,6 @@ def selftest() -> int:
         else:                                    # pragma: no cover
             raise AssertionError("toter Endpoint haette Rg6Error geben muessen")
 
-        # 5. Der Draht-Vertrag kommt aus robot_contract, nicht von hier.
-        from robot_contract import twin_protocol as tp
-        cmd = tp.parse_gripper_command(
-            json.dumps({"close": True, "request_id": "r1", "width_m": 0.1}))
-        assert cmd["request_id"] == "r1" and cmd["width_m"] == 0.1
-
-        st = Rg6State(width_m=0.1032, busy=False, grip_detected=True,
-                      status=0, safety_failed=False)
-        payload = result_payload("r1", "succeeded", state=st, elapsed_s=0.4)
-        assert payload["grasped"] is True, payload
-        assert abs(payload["width_m"] - 0.1032) < 1e-9, payload
-
-        # Ohne Geraetestatus ist 'grasped' DREIWERTIG None, nicht False --
-        # sonst hiesse "keine Daten" dasselbe wie "nichts gegriffen".
-        blind = result_payload("r2", "failed", state=None, reason="not_available")
-        assert blind["grasped"] is None, blind
-
         # 5a. Ein Ergebnis, das SOFORT nach rg_grip gelesen wird, meldet die
         #     Weite von VORHER.  Am 2026-08-19 ueber den Draht gemessen:
         #     kommandierte 60 mm, gefahren auf 64,96 mm, gemeldet 2,8 mm --
@@ -413,31 +428,31 @@ def selftest() -> int:
         #     nicht im 8-ms-Zyklus des CB3.  Genau deshalb konnte der
         #     stillgelegte rg6_control sie anbieten, ohne ein
         #     Hardware-Interface zu sein.
-        from robot_contract import load_profile as _lp
-        g = _lp().gripper
-        weite, kraft = goal_to_grip(g.linkage.angle_from_width(0.100), 55.0,
-                                    g.linkage, g.default_effort_n, g.effort_range_n)
-        assert abs(weite - 0.100) < 1e-6, weite
+        kin = FingerKinematics(str(pathlib.Path(__file__).with_name(
+            "rg6_finger_kinematics.json")))
+        weite, kraft = goal_to_grip(kin.angle_from_width(0.100), 55.0,
+                                    kin, 40.0, (25.0, 120.0))
+        assert abs(weite - 0.100) < 2e-4, weite      # Tabellenaufloesung
         assert kraft == 55.0, kraft
         # Leeres max_effort heisst "nimm, was passt" -- nicht "Kraft null".
-        assert goal_to_grip(0.0, 0.0, g.linkage, g.default_effort_n,
-                            g.effort_range_n)[1] == g.default_effort_n
+        assert goal_to_grip(0.0, 0.0, kin, 40.0, (25.0, 120.0))[1] == 40.0
         # ... und ein zu grosser Wunsch wird geklemmt, nicht durchgereicht.
-        assert goal_to_grip(0.0, 999.0, g.linkage, g.default_effort_n,
-                            g.effort_range_n)[1] == g.effort_range_n[1]
+        assert goal_to_grip(0.0, 999.0, kin, 40.0, (25.0, 120.0))[1] == 120.0
 
         st_zu = Rg6State(width_m=0.0605, busy=False, grip_detected=True,
                          status=0, safety_failed=False)
-        res = goal_result(st_zu, 0.060, 40.0, g.linkage, tolerance_m=0.008)
+        res = goal_result(st_zu, 0.060, 40.0, kin, tolerance_m=0.008)
         assert res["reached_goal"] is True and res["stalled"] is True, res
         assert res["effort"] == 40.0, res
         # Weit daneben ist weit daneben, auch wenn der Greifer steht.
-        assert goal_result(st_zu, 0.100, 40.0, g.linkage,
+        assert goal_result(st_zu, 0.100, 40.0, kin,
                            tolerance_m=0.008)["reached_goal"] is False
 
         # 5b. Der Statustopf traegt den GERAETEZUSTAND, nicht den Befehl --
         #     die Manipulator-Diagnose bewertet ihn, seit rg6_control und mit
         #     ihm rg6_msgs/GripperState in Ruhestand gehen.
+        st = Rg6State(width_m=0.1032, busy=False, grip_detected=True,
+                      status=0, safety_failed=False)
         status = status_payload(st, COMMAND_GRIP)
         assert status["width_m"] == st.width_m, status
         assert status["grip_detected"] is True, status
@@ -448,18 +463,26 @@ def selftest() -> int:
         # fuer dieselbe Zahl, und die schlechtere.
         assert "width_raw" not in status and "force_raw" not in status, status
 
-        # 6. Weite -> Fingergelenk kommt aus der Getriebegeometrie des Profils,
-        #    nicht aus einem Ankerpaar (R19).
-        from robot_contract import load_profile
-        linkage = load_profile().gripper.linkage
-        # Monoton fallend: weiter offen -> kleinerer (negativerer) Gelenkwert.
-        assert linkage.angle_from_width(0.100) < linkage.angle_from_width(0.045)
-        # Ganz zu ist die obere Gelenkgrenze, ganz auf die untere -- und die
-        # WEITE wird geklemmt, nicht das acos-Argument: eine negative Weite
-        # laege sonst still jenseits der geschlossenen Stellung.
-        assert linkage.angle_from_width(-0.05) == linkage.angle_from_width(0.0)
-        assert (linkage.angle_from_width(0.300)
-                == linkage.angle_from_width(linkage.max_width_m))
+        # 6. Weite -> Fingergelenk kommt aus der ERZEUGTEN Tabelle, nicht
+        #    aus einer Formel und nicht aus robot_contract (R19; der Roboter
+        #    soll den privaten Vertrag nicht brauchen).
+        # Monoton: weiter offen -> KLEINERER Gelenkwert (0 = ganz offen).
+        assert kin.angle_from_width(0.100) < kin.angle_from_width(0.045)
+        # Hin und zurueck trifft sich selbst, im Rahmen der Tabellenaufloesung.
+        # min_width_m statt 0.0: das Modell schliesst nur bis 0,4 mm, dort
+        # beruehren sich die Pads.  Eine Rundreise ueber 0,0 pruefte das
+        # Klemmen, nicht die Interpolation.
+        for w in (kin.min_width_m, 0.020, 0.060, 0.100, kin.max_width_m):
+            assert abs(kin.width_from_angle(kin.angle_from_width(w)) - w) < 2e-4, w
+        # Geklemmt wird die WEITE, nicht extrapoliert: jenseits des Anschlags
+        # gilt der Anschlag, sonst laege eine negative Weite still hinter der
+        # geschlossenen Stellung.
+        assert kin.angle_from_width(-0.05) == kin.angle_from_width(kin.min_width_m)
+        assert kin.angle_from_width(0.300) == kin.angle_from_width(kin.max_width_m)
+        # Die Tabelle endet VOR dem Punkt, an dem die Finger im Modell
+        # durcheinander fahren -- sonst waere die Umkehrung nicht eindeutig.
+        assert kin.q_max < 1.30, kin.q_max
+        assert kin.max_width_m > 0.15 and kin.min_width_m < 0.002
 
         # 7. Zwei Threads auf EINER ServerProxy -- im Node sind das der
         #    Greif-Worker und der Fingergelenk-Poller.  Ohne die Sperre in
@@ -484,7 +507,7 @@ def selftest() -> int:
         srv.shutdown()
 
     print("rg6_grip_bridge selftest: OK (Einheiten, float-Zwang, Klemmung, "
-          "Timeout, Draht-Vertrag, Statustopf, Getriebe, Nebenlaeufigkeit)")
+          "Timeout, Statustopf, Getriebetabelle, Nebenlaeufigkeit)")
     return 0
 
 
@@ -496,10 +519,6 @@ def run(argv) -> int:
     import rclpy
     from rclpy.node import Node
     from std_msgs.msg import String
-    from robot_contract import load_profile
-    from robot_contract import twin_protocol as tp
-
-    profile = load_profile()
 
     rclpy.init(args=argv)
     node = Node("rg6_grip_bridge")
@@ -508,10 +527,16 @@ def run(argv) -> int:
     node.declare_parameter("endpoint_url", DEFAULT_URL)
     node.declare_parameter("tool_index", 0)
     node.declare_parameter("timeout_s", 3.0)
-    node.declare_parameter("default_force_n",
-                           float(profile.gripper.default_effort_n))
-    node.declare_parameter("open_width_m",
-                           float(profile.gripper.linkage.max_width_m))
+    # Namen und Grenzen als PARAMETER, nicht aus einem Profil: sie sind das
+    # Einzige, was dieser Node ueber seine Umgebung wissen muss, und dafuer
+    # ein privates Python-Paket auf den Roboter zu legen war der Grund, warum
+    # der Installer die Bruecke ueberhaupt nicht installieren konnte.
+    node.declare_parameter("manipulators_ns", "/a200_0553/manipulators")
+    node.declare_parameter("driver_joint", "rg6_finger_joint")
+    node.declare_parameter("action_name", "")     # leer = aus manipulators_ns
+    node.declare_parameter("default_force_n", 40.0)
+    node.declare_parameter("force_range_n", [25.0, 120.0])
+    node.declare_parameter("kinematics_file", "")  # leer = neben dem Skript
     # Warten auf das Ende der Fahrt (s. await_settled).  Als Parameter, weil
     # die Zahlen aus einer Messung an EINEM Greifer stammen: 0,4 s Anlauf,
     # 1,2 s Fahrt ueber 45 mm.  1,0 s Anlauffenster ist zugleich die
@@ -525,7 +550,13 @@ def run(argv) -> int:
 
     client = Rg6Client(_p("endpoint_url"), int(_p("tool_index")),
                        float(_p("timeout_s")))
-    results = node.create_publisher(String, tp.RESULT_TOPIC, 10)
+
+    kin_datei = _p("kinematics_file") or str(
+        pathlib.Path(__file__).with_name("rg6_finger_kinematics.json"))
+    linkage = FingerKinematics(kin_datei)
+    log.info(f"Getriebetabelle: {kin_datei} "
+             f"({linkage.max_width_m * 1000:.1f} mm offen, "
+             f"q bis {linkage.q_max:.5f} rad)")
 
     # -- Fingergelenk ------------------------------------------------------
     # Seit rg6-bringup tot ist, fehlt rg6_finger_joint in /joint_states (am
@@ -536,15 +567,15 @@ def run(argv) -> int:
     from sensor_msgs.msg import JointState
 
     node.declare_parameter("joint_state_rate_hz", 5.0)
-    finger_joint = profile.gripper.driver_joint
-    linkage = profile.gripper.linkage
+    manip_ns = str(_p("manipulators_ns")).rstrip("/")
+    finger_joint = str(_p("driver_joint"))
     joints = node.create_publisher(
-        JointState, f"{profile.manipulators.ns}/endeffectors/joint_states", 10)
+        JointState, f"{manip_ns}/endeffectors/joint_states", 10)
     # Derselbe Poll traegt den Zustand fuer die Manipulator-Diagnose.  Sie las
     # ihn bis zum rg6_control-Ruhestand aus rg6_msgs/GripperState auf
     # <ns>/rg6/state; dieses Topic hat seitdem keinen Publisher mehr.
     states = node.create_publisher(
-        String, f"{profile.manipulators.ns}/rg6/bridge_state", 10)
+        String, f"{manip_ns}/rg6/bridge_state", 10)
     last_command = [COMMAND_NONE]
 
     def _poll_joint() -> None:
@@ -585,62 +616,6 @@ def run(argv) -> int:
     # eingereiht: am 2026-08-17 haben zehn aufeinandergestapelte Goals den
     # alten Treiber in busy=true mit width_raw am Anschlag festgefahren.
     inflight = threading.Lock()
-    seen: set = set()
-
-    def _emit(payload: dict) -> None:
-        results.publish(String(data=json.dumps(payload)))
-
-    def _work(cmd: dict) -> None:
-        request_id = cmd["request_id"]
-        started = time.monotonic()
-        try:
-            width_m = cmd.get("width_m")
-            if width_m is None:
-                # Ohne Zielweite bedeutet close=True "ganz zu", close=False
-                # "ganz auf".  Der Endpoint kennt keine Presets, nur Weiten.
-                width_m = 0.0 if cmd["close"] else float(_p("open_width_m"))
-            force_n = float(cmd.get("force_n") or _p("default_force_n"))
-            last_command[0] = COMMAND_GRIP
-            client.grip(float(width_m), force_n)
-            # NICHT sofort lesen: rg_grip quittiert die Annahme, nicht das
-            # Ergebnis (Begruendung und Messung bei await_settled).
-            state = await_settled(client, float(_p("settle_start_timeout_s")),
-                                  float(_p("settle_motion_timeout_s")),
-                                  float(_p("settle_poll_s")))
-            _emit(result_payload(request_id, "succeeded", state=state,
-                                 elapsed_s=time.monotonic() - started))
-            log.info(f"gripper {width_m * 1000:.0f} mm @ {force_n:.0f} N -> "
-                     f"{state.width_m * 1000:.1f} mm "
-                     f"grip={state.grip_detected} [{request_id}]")
-        except Rg6Error as exc:
-            log.error(f"gripper failed: {exc}")
-            _emit(result_payload(request_id, "failed", state=None,
-                                 reason="not_available", detail=str(exc),
-                                 elapsed_s=time.monotonic() - started))
-        finally:
-            inflight.release()
-
-    def on_gripper(msg) -> None:
-        try:
-            cmd = tp.parse_gripper_command(msg.data)
-        except ValueError as exc:
-            log.warn(f"bad gripper_cmd: {exc}")
-            return
-        request_id = cmd["request_id"]
-        if request_id in seen:
-            return
-        seen.add(request_id)
-        if not inflight.acquire(blocking=False):
-            _emit(result_payload(request_id, "failed", state=None,
-                                 reason="busy",
-                                 detail="ein Greifbefehl laeuft noch"))
-            return
-        _emit(result_payload(request_id, "started", state=None))
-        # xmlrpc.client blockiert.  Im Callback wuerde ein haengender Endpoint
-        # den Executor anhalten -- und mit ihm den joint_states-Publisher.
-        threading.Thread(target=_work, args=(cmd,), daemon=True).start()
-
-    node.create_subscription(String, tp.GRIPPER_CMD_TOPIC, on_gripper, 10)
 
     # -- MoveIt ------------------------------------------------------------
     # Zweiter Eingang zum selben Geraet: die GripperCommand-Action, die
@@ -664,7 +639,7 @@ def run(argv) -> int:
         cmd = goal_handle.request.command
         width_m, force_n = goal_to_grip(cmd.position, cmd.max_effort,
                                         linkage, _p("default_force_n"),
-                                        profile.gripper.effort_range_n)
+                                        _p("force_range_n"))
         result = GripperCommand.Result()
         if not inflight.acquire(blocking=False):
             log.warn("GripperCommand abgelehnt: ein Greifbefehl laeuft noch")
@@ -694,11 +669,12 @@ def run(argv) -> int:
         goal_handle.succeed()
         return result
 
-    ActionServer(node, GripperCommand, profile.gripper.action, on_action,
+    action_name = str(_p("action_name") or
+                      f"{manip_ns}/rg6_gripper_controller/gripper_cmd")
+    ActionServer(node, GripperCommand, action_name, on_action,
                  callback_group=ReentrantCallbackGroup())
 
-    log.info(f"rg6_grip_bridge bereit: {client.url} "
-             f"<- {tp.GRIPPER_CMD_TOPIC} | MoveIt <- {profile.gripper.action}")
+    log.info(f"rg6_grip_bridge bereit: {client.url} <- {action_name}")
     # MultiThreaded, weil on_action bis zum Stillstand der Hand blockiert (rund
     # 1,3 s).  Single-threaded haette dieser eine Aufruf in derselben Zeit
     # /twin/gripper_cmd und jede weitere Zustellung angehalten.

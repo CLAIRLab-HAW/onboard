@@ -1814,8 +1814,7 @@ fi
 # per XML-RPC (rg_grip auf 192.168.131.40:41414). Er laeuft ONBOARD, weil der
 # Endpoint am Arm-Subnetz haengt -- von der Workstation gibt es dorthin keine
 # Route -- und weil der Roboter auch ohne Funkstrecke greifen koennen muss.
-RC_DST="/usr/local/lib/spact"
-RC_REPO="https://github.com/CLAIRLab-HAW/robot-contract.git"
+RG6_KIN_DST="${BIN_DIR}/rg6_finger_kinematics.json"
 
 DO_RG6_BRIDGE=1
 if [ -f "$RG6_BRIDGE_UNIT_PATH" ]; then
@@ -1825,10 +1824,6 @@ else
 fi
 
 if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
-    # Lokale Repo-Kopie ZUERST -- kein Download-first wie bei octomap_feed.
-    # Wer den Installer aus dem Checkout laufen laesst, will den Stand des
-    # Checkouts; die umgekehrte Reihenfolge ist genau das Muster, aus dem der
-    # octomap_feed.py-Drift in drei Fassungen entstanden ist.
     if ! RG6_SRC="$(repo_file scripts/rg6_grip_bridge.py)"; then
         echo "    WARN: scripts/rg6_grip_bridge.py weder lokal noch abrufbar -"
         echo "          RG6-Bruecke uebersprungen."
@@ -1841,45 +1836,22 @@ if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
 fi
 
 if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
-    # robot_contract ist der DRAHT-Vertrag (parse_gripper_command /
-    # gripper_result). Er wird mitgeliefert statt im Node nachgebaut: eine
-    # zweite Fassung ist dieselbe Driftquelle wie oben -- und sie traefe hier
-    # das Protokoll, nicht einen Parameter. Reines Python (pyyaml + numpy,
-    # beides auf dem Roboter vorhanden).
-    #
-    # DREI Suchpfade, dann erst das Netz -- dasselbe Muster wie die
-    # wakeup.sh-Wrapper. Auf der Workstation liegt das Repo im Workspace
-    # daneben; auf dem Roboter liegt husky-custom-setup ALLEIN in ~, dort
-    # gibt es "../../contract/..." nicht.
-    RC_SRC=""
-    for cand in \
-        "${ROBOT_CONTRACT_SRC:-}" \
-        "$(dirname "$0")/../../contract/robot-contract/src/robot_contract" \
-        "${USER_HOME}/robot-contract/src/robot_contract" \
-        "${USER_HOME}/clearpath/contract/robot-contract/src/robot_contract"
-    do
-        [ -n "$cand" ] && [ -d "$cand" ] && { RC_SRC="$cand"; break; }
-    done
-    RC_TMP=""
-    if [ -z "$RC_SRC" ]; then
-        echo "    robot_contract nicht lokal gefunden - hole ${RC_REPO}"
-        RC_TMP="$(mktemp -d)"
-        if git clone --depth 1 "$RC_REPO" "${RC_TMP}/robot-contract" >/dev/null 2>&1; then
-            RC_SRC="${RC_TMP}/robot-contract/src/robot_contract"
-        fi
-    fi
-    if [ -n "$RC_SRC" ] && [ -d "$RC_SRC" ]; then
-        install -d -m 0755 "$RC_DST"
-        rm -rf "${RC_DST}/robot_contract"
-        cp -a "$RC_SRC" "${RC_DST}/robot_contract"
-        find "${RC_DST}/robot_contract" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-        echo "    robot_contract -> ${RC_DST}/robot_contract  (aus ${RC_SRC})"
+    # Die Getriebetabelle (Gelenkwinkel -> Greifweite).  Sie ersetzt seit dem
+    # 2026-08-19 den Import von robot_contract: das Paket ist PRIVAT, vom
+    # Roboter aus nicht einmal klonbar (git fragt nach Zugangsdaten), und der
+    # Installer hat die Bruecke deshalb kommentarlos uebersprungen -- eine
+    # Abhaengigkeit, die das Ausrollen verhindert, sichert nichts.
+    # Erzeugt wird die Datei aus dem GENERIERTEN URDF, s.
+    # onrobot-rg6/tools/derive_finger_kinematics.py.  Fehlt sie, startet der
+    # Node nicht: ohne Kinematik kann er weder das Fingergelenk publizieren
+    # noch ein GripperCommand-Ziel in eine Weite uebersetzen.
+    if RG6_KIN_SRC="$(repo_file scripts/rg6_finger_kinematics.json)"; then
+        install -m 0644 -o root -g root "$RG6_KIN_SRC" "$RG6_KIN_DST"
+        echo "    Getriebetabelle -> ${RG6_KIN_DST}  (aus ${RG6_KIN_SRC})"
     else
-        echo "    WARN: robot_contract nicht auffindbar - der Node startet ohne es NICHT."
-        echo "          Abhilfe: ROBOT_CONTRACT_SRC=<pfad/zu/src/robot_contract> setzen."
+        echo "    WARN: rg6_finger_kinematics.json fehlt - der Node startet ohne sie NICHT."
         DO_RG6_BRIDGE=0
     fi
-    [ -n "$RC_TMP" ] && rm -rf "$RC_TMP"
 fi
 
 if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
@@ -1887,14 +1859,13 @@ if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
     install -m 0755 -o root -g root "$RG6_SRC" "$RG6_BRIDGE_BIN"
     # Selbsttest ohne ROS -- Einheiten, float-Zwang, Klemmung, Timeout,
     # Draht-Vertrag, Getriebe, Nebenlaeufigkeit.
-    PYTHONPATH="${RC_DST}:${PYTHONPATH:-}" python3 "$RG6_BRIDGE_BIN" --selftest \
+    python3 "$RG6_BRIDGE_BIN" --selftest \
         || echo "    WARN: Selbsttest fehlgeschlagen - Service wird trotzdem installiert (Logs pruefen)."
 
     cat > "$RG6_BRIDGE_WRAPPER" <<EOF
 #!/usr/bin/env bash
 # RG6-Greifer per XML-RPC an die OnRobot-URCap (rg6_grip_bridge).
 source /etc/clearpath/setup.bash
-export PYTHONPATH="${RC_DST}:\${PYTHONPATH:-}"
 exec python3 ${RG6_BRIDGE_BIN}
 EOF
     chmod 0755 "$RG6_BRIDGE_WRAPPER"

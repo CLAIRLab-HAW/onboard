@@ -1,0 +1,126 @@
+{
+ "kommentar": [
+  "Gelenkwinkel rg6_finger_joint [rad] -> lichte Weite zwischen den",
+  "Padflaechen [m], gemessen zwischen den beiden flex_finger-Meshes.",
+  "ERZEUGT, nicht gepflegt: tools/derive_finger_kinematics.py aus dem",
+  "generierten URDF.  Nach jeder Aenderung am Greifermodell neu erzeugen.",
+  "Die Obergrenze ist der Nulldurchgang der Weite; darueber fahren die",
+  "Finger im Modell durcheinander hindurch und die Weite waechst wieder."
+ ],
+ "joint": "rg6_finger_joint",
+ "joint_limits_rad": [
+  0.0,
+  1.25478
+ ],
+ "max_interpolationsfehler_m": 4.7e-05,
+ "table_q_rad_width_m": [
+  [
+   0.0,
+   0.153168
+  ],
+  [
+   0.05,
+   0.150446
+  ],
+  [
+   0.1,
+   0.147351
+  ],
+  [
+   0.15,
+   0.143891
+  ],
+  [
+   0.2,
+   0.140075
+  ],
+  [
+   0.25,
+   0.135912
+  ],
+  [
+   0.3,
+   0.131413
+  ],
+  [
+   0.35,
+   0.12659
+  ],
+  [
+   0.4,
+   0.121453
+  ],
+  [
+   0.45,
+   0.116016
+  ],
+  [
+   0.5,
+   0.110293
+  ],
+  [
+   0.55,
+   0.104298
+  ],
+  [
+   0.6,
+   0.098045
+  ],
+  [
+   0.65,
+   0.091551
+  ],
+  [
+   0.7,
+   0.084832
+  ],
+  [
+   0.75,
+   0.077904
+  ],
+  [
+   0.8,
+   0.070784
+  ],
+  [
+   0.85,
+   0.063492
+  ],
+  [
+   0.9,
+   0.056044
+  ],
+  [
+   0.95,
+   0.048459
+  ],
+  [
+   1.0,
+   0.040757
+  ],
+  [
+   1.05,
+   0.032957
+  ],
+  [
+   1.1,
+   0.025078
+  ],
+  [
+   1.15,
+   0.017139
+  ],
+  [
+   1.2,
+   0.009161
+  ],
+  [
+   1.25,
+   0.001164
+  ],
+  [
+   1.25478,
+   0.000399
+  ]
+ ]
+}
