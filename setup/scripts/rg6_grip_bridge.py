@@ -131,6 +131,40 @@ class Rg6Client:
                            f"({exc})") from exc
 
 
+def await_settled(client, start_timeout_s: float = 1.0,
+                  motion_timeout_s: float = 10.0,
+                  poll_s: float = 0.05) -> Rg6State:
+    """Warten, bis die Hand steht, und DANN den Zustand lesen.
+
+    ``rg_grip`` quittiert die **Annahme**, nicht das Ergebnis.  Wer sofort
+    danach liest, bekommt die Weite von vorher -- am 2026-08-19 ueber den
+    Draht gemessen: kommandierte 60 mm, gefahren auf 64,96 mm, gemeldete
+    2,8 mm (der Startwert).  Mit ``width_m`` war auch ``grasped`` wertlos,
+    und das ist das Feld, wegen dem der ganze Rueckweg existiert.
+
+    Gewartet wird auf **beide** Flanken, und der Grund fuer die erste ist
+    gemessen: nach dem Kommando steht ``busy`` noch rund 0,4 s auf false,
+    bevor der Greifer losfaehrt (65 -> 20 mm, 5-Hz-Abtastung: false bei 0,0
+    und 0,2 s, true ab 0,41 s, wieder false ab 1,45 s).  Ein blosses "warte,
+    solange busy" kehrte in dieser Luecke sofort zurueck -- derselbe Fehler
+    in neuem Gewand.
+
+    Beide Fenster laufen ab, statt zu haengen: faehrt der Greifer gar nicht
+    erst los (er steht schon am Ziel), antwortet die Funktion nach
+    ``start_timeout_s`` mit dem, was da ist.
+    """
+    deadline = time.monotonic() + start_timeout_s
+    state = client.state()
+    while not state.busy and time.monotonic() < deadline:
+        time.sleep(poll_s)
+        state = client.state()
+    deadline = time.monotonic() + motion_timeout_s
+    while state.busy and time.monotonic() < deadline:
+        time.sleep(poll_s)
+        state = client.state()
+    return state
+
+
 #: Was zuletzt an den Greifer ging.  Bewusst dieselben Namen wie in
 #: rg6_msgs/GripperState.COMMAND_* -- die Manipulator-Diagnose zeigt sie an,
 #: und ein Namenswechsel haette dort nur den Klartext kaputtgemacht.
@@ -211,14 +245,29 @@ def _spawn_fake_urcap():
     from xmlrpc.server import SimpleXMLRPCServer
 
     log = []
-    state = {"width_mm": 103.26, "busy": False, "grip": False}
+    state = {"width_mm": 103.26, "busy": False, "grip": False,
+             "target_mm": 103.26, "phasen": []}
 
     def rg_grip(tool, width, force):
         if not isinstance(width, float) or not isinstance(force, float):
             raise xmlrpc.client.Fault(-501, "expected double")
         log.append(("grip", tool, width, force))
-        state["width_mm"] = width
+        # Nachgebildet nach der Messung am 2026-08-19 (65 -> 20 mm): nach dem
+        # Kommando steht ``busy`` noch rund 0,4 s auf false, DANN faehrt die
+        # Hand rund 1,2 s, und erst am Ende steht die neue Weite.  ``rg_grip``
+        # selbst kehrt sofort zurueck -- es quittiert die Annahme, nicht das
+        # Ergebnis.
+        state["target_mm"] = width
+        state["phasen"] = ["ruht", "ruht", "faehrt", "faehrt", "faehrt"]
         return 0
+
+    def rg_get_busy(tool):
+        if not state["phasen"]:
+            return state["busy"]
+        phase = state["phasen"].pop(0)
+        if not state["phasen"]:
+            state["width_mm"] = state["target_mm"]   # Fahrt zu Ende
+        return phase == "faehrt"
 
     def rg_stop(tool):
         log.append(("stop", tool))
@@ -229,7 +278,7 @@ def _spawn_fake_urcap():
     srv.register_function(rg_grip, "rg_grip")
     srv.register_function(rg_stop, "rg_stop")
     srv.register_function(lambda t: state["width_mm"], "rg_get_width")
-    srv.register_function(lambda t: state["busy"], "rg_get_busy")
+    srv.register_function(rg_get_busy, "rg_get_busy")
     srv.register_function(lambda t: state["grip"], "rg_get_grip_detected")
     srv.register_function(lambda t: 0, "rg_get_status")
     srv.register_function(lambda t: False, "rg_get_safety_failed")
@@ -245,9 +294,10 @@ def selftest() -> int:
         cli = Rg6Client(url)
 
         # 1. Weite geht in Millimetern raus und kommt in Metern zurueck.
+        #    Gelesen wird NACH der Fahrt -- warum, steht bei 5a.
         cli.grip(0.100, 60.0)
         assert log[-1][2] == 100.0, log[-1]
-        assert abs(cli.state().width_m - 0.100) < 1e-9, cli.state()
+        assert abs(await_settled(cli, poll_s=0.0).width_m - 0.100) < 1e-9
 
         # 2. Beide Zahlen sind float -- der Doppelgaenger faultet sonst.
         cli.grip(0.0, 60.0)
@@ -282,6 +332,26 @@ def selftest() -> int:
         # sonst hiesse "keine Daten" dasselbe wie "nichts gegriffen".
         blind = result_payload("r2", "failed", state=None, reason="not_available")
         assert blind["grasped"] is None, blind
+
+        # 5a. Ein Ergebnis, das SOFORT nach rg_grip gelesen wird, meldet die
+        #     Weite von VORHER.  Am 2026-08-19 ueber den Draht gemessen:
+        #     kommandierte 60 mm, gefahren auf 64,96 mm, gemeldet 2,8 mm --
+        #     der Startwert.  ``rg_grip`` quittiert die Annahme, nicht das
+        #     Ergebnis, und mit ``width_m`` waere auch ``grasped`` wertlos.
+        cli.grip(0.020, 40.0)
+        assert abs(cli.state().width_m - 0.020) > 0.001, "zu frueh gelesen -> alter Wert"
+
+        # ... und mit dem Warten stimmt er.  Gewartet wird auf BEIDE Flanken:
+        #     der Greifer steht nach dem Kommando noch rund 0,4 s still
+        #     (gemessen), ein blosses "solange busy" kehrte sofort zurueck.
+        cli.grip(0.045, 40.0)
+        settled = await_settled(cli, poll_s=0.0)
+        assert abs(settled.width_m - 0.045) < 1e-9, settled
+
+        # Faehrt der Greifer gar nicht erst los (er steht schon am Ziel),
+        # antwortet das Warten nach dem Anlauffenster -- nicht nie.
+        stalled = await_settled(cli, start_timeout_s=0.05, poll_s=0.0)
+        assert abs(stalled.width_m - 0.045) < 1e-9, stalled
 
         # 5b. Der Statustopf traegt den GERAETEZUSTAND, nicht den Befehl --
         #     die Manipulator-Diagnose bewertet ihn, seit rg6_control und mit
@@ -360,6 +430,13 @@ def run(argv) -> int:
                            float(profile.gripper.default_effort_n))
     node.declare_parameter("open_width_m",
                            float(profile.gripper.linkage.max_width_m))
+    # Warten auf das Ende der Fahrt (s. await_settled).  Als Parameter, weil
+    # die Zahlen aus einer Messung an EINEM Greifer stammen: 0,4 s Anlauf,
+    # 1,2 s Fahrt ueber 45 mm.  1,0 s Anlauffenster ist zugleich die
+    # Wartezeit fuer ein Kommando, das gar nichts zu tun hat.
+    node.declare_parameter("settle_start_timeout_s", 1.0)
+    node.declare_parameter("settle_motion_timeout_s", 10.0)
+    node.declare_parameter("settle_poll_s", 0.05)
 
     def _p(name):
         return node.get_parameter(name).value
@@ -443,7 +520,11 @@ def run(argv) -> int:
             force_n = float(cmd.get("force_n") or _p("default_force_n"))
             last_command[0] = COMMAND_GRIP
             client.grip(float(width_m), force_n)
-            state = client.state()
+            # NICHT sofort lesen: rg_grip quittiert die Annahme, nicht das
+            # Ergebnis (Begruendung und Messung bei await_settled).
+            state = await_settled(client, float(_p("settle_start_timeout_s")),
+                                  float(_p("settle_motion_timeout_s")),
+                                  float(_p("settle_poll_s")))
             _emit(result_payload(request_id, "succeeded", state=state,
                                  elapsed_s=time.monotonic() - started))
             log.info(f"gripper {width_m * 1000:.0f} mm @ {force_n:.0f} N -> "
