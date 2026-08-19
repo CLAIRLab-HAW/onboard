@@ -32,6 +32,23 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
   braucht, wäre genau die Abhängigkeit, die hier abgebaut wird. Antwortet der
   Endpoint nicht, **schweigt** die Brücke — die Diagnose meldet den Ausfall
   über das Alter des letzten Statuses.
+- **Der Greifer ist wieder aus MoveIt kommandierbar — auch auf echter
+  Hardware.** Die Brücke bietet jetzt selbst die `control_msgs/GripperCommand`-
+  Action an, die `rg6_control` bis zu seinem Ruhestand bediente
+  (`…/manipulators/rg6_gripper_controller/gripper_cmd`, Name aus dem Profil).
+  Ohne sie zeigte der Controller-Eintrag in `moveit.yaml` auf nichts, und ein
+  Greifbefehl aus RViz oder `MoveGroupInterface` lief in einen Timeout statt in
+  ein „kann ich nicht". Am Gerät belegt: `ros2 action info` zeigt als Client
+  `/a200_0553/moveit_simple_controller_manager` — MoveIts Controller-Manager
+  hing die ganze Zeit dort und wartete auf einen Server. Ein Ziel über 80 mm
+  ging durch (`SUCCEEDED`, `reached_goal: true`, gefahren auf 83,7 mm
+  gemeldet). Im Mock bedient weiterhin `rg6_control_sim` denselben Namen; die
+  Brücke läuft nur onboard, es gibt also nie zwei Server.
+  **Der Greifer hängt dabei nicht am `controller_manager`** und soll es nicht:
+  eine Action läuft im Executor, ein blockierender XML-RPC-Aufruf von 1,3 s im
+  8-ms-Zyklus des CB3 wäre das Ende jeder Armregelung. Der Node spinnt deshalb
+  mit einem `MultiThreadedExecutor`, damit der Greifbefehl nicht die Zustellung
+  von `/twin/gripper_cmd` anhält.
 - **Die Erfolgsmeldung der Brücke trug die Weite von *vor* der Fahrt.**
   `rg_grip` quittiert die Annahme, nicht das Ergebnis: `succeeded` kam nach
   0,16 s mit dem Startwert (am Draht gemessen: befohlene 60 mm, gemeldete

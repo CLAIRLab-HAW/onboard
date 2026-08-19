@@ -173,6 +173,51 @@ COMMAND_GRIP = "GRIP"
 COMMAND_STOP = "STOP"
 
 
+def goal_to_grip(position_rad: float, max_effort_n: float, linkage,
+                 default_force_n: float, force_range_n) -> tuple:
+    """``control_msgs/GripperCommand``-Ziel -> ``(Weite in m, Kraft in N)``.
+
+    MoveIt kommandiert den Greifer als GELENKWERT, nicht als Weite -- die
+    Umrechnung macht dieselbe Getriebegeometrie, die auch das URDF traegt.
+
+    ``max_effort <= 0`` heisst im Vertrag von GripperCommand "nimm, was
+    passt", nicht "Kraft null": MoveIt laesst das Feld haeufig leer.  Dann
+    gilt die Profilvorgabe.  Geklemmt wird auf den Geraetebereich, damit ein
+    zu grosser Wunsch als das ankommt, was der RG6 kann.
+    """
+    lo, hi = float(force_range_n[0]), float(force_range_n[1])
+    force = float(default_force_n) if max_effort_n is None or max_effort_n <= 0.0 \
+        else min(max(float(max_effort_n), lo), hi)
+    return float(linkage.width_from_angle(float(position_rad))), force
+
+
+def goal_result(state, target_width_m: float, force_n: float, linkage,
+                tolerance_m: float) -> dict:
+    """Ergebnisfelder fuer GripperCommand, aus dem GEMESSENEN Zustand.
+
+    ``stalled`` ist ``grip_detected``:  der RG6 meldet damit, dass er die
+    Kraftgrenze VOR der Zielweite erreicht hat -- also genau "steht, aber
+    nicht am Ziel", was das Feld bedeutet.
+
+    ``effort`` ist die KOMMANDIERTE Kraft, nicht eine gemessene: der Endpoint
+    bietet keinen Kraftrueckgabewert (die 289 Methoden kennen ``rg_get_width``,
+    ``rg_get_busy``, ``rg_get_grip_detected``, ``rg_get_status`` und
+    ``rg_get_safety_failed``, aber keine Kraft).  Eine erfundene Zahl waere
+    schlimmer als eine ehrliche Wiederholung des Sollwerts.
+
+    ``tolerance_m`` ist bewusst grob:  der Rueckgabewert des Geraets liegt um
+    +3 bis +5 mm ueber der wahren Weite (R19, am 2026-08-19 mit dem
+    Messschieber verankert).  Solange diese Abweichung nicht herausgerechnet
+    wird, kann ``reached_goal`` nicht schaerfer sein als dieser Fehler.
+    """
+    return {
+        "position": float(linkage.angle_from_width(state.width_m)),
+        "effort": float(force_n),
+        "stalled": bool(state.grip_detected),
+        "reached_goal": abs(state.width_m - float(target_width_m)) <= float(tolerance_m),
+    }
+
+
 def status_payload(state, last_command: str = COMMAND_NONE) -> dict:
     """Geraetezustand fuer ``<ns>/rg6/bridge_state`` -- flach, als JSON.
 
@@ -352,6 +397,34 @@ def selftest() -> int:
         # antwortet das Warten nach dem Anlauffenster -- nicht nie.
         stalled = await_settled(cli, start_timeout_s=0.05, poll_s=0.0)
         assert abs(stalled.width_m - 0.045) < 1e-9, stalled
+
+        # 5c. Der MoveIt-Weg: GripperCommand kommandiert einen GELENKWERT.
+        #     MoveIt braucht den Greifer nie am controller_manager -- es
+        #     braucht diese Action, und die laeuft in einem normalen Executor,
+        #     nicht im 8-ms-Zyklus des CB3.  Genau deshalb konnte der
+        #     stillgelegte rg6_control sie anbieten, ohne ein
+        #     Hardware-Interface zu sein.
+        from robot_contract import load_profile as _lp
+        g = _lp().gripper
+        weite, kraft = goal_to_grip(g.linkage.angle_from_width(0.100), 55.0,
+                                    g.linkage, g.default_effort_n, g.effort_range_n)
+        assert abs(weite - 0.100) < 1e-6, weite
+        assert kraft == 55.0, kraft
+        # Leeres max_effort heisst "nimm, was passt" -- nicht "Kraft null".
+        assert goal_to_grip(0.0, 0.0, g.linkage, g.default_effort_n,
+                            g.effort_range_n)[1] == g.default_effort_n
+        # ... und ein zu grosser Wunsch wird geklemmt, nicht durchgereicht.
+        assert goal_to_grip(0.0, 999.0, g.linkage, g.default_effort_n,
+                            g.effort_range_n)[1] == g.effort_range_n[1]
+
+        st_zu = Rg6State(width_m=0.0605, busy=False, grip_detected=True,
+                         status=0, safety_failed=False)
+        res = goal_result(st_zu, 0.060, 40.0, g.linkage, tolerance_m=0.008)
+        assert res["reached_goal"] is True and res["stalled"] is True, res
+        assert res["effort"] == 40.0, res
+        # Weit daneben ist weit daneben, auch wenn der Greifer steht.
+        assert goal_result(st_zu, 0.100, 40.0, g.linkage,
+                           tolerance_m=0.008)["reached_goal"] is False
 
         # 5b. Der Statustopf traegt den GERAETEZUSTAND, nicht den Befehl --
         #     die Manipulator-Diagnose bewertet ihn, seit rg6_control und mit
@@ -559,10 +632,73 @@ def run(argv) -> int:
         threading.Thread(target=_work, args=(cmd,), daemon=True).start()
 
     node.create_subscription(String, tp.GRIPPER_CMD_TOPIC, on_gripper, 10)
+
+    # -- MoveIt ------------------------------------------------------------
+    # Zweiter Eingang zum selben Geraet: die GripperCommand-Action, die
+    # rg6_control bis zu seinem Ruhestand angeboten hat.  Ohne sie zeigt der
+    # Controller-Eintrag in moveit.yaml auf nichts, und ein Greifbefehl aus
+    # RViz oder MoveGroupInterface laeuft auf `real` in einen Timeout statt
+    # in ein "kann ich nicht".  Im Mock bedient rg6_control_sim denselben
+    # Namen -- die Bruecke laeuft nur onboard, also gibt es nie zwei Server.
+    #
+    # Der Greifer haengt dabei NICHT am controller_manager: eine Action laeuft
+    # im Executor, nicht im 8-ms-Zyklus des CB3.  Ein blockierender
+    # XML-RPC-Aufruf (gemessen 1,33 s bis zum Stillstand) waere dort das Ende
+    # jeder Armregelung.
+    from control_msgs.action import GripperCommand
+    from rclpy.action import ActionServer
+    from rclpy.callback_groups import ReentrantCallbackGroup
+
+    node.declare_parameter("goal_tolerance_m", 0.008)
+
+    def on_action(goal_handle):
+        cmd = goal_handle.request.command
+        width_m, force_n = goal_to_grip(cmd.position, cmd.max_effort,
+                                        linkage, _p("default_force_n"),
+                                        profile.gripper.effort_range_n)
+        result = GripperCommand.Result()
+        if not inflight.acquire(blocking=False):
+            log.warn("GripperCommand abgelehnt: ein Greifbefehl laeuft noch")
+            goal_handle.abort()
+            return result
+        try:
+            last_command[0] = COMMAND_GRIP
+            client.grip(width_m, force_n)
+            state = await_settled(client, float(_p("settle_start_timeout_s")),
+                                  float(_p("settle_motion_timeout_s")),
+                                  float(_p("settle_poll_s")))
+        except Rg6Error as exc:
+            log.error(f"GripperCommand fehlgeschlagen: {exc}")
+            goal_handle.abort()
+            return result
+        finally:
+            inflight.release()
+        felder = goal_result(state, width_m, force_n, linkage,
+                             float(_p("goal_tolerance_m")))
+        result.position = felder["position"]
+        result.effort = felder["effort"]
+        result.stalled = felder["stalled"]
+        result.reached_goal = felder["reached_goal"]
+        log.info(f"GripperCommand {width_m * 1000:.0f} mm @ {force_n:.0f} N -> "
+                 f"{state.width_m * 1000:.1f} mm "
+                 f"reached={result.reached_goal} stalled={result.stalled}")
+        goal_handle.succeed()
+        return result
+
+    ActionServer(node, GripperCommand, profile.gripper.action, on_action,
+                 callback_group=ReentrantCallbackGroup())
+
     log.info(f"rg6_grip_bridge bereit: {client.url} "
-             f"<- {tp.GRIPPER_CMD_TOPIC}")
+             f"<- {tp.GRIPPER_CMD_TOPIC} | MoveIt <- {profile.gripper.action}")
+    # MultiThreaded, weil on_action bis zum Stillstand der Hand blockiert (rund
+    # 1,3 s).  Single-threaded haette dieser eine Aufruf in derselben Zeit
+    # /twin/gripper_cmd und jede weitere Zustellung angehalten.
+    from rclpy.executors import MultiThreadedExecutor
+
+    executor = MultiThreadedExecutor(num_threads=3)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
