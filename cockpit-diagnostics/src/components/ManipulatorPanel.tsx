@@ -255,7 +255,6 @@ const GripperCard = ({
     setSelectedRawName,
     ros,
     namespace,
-    externalControlRunning,
 }: {
     gripper: DiagnosticsEntry | null,
     setSelectedRawName: (rawName: string | null) => void,
@@ -265,7 +264,6 @@ const GripperCard = ({
     // an optional prop an explicit undefined, and the panel's own namespace is
     // undefined until the robot config has been read.
     namespace: string | undefined,
-    externalControlRunning: boolean,
 }) => {
     const percent = gripperPercent(gripper);
     const widthMm = valueOf(gripper, "width_mm");
@@ -273,17 +271,21 @@ const GripperCard = ({
     const gripDetected = boolOf(gripper, "grip_detected");
     const busy = boolOf(gripper, "busy");
     /*
-     * Tool voltage is the *commanded* setpoint of the driver, never hardware
-     * feedback -- it stays true after the arm is powered down. `signal_valid`
-     * is what says whether the tool actually answers, so the two are shown
-     * together: "commanded, no signal" is the honest reading when the analog
-     * signal does not confirm it.
-     * (`tool_power_on` is the pre-2026-07 key name, kept so an older publisher
-     * still renders instead of reading "unknown".)
+     * Tool voltage is MEASURED at the arm's tool connector. Until the
+     * rg6_control retirement this line showed the driver's own setpoint
+     * (`tool_power_commanded`), which stayed true after the arm was powered
+     * down -- over the Tool-DO path an honest number was never available.
+     * The URCap path leaves the supply to the arm, so what is left to report
+     * is what the connector actually carries, paired with `signal_valid`:
+     * "24 V, no signal" is a tool that has power and still does not answer.
      */
-    const toolPower = boolOf(gripper, "tool_power_commanded") ?? boolOf(gripper, "tool_power_on");
+    const toolVoltage = numberOf(gripper, "tool_output_voltage_v");
     const signalValid = boolOf(gripper, "signal_valid");
-    const highForce = boolOf(gripper, "high_force_preset");
+    /*
+     * Only the URCap endpoint reports this (`rg_get_safety_failed`); it had no
+     * equivalent on the Tool-DO path, where the old "Force preset" line sat.
+     */
+    const safetyFailed = boolOf(gripper, "safety_failed");
     const forceRaw = numberOf(gripper, "force_raw_v");
     const level = worstLevel([gripper]);
     const isInactive = level === LEVEL_INACTIVE;
@@ -318,18 +320,19 @@ const GripperCard = ({
                                 {boolText(busy, _("moving"), _("settled"))}
                             </Term>
                             {/*
-                      * Without tool voltage the RG6 reports neither analog nor digital
-                      * values. After an arm restart that is briefly normal -- rg6_control
-                      * raises the voltage itself on the program-running edge.
+                      * Without tool voltage the RG6 answers nothing at all. After an
+                      * arm restart that is briefly normal -- the supply comes up with
+                      * the arm, and nothing in ROS can raise it since the RTDE recipe
+                      * split took Tool-DO away.
                       */}
                             <Term label={_("Tool power")}>
-                                {boolText(toolPower, _("on"), _("off"))}
-                                {signalValid === false && toolPower === true && (
-                                    <span className="manipulator-hint">{_("commanded, no signal")}</span>
+                                {toolVoltage === null ? _("unknown") : `${toolVoltage.toFixed(0)} V`}
+                                {signalValid === false && toolVoltage !== null && toolVoltage > 0 && (
+                                    <span className="manipulator-hint">{_("powered, no signal")}</span>
                                 )}
                             </Term>
-                            <Term label={_("Force preset")}>
-                                {boolText(highForce, _("high"), _("normal"))}
+                            <Term label={_("Safety")}>
+                                {boolText(safetyFailed, _("fault latched"), _("ok"))}
                             </Term>
                             <Term label={_("Last command")}>
                                 {valueOf(gripper, "last_command") ?? _("unknown")}
@@ -353,7 +356,6 @@ const GripperCard = ({
                                 percent={percent}
                                 busy={busy}
                                 isInactive={isInactive}
-                                externalControlRunning={externalControlRunning}
                             />
                         )}
                     </div>
@@ -422,9 +424,6 @@ export const ManipulatorPanel = ({
                             setSelectedRawName={setSelectedRawName}
                             ros={ros}
                             namespace={namespace}
-                            externalControlRunning={
-                                valueOf(manipulator.armControl, "external_control") === "running"
-                            }
                         />
                     </GridItem>
                 </Grid>

@@ -539,12 +539,37 @@ check(!/rg6-(jaw|link|object|body)[^>]*(danger|warning|success|status)/.test(ope
  * fail-closed default is asserted too -- it is the behaviour a broken or
  * missing permission lookup falls back to.
  */
-import { GripperControl, gripperBlockedReason } from "../../src/components/GripperControl";
+import {
+    GripperControl, gripperBlockedReason, gripperGoalRequest,
+} from "../../src/components/GripperControl";
+
+/*
+ * The goal request's shape, pinned because getting it wrong is SILENT.
+ * The bridge advertises a SendGoal request flattened -- `goal_id` and
+ * `command` at the top level, no `goal` wrapper. Nesting `command` inside a
+ * `goal` still serialises, still gets accepted, and arrives as position 0.0:
+ * measured on the a200-0553 on 2026-08-19, where a commanded "close" was
+ * logged by the bridge as "GripperCommand 153 mm" -- fully open.
+ */
+const closeGoal = gripperGoalRequest(true) as Record<string, any>;
+const openGoal = gripperGoalRequest(false) as Record<string, any>;
+
+check(closeGoal.goal === undefined,
+      "the goal request is flat: no `goal` wrapper, or position silently reads 0");
+check(closeGoal.command?.position === 1.25478,
+      "closing commands the closed joint value, not a width");
+check(openGoal.command?.position === 0,
+      "opening commands 0 rad");
+check(closeGoal.command?.max_effort === 0,
+      "effort is left at 0 so the bridge applies its own profile force");
+check(closeGoal.goal_id?.uuid?.length === 16,
+      "the goal carries a 16-byte id, since send_goal generates none for us");
+check(String(openGoal.goal_id.uuid) !== String(closeGoal.goal_id.uuid),
+      "each goal gets its own id");
 
 const guard = (over: Partial<Parameters<typeof gripperBlockedReason>[0]> = {}) =>
     gripperBlockedReason({
-        connected: true, isInactive: false, percent: 80, busy: false,
-        externalControlRunning: false, ...over,
+        connected: true, isInactive: false, percent: 80, busy: false, ...over,
     });
 
 check(guard() === null, "a connected, idle, in-service gripper may be commanded");
@@ -556,8 +581,16 @@ check(guard({ percent: null }) === "No opening is being reported.",
       "no measurement blocks the command -- without tool voltage the RG6 reports nothing");
 check(guard({ busy: true }) === "The gripper is still moving.",
       "a moving gripper blocks the command");
-check(guard({ externalControlRunning: true }) === "The arm is under external control.",
-      "external control blocks the command: every gripper command tears ExternalControl down");
+/*
+ * There is no ExternalControl guard any more, and this pins that down so it is
+ * not quietly reinstated. It blocked every command while the arm's program ran,
+ * because over the old Tool-DO path a gripper command tore ExternalControl
+ * down. The bridge talks XML-RPC to the URCap instead: measured on the
+ * a200-0553 on 2026-08-19, two goals (154 -> 124 -> 154 mm) left
+ * `robot_program_running` true throughout and moved the arm 0.0001 rad.
+ */
+check(guard({ busy: false }) === null,
+      "a running arm program no longer blocks the gripper -- the URCap path leaves it alone");
 
 // Unknown is not permission. `busy: null` means the driver did not say.
 check(guard({ busy: null }) === null, "an unreported busy flag does not block by itself");
@@ -568,7 +601,7 @@ check(guard({ connected: false, busy: true }) === "Not connected to the robot.",
 
 check(renderToStaticMarkup(React.createElement(GripperControl, {
     ros: {}, namespace: "/a200_0553", percent: 80, busy: false,
-    isInactive: false, externalControlRunning: false,
+    isInactive: false,
 })) === "", "without a granted admin permission the control renders nothing at all");
 
 

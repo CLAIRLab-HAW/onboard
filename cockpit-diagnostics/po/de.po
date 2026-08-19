@@ -316,39 +316,31 @@ msgstr "in Bewegung"
 msgid "settled"
 msgstr "steht"
 
-#: src/components/ManipulatorPanel.tsx:321
+#: src/components/ManipulatorPanel.tsx:330
 msgid "Tool power"
 msgstr "Tool-Spannung"
 
-#: src/components/ManipulatorPanel.tsx:322
-msgid "on"
-msgstr "an"
+#: src/components/ManipulatorPanel.tsx:333
+msgid "powered, no signal"
+msgstr "bestromt, kein Signal"
 
-#: src/components/ManipulatorPanel.tsx:322
-msgid "off"
-msgstr "aus"
+#: src/components/ManipulatorPanel.tsx:336
+msgid "Safety"
+msgstr "Sicherheit"
 
-#: src/components/ManipulatorPanel.tsx:324
-msgid "commanded, no signal"
-msgstr "kommandiert, kein Signal"
+#: src/components/ManipulatorPanel.tsx:337
+msgid "fault latched"
+msgstr "Fehler gespeichert"
 
-#: src/components/ManipulatorPanel.tsx:327
-msgid "Force preset"
-msgstr "Kraft-Preset"
+#: src/components/ManipulatorPanel.tsx:337
+msgid "ok"
+msgstr "ok"
 
-#: src/components/ManipulatorPanel.tsx:328
-msgid "high"
-msgstr "hoch"
-
-#: src/components/ManipulatorPanel.tsx:328
-msgid "normal"
-msgstr "normal"
-
-#: src/components/ManipulatorPanel.tsx:330
+#: src/components/ManipulatorPanel.tsx:339
 msgid "Last command"
 msgstr "Letzter Befehl"
 
-#: src/components/ManipulatorPanel.tsx:333
+#: src/components/ManipulatorPanel.tsx:342
 msgid "Force signal"
 msgstr "Kraftsignal"
 
@@ -482,35 +474,31 @@ msgstr "eingefroren"
 msgid "now"
 msgstr "jetzt"
 
-#: src/components/GripperControl.tsx:81
+#: src/components/GripperControl.tsx:157
 msgid "Not connected to the robot."
 msgstr "Keine Verbindung zum Roboter."
 
-#: src/components/GripperControl.tsx:82
+#: src/components/GripperControl.tsx:158
 msgid "The end effector is out of service."
 msgstr "Der Endeffektor ist außer Dienst."
 
-#: src/components/GripperControl.tsx:83
+#: src/components/GripperControl.tsx:159
 msgid "No opening is being reported."
 msgstr "Es wird keine Öffnungsweite gemeldet."
 
-#: src/components/GripperControl.tsx:84
+#: src/components/GripperControl.tsx:160
 msgid "The gripper is still moving."
 msgstr "Der Greifer bewegt sich noch."
 
-#: src/components/GripperControl.tsx:86
-msgid "The arm is under external control."
-msgstr "Der Arm steht unter externer Steuerung."
-
-#: src/components/GripperControl.tsx:128
+#: src/components/GripperControl.tsx:199
 msgid "Close gripper"
 msgstr "Greifer schließen"
 
-#: src/components/GripperControl.tsx:128
+#: src/components/GripperControl.tsx:199
 msgid "Open gripper"
 msgstr "Greifer öffnen"
 
-#: src/components/GripperControl.tsx:151
+#: src/components/GripperControl.tsx:226
 msgid "The gripper refused the command."
 msgstr "Der Greifer hat den Befehl abgelehnt."
 

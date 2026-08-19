@@ -46,39 +46,98 @@ const adminPermission = (): CockpitPermission =>
 /*
  * The one control on this page that moves hardware.
  *
- * Everything else here reads. This calls `rg6_control/open` or `/close`
- * (std_srvs/srv/Trigger) on the robot, which closes a 160 mm gripper on a UR5.
+ * Everything else here reads. This sends a `control_msgs/GripperCommand` goal
+ * to the RG6 bridge, which closes a 160 mm gripper on a UR5.
+ *
+ * Why a service call rather than an action client: a ROS 2 action IS a set of
+ * services underneath, and the bridge on this robot advertises the hidden ones
+ * (`include_hidden: true`, `service_whitelist: ['.*']` -- read off the running
+ * node, 2026-08-19). Calling `.../gripper_cmd/_action/send_goal` therefore asks
+ * nothing of this transport it cannot already do, and the transport carries
+ * topics and services only -- a real action client was never on the table.
+ * Until the rg6_control retirement this called `rg6_control/open` / `/close`
+ * (std_srvs/Trigger); those services went with the driver.
+ *
  * The guards below are not decoration:
  *
  *  - Admin only, like the diagnostics capture. Cockpit's own permission, so it
  *    follows whatever the host already decided about this user.
- *  - Blocked while the arm reports `external_control: running`. On this robot
- *    every gripper command tears ExternalControl down, so pressing this during
- *    a trajectory aborts the arm's program. Refusing is cheaper than explaining
- *    afterwards why the motion stopped.
  *  - Blocked with no measurement and while the gripper reports itself busy.
+ *    The bridge accepts one command at a time and refuses a second one
+ *    mid-travel instead of queueing it, so a disabled button is the honest one.
  *  - Blocked while the subsystem is out of service.
+ *
+ * There is deliberately NO ExternalControl guard any more. It existed because
+ * every command over the old Tool-DO path tore ExternalControl down. The bridge
+ * speaks XML-RPC to the URCap and leaves the arm's program alone: measured on
+ * the a200-0553 on 2026-08-19 with two goals (154 -> 124 -> 154 mm) while
+ * `robot_program_running` stayed true throughout and the arm moved 0.0001 rad,
+ * an order of magnitude below encoder drift.
  *
  * There is deliberately no optimistic state: the label keeps saying what it
  * said until the robot's own state topic reports the new opening. The RG6 is
- * documented in this project as capable of returning success without moving,
+ * documented in this project as capable of answering before it has moved,
  * so a UI that congratulates itself on the response would be lying at exactly
  * the moment it matters.
  */
 
-const TRIGGER = "std_srvs/srv/Trigger";
+const SEND_GOAL = "control_msgs/action/GripperCommand_SendGoal";
 
-interface TriggerResponse {
-    success?: boolean;
-    message?: string;
+/*
+ * GripperCommand carries the finger JOINT, not the opening -- the bridge and
+ * the URDF convert it with the same gear table. 0 rad is open, 1.25478 rad is
+ * fully closed (read out of rg6_finger_kinematics.json, not copied from prose).
+ */
+const OPEN_RAD = 0.0;
+const CLOSED_RAD = 1.25478;
+
+/*
+ * `max_effort <= 0` is GripperCommand's own "take what fits", and the bridge
+ * then applies its configured profile force (40 N on this robot). Naming a
+ * number here would mean inventing a grip force from a web page, for a gripper
+ * the operator may not be standing next to.
+ */
+const PROFILE_EFFORT = 0.0;
+
+interface SendGoalResponse {
+    accepted?: boolean;
 }
+
+/*
+ * An action identifies its goal by UUID, and calling send_goal directly means
+ * nobody generates one for us. Uniqueness per goal is all that is required.
+ */
+const newGoalId = () => crypto.getRandomValues(new Uint8Array(16));
+
+/*
+ * The request the button sends, pulled out so its SHAPE can be tested.
+ *
+ * `command` sits at the top level, NOT wrapped in a `goal`. The rmw definition
+ * of a SendGoal request nests the action's goal, but what the bridge advertises
+ * -- and therefore what the message writer serialises against -- is flattened:
+ *
+ *     unique_identifier_msgs/UUID goal_id
+ *     GripperCommand command
+ *
+ * (read off the running foxglove_bridge on 2026-08-19). A wrongly nested
+ * request does not fail: unknown fields are dropped, missing ones are written
+ * as zero, so `position` arrives as 0.0 rad and the bridge dutifully opens the
+ * gripper. That was measured -- two goals accepted, both logged on the robot as
+ * "GripperCommand 153 mm", neither of them the commanded 0 mm.
+ */
+export const gripperGoalRequest = (shouldClose: boolean) => ({
+    goal_id: { uuid: newGoalId() },
+    command: {
+        position: shouldClose ? CLOSED_RAD : OPEN_RAD,
+        max_effort: PROFILE_EFFORT,
+    },
+});
 
 export interface GripperGuardState {
     connected: boolean;
     isInactive: boolean;
     percent: number | null;
     busy: boolean | null;
-    externalControlRunning: boolean;
 }
 
 /*
@@ -99,8 +158,6 @@ export const gripperBlockedReason = (state: GripperGuardState): string | null =>
     if (state.isInactive) return _("The end effector is out of service.");
     if (state.percent === null) return _("No opening is being reported.");
     if (state.busy === true) return _("The gripper is still moving.");
-    if (state.externalControlRunning)
-        return _("The arm is under external control.");
     return null;
 };
 
@@ -110,7 +167,6 @@ export const GripperControl = ({
     percent,
     busy,
     isInactive,
-    externalControlRunning,
 }: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ros: any,
@@ -118,7 +174,6 @@ export const GripperControl = ({
     percent: number | null,
     busy: boolean | null,
     isInactive: boolean,
-    externalControlRunning: boolean,
 }) => {
     const [admin, setAdmin] = React.useState(false);
     const [pending, setPending] = React.useState(false);
@@ -141,7 +196,6 @@ export const GripperControl = ({
 
     // Which way to move is read off the same measurement the drawing uses.
     const shouldClose = percent !== null && percent > 50;
-    const action = shouldClose ? "close" : "open";
     const label = shouldClose ? _("Close gripper") : _("Open gripper");
 
     const blockedReason = gripperBlockedReason({
@@ -149,7 +203,6 @@ export const GripperControl = ({
         isInactive,
         percent,
         busy,
-        externalControlRunning,
     });
 
     const run = async () => {
@@ -158,14 +211,19 @@ export const GripperControl = ({
         try {
             const service = new ROSLIB.Service({
                 ros,
-                name: `${namespace}/manipulators/rg6_control/${action}`,
-                serviceType: TRIGGER,
+                name: `${namespace}/manipulators/rg6_gripper_controller/gripper_cmd/_action/send_goal`,
+                serviceType: SEND_GOAL,
             });
-            const response = await service.call({}) as TriggerResponse;
-            // The service answered. `success: false` is a refusal, not a crash,
-            // and carries the driver's own explanation -- show it verbatim.
-            if (response && response.success === false) {
-                setFailure(response.message || _("The gripper refused the command."));
+            const response = await service.call(
+                gripperGoalRequest(shouldClose)) as SendGoalResponse;
+            /*
+             * The bridge answered. `accepted: false` is a refusal, not a crash
+             * -- it is what a second command during travel gets. A send_goal
+             * response carries no message field, so the wording has to be ours;
+             * what the gripper is actually doing stays on the state topic.
+             */
+            if (response && response.accepted === false) {
+                setFailure(_("The gripper refused the command."));
             }
         } catch (error) {
             setFailure(error instanceof Error ? error.message : String(error));

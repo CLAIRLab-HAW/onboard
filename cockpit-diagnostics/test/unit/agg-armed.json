@@ -39,7 +39,7 @@
    },
    {
     "key": "joint_state_age_s",
-    "value": "0.00"
+    "value": "0.01"
    },
    {
     "key": "joint_state_timeout_s",
@@ -62,7 +62,15 @@
     "value": "joint_state_broadcaster, arm_0_joint_trajectory_controller, io_and_status_controller"
    },
    {
+    "key": "freedrive_mode_controller",
+    "value": "inactive"
+   },
+   {
     "key": "speed_scaling_state_broadcaster",
+    "value": "active"
+   },
+   {
+    "key": "tcp_pose_broadcaster",
     "value": "active"
    },
    {
@@ -82,24 +90,16 @@
     "value": "active"
    },
    {
-    "key": "tcp_pose_broadcaster",
-    "value": "active"
-   },
-   {
-    "key": "freedrive_mode_controller",
-    "value": "inactive"
-   },
-   {
-    "key": "arm_0_joint_trajectory_controller",
-    "value": "active"
-   },
-   {
     "key": "passthrough_trajectory_controller",
     "value": "inactive"
    },
    {
     "key": "forward_position_controller",
     "value": "inactive"
+   },
+   {
+    "key": "arm_0_joint_trajectory_controller",
+    "value": "active"
    },
    {
     "key": "active_optional",
@@ -119,11 +119,11 @@
    },
    {
     "key": "elbow_joint_rad",
-    "value": "2.2571"
+    "value": "2.2991"
    },
    {
     "key": "elbow_joint_deg",
-    "value": "129.3"
+    "value": "131.7"
    },
    {
     "key": "elbow_joint_vel_rad_s",
@@ -131,15 +131,15 @@
    },
    {
     "key": "elbow_joint_effort",
-    "value": "-1.77"
+    "value": "-1.95"
    },
    {
     "key": "shoulder_lift_joint_rad",
-    "value": "-2.2555"
+    "value": "-2.2607"
    },
    {
     "key": "shoulder_lift_joint_deg",
-    "value": "-129.2"
+    "value": "-129.5"
    },
    {
     "key": "shoulder_lift_joint_vel_rad_s",
@@ -147,11 +147,11 @@
    },
    {
     "key": "shoulder_lift_joint_effort",
-    "value": "0.12"
+    "value": "-0.14"
    },
    {
     "key": "shoulder_pan_joint_rad",
-    "value": "-0.0051"
+    "value": "-0.0053"
    },
    {
     "key": "shoulder_pan_joint_deg",
@@ -163,15 +163,15 @@
    },
    {
     "key": "shoulder_pan_joint_effort",
-    "value": "0.03"
+    "value": "-0.44"
    },
    {
     "key": "wrist_1_joint_rad",
-    "value": "-3.1438"
+    "value": "-3.0914"
    },
    {
     "key": "wrist_1_joint_deg",
-    "value": "-180.1"
+    "value": "-177.1"
    },
    {
     "key": "wrist_1_joint_vel_rad_s",
@@ -179,15 +179,15 @@
    },
    {
     "key": "wrist_1_joint_effort",
-    "value": "-0.47"
+    "value": "-0.37"
    },
    {
     "key": "wrist_2_joint_rad",
-    "value": "-1.5692"
+    "value": "-1.5579"
    },
    {
     "key": "wrist_2_joint_deg",
-    "value": "-89.9"
+    "value": "-89.3"
    },
    {
     "key": "wrist_2_joint_vel_rad_s",
@@ -195,15 +195,15 @@
    },
    {
     "key": "wrist_2_joint_effort",
-    "value": "-0.05"
+    "value": "0.06"
    },
    {
     "key": "wrist_3_joint_rad",
-    "value": "-0.0003"
+    "value": "-0.0025"
    },
    {
     "key": "wrist_3_joint_deg",
-    "value": "-0.0"
+    "value": "-0.1"
    },
    {
     "key": "wrist_3_joint_vel_rad_s",
@@ -211,7 +211,7 @@
    },
    {
     "key": "wrist_3_joint_effort",
-    "value": "0.09"
+    "value": "0.16"
    },
    {
     "key": "moving",
@@ -263,27 +263,27 @@
   "values": [
    {
     "key": "manipulator_diagnostics: Gripper",
-    "value": "offen, 160mm (100%)"
+    "value": "offen, 154mm (96%)"
    }
   ]
  },
  {
   "name": "/Clearpath Diagnostics/Manipulator/Gripper/manipulator_diagnostics: Gripper",
-  "message": "offen, 160mm (100%)",
+  "message": "offen, 154mm (96%)",
   "level": 0,
   "hardware_id": "OnRobot RG6 @ UR Tool-I/O",
   "values": [
    {
     "key": "width_m",
-    "value": "0.1600"
+    "value": "0.1542"
    },
    {
     "key": "width_mm",
-    "value": "160.0"
+    "value": "154.2"
    },
    {
     "key": "width_percent",
-    "value": "100"
+    "value": "96"
    },
    {
     "key": "stroke_mm",
@@ -291,11 +291,11 @@
    },
    {
     "key": "width_raw_v",
-    "value": "10.000"
+    "value": "9.730"
    },
    {
     "key": "force_raw_v",
-    "value": "1.332"
+    "value": "1.335"
    },
    {
     "key": "signal_valid",
@@ -314,28 +314,24 @@
     "value": "false"
    },
    {
-    "key": "high_force_preset",
+    "key": "device_status",
+    "value": "0"
+   },
+   {
+    "key": "safety_failed",
     "value": "false"
    },
    {
     "key": "last_command",
-    "value": "OPEN"
+    "value": "NONE"
    },
    {
-    "key": "tool_power_commanded",
-    "value": "true"
-   },
-   {
-    "key": "io_states_received",
-    "value": "true"
-   },
-   {
-    "key": "tool_data_received",
-    "value": "true"
+    "key": "tool_output_voltage_v",
+    "value": "24"
    },
    {
     "key": "state_age_s",
-    "value": "0.03"
+    "value": "0.02"
    }
   ]
  },
@@ -395,19 +391,19 @@
    },
    {
     "key": "periodicity.average",
-    "value": "10.000006"
+    "value": "10.000005"
    },
    {
     "key": "periodicity.standard_deviation",
-    "value": "0.008268"
+    "value": "0.007928"
    },
    {
     "key": "periodicity.min",
-    "value": "9.605681"
+    "value": "9.654111"
    },
    {
     "key": "periodicity.max",
-    "value": "10.427844"
+    "value": "10.372501"
    }
   ]
  },
@@ -423,7 +419,7 @@
    },
    {
     "key": "joint_state_broadcaster.execution_time",
-    "value": "Avg: 12.92 [6.99 - 617.89] us, StdDev: 9.50"
+    "value": "Avg: 13.27 [5.91 - 539.86] us, StdDev: 9.50"
    },
    {
     "key": "platform_velocity_controller.state",
@@ -431,7 +427,7 @@
    },
    {
     "key": "platform_velocity_controller.execution_time",
-    "value": "Avg: 19.86 [9.50 - 672.50] us, StdDev: 14.22"
+    "value": "Avg: 21.76 [7.30 - 890.40] us, StdDev: 15.25"
    }
   ]
  },
@@ -447,11 +443,11 @@
    },
    {
     "key": "a200_hardware.read_cycle.execution_time",
-    "value": "Avg: 31469.13 [20267.80 - 78301.78] us, StdDev: 8846.13"
+    "value": "Avg: 31399.28 [20207.89 - 76890.58] us, StdDev: 8780.62"
    },
    {
     "key": "a200_hardware.write_cycle.execution_time",
-    "value": "Avg: 9892.71 [4228.40 - 21152.41] us, StdDev: 5077.20"
+    "value": "Avg: 9602.61 [4188.77 - 18002.21] us, StdDev: 5090.89"
    }
   ]
  },
@@ -583,15 +579,15 @@
    },
    {
     "key": "Events since startup",
-    "value": "62884"
+    "value": "71208"
    },
    {
     "key": "Duration of window (s)",
-    "value": "4.999989"
+    "value": "5.000039"
    },
    {
     "key": "Actual frequency (Hz)",
-    "value": "30.000069"
+    "value": "29.999768"
    },
    {
     "key": "Target frequency (Hz)",
@@ -619,15 +615,15 @@
    },
    {
     "key": "Events since startup",
-    "value": "62887"
+    "value": "71184"
    },
    {
     "key": "Duration of window (s)",
-    "value": "4.999986"
+    "value": "5.000041"
    },
    {
     "key": "Actual frequency (Hz)",
-    "value": "30.000082"
+    "value": "29.999757"
    },
    {
     "key": "Target frequency (Hz)",
@@ -655,15 +651,15 @@
    },
    {
     "key": "Events since startup",
-    "value": "62875"
+    "value": "71166"
    },
    {
     "key": "Duration of window (s)",
-    "value": "4.999985"
+    "value": "5.000042"
    },
    {
     "key": "Actual frequency (Hz)",
-    "value": "30.000093"
+    "value": "29.999750"
    },
    {
     "key": "Target frequency (Hz)",
@@ -707,15 +703,15 @@
    },
    {
     "key": "Events since startup",
-    "value": "40898"
+    "value": "46369"
    },
    {
     "key": "Duration of window (s)",
-    "value": "4.999983"
+    "value": "5.000041"
    },
    {
     "key": "Actual frequency (Hz)",
-    "value": "19.600066"
+    "value": "19.599838"
    },
    {
     "key": "Target frequency (Hz)",
@@ -743,15 +739,15 @@
    },
    {
     "key": "Events since startup",
-    "value": "40898"
+    "value": "46369"
    },
    {
     "key": "Duration of window (s)",
-    "value": "4.999982"
+    "value": "5.000042"
    },
    {
     "key": "Actual frequency (Hz)",
-    "value": "19.600069"
+    "value": "19.599836"
    },
    {
     "key": "Target frequency (Hz)",

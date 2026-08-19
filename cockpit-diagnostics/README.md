@@ -67,7 +67,7 @@ diagnostics capture button now lives in the status band's **⋯** menu.
 On top of the generic diagnostics tree, this fork renders a dedicated
 **Manipulator** card: an *Arm* tile (robot mode, safety mode, external control,
 motion link, joint table, controller chips) and an *End effector* tile (opening
-bar, grip detected, motion, tool power, force preset, last command).
+bar, grip detected, motion, tool power, safety, last command).
 
 It is a pure read over the aggregated diagnostics the app already subscribes to
 — **no additional topic subscription**, so pause, history and reconnect apply to
@@ -84,12 +84,13 @@ The panel looks for these statuses in `<namespace>/diagnostics_agg`:
 | `manipulator_diagnostics: Arm Control` | external control, joint\_state rate/age, motion link |
 | `manipulator_diagnostics: Arm Joints` | `joints` (ordered CSV) plus `<joint>_rad` / `<joint>_deg` / `<joint>_vel_rad_s` / `<joint>_effort` |
 | `manipulator_diagnostics: Arm Controllers` | one key per controller, value = its state |
-| `manipulator_diagnostics: Gripper` | `width_mm`, `width_percent`, `stroke_mm`, `grip_detected`, `busy`, `signal_valid`, `tool_power_commanded`, `high_force_preset`, `last_command`, `force_raw_v` |
+| `manipulator_diagnostics: Gripper` | `width_mm`, `width_percent`, `stroke_mm`, `grip_detected`, `busy`, `signal_valid`, `tool_output_voltage_v`, `safety_failed`, `last_command`, `force_raw_v` |
 
-`tool_power_commanded` is named for what it is: the driver's commanded setpoint,
-not hardware feedback — it stays true after the tool loses power. The panel
-therefore pairs it with `signal_valid` and only shows it green when the analog
-signal confirms the tool actually answers.
+`tool_output_voltage_v` is measured at the arm's tool connector, so it is
+hardware feedback rather than a setpoint. The panel pairs it with
+`signal_valid`: supply present and still no answer is a state worth seeing, and
+it is the one the old `tool_power_commanded` could never show — that key was the
+driver's own setpoint and stayed true after the tool lost power.
 
 These key names are a contract with no compile-time enforcement, so
 `test/unit/contract.test.ts` checks them in both directions against a capture of

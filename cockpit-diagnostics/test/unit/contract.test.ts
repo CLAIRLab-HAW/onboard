@@ -25,7 +25,7 @@ import path from 'node:path';
 import live from "./agg-armed.json";
 import { buildDiagnosticsTree } from "../../src/components/RosConnectionManager";
 import {
-    boolOf, collectManipulator, controllerRows, gripperPercent, jointRows, valueOf,
+    boolOf, collectManipulator, controllerRows, gripperPercent, jointRows, numberOf, valueOf,
 } from "../../src/utils/manipulatorUtils";
 import { DiagnosticsEntry } from "../../src/interfaces";
 import { DISPLAY_INACTIVE, DISPLAY_KEY } from "../../src/utils/severity";
@@ -53,7 +53,7 @@ const anyStatusHas = (key: string) => Object.values(statuses).some(entry => hasK
 
 // Keys the publisher is allowed not to send: legacy fallbacks, and keys that
 // only exist while the gripper signal is invalid.
-const OPTIONAL = new Set(["tool_power_on"]);
+const OPTIONAL = new Set<string>([]);
 
 const SOURCES = [
     "src/components/ManipulatorPanel.tsx",
@@ -83,8 +83,11 @@ for (const key of scraped) {
  * The keys the panel is contracted to read, per status. Checked in BOTH
  * directions below -- published by the node, and still read by the panel.
  * The second direction is what catches a rename that only survives through a
- * legacy fallback (`tool_power_commanded ?? tool_power_on`): the fallback keeps
- * the scrape happy, but the primary key would vanish from it.
+ * legacy fallback (as `tool_power_commanded ?? tool_power_on` once did): the
+ * fallback keeps the scrape happy, but the primary key would vanish from it.
+ * There is no such fallback left -- the rg6_control retirement dropped
+ * `tool_power_commanded` and `high_force_preset` for good, so OPTIONAL is
+ * empty and every key here has to be live on both sides.
  */
 const PINNED: Record<string, string[]> = {
     armMode: ["robot_mode", "safety_mode", "robot_ip"],
@@ -92,7 +95,7 @@ const PINNED: Record<string, string[]> = {
     armJoints: ["joints"],
     armControllers: [],
     gripper: ["width_mm", "stroke_mm", "width_percent", "grip_detected", "busy",
-        "tool_power_commanded", "signal_valid", "high_force_preset",
+        "tool_output_voltage_v", "signal_valid", "safety_failed",
         "last_command", "force_raw_v"],
 };
 
@@ -151,10 +154,15 @@ if (valueOf(manipulator.gripper, "signal_valid") === "true") {
     if (gripperPercent(manipulator.gripper) === null) {
         problems.push("gripper: no opening bar although the signal is valid");
     }
-    for (const key of ["grip_detected", "busy", "tool_power_commanded"]) {
+    for (const key of ["grip_detected", "busy", "safety_failed"]) {
         if (boolOf(manipulator.gripper, key) === null) {
             problems.push(`gripper: "${key}" reads unknown although the signal is valid`);
         }
+    }
+    // Not a bool since the URCap path: the panel shows the measured supply,
+    // and a gripper that answers cannot be sitting at a dead connector.
+    if (numberOf(manipulator.gripper, "tool_output_voltage_v") === null) {
+        problems.push('gripper: "tool_output_voltage_v" reads unknown although the signal is valid');
     }
 }
 
