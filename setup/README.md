@@ -11,7 +11,48 @@ All custom units the installer creates carry the `clearpath-custom-*` prefix (`c
 
 **`/etc/clearpath/robot.yaml` ist ein Symlink** auf den Repo-Klon `~/husky-custom-setup/robot.yaml` — der offizielle Clearpath-Weg, kein eigener Update-Service. `clearpath-robot-check` md5summt die Datei im Sekundentakt, ein `git pull` wirkt also sofort statt erst beim nächsten Boot.
 
-## `clearpath-custom-manipulators-watchdog.timer` (late arm power-on + stuck reconnect after restart)
+## Features
+
+- **`robot.yaml` is the single source of truth** — `/etc/clearpath/robot.yaml`
+  is a symlink onto the repo clone, so a `git pull` takes effect within seconds
+  instead of at the next boot.
+- **8 services + 1 timer**, all prefixed `clearpath-custom-*`; an installer run
+  also removes units from older setups.
+- **A watchdog for late arm power-on** and for a motion link that died while
+  ExternalControl kept claiming to run.
+- **`rg6_grip_bridge`** — the node that actually drives the RG6, over XML-RPC
+  against the OnRobot URCap.
+- **Manipulator diagnostics in Cockpit**: arm mode, control, joints,
+  controllers and gripper as `diagnostic_msgs`, with an explicit
+  *out-of-service* state rather than invented numbers.
+- **A boot patcher down to three steps** — everything that `robot.yaml` can
+  express has moved there.
+
+## Tech Stack
+
+Ubuntu + ROS 2 Jazzy on the Clearpath a200-0553, systemd, `rclpy`,
+`ur_robot_driver`, Zenoh (`rmw_zenoh_cpp`). Bash installer, no configuration
+management.
+
+## Installation
+
+After installing the Clearpath software stack
+([Clearpath Installation](https://docs.clearpathrobotics.com/docs/ros/installation/robot)),
+run this in your user directory:
+
+```bash
+wget -c https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/install-clearpath-custom-setup.sh
+bash -e install-clearpath-custom-setup.sh
+```
+
+The installer is interactive and asks before each optional part (`[j/N]`, or
+`-y` to accept all).
+
+## Usage
+
+Was die installierten Units tun, je ein Abschnitt.
+
+### `clearpath-custom-manipulators-watchdog.timer` (late arm power-on + stuck reconnect after restart)
 
 The watchdog covers two cases that are unfixable from a ROS node (both need the dead
 driver connection for their own inputs and can't restart the driver process they
@@ -53,7 +94,7 @@ streaming) and while the arm is off (not pingable). Logs:
 `journalctl -t manipulators-watchdog -b`; schedule:
 `systemctl list-timers clearpath-custom-manipulators-watchdog.timer`.
 
-## `clearpath-manipulators.service.d/override.conf` (clean driver shutdown)
+### `clearpath-manipulators.service.d/override.conf` (clean driver shutdown)
 
 A drop-in that makes `clearpath-manipulators.service` stop with `KillSignal=SIGINT`
 instead of the default `SIGTERM`. `ros2_control_node` / `move_group` / `robot_state_pub`
@@ -63,7 +104,7 @@ to 90 s as a zombie still holding the reverse socket — which is what causes th
 collision in case (b) above. The drop-in layers over the Clearpath-owned unit and
 survives package updates.
 
-## `clearpath-custom-manipulator-diagnostics.service` (UR5 + RG6 in Cockpit)
+### `clearpath-custom-manipulator-diagnostics.service` (UR5 + RG6 in Cockpit)
 
 Cockpit zeigt über die Erweiterung
 [`cockpit-ros2-diagnostics`](https://github.com/clearpathrobotics/cockpit-ros2-diagnostics)
@@ -225,7 +266,7 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
    das Panel rendert dann nichts mehr. Sollen auch die Analyzer weg, den Block
    aus `robot.yaml` entfernen (wirkt über `clearpath-robot-check` sofort).
 
-## `clearpath-custom-octomap-feed.service` (MoveIt-Octomap: dichte Hindernis-Schicht)
+### `clearpath-custom-octomap-feed.service` (MoveIt-Octomap: dichte Hindernis-Schicht)
 
 Schritt 2 der HRL-Hindernis-Architektur (Schritt 1 = objekt-basierte Boxen vom
 Offboard-Client über `/twin/scene_update`): `move_group` pflegt über seinen
@@ -294,3 +335,30 @@ den `move_group`-Block aus `robot.yaml` entfernen (sonst sucht der Updater weite
 eine Wolke, die niemand publiziert). Die Änderung an robot.yaml wirkt sofort —
 `clearpath-robot-check` startet den Stack neu; die generierte Datei entsteht
 ohnehin bei jedem Boot neu, ein `.bak` liegt daneben.
+
+## Running Tests
+
+Both Python nodes carry a ROS-free self-test:
+
+```bash
+python3 scripts/manipulator_diagnostics.py --selftest
+python3 scripts/rg6_grip_bridge.py --selftest
+```
+
+## Related
+
+- [onrobot-rg6](../onrobot-rg6/README.md) — gripper model, MoveIt patch,
+  container mock
+- [ur-state-manager](../ur-state-manager/README.md) — arm state and controller
+  modes
+- [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — the panel
+  that renders these diagnostics
+
+## Versioning
+
+[Semantic Versioning](https://semver.org/) via the `VERSION` file and
+[CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+See workspace root.

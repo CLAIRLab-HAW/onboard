@@ -2,8 +2,14 @@
 
 Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md).
 
-## 2026-08-19 (README-Greiferteil auf den Ist-Zustand)
+Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
+die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unreleased]
+
+## [0.2.0] - 2026-08-19
+
+### README-Greiferteil auf den Ist-Zustand
 - **Der Diagnose-Abschnitt der README stand noch vor der URCap-Uebergabe.** Er
   nannte `rg6_msgs/GripperState` als Zustandsquelle, begruendete die
   Spannungsprobe mit `rg6_control` und dem `rg6_joint_state_broadcaster`, liess
@@ -31,7 +37,7 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
   "Treiber/Broadcaster"; das Paket enthaelt heute den Simulations-Greifer, die
   joint_state-Hilfsnodes und `rg6_moveit_patch`.
 
-## 2026-08-19 (Boot-Patcher von 5 auf 3 Schritte)
+### Boot-Patcher von 5 auf 3 Schritte
 
 - **Die Manipulator-Analyzer stehen in `robot.yaml`, nicht mehr im Patcher.**
   Neu unter `platform.extras.ros_parameters.diagnostic_aggregator`: die
@@ -93,7 +99,7 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
   ja nicht mehr. Die verbliebenen Schritte sind einzeln gegen fehlende Dateien
   abgesichert.
 
-## 2026-08-19 (MoveIt-Greiferwerte in robot.yaml)
+### MoveIt-Greiferwerte in robot.yaml
 
 - **`robot.yaml` traegt den GripperCommand-Controller des RG6.** Neu unter
   `manipulators.moveit.ros_parameters.move_group`: der
@@ -117,8 +123,6 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
   Docstring von `run_rg6_moveit_patch` sagen jetzt, warum die SRDF den Umweg
   ueber das Tool braucht und die `moveit.yaml` nicht: `clearpath_config` kennt
   das Wort `srdf` nicht, und der Greifer-Enum hat keinen RG6.
-
-## 2026-08-19
 
 - **Der Roboter braucht `robot_contract` nicht mehr.** Die Greiferbrücke
   importierte den Vertrag für zehn Dinge; der Installer rollte ihn dafür nach
@@ -212,6 +216,19 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
   eine Eichung nicht (der gemeldete Wert kriecht danach noch ~0,9 mm weiter),
   und das Handbuch nennt die Sollkraft ausdrücklich als Genauigkeitsbremse.
 
+---
+
+**Vor der Einführung von SemVer (2026-08-19)** wurde nach Datum
+geführt. Die Abschnitte darunter behalten ihre Datumsüberschrift — ihnen
+nachträglich Versionsnummern zu geben, würde eine Release-Historie
+erfinden, die es nicht gab.
+- **SemVer eingeführt.** Version auf `0.2.0`, dieses Changelog folgt
+  [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Tag `v0.2.0`.
+  Ältere Abschnitte behalten ihre Datumsüberschrift — ihnen nachträglich
+  Versionsnummern zu geben, würde eine Release-Historie erfinden.
+- **README nach dem Workspace-Schema** (readme.so): Features · Tech Stack ·
+  Installation · Usage · Running Tests · Related · Versioning · License. Die
+  vorhandene Prosa ist erhalten und unter den passenden Abschnitt gewandert.
 ## 2026-08-17
 
 - Der Greifer wird per **XML-RPC** kommandiert, nicht mehr über Tool-DO0.
