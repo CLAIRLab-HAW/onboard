@@ -38,6 +38,10 @@
 #   2) bash install-clearpath-custom-setup.sh         # interaktiv (fragt bei bereits
 #                                                       aktiven/abweichenden Aenderungen)
 #      bash install-clearpath-custom-setup.sh -y      # alle Rueckfragen mit "ja"
+#      bash install-clearpath-custom-setup.sh --verify # NUR pruefen: hasht die
+#                                                        ausgerollten Kopien gegen
+#                                                        den Checkout, aendert
+#                                                        nichts, braucht kein root
 #
 # Idempotent: beliebig oft ausfuehrbar.
 
@@ -88,8 +92,8 @@ RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
 # Kanonische Quelle im Repo (scripts/octomap_feed.py, SSOT wie robot.yaml);
 # root-eigene Kopie unter /usr/local/bin, gestartet vom Boot-Service. Die
 # move_group-Sensorparameter setzt der Boot-Patcher (Schritt 5) NUR, wenn
-# die Unit-Datei existiert.
-OCTO_FEED_URL="https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/scripts/octomap_feed.py"
+# die Unit-Datei existiert.  Die Quelle loest repo_file auf (Checkout vor
+# GitHub-main, s. dort) -- deshalb steht hier keine URL mehr.
 OCTO_FEED_BIN="${BIN_DIR}/octomap-feed"
 OCTO_WRAPPER="${BIN_DIR}/octomap-feed.sh"
 OCTO_UNIT="clearpath-custom-octomap-feed.service"
@@ -101,7 +105,7 @@ OCTO_UNIT_PATH="/etc/systemd/system/${OCTO_UNIT}"
 # Manipulator ueberhaupt in diagnostics_agg auf -- also in Cockpit,
 # rqt_robot_monitor und im Diagnose-Capture. Den passenden Analyzer-Block
 # traegt der Boot-Patcher (Schritt 6) ein, NUR wenn diese Unit existiert.
-MD_FEED_URL="https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/scripts/manipulator_diagnostics.py"
+# Quelle wie beim Octomap-Feed ueber repo_file (Checkout vor GitHub-main).
 MD_BIN="${BIN_DIR}/manipulator-diagnostics"
 MD_WRAPPER="${BIN_DIR}/manipulator-diagnostics.sh"
 MD_UNIT="clearpath-custom-manipulator-diagnostics.service"
@@ -211,18 +215,25 @@ OLD_FILES=("${BIN_DIR}/set-update-rate.py" "${BIN_DIR}/wait-for-clearpath.sh"
 OLD_DIRS=("/etc/systemd/system/joint-states.service.d")
 # ---------------------------------------------------------------------------
 
-if [ "$(id -u)" -ne 0 ]; then
-    echo "Benoetige root-Rechte - starte via sudo neu ..."
-    exec sudo -- bash "$0" "$@"
-fi
-
-# --- Interaktiv: -y/--yes beantwortet alle Rueckfragen mit "ja" ------------
+# --- Argumente -------------------------------------------------------------
+#   -y/--yes   beantwortet alle Rueckfragen mit "ja"
+#   --verify   hasht die ausgerollten Artefakte gegen den Checkout und BEENDET.
+#              Rein lesend -- deshalb VOR dem root-Reexec ausgewertet, damit ein
+#              Nachsehen nicht nach sudo fragt.
 ASSUME_YES=0
+DO_VERIFY=0
 for _a in "$@"; do
     case "$_a" in
         -y|--yes) ASSUME_YES=1 ;;
+        --verify) DO_VERIFY=1 ;;
     esac
 done
+
+# root braucht nur der Ausroll-Lauf, --verify nicht.
+if [ "$DO_VERIFY" -eq 0 ] && [ "$(id -u)" -ne 0 ]; then
+    echo "Benoetige root-Rechte - starte via sudo neu ..."
+    exec sudo -- bash "$0" "$@"
+fi
 
 # confirm "Frage" -> 0 (ja) / 1 (nein).
 #   -y           -> immer ja
@@ -290,6 +301,84 @@ repo_file() {
     rm -f "$tmp"
     return 1
 }
+
+# ---------------------------------------------------------------------------
+# --verify: prueft, ob die ausgerollten Kopien noch dem entsprechen, was im
+# Checkout steht.  Diese Artefakte haengen an KEINEM Git -- unter /usr/local/bin
+# liegen root-eigene Kopien, die sich nur durch einen Installer-Lauf aendern.
+# Dass sie inhaltlich zur Quelle passen, weiss man deshalb nur, wenn man es
+# misst; genau daran ist der octomap_feed-Drift in drei Fassungen entstanden
+# (ROBOTER-TODO R6).
+#
+# Bewusst LOKAL-ONLY: verglichen wird gegen den Checkout bzw. ${SETUP_WS}, NIE
+# gegen GitHub-main.  Ein Fallback aufs Netz wuerde die Frage verfaelschen --
+# gefragt ist "laeuft, was hier steht?", nicht "laeuft, was auf main steht?".
+#
+# Rein lesend.  Rueckgabe 0 = alles deckungsgleich, 1 = mindestens eine
+# Abweichung, fehlende Kopie oder fehlende Quelle.
+# ---------------------------------------------------------------------------
+verify_deployments() {
+    local rc=0 eintrag dst rel src kandidat h_dst h_src status
+    local -a MANIFEST=(
+        "${BIN_DIR}/octomap-feed|scripts/octomap_feed.py"
+        "${BIN_DIR}/manipulator-diagnostics|scripts/manipulator_diagnostics.py"
+        "${BIN_DIR}/rg6-grip-bridge|scripts/rg6_grip_bridge.py"
+        "${BIN_DIR}/rg6_finger_kinematics.json|scripts/rg6_finger_kinematics.json"
+        "${USER_HOME}/rtde_input_recipe_no_tool.txt|rtde_input_recipe_no_tool.txt"
+    )
+    echo "=== --verify: ausgerollte Kopien gegen den Checkout ==="
+    for eintrag in "${MANIFEST[@]}"; do
+        dst="${eintrag%%|*}"
+        rel="${eintrag##*|}"
+        src=""
+        for kandidat in "$(dirname "$0")/${rel}" "${SETUP_WS}/${rel}"; do
+            [ -f "$kandidat" ] && { src="$kandidat"; break; }
+        done
+        if [ ! -f "$dst" ]; then
+            status="NICHT-AUSGEROLLT"; rc=1
+        elif [ -z "$src" ]; then
+            status="QUELLE-FEHLT"; rc=1
+        else
+            h_dst="$(sha256sum "$dst" | cut -d" " -f1)"
+            h_src="$(sha256sum "$src" | cut -d" " -f1)"
+            if [ "$h_dst" = "$h_src" ]; then status="OK"; else status="ABWEICHUNG"; rc=1; fi
+        fi
+        printf "  %-16s %-46s <- %s\n" "$status" "$dst" "${src:-${rel} (nicht gefunden)}"
+    done
+
+    # rg6-moveit-patch stammt aus dem onrobot-rg6-Workspace, nicht aus diesem
+    # Repo -- eigene Kandidatenliste, sonst faende ihn der Manifest-Lauf nie.
+    src=""
+    for kandidat in "${RG6_WS}/install/rg6_control/lib/rg6_control/rg6_moveit_patch" \
+                    "${RG6_WS}/src/rg6_control/scripts/rg6_moveit_patch"; do
+        [ -f "$kandidat" ] && { src="$kandidat"; break; }
+    done
+    if [ ! -f "$RG6_MOVEIT_PATCH_BIN" ]; then
+        status="NICHT-AUSGEROLLT"; rc=1
+    elif [ -z "$src" ]; then
+        # Kein Fehler: der Workspace muss auf dem Roboter nicht gebaut sein.
+        status="QUELLE-FEHLT"
+    elif [ "$(sha256sum "$RG6_MOVEIT_PATCH_BIN" | cut -d" " -f1)" \
+         = "$(sha256sum "$src" | cut -d" " -f1)" ]; then
+        status="OK"
+    else
+        status="ABWEICHUNG"; rc=1
+    fi
+    printf "  %-16s %-46s <- %s\n" "$status" "$RG6_MOVEIT_PATCH_BIN" \
+           "${src:-onrobot-rg6-Workspace (nicht gebaut)}"
+
+    if [ "$rc" -eq 0 ]; then
+        echo "  -> alles deckungsgleich."
+    else
+        echo "  -> ABWEICHUNGEN. Ein Installer-Lauf bringt die Kopien auf den Checkout-Stand."
+    fi
+    return "$rc"
+}
+
+if [ "$DO_VERIFY" -eq 1 ]; then
+    verify_deployments && exit 0 || exit 1
+fi
+
 CKPT_WS="${USER_HOME}/cockpit-ros2-diagnostics"
 
 if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
@@ -1501,18 +1590,21 @@ else
 fi
 if [ "$DO_OCTO" -eq 1 ]; then
     echo ">>> Installiere ${OCTO_FEED_BIN}"
-    OCTO_TMP="$(mktemp)"
+    # repo_file nimmt den ausgecheckten Stand VOR GitHub-main (ROBOTER-TODO R6).
+    # Frueher war es andersherum, und ein Lauf aus dem Checkout installierte
+    # still etwas anderes, als im Checkout stand - genau so ist der
+    # octomap_feed-Drift in drei Fassungen entstanden.  Ist die gefundene
+    # Datei kaputt, wird sie VERWORFEN und nicht heimlich durch main ersetzt:
+    # ein kaputter Checkout soll auffallen.
     OCTO_SRC=""
-    if curl -fsSL --connect-timeout 5 --max-time 30 "$OCTO_FEED_URL" -o "$OCTO_TMP"; then
-        if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$OCTO_TMP"; then
-            OCTO_SRC="$OCTO_TMP"
+    if OCTO_CAND="$(repo_file scripts/octomap_feed.py)"; then
+        if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$OCTO_CAND"; then
+            OCTO_SRC="$OCTO_CAND"
         else
-            echo "    WARN: Download ist kein gueltiges Python - verwerfe."
+            echo "    WARN: $OCTO_CAND ist kein gueltiges Python - verwerfe."
         fi
-    fi
-    if [ -z "$OCTO_SRC" ] && [ -f "$(dirname "$0")/scripts/octomap_feed.py" ]; then
-        echo "    Download nicht verfuegbar - nutze lokale Repo-Kopie."
-        OCTO_SRC="$(dirname "$0")/scripts/octomap_feed.py"
+    else
+        echo "    WARN: scripts/octomap_feed.py weder im Checkout noch unter ${SETUP_WS} noch auf GitHub gefunden."
     fi
     if [ -n "$OCTO_SRC" ]; then
         install -m 0755 -o root -g root "$OCTO_SRC" "$OCTO_FEED_BIN"
@@ -1560,7 +1652,6 @@ EOF
     else
         echo "    WARN: octomap_feed.py weder ladbar noch lokal vorhanden - Octomap uebersprungen."
     fi
-    rm -f "$OCTO_TMP"
 else
     echo ">>> Octomap-Feed: uebersprungen."
 fi
@@ -1580,18 +1671,21 @@ else
 fi
 if [ "$DO_MD" -eq 1 ]; then
     echo ">>> Installiere ${MD_BIN}"
-    MD_TMP="$(mktemp)"
+    # repo_file nimmt den ausgecheckten Stand VOR GitHub-main (ROBOTER-TODO R6).
+    # Frueher war es andersherum, und ein Lauf aus dem Checkout installierte
+    # still etwas anderes, als im Checkout stand - genau so ist der
+    # octomap_feed-Drift in drei Fassungen entstanden.  Ist die gefundene
+    # Datei kaputt, wird sie VERWORFEN und nicht heimlich durch main ersetzt:
+    # ein kaputter Checkout soll auffallen.
     MD_SRC=""
-    if curl -fsSL --connect-timeout 5 --max-time 30 "$MD_FEED_URL" -o "$MD_TMP"; then
-        if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$MD_TMP"; then
-            MD_SRC="$MD_TMP"
+    if MD_CAND="$(repo_file scripts/manipulator_diagnostics.py)"; then
+        if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$MD_CAND"; then
+            MD_SRC="$MD_CAND"
         else
-            echo "    WARN: Download ist kein gueltiges Python - verwerfe."
+            echo "    WARN: $MD_CAND ist kein gueltiges Python - verwerfe."
         fi
-    fi
-    if [ -z "$MD_SRC" ] && [ -f "$(dirname "$0")/scripts/manipulator_diagnostics.py" ]; then
-        echo "    Download nicht verfuegbar - nutze lokale Repo-Kopie."
-        MD_SRC="$(dirname "$0")/scripts/manipulator_diagnostics.py"
+    else
+        echo "    WARN: scripts/manipulator_diagnostics.py weder im Checkout noch unter ${SETUP_WS} noch auf GitHub gefunden."
     fi
     if [ -n "$MD_SRC" ]; then
         install -m 0755 -o root -g root "$MD_SRC" "$MD_BIN"
@@ -1633,7 +1727,6 @@ EOF
     else
         echo "    WARN: manipulator_diagnostics.py weder ladbar noch lokal vorhanden - Manipulator-Diagnose uebersprungen."
     fi
-    rm -f "$MD_TMP"
 else
     echo ">>> Manipulator-Diagnose: uebersprungen."
 fi

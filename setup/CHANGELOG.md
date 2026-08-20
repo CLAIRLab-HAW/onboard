@@ -7,6 +7,49 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Der Timeout-Zweig in `shutdown.sh` war tot (ROBOTER-TODO R4)
+- **`call_trigger` konnte einen nicht erreichbaren Service nicht als solchen
+  melden.** Der Exit-Code wurde als `… || true` in die Kommandosubstitution
+  gelegt und danach mit `rc=$?` gelesen — das liest den Status der *Zuweisung*,
+  und der ist immer 0. Der `if [ "$rc" -eq 124 ]`-Zweig konnte also nie feuern.
+
+  Folge war keine verpasste Fehlererkennung, sondern eine **falsche Diagnose**:
+  ein toter Service lief in den `grep`-Zweig und meldete „kein success=true"
+  statt „Timeout — Service nicht erreichbar". Wer beim Parken des Arms sucht,
+  sucht dann an der falschen Stelle.
+
+  `wakeup.sh` hatte das richtige Muster längst, inklusive Begründung im
+  Kommentar. `call_trigger` ist in beiden Skripten jetzt zeichengleich.
+
+  Gegengeprüft mit einem gestubbten `timeout`, das 124 liefert: die gepatchte
+  Fassung meldet „Timeout — Service nicht erreichbar", die alte „kein
+  success=true".
+
+### Der Installer nimmt den Checkout vor GitHub-main (ROBOTER-TODO R6)
+- **`octomap_feed.py` und `manipulator_diagnostics.py` wurden per `curl` von
+  `refs/heads/main` geholt, die lokale Repo-Kopie war nur der Fallback.** Wer
+  den Installer aus dem Checkout laufen liess, bekam damit nicht, was im
+  Checkout stand — genau das Muster, aus dem der `octomap_feed.py`-Drift in
+  drei Fassungen entstanden ist (`min_depth` 0.15 vs. 0.35).
+
+  Beide Bloecke benutzen jetzt `repo_file`, das es seit dem RTDE-Recipe schon
+  richtig herum macht: neben dem Skript, dann `~/husky-custom-setup`, erst
+  danach das Netz. Ist die gefundene Datei **kein gueltiges Python**, wird sie
+  verworfen und *nicht* still durch `main` ersetzt — ein kaputter Checkout soll
+  auffallen.
+
+- **Neu: `--verify`.** Hasht die ausgerollten Kopien gegen den Checkout und
+  beendet sich; rein lesend, ohne root, ohne Netz. Diese Artefakte haengen an
+  keinem Git — dass sie inhaltlich passen, wusste man bis jetzt nur durch
+  Hinsehen. Abgedeckt sind `octomap-feed`, `manipulator-diagnostics`,
+  `rg6-grip-bridge`, `rg6_finger_kinematics.json`,
+  `rtde_input_recipe_no_tool.txt` und `rg6-moveit-patch` (letzteres gegen den
+  onrobot-rg6-Workspace). Exit 0 = deckungsgleich, 1 = Abweichung.
+
+  Am Roboter gefahren (2026-08-20): alle sechs Artefakte deckungsgleich mit dem
+  dortigen Checkout `464ed63`. Der Negativfall ist mitgeprueft — eine
+  hinzugefuegte Zeile in der Quelle wird als `ABWEICHUNG` mit Exit 1 gemeldet.
+
 ### Patcher-Schritt 2 bleibt, und jetzt steht auch dabei warum
 - **`fix_realsense_mesh_uris` galt kurzzeitig als No-op und war es nie.** Die
   Annahme lautete, upstream habe `file://` -> `package://` in
