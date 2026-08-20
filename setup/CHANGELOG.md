@@ -7,26 +7,39 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
-### Boot-Patcher von 3 auf 2 Schritte
-- **Schritt 2 (`fix_realsense_mesh_uris`) ist entfallen.** Er schrieb in
-  `clearpath_sensors_description` die Mesh-URIs von
-  `file://$(find realsense2_description)` auf `package://` um, weil die
-  Allowlist der `foxglove_bridge` mit `^package://` beginnt und `file://`
-  abweist.
+### Patcher-Schritt 2 bleibt, und jetzt steht auch dabei warum
+- **`fix_realsense_mesh_uris` galt kurzzeitig als No-op und war es nie.** Die
+  Annahme lautete, upstream habe `file://` -> `package://` in
+  `clearpath_sensors_description` **2.9.8** selbst repariert; der Schritt kam
+  deshalb am 2026-08-20 heraus und noch am selben Tag wieder herein.
 
-  Upstream hat das in **2.9.8** selbst getan; a200-0553 laeuft seit dem
-  2026-08-20 auf 2.9.8 (vorher 2.9.5, per apt-Pin auf dem eingefrorenen
-  ROS-Snapshot festgehalten). Im `urdf/`-Verzeichnis des Pakets gibt es dort
-  keinen `file://`-Treffer mehr — der Schritt war damit ein No-op.
+  Am Geraet nachgesehen, indem beide `.deb` ausgepackt und gelesen wurden:
 
-  Gegengemessen wurde nicht am Dateiinhalt allein: die `foxglove_bridge`
-  liefert `package://realsense2_description/meshes/d435.dae` per `fetchAsset`
-  mit 15 782 439 Byte aus, waehrend dieselbe Anfrage mit `file://`-URI
-  abgelehnt wird. Der Grund fuer den Patch ist also verschwunden, nicht
-  bloss unsichtbar geworden.
+  | Paket | Quelle | d415 / d435 / d455 / d456 |
+  |---|---|---|
+  | 2.9.8 | packages.ros.org | `file://` — alle vier |
+  | 2.9.15 | packages.clearpathrobotics.com | `file://` — alle vier |
 
-  Wieder noetig, falls das Paket je unter 2.9.8 zurueckfaellt — Kontext in
-  `ROBOTER-TODO.md` R25.
+  Upstream hat es also nie repariert. Die falsche Ablesung kam aus dem
+  Offboard-**Container**, dessen `Dockerfile` (husky-offboard) dieselbe
+  Ersetzung beim Bau vornimmt — gelesen wurde die gepatchte Datei, nicht das
+  Paket.
+
+- **Zwei naheliegende Proben taugen nicht als Beleg**, und beide sind an dem Tag
+  gefahren worden: „die URDF baut fehlerfrei" (xacro oeffnet nie ein Mesh —
+  selbst ein erfundenes `package://` laeuft mit Exit 0 durch) und „das Mesh ist
+  in Foxglove sichtbar" (zeigt den Zustand *nach* dem letzten Patcherlauf; der
+  Patch ist persistent und bleibt stehen, bis dpkg ihn ueberbuegelt).
+  Entscheidend ist allein der Inhalt des `.deb`.
+
+- **Die Begruendung im Docstring war zudem falsch.** Nicht der
+  `resource_retriever` lehnt `file://` ab — der kann es —, sondern die
+  `asset_uri_allowlist` der `foxglove_bridge`, die mit `^package://` beginnt.
+  Per `fetchAsset` gemessen: `package://…/d435.dae` -> status 0, 15 782 439
+  Byte; dieselbe Datei als `file://` -> status 1. Die Wirkung ist rein visuell
+  (Kameramodell im Foxglove-3D-Panel); `<collision>` ist eine Box-Primitive.
+
+  Alles davon steht jetzt im Docstring der Funktion, samt „NICHT ENTFERNEN".
 
 ## [0.2.0] - 2026-08-19
 

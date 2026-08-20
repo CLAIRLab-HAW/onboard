@@ -25,8 +25,8 @@ All custom units the installer creates carry the `clearpath-custom-*` prefix (`c
 - **Manipulator diagnostics in Cockpit**: arm mode, control, joints,
   controllers and gripper as `diagnostic_msgs`, with an explicit
   *out-of-service* state rather than invented numbers.
-- **A boot patcher down to two steps** — everything that `robot.yaml` can
-  express has moved there, and the sensor mesh URIs are fixed upstream.
+- **A boot patcher down to three steps** — everything that `robot.yaml` can
+  express has moved there.
 
 ## Tech Stack
 

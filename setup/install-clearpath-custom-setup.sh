@@ -4,7 +4,7 @@
 #
 # Macht in einem Rutsch:
 #   - Boot-Service clearpath-custom-setup: patcht bei JEDEM Boot die generierten
-#     Configs (foxglove asset_uri_allowlist, Arm-joint_states, RG6-SRDF)
+#     Configs (foxglove asset_uri_allowlist, realsense mesh uris)
 #   - UDEV-Regeln (/etc/udev/rules.d/99-husky.rules), netplan (/etc/netplan/01-netcfg.yaml),
 #     systemd-networkd deaktivieren (NetworkManager)
 #   - optional: GRUB-Boot beschleunigen (Menue verstecken, GRUB_TIMEOUT=0)
@@ -359,9 +359,7 @@ Patches:
       jeden package://-Mesh ablehnt -> URDF ohne Geometrie in Foxglove.
       Gelesen von der foxglove_bridge unter clearpath-platform.service)
 
-  2. ENTFERNT 2026-08-20 (Sensor-Mesh-URIs file:// -> package://):
-     clearpath_sensors_description liefert die URIs seit 2.9.8 selbst als
-     package://; a200-0553 laeuft seit dem 2026-08-20 auf 2.9.8.
+  2. Sensor-Mesh-URIs file:// -> package:// (fix_realsense_mesh_uris)
 
   3. Arm-JSB joint_states -> manipulators/joint_states (move_arm_joint_states,
      Phase 2) in /opt/ros/*/share/clearpath_manipulators/launch/control.launch.py.
@@ -390,6 +388,80 @@ TAG = "clearpath-custom-setup"
 def log(msg, err=False):
     """Logzeile (stdout/stderr); von journald via SyslogIdentifier erfasst."""
     print(f"{TAG}: {msg}", file=(sys.stderr if err else sys.stdout), flush=True)
+
+
+def fix_realsense_mesh_uris(label):
+    """Clearpaths Sensor-Xacros referenzieren Meshes als
+    'file://$(find realsense2_description)/...'; hier auf
+    'package://realsense2_description' umstellen. Trifft apt-installierte Dateien
+    unter /opt/ros/*/share/clearpath_sensors_description -> bei jedem Boot
+    idempotent re-applied (uebersteht auch apt-Updates).
+
+    NICHT ENTFERNEN -- das ist kein Uebergangs-Workaround. Upstream hat die URIs
+    nie repariert; am 2026-08-20 auf a200-0553 nachgesehen, indem beide .deb
+    ausgepackt und gelesen wurden:
+
+        2.9.8  (packages.ros.org)              -> file://, alle vier intel-Xacros
+        2.9.15 (packages.clearpathrobotics.com) -> file://, alle vier
+
+    Genau das ist am selben Tag einmal falsch entschieden worden: der Schritt
+    galt als No-op, weil der Offboard-CONTAINER 'package://' zeigte -- dort
+    schreibt aber das Dockerfile von husky-offboard dieselbe Ersetzung beim Bau.
+    Gelesen wurde also die gepatchte Datei, nicht das Paket.
+
+    Zwei Proben, die das NICHT klaeren koennen, auch wenn sie danach aussehen:
+      * 'die URDF baut fehlerfrei' -- xacro ersetzt $(find ...) und schreibt
+        Text, es oeffnet nie ein Mesh. Selbst ein frei erfundenes package://
+        laeuft mit Exit 0 und leerem stderr durch.
+      * 'das Mesh ist in Foxglove sichtbar' -- das zeigt den Zustand NACH dem
+        letzten Patcherlauf. Der Patch ist persistent: er schreibt in die
+        Paketdateien, und die bleiben geschrieben, bis dpkg sie ueberbuegelt.
+    Entscheidend ist allein, was im .deb steht.
+
+    Warum es ueberhaupt stoert: nicht der resource_retriever -- der kann
+    file:// -- sondern die 'asset_uri_allowlist' der foxglove_bridge, die mit
+    ^package:// beginnt und alles andere abweist. Gemessen per fetchAsset:
+    package://realsense2_description/meshes/d435.dae -> status 0, 15782439 Byte;
+    dieselbe Datei als file:// -> status 1, 'Failed to retrieve asset'.
+
+    Die Wirkung ist damit rein visuell (Kameramodell im Foxglove-3D-Panel).
+    RViz laedt beide Formen, und die <collision> ist eine Box-Primitive --
+    Planung, Kollisionspruefung und Self-Filter sind nicht betroffen.
+    Kontext: ROBOTER-TODO.md R25."""
+    import glob
+    OLD = "file://$(find realsense2_description)"
+    NEW = "package://realsense2_description"
+    files = glob.glob(
+        "/opt/ros/*/share/clearpath_sensors_description/urdf/**/*.urdf.xacro",
+        recursive=True)
+    changed = []
+    for path in files:
+        try:
+            with open(path) as f:
+                content = f.read()
+        except OSError:
+            continue
+        if OLD not in content:
+            continue
+        backup = path + ".bak"
+        if not os.path.exists(backup):
+            try:
+                shutil.copy2(path, backup)
+            except OSError:
+                pass
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w") as f:
+                f.write(content.replace(OLD, NEW))
+            os.replace(tmp, path)
+            changed.append(os.path.basename(path))
+        except OSError as e:
+            log(f"{label}: kann {path} nicht schreiben: {e}", err=True)
+    if changed:
+        log(f"{label}: package:// gesetzt in: {', '.join(sorted(changed))}")
+    else:
+        log(f"{label}: bereits package:// (oder nichts gefunden) - keine Aenderung.")
+    return bool(changed)
 
 
 def move_arm_joint_states(label):
@@ -499,15 +571,8 @@ def main():
     #    unveraendert durch. Gegen std::regex -- die Engine der
     #    foxglove_bridge, s. utils.hpp isWhitelisted -- sind beide Fassungen
     #    auf einem Korpus aus Treffern und Nicht-Treffern deckungsgleich.
-    # 2) ENTFERNT 2026-08-20: die Sensor-Mesh-URIs kamen bis
-    #    clearpath_sensors_description 2.9.7 als 'file://$(find
-    #    realsense2_description)' und wurden hier auf 'package://'
-    #    umgeschrieben, weil die foxglove_bridge-Allowlist (^package://)
-    #    file:// abweist. Upstream hat das in 2.9.8 selbst getan; a200-0553
-    #    laeuft seit dem 2026-08-20 auf 2.9.8, und im urdf/-Verzeichnis gibt
-    #    es dort keinen file://-Treffer mehr. Der Schritt war damit ein
-    #    No-op und ist raus. Wieder noetig, falls das Paket je unter 2.9.8
-    #    zurueckfaellt -- s. ROBOTER-TODO.md R25.
+    # 2) Sensor-Meshes file:// -> package:// (foxglove_bridge serviert nur package://)
+    fix_realsense_mesh_uris("sensor mesh package://")
     # 3) Phase 2: Arm-JSB joint_states raus aus dem platform-Namespace ->
     #    manipulators/joint_states (Relay + Aggregator via clearpath-custom-joint-states.service).
     move_arm_joint_states("arm joint_states -> manipulators")
