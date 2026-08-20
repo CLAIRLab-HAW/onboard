@@ -29,11 +29,6 @@ if [ "${1:-}" = "--uninstall" ]; then
     exit 0
 fi
 
-if [ "$(id -u)" -ne 0 ]; then
-    echo "FEHLER: bitte mit sudo aufrufen (Ziel liegt unter ${PREFIX})." >&2
-    exit 1
-fi
-
 for f in "${FILES[@]}"; do
     [ -f "${SRC}/${f}" ] || { echo "FEHLER: ${SRC}/${f} fehlt." >&2; exit 1; }
 done
@@ -45,10 +40,23 @@ fi
 
 # Altbestand weg, damit geloeschte Dateien nicht liegenbleiben.
 rm -rf "$DEST"
-install -d -m 0755 "$DEST"
+
+# Kein id-Test, sondern der Versuch selbst: so laesst sich das Skript auch
+# gegen ein PREFIX im eigenen Verzeichnis pruefen, und die Fehlermeldung
+# kommt von der Stelle, an der es wirklich klemmt.
+if ! install -d -m 0755 "$DEST" 2>/dev/null; then
+    echo "FEHLER: ${DEST} laesst sich nicht anlegen -- mit sudo aufrufen" >&2
+    echo "        (oder PREFIX=~/.local setzen, Cockpit sucht dort zuerst)." >&2
+    exit 1
+fi
+
 for f in "${FILES[@]}"; do
-    install -m 0644 -o root -g root "${SRC}/${f}" "${DEST}/${f}"
+    install -m 0644 "${SRC}/${f}" "${DEST}/${f}"
 done
+
+# Nur als root: sonst gehoerte das Paket dem Aufrufer, was unter /usr/local
+# nicht sein soll.
+[ "$(id -u)" -eq 0 ] && chown -R root:root "$DEST"
 
 echo "installiert: $DEST"
 echo "Cockpit im Browser neu laden -> Menuepunkt \"Roboter-Werkzeuge\"."
