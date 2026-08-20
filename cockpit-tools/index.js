@@ -1,9 +1,21 @@
 // Cockpit-Anbindung: Docker-Aufrufe, Abfragetakt, Knoepfe, VNC-Adresse.
 // Die einzige Entscheidungslogik liegt in status.js und wird dort geprueft.
 
-import { classify, shouldPoll, resolveHost } from './status.js';
+import {
+    classify, shouldPoll, resolveHost,
+    parseContainers, pickContainer,
+    parseInspect, diagnoseVnc, hasCode,
+} from './status.js';
 
-const CONTAINER = 'offboard-lite-moveit-rviz-1';
+// Der Containername wird NICHT geraten: compose bildet ihn aus dem
+// Verzeichnisnamen (<projekt>-moveit-rviz-1), er aendert sich also, sobald das
+// Projekt umzieht. Die Seite sucht ihn stattdessen in `docker ps -a` heraus --
+// am compose-Dienst und am Image (siehe pickContainer in status.js).
+const PS_FORMAT = '{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Label "com.docker.compose.service"}}';
+
+// Netzmodus in der ersten Zeile, danach die Umgebung -- daraus beantwortet
+// diagnoseVnc(), warum Port 5900 von aussen zu ist.
+const INSPECT_FORMAT = '{{.HostConfig.NetworkMode}}{{"\n"}}{{range .Config.Env}}{{println .}}{{end}}';
 const VNC_PORT = 5900;
 
 // Faellt ein, wenn die Adresszeile kein brauchbares VNC-Ziel hergibt -- also
@@ -19,9 +31,12 @@ const POLL_IDLE_MS = 3000;
 // -- was wie ein fehlender Docker aussieht und keiner ist.
 const PATH_PREFIX = 'PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin:$PATH; exec docker "$@"';
 
-const state = { status: null, error: null, pending: null };
+const state = { status: null, error: null, pending: null, missing: false };
 let pollTimer = null;
 let everFetched = false;
+let container = null;      // der gefundene Container, sobald es einen gibt
+let vncNotes = [];         // warum 5900 von aussen zu ist (leer = alles gut)
+let inspectedKey = null;   // fuer welchen Container+Zustand das schon geprueft ist
 
 function docker(...args) {
     return cockpit.spawn(['/bin/sh', '-c', PATH_PREFIX, 'sh', ...args],
@@ -51,6 +66,29 @@ function render() {
 
     el('btn-start').disabled = !s.canStart;
     el('btn-stop').disabled = !s.canStop;
+
+    // Welchen Container die Seite gerade bedient -- sonst raet der Leser bei
+    // "nicht angelegt", wonach ueberhaupt gesucht wurde.
+    el('container-name').textContent = container ? container.name : '—';
+
+    const diag = el('vnc-diagnose');
+    diag.textContent = vncNotes.map(n => n.text).join('\n\n');
+    diag.hidden = vncNotes.length === 0;
+
+    // Kein Widerspruch auf einer Seite: solange die Diagnose sagt, dass gar
+    // kein Passwort gesetzt ist, verschwindet der Hinweis, der Viewer frage
+    // nach einem.
+    el('hint-password').hidden = hasCode(vncNotes, 'no-password');
+
+    const extra = el('container-extra');
+    if (container && container.others && container.others.length > 0) {
+        extra.textContent = 'Weitere passende Container: '
+                          + container.others.map(o => o.name).join(', ')
+                          + ' — bedient wird der oben genannte.';
+        extra.hidden = false;
+    } else {
+        extra.hidden = true;
+    }
 }
 
 function schedulePoll(ms = POLL_IDLE_MS) {
@@ -66,27 +104,64 @@ function poll() {
         return;
     }
 
-    docker('inspect', '-f', '{{.State.Status}}', CONTAINER)
+    docker('ps', '-a', '--format', PS_FORMAT)
             .then(out => {
-                state.status = out.trim();
+                const hit = pickContainer(parseContainers(out));
+                container = hit.container ? { ...hit.container, others: hit.others } : null;
+                state.status = hit.container ? hit.container.state : null;
+                state.missing = !hit.container;
                 state.error = null;
             })
             .catch(ex => {
+                container = null;
                 state.status = null;
+                state.missing = false;
                 state.error = (ex.message || String(ex)).trim();
             })
             .finally(() => {
                 everFetched = true;
                 render();
+                refreshDiagnosis();
                 schedulePoll();
             });
 }
 
+// Ein zweiter Docker-Aufruf, aber nicht im 3-Sekunden-Takt: Netzmodus und
+// Umgebung eines Containers aendern sich nur beim Neuanlegen, nicht im
+// Betrieb. Neu geprueft wird deshalb erst, wenn ein anderer Container
+// gefunden wurde oder er seinen Zustand gewechselt hat.
+function refreshDiagnosis() {
+    if (!container) {
+        vncNotes = [];
+        inspectedKey = null;
+        return;
+    }
+
+    const key = container.name + '|' + container.state;
+    if (key === inspectedKey)
+        return;
+    inspectedKey = key;
+
+    docker('inspect', '-f', INSPECT_FORMAT, container.name)
+            .then(out => {
+                vncNotes = diagnoseVnc(parseInspect(out));
+            })
+            .catch(() => {
+                // Die Diagnose ist eine Zugabe -- scheitert sie, bleibt die
+                // Seite bedienbar und behauptet nichts.
+                vncNotes = [];
+            })
+            .finally(render);
+}
+
 function run(action) {
+    if (!container)
+        return;
+
     state.pending = action;
     render();
 
-    docker(action, CONTAINER)
+    docker(action, container.name)
             .then(() => {
                 state.error = null;
             })
@@ -147,7 +222,6 @@ function initVnc() {
 }
 
 function init() {
-    el('container-name').textContent = CONTAINER;
     el('btn-start').addEventListener('click', () => run('start'));
     el('btn-stop').addEventListener('click', () => run('stop'));
     document.addEventListener('visibilitychange', () => {

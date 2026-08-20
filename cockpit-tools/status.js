@@ -23,7 +23,7 @@ const MISSING_RE = /no such (object|container)/i;
  * @returns {{color:string,label:string,detail:string,pulse:boolean,
  *            outline:boolean,missing:boolean,canStart:boolean,canStop:boolean}}
  */
-export function classify({ status = null, error = null, pending = null } = {}) {
+export function classify({ status = null, error = null, pending = null, missing = false } = {}) {
     const base = {
         color: 'grey',
         label: '',
@@ -42,20 +42,24 @@ export function classify({ status = null, error = null, pending = null } = {}) {
     if (pending === 'stop')
         return { ...base, color: 'yellow', pulse: true, label: 'stoppt…' };
 
-    if (error) {
-        if (MISSING_RE.test(error)) {
-            return {
-                ...base,
-                outline: true,
-                missing: true,
-                label: 'nicht angelegt',
-                detail: 'Den Container gibt es auf diesem Rechner nicht. Einmal anlegen: '
-                      + 'cd ~/offboard-lite && docker compose -f docker-compose.yml '
-                      + '-f docker-compose.robot.yml up -d',
-            };
-        }
-        return { ...base, color: 'red', label: 'Docker nicht erreichbar', detail: error };
+    if (missing || (error && MISSING_RE.test(error))) {
+        return {
+            ...base,
+            outline: true,
+            missing: true,
+            label: 'nicht angelegt',
+            // Kein geratener Pfad: die Seite kennt den Ablageort des
+            // Compose-Projekts nicht, und ein falsches "cd" schickt den
+            // Leser genau in die Irre, aus der er kommt.
+            detail: 'Auf diesem Rechner gibt es keinen Container aus dem Image '
+                  + 'husky-offboard-lite (compose-Dienst moveit-rviz). Einmal anlegen, '
+                  + 'im Verzeichnis des Compose-Projekts: docker compose '
+                  + '-f docker-compose.yml -f docker-compose.robot.yml up -d',
+        };
     }
+
+    if (error)
+        return { ...base, color: 'red', label: 'Docker nicht erreichbar', detail: error };
 
     switch (status) {
     case null:
@@ -123,4 +127,138 @@ export function resolveHost({ transportHost = null, locationHost = '', fallback 
     if (locationHost && !LOCAL_HOSTS.includes(locationHost))
         return locationHost;
     return fallback;
+}
+
+// --- Den Container finden, statt seinen Namen zu raten --------------------
+//
+// Der Name eines compose-Containers ist <projekt>-<dienst>-<n>, und das
+// Projekt heisst per Vorgabe wie das VERZEICHNIS. Ein fest verdrahtetes
+// "offboard-lite-moveit-rviz-1" ist damit eine Wette auf den Ablageort --
+// verloren am 2026-08-20, als die Seite auf dem Roboter "nicht angelegt"
+// meldete und dazu ein falsches Verzeichnis nannte.
+//
+// Erkannt wird stattdessen an zwei Merkmalen, die den Ablageort nicht kennen:
+// dem compose-Dienst (im Compose dieses Images heisst er moveit-rviz) und dem
+// Image-Namen.
+
+const COMPOSE_SERVICE = 'moveit-rviz';
+const IMAGE_HINT = 'offboard-lite';
+
+/**
+ * Zerlegt die Ausgabe von
+ * `docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Label "com.docker.compose.service"}}'`.
+ *
+ * @param {string} text
+ * @returns {Array<{name:string,image:string,state:string,service:string}>}
+ */
+export function parseContainers(text) {
+    return (text || '')
+            .split('\n')
+            .map(line => line.trimEnd())
+            .filter(line => line.trim() !== '')
+            .map(line => {
+                const [name = '', image = '', state = '', service = ''] = line.split('\t');
+                return {
+                    name: name.trim(),
+                    image: image.trim(),
+                    state: state.trim(),
+                    service: service.trim(),
+                };
+            })
+            .filter(row => row.name !== '');
+}
+
+/**
+ * Sucht den Offboard-Lite-Container heraus.
+ *
+ * @param {ReturnType<typeof parseContainers>} rows
+ * @returns {{container: object|null, others: Array<object>}}
+ *   `others` sind weitere Treffer -- mehr als einer ist kein Fehler (ein alter
+ *   Container aus einem umbenannten Projekt bleibt liegen), aber die Seite
+ *   sagt dann, welchen sie bedient.
+ */
+export function pickContainer(rows, { service = COMPOSE_SERVICE, imageHint = IMAGE_HINT } = {}) {
+    const hits = (rows || []).filter(r =>
+        r.service === service || r.image.includes(imageHint));
+
+    if (hits.length === 0)
+        return { container: null, others: [] };
+
+    // Laufende zuerst: wer zwei Container hat, meint den, der arbeitet.
+    const running = hits.filter(r => r.state === 'running');
+    const chosen = running.length > 0 ? running[0] : hits[0];
+
+    return { container: chosen, others: hits.filter(r => r !== chosen) };
+}
+
+// --- Warum der VNC-Port von aussen nicht erreichbar ist -------------------
+//
+// Am 2026-08-20 an a200-0553 gemessen: 6080 offen, 5900 keine Antwort. Zwei
+// Ursachen erzeugen dieses Bild, und beide entstehen beim ANLEGEN des
+// Containers -- ein `docker start` kann sie nicht heilen, weil es den
+// Container mit genau seiner alten Konfiguration hochfaehrt. Die Seite sagt
+// deshalb, welche der beiden vorliegt, statt den Leser raten zu lassen.
+
+/**
+ * Zerlegt die Ausgabe von
+ * `docker inspect -f '{{.HostConfig.NetworkMode}}{{"\n"}}{{range .Config.Env}}{{println .}}{{end}}'`.
+ *
+ * @param {string} text
+ * @returns {{networkMode:string, env:string[]}|null}
+ */
+export function parseInspect(text) {
+    const lines = (text || '').split('\n').map(l => l.trim()).filter(l => l !== '');
+    if (lines.length === 0)
+        return null;
+    return { networkMode: lines[0], env: lines.slice(1) };
+}
+
+/**
+ * @param {{networkMode:string, env:string[]}|null} info
+ * @returns {Array<{code:string, text:string}>} leer, wenn alles passt.
+ *   Der Code ist dazu da, andere Stellen der Seite stumm zu schalten: solange
+ *   "no-password" gilt, darf daneben nicht stehen, der Viewer frage nach einem.
+ */
+export function diagnoseVnc(info) {
+    if (!info)
+        return [];
+
+    const notes = [];
+
+    // Ohne Passwort bietet x11vnc nur Security-Typ "None" an -- und bindet
+    // dann an 127.0.0.1 statt 0.0.0.0. noVNC auf 6080 merkt davon nichts,
+    // weil websockify containerintern verbindet. Genau daher der Eindruck
+    // "der Container laeuft doch".
+    const pw = info.env.find(e => e.startsWith('VNC_PASSWORD='));
+    if (!pw || pw.slice('VNC_PASSWORD='.length).trim() === '') {
+        notes.push({
+            code: 'no-password',
+            text: 'Dieser Container läuft ohne VNC_PASSWORD — x11vnc lauscht dann nur auf '
+                + 'localhost, ein Viewer von außen bekommt keine Verbindung (noVNC auf 6080 '
+                + 'geht trotzdem). Ein Neustart ändert das nicht: den Container mit gesetztem '
+                + 'VNC_PASSWORD neu anlegen.',
+        });
+    }
+
+    // Ohne den robot-Override laeuft der Container im Bridge-Netz, und das
+    // Port-Mapping bindet 5900 an 127.0.0.1 des Roboters.
+    if (info.networkMode && info.networkMode !== 'host') {
+        notes.push({
+            code: 'bridge-network',
+            text: 'Dieser Container läuft im Bridge-Netz (' + info.networkMode + '), nicht im '
+                + 'Netz des Roboters — Port 5900 liegt dann nur auf dessen 127.0.0.1. Mit '
+                + '-f docker-compose.robot.yml neu anlegen.',
+        });
+    }
+
+    return notes;
+}
+
+/**
+ * @param {Array<{code:string}>} notes
+ * @param {string} code
+ * @returns {boolean}
+ */
+export function hasCode(notes, code) {
+    return (notes || []).some(n => n.code === code);
 }

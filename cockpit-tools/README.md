@@ -14,9 +14,17 @@ andere Handgriffe) kommen hier dazu, ohne dass das Paket umgetauft werden muss.
 
 ## Was die Seite tut
 
-**Statuskugel.** Alle drei Sekunden ein
-`docker inspect -f '{{.State.Status}}' offboard-lite-moveit-rviz-1`. Im
-Hintergrundtab wird nicht abgefragt.
+**Statuskugel.** Alle drei Sekunden ein `docker ps -a`. Im Hintergrundtab wird
+nicht abgefragt — die erste Abfrage läuft aber immer, sonst stünde eine nie
+sichtbar gewesene Seite für immer auf „wird geprüft…".
+
+Der Container wird **gesucht, nicht geraten**: compose bildet den Namen als
+`<projekt>-moveit-rviz-1`, und das Projekt heißt per Vorgabe wie das
+Verzeichnis — ein fest verdrahteter Name ist damit eine Wette auf den
+Ablageort. Erkannt wird am compose-Dienst (`moveit-rviz`) oder am Image
+(`*offboard-lite*`); der große `husky-offboard`-Container fällt dabei nicht
+mit hinein. Welcher Container bedient wird, steht in der Karte, und gibt es
+mehrere Treffer, nennt sie auch die übrigen.
 
 | Kugel | Bedeutung |
 |---|---|
@@ -30,11 +38,29 @@ Gestoppt ist bewusst **grau und nicht rot**: sonst leuchtete die Kugel die
 meiste Zeit alarmierend, obwohl nichts kaputt ist — und ein echter Fehler ginge
 darin unter.
 
-**Starten / Stoppen.** `docker start` bzw. `docker stop` auf den vorhandenen
+**Starten / Stoppen.** `docker start` bzw. `docker stop` auf den gefundenen
 Container. Die Seite legt **keinen** Container an und ruft **kein** `compose`
-auf; fehlt der Container, sagt sie das und nennt den einmaligen Befehl dafür.
+auf; fehlt er, sagt sie das — ohne einen Pfad zu raten, den sie nicht geprüft
+hat.
 Der jeweils sinnlose Knopf ist ausgegraut (kein `start` auf einen laufenden
 Container, kein `stop` auf einen gestoppten).
+
+**Warum 5900 von außen zu ist.** Läuft der Container, prüft die Seite einmal
+`docker inspect` und sagt, wenn der VNC-Port gar nicht nach außen lauschen
+kann. Zwei Ursachen erzeugen dasselbe Bild — 6080 offen, 5900 keine Antwort —
+und beide entstehen beim **Anlegen** des Containers, überleben also jedes
+`docker start`:
+
+| Befund | Was die Seite meldet |
+|---|---|
+| kein `VNC_PASSWORD` in der Umgebung | `x11vnc` läuft mit `-nopw` und bindet dann nur auf `127.0.0.1` |
+| `NetworkMode` ≠ `host` | Bridge-Netz, `5900` liegt nur auf dem Loopback des Roboters |
+
+![Die Diagnose](screenshots/vnc-diagnose.jpg)
+
+Solange „kein `VNC_PASSWORD`" gilt, blendet die Seite den Hinweis aus, der
+Viewer frage nach einem Passwort — zwei widersprechende Sätze nebeneinander
+sind schlimmer als einer weniger.
 
 **VNC.** Die Adresse `vnc://<dieser-rechner>:5900` als Link und zum Kopieren,
 dazu die Hinweise, die man dort braucht: wie man sie am Mac öffnet, dass der
@@ -52,12 +78,15 @@ anderes Netz (netbird) trägt man dort ein.
 
 ## Voraussetzungen auf dem Roboter
 
-- **Der Container muss einmal angelegt worden sein**, üblicherweise mit
+- **Der Container muss einmal angelegt worden sein**, im Verzeichnis des
+  Compose-Projekts:
   ```bash
-  cd ~/offboard-lite
   docker compose -f docker-compose.yml -f docker-compose.robot.yml up -d
   ```
-  Danach genügt für alles Weitere diese Seite.
+  Der `-f docker-compose.robot.yml` gehört dazu (Host-Netz), und
+  `VNC_PASSWORD` muss gesetzt sein — sonst startet die Seite später einen
+  Container, an den kein Viewer herankommt. Wie er heißt, ist egal, die Seite
+  findet ihn. Danach genügt für alles Weitere diese Seite.
 - **Admin-Zugang in Cockpit.** Die Docker-Aufrufe laufen mit
   `superuser: "require"`. Wer sich in Cockpit nicht als Administrator
   freigeschaltet hat, sieht eine rote Kugel mit der Fehlermeldung.

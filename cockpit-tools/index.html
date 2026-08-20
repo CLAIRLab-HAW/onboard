@@ -16,7 +16,8 @@
             <header class="card-head">
                 <h2>Offboard-Lite</h2>
                 <p class="sub">RViz + MoveIt-Client gegen das <code>move_group</code> dieses Roboters.
-                   Container <code id="container-name">offboard-lite-moveit-rviz-1</code>.</p>
+                   Container <code id="container-name">—</code>.</p>
+                <p class="sub" id="container-extra" hidden></p>
             </header>
 
             <div class="status-row">
@@ -41,11 +42,13 @@
                 <span id="copy-note" class="copy-note" hidden>kopiert</span>
             </div>
 
+            <p id="vnc-diagnose" class="detail detail-error" hidden></p>
+
             <ul class="hints">
                 <li>Am Mac: Adresse in <em>Bildschirmfreigabe</em> öffnen oder im Terminal
                     <code id="open-cmd">open vnc://…:5900</code>. Andere Systeme: dieselbe Adresse
                     in einen VNC-Viewer (Remmina, TigerVNC, RealVNC).</li>
-                <li><strong>Der Viewer fragt nach einem Passwort.</strong> Es ist das
+                <li id="hint-password"><strong>Der Viewer fragt nach einem Passwort.</strong> Es ist das
                     <code>VNC_PASSWORD</code> des Containers, Vorgabe <code>husky</code>
                     (VNC-Passwörter sind protokollbedingt auf 8 Zeichen begrenzt). Der Browserweg
                     über noVNC fragt nicht danach.</li>
