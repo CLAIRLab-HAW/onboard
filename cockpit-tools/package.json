@@ -1,0 +1,11 @@
+{
+    "name": "cockpit-robot-tools",
+    "version": "0.1.0",
+    "description": "Cockpit-Seite fuer wiederkehrende Handgriffe am Roboter (Offboard-Lite-Container, VNC)",
+    "type": "module",
+    "private": true,
+    "license": "LGPL-2.1",
+    "scripts": {
+        "test": "node --test test/*.test.mjs"
+    }
+}

@@ -1,0 +1,210 @@
+/* Eigenes, knappes CSS statt PatternFly: dieses Paket wird nicht gebaut,
+   sondern so, wie es hier liegt, nach /usr/local/share/cockpit kopiert. Es
+   soll neben Cockpit nicht auffallen, aber auch keine Bibliothek mitziehen. */
+
+:root {
+    --bg: #fff;
+    --fg: #151515;
+    --muted: #6a6e73;
+    --line: #d2d2d2;
+    --card: #fff;
+    --accent: #0066cc;
+    --accent-fg: #fff;
+    --btn: #f0f0f0;
+    --warn: #795600;
+    --err: #a30000;
+
+    --green: #3e8635;
+    --grey: #b8bbbe;
+    --yellow: #f0ab00;
+    --red: #c9190b;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1b1d21;
+        --fg: #e0e0e0;
+        --muted: #a3a3a3;
+        --line: #3c3f42;
+        --card: #212427;
+        --btn: #3c3f42;
+        --warn: #f0ab00;
+        --err: #fe5142;
+        --grey: #6a6e73;
+    }
+}
+
+* { box-sizing: border-box }
+
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "RedHatText", "Open Sans", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+main {
+    max-width: 46rem;
+    padding: 1.5rem 1rem 3rem;
+}
+
+h1 {
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin: 0 0 1rem;
+}
+
+h2 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin: 0;
+}
+
+code {
+    font-family: "RedHatMono", "Courier New", monospace;
+    font-size: 0.92em;
+    background: rgb(127 127 127 / 12%);
+    border-radius: 3px;
+    padding: 0.05em 0.3em;
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 1rem 1.25rem 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.card-head { margin-bottom: 0.75rem }
+
+.sub {
+    color: var(--muted);
+    margin: 0.25rem 0 0;
+}
+
+/* --- Statuszeile ------------------------------------------------------- */
+
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.spacer { flex: 1 1 auto }
+
+.status-label {
+    font-weight: 600;
+    min-width: 9rem;
+}
+
+.ball {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--grey);
+    flex: 0 0 auto;
+}
+
+.ball-green { background: var(--green) }
+.ball-grey { background: var(--grey) }
+.ball-yellow { background: var(--yellow) }
+.ball-red { background: var(--red) }
+
+/* "Container nicht angelegt": kein Zustand, sondern eine Leerstelle --
+   deshalb hohl statt gefuellt. */
+.ball-outline {
+    background: transparent;
+    border: 2px solid var(--grey);
+}
+
+.ball-pulse { animation: pulse 1.2s ease-in-out infinite }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1 }
+    50% { opacity: 0.3 }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ball-pulse { animation: none }
+}
+
+.detail {
+    margin: 0.75rem 0 0;
+    color: var(--muted);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.detail-error { color: var(--err) }
+
+/* --- Knoepfe ----------------------------------------------------------- */
+
+.btn {
+    font: inherit;
+    padding: 0.35rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--btn);
+    color: var(--fg);
+    cursor: pointer;
+}
+
+.btn:hover:not(:disabled) { filter: brightness(0.95) }
+
+.btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+}
+
+/* Ein blauer Knopf mit 45 % Deckkraft sieht immer noch nach "druck mich" aus.
+   Deaktiviert faellt er deshalb ganz auf die neutrale Farbe zurueck. */
+.btn-primary:disabled {
+    background: var(--btn);
+    border-color: var(--line);
+    color: var(--fg);
+}
+
+/* --- VNC --------------------------------------------------------------- */
+
+.vnc-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+}
+
+.vnc-url {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.vnc-url:hover { text-decoration: underline }
+
+.copy-note { color: var(--muted) }
+
+.hints {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: var(--muted);
+}
+
+.hints li { margin-bottom: 0.4rem }
+.hints .warn { color: var(--warn) }
+
+.offscreen {
+    position: absolute;
+    left: -9999px;
+}
