@@ -136,9 +136,11 @@ call_trigger() {
   local secs="${timeout%.*}"   # Float -> Int (z.B. 30.0 -> 30) fuer Bash-Arithmetik
   [ -z "$secs" ] && secs="$timeout"
   log "${label}: rufe ${srv}"
-  local out rc
-  out="$(timeout "$((secs + 15))" ros2 service call "$srv" std_srvs/srv/Trigger 2>&1 || true)"
-  rc=$?
+  # Exit-Code des timeouts DIREKT via `|| rc=$?` einfangen - NICHT `|| true`
+  # in die Substitution und danach `rc=$?`: das liest den Status der
+  # Zuweisung (immer 0), der 124-Zweig waere tot.
+  local out rc=0
+  out="$(timeout "$((secs + 15))" ros2 service call "$srv" std_srvs/srv/Trigger 2>&1)" || rc=$?
   if [ "$rc" -eq 124 ]; then
     warn "${label}: Timeout - Service ${srv} nicht erreichbar."
     return 1
