@@ -7,6 +7,27 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Boot-Patcher von 3 auf 2 Schritte
+- **Schritt 2 (`fix_realsense_mesh_uris`) ist entfallen.** Er schrieb in
+  `clearpath_sensors_description` die Mesh-URIs von
+  `file://$(find realsense2_description)` auf `package://` um, weil die
+  Allowlist der `foxglove_bridge` mit `^package://` beginnt und `file://`
+  abweist.
+
+  Upstream hat das in **2.9.8** selbst getan; a200-0553 laeuft seit dem
+  2026-08-20 auf 2.9.8 (vorher 2.9.5, per apt-Pin auf dem eingefrorenen
+  ROS-Snapshot festgehalten). Im `urdf/`-Verzeichnis des Pakets gibt es dort
+  keinen `file://`-Treffer mehr — der Schritt war damit ein No-op.
+
+  Gegengemessen wurde nicht am Dateiinhalt allein: die `foxglove_bridge`
+  liefert `package://realsense2_description/meshes/d435.dae` per `fetchAsset`
+  mit 15 782 439 Byte aus, waehrend dieselbe Anfrage mit `file://`-URI
+  abgelehnt wird. Der Grund fuer den Patch ist also verschwunden, nicht
+  bloss unsichtbar geworden.
+
+  Wieder noetig, falls das Paket je unter 2.9.8 zurueckfaellt — Kontext in
+  `ROBOTER-TODO.md` R25.
+
 ## [0.2.0] - 2026-08-19
 
 ### README-Greiferteil auf den Ist-Zustand
