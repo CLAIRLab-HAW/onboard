@@ -219,11 +219,27 @@ export function parseInspect(text) {
  *   Der Code ist dazu da, andere Stellen der Seite stumm zu schalten: solange
  *   "no-password" gilt, darf daneben nicht stehen, der Viewer frage nach einem.
  */
-export function diagnoseVnc(info) {
+export function diagnoseVnc(info, { probe = null } = {}) {
     if (!info)
         return [];
 
     const notes = [];
+
+    // Von INNEN gemessen: lauscht ueberhaupt jemand auf 5900? Das trennt einen
+    // toten Desktop von einem, der nur nach aussen nicht erreichbar ist -- von
+    // aussen sehen beide gleich aus (6080 offen, 5900 stumm). Steht diese
+    // Meldung, sind die beiden Ursachen darunter zweitrangig.
+    if (probe === 'down') {
+        notes.push({
+            code: 'desktop-down',
+            text: 'Im Container lauscht niemand auf Port 5900 — der Desktop ist beim Neustart '
+                + 'nicht hochgekommen. Bei Images ohne den Lock-Fix vom 2026-08-20 passiert das '
+                + 'nach jedem Stop+Start: Xvfb findet sein altes Lock in /tmp vor und bricht ab, '
+                + 'x11vnc stirbt mit. Sofort geholfen ist mit '
+                + 'docker compose ... up -d --force-recreate (frisches /tmp); dauerhaft mit '
+                + 'einem neu gebauten Base-Image.',
+        });
+    }
 
     // Ohne Passwort bietet x11vnc nur Security-Typ "None" an -- und bindet
     // dann an 127.0.0.1 statt 0.0.0.0. noVNC auf 6080 merkt davon nichts,
@@ -261,4 +277,31 @@ export function diagnoseVnc(info) {
  */
 export function hasCode(notes, code) {
     return (notes || []).some(n => n.code === code);
+}
+
+/**
+ * Glaettet die 5900-Messung: ein einzelnes "down" ist kein Befund.
+ *
+ * Nach `docker start` steht der Container sofort auf `running`, waehrend Xvfb,
+ * fluxbox und x11vnc noch hochkommen -- wer da schon misst, meldet die
+ * Anlaufzeit als Defekt. "up" gilt dagegen sofort: wer antwortet, lebt.
+ *
+ * @param {{streak:number}|null} previous voriger Stand
+ * @param {'up'|'down'|null} probe Messung ('null' = nicht messbar)
+ * @param {{needed?:number}} [opts] wie oft "down" hintereinander noetig ist
+ * @returns {{streak:number, value:'up'|'down'|null}}
+ */
+export function settleProbe(previous, probe, { needed = 3 } = {}) {
+    const streak = previous ? previous.streak : 0;
+
+    if (probe === 'up')
+        return { streak: 0, value: 'up' };
+
+    // Nicht messbar (kein bash im Container, exec verweigert): nichts
+    // behaupten, aber auch nichts vergessen.
+    if (probe !== 'down')
+        return { streak, value: null };
+
+    const next = streak + 1;
+    return { streak: next, value: next >= needed ? 'down' : null };
 }

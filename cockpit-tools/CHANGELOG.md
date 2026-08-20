@@ -19,7 +19,9 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
   statt über einen fest verdrahteten Namen — der hing am Verzeichnisnamen des
   Compose-Projekts und wäre bei jedem Umzug falsch geworden. Der gefundene
   Name steht in der Karte.
-- Diagnose, warum Port 5900 von außen nicht antwortet: fehlendes
-  `VNC_PASSWORD` (x11vnc bindet dann nur auf localhost) oder Bridge-Netz statt
-  Host-Netz. Beides entsteht beim Anlegen und überlebt jedes `docker start`.
+- Diagnose, warum Port 5900 nicht antwortet: der Desktop im Container ist gar
+  nicht hochgekommen (gemessen von innen, erst nach dreimaliger Bestätigung —
+  nach dem Start braucht er Sekunden), fehlendes `VNC_PASSWORD` (x11vnc bindet
+  dann nur auf localhost) oder Bridge-Netz statt Host-Netz. Die letzten beiden
+  entstehen beim Anlegen und überleben jedes `docker start`.
 - `node --test` über die Zustandsabbildung in `status.js`.

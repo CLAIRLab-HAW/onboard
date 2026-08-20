@@ -8,6 +8,7 @@
 //   ?state=missing        -> kein passender Container in der Liste
 //   ?state=error          -> Docker antwortet nicht
 //   &vnc=ok | nopw | bridge | beides   -> was die Diagnose finden soll
+//   &desktop=up | down                 -> lauscht im Container jemand auf 5900
 //   &name=<containername>              -> anderer compose-Projektname
 //   &delay=2000                        -> Start/Stopp dauern so lange
 (function () {
@@ -15,6 +16,7 @@
     let status = params.get('state') || 'exited';
     const vnc = params.get('vnc') || 'ok';
     const name = params.get('name') || 'offboard-lite-moveit-rviz-1';
+    const desktop = params.get('desktop') || 'up';
     const delay = parseInt(params.get('delay') || '1200', 10);
 
     function fail(message) {
@@ -62,6 +64,10 @@
 
             if (verb === 'inspect')
                 return later(120, () => inspectOut());
+
+            // docker exec <name> bash -c '<probe>'
+            if (verb === 'exec')
+                return later(80, () => desktop + '\n');
 
             if (verb === 'start')
                 return later(delay, () => { status = 'running'; return '' });

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { classify, shouldPoll, resolveHost, parseContainers, pickContainer, parseInspect, diagnoseVnc, hasCode } from '../status.js';
+import { classify, shouldPoll, resolveHost, parseContainers, pickContainer, parseInspect, diagnoseVnc, hasCode, settleProbe } from '../status.js';
 
 test('running ist gruen und laesst sich nur stoppen', () => {
     const s = classify({ status: 'running' });
@@ -276,4 +276,60 @@ test('der Passwort-Hinweis widerspricht der Diagnose nicht', () => {
 test('ohne inspect-Daten wird nichts behauptet', () => {
     assert.deepEqual(diagnoseVnc(null), []);
     assert.deepEqual(diagnoseVnc(parseInspect('')), []);
+});
+
+// --- Der Desktop im Container ist tot ------------------------------------
+//
+// Am 2026-08-20 an a200-0553: Container laeuft, aber niemand lauscht auf 5900.
+// Ursache war ein verwaistes Xvfb-Lock, das `docker start` ueberlebt hat.
+// Von aussen nicht von einem Netzproblem zu unterscheiden -- von innen schon.
+
+test('lauscht im Container niemand auf 5900, sagt die Seite das', () => {
+    const notes = diagnoseVnc(parseInspect(INSPECT_GUT), { probe: 'down' });
+    assert.equal(notes.length, 1);
+    assert.equal(notes[0].code, 'desktop-down');
+    assert.match(notes[0].text, /force-recreate/);
+});
+
+test('lauscht dort jemand, ist nichts zu melden', () => {
+    assert.deepEqual(diagnoseVnc(parseInspect(INSPECT_GUT), { probe: 'up' }), []);
+});
+
+test('ohne Messung wird nichts behauptet', () => {
+    assert.deepEqual(diagnoseVnc(parseInspect(INSPECT_GUT), { probe: null }), []);
+    assert.deepEqual(diagnoseVnc(parseInspect(INSPECT_GUT)), []);
+});
+
+test('der tote Desktop steht vor den Ursachen der Erreichbarkeit', () => {
+    // Ohne Passwort bindet x11vnc auf 127.0.0.1 -- von INNEN antwortet er
+    // trotzdem. Beide Befunde koennen also zugleich zutreffen, und der
+    // fundamentalere gehoert nach oben.
+    const codes = diagnoseVnc(parseInspect(INSPECT_OHNE_PW), { probe: 'down' }).map(n => n.code);
+    assert.deepEqual(codes, ['desktop-down', 'no-password']);
+});
+
+test('ein einzelnes "down" gilt noch nicht -- der Desktop braucht Sekunden', () => {
+    // Direkt nach `docker start` steht der Container auf running, waehrend
+    // Xvfb/fluxbox/x11vnc noch hochkommen. Eine sofortige Messung wuerde die
+    // Anlaufzeit als Defekt melden.
+    let st = settleProbe(null, 'down');
+    assert.equal(st.value, null);
+    st = settleProbe(st, 'down');
+    assert.equal(st.value, null);
+    st = settleProbe(st, 'down');
+    assert.equal(st.value, 'down');
+});
+
+test('ein "up" zaehlt sofort und loescht die Serie', () => {
+    let st = settleProbe(null, 'down');
+    st = settleProbe(st, 'up');
+    assert.equal(st.value, 'up');
+    assert.equal(st.streak, 0);
+});
+
+test('eine fehlgeschlagene Messung behauptet nichts und vergisst die Serie nicht', () => {
+    let st = settleProbe(null, 'down');
+    st = settleProbe(st, null);
+    assert.equal(st.value, null);
+    assert.equal(st.streak, 1);
 });

@@ -53,10 +53,18 @@ und beide entstehen beim **Anlegen** des Containers, überleben also jedes
 
 | Befund | Was die Seite meldet |
 |---|---|
+| im Container antwortet `127.0.0.1:5900` nicht | Der Desktop ist gar nicht hochgekommen — bei Images ohne den Lock-Fix vom 2026-08-20 nach **jedem** Stop+Start |
 | kein `VNC_PASSWORD` in der Umgebung | `x11vnc` läuft mit `-nopw` und bindet dann nur auf `127.0.0.1` |
 | `NetworkMode` ≠ `host` | Bridge-Netz, `5900` liegt nur auf dem Loopback des Roboters |
 
-![Die Diagnose](screenshots/vnc-diagnose.jpg)
+Die erste Zeile ist eine Messung **von innen** (`docker exec … bash -c 'exec
+3<>/dev/tcp/127.0.0.1/5900'`) und trennt einen toten Desktop von einem, der
+nur nach außen nicht erreichbar ist — von außen sehen beide identisch aus.
+Ein einzelnes „tot" gilt dabei nicht: nach `docker start` steht der Container
+sofort auf `running`, während Xvfb, fluxbox und x11vnc noch hochkommen, also
+muss der Befund dreimal in Folge auftreten (rund zehn Sekunden).
+
+![Desktop nicht hochgekommen](screenshots/desktop-tot.jpg)
 
 Solange „kein `VNC_PASSWORD`" gilt, blendet die Seite den Hinweis aus, der
 Viewer frage nach einem Passwort — zwei widersprechende Sätze nebeneinander

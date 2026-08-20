@@ -4,7 +4,7 @@
 import {
     classify, shouldPoll, resolveHost,
     parseContainers, pickContainer,
-    parseInspect, diagnoseVnc, hasCode,
+    parseInspect, diagnoseVnc, hasCode, settleProbe,
 } from './status.js';
 
 // Der Containername wird NICHT geraten: compose bildet ihn aus dem
@@ -16,6 +16,12 @@ const PS_FORMAT = '{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Label "com.docker.comp
 // Netzmodus in der ersten Zeile, danach die Umgebung -- daraus beantwortet
 // diagnoseVnc(), warum Port 5900 von aussen zu ist.
 const INSPECT_FORMAT = '{{.HostConfig.NetworkMode}}{{"\n"}}{{range .Config.Env}}{{println .}}{{end}}';
+
+// Lauscht IM Container ueberhaupt jemand auf 5900? Das trennt einen toten
+// Desktop von einem, der nur nach aussen nicht erreichbar ist -- von aussen
+// sehen beide gleich aus. bash kann das ohne jedes Zusatzwerkzeug (kein ss,
+// kein netstat, kein pgrep noetig).
+const PROBE_5900 = 'exec 3<>/dev/tcp/127.0.0.1/5900 2>/dev/null && echo up || echo down';
 const VNC_PORT = 5900;
 
 // Faellt ein, wenn die Adresszeile kein brauchbares VNC-Ziel hergibt -- also
@@ -37,6 +43,7 @@ let everFetched = false;
 let container = null;      // der gefundene Container, sobald es einen gibt
 let vncNotes = [];         // warum 5900 von aussen zu ist (leer = alles gut)
 let inspectedKey = null;   // fuer welchen Container+Zustand das schon geprueft ist
+let probeState = null;     // geglaettete 5900-Messung (siehe settleProbe)
 
 function docker(...args) {
     return cockpit.spawn(['/bin/sh', '-c', PATH_PREFIX, 'sh', ...args],
@@ -134,22 +141,39 @@ function refreshDiagnosis() {
     if (!container) {
         vncNotes = [];
         inspectedKey = null;
+        probeState = null;
         return;
     }
 
     const key = container.name + '|' + container.state;
-    if (key === inspectedKey)
+    const settled = probeState && probeState.value !== null;
+
+    // Netzmodus und Umgebung aendern sich nur beim Neuanlegen -- die einmal
+    // je Container zu pruefen genuegt. Die 5900-Messung dagegen laeuft weiter,
+    // bis sie zu einem Ergebnis gekommen ist (der Desktop braucht nach dem
+    // Start ein paar Sekunden, siehe settleProbe).
+    if (key === inspectedKey && settled)
         return;
     inspectedKey = key;
 
-    docker('inspect', '-f', INSPECT_FORMAT, container.name)
-            .then(out => {
-                vncNotes = diagnoseVnc(parseInspect(out));
-            })
-            .catch(() => {
-                // Die Diagnose ist eine Zugabe -- scheitert sie, bleibt die
-                // Seite bedienbar und behauptet nichts.
-                vncNotes = [];
+    const info = docker('inspect', '-f', INSPECT_FORMAT, container.name)
+            .then(parseInspect)
+            .catch(() => null);
+
+    const probe = container.state === 'running'
+        ? docker('exec', container.name, 'bash', '-c', PROBE_5900)
+                .then(out => out.trim())
+                .catch(() => null)
+        : Promise.resolve(null);
+
+    Promise.all([info, probe])
+            .then(([parsed, measured]) => {
+                probeState = container.state === 'running'
+                    ? settleProbe(probeState, measured)
+                    : null;
+                // Die Diagnose ist eine Zugabe -- ohne inspect-Daten behauptet
+                // sie nichts, statt zu raten.
+                vncNotes = diagnoseVnc(parsed, { probe: probeState ? probeState.value : null });
             })
             .finally(render);
 }
