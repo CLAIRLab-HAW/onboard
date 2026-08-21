@@ -1,0 +1,12 @@
+# Synthetischer leerer Raum, 10.0 x 10.0 m.
+# Erzeugt mit husky_navigation.make_map.write_empty_room -- nicht
+# von Hand bearbeiten, sondern neu erzeugen.
+# origin setzt den Ursprung in die MITTE des Raumes, damit der
+# Roboter bei Kartenstart auf (0,0) mittig steht.
+image: leerer_raum.pgm
+mode: trinary
+resolution: 0.05
+origin: [-5.000, -5.000, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25
