@@ -1,0 +1,36 @@
+# rslidar_sdk-Konfiguration fuer den RoboSense RS-LiDAR-16 des a200-0553.
+#
+# DIESE DATEI IST DIE GEMEINSAME QUELLE FUER MOCK UND ROBOTER.  Sie wird nie
+# direkt an den Knoten gegeben -- husky_navigation.rslidar_config.render()
+# setzt daraus die aufgeloeste Fassung, und der EINZIGE Unterschied zwischen
+# Container-Mock und echtem Geraet ist common.msg_source.
+#
+# msg_source steht hier bewusst NICHT: wer den Wert hier setzen koennte,
+# koennte ihn hier auch versehentlich auf 1 stehen lassen, waehrend der Mock
+# laeuft -- der Treiber wartete dann stumm auf UDP-Pakete, die nie kommen.
+#
+# Das apt-Paket ros-jazzy-rslidar-sdk 1.5.16 liefert KEINE Vorlage mit
+# (gemessen 2026-08-22: dpkg -x zeigt nur launch/, rviz/ und das Binary).
+# Die Schluesselnamen unten stammen aus den Zeichenketten desselben Binaries.
+common:
+  send_packet_ros: false        # Rohpakete braucht niemand -- nur die Wolke
+  send_point_cloud_ros: true
+  send_packet_proto: false
+  send_point_cloud_proto: false
+
+lidar:
+  - driver:
+      lidar_type: RS16
+      msop_port: 6699           # Messdaten
+      difop_port: 7788          # Geraeteinfo (Kalibrierung, Seriennummer)
+      start_angle: 0
+      end_angle: 360
+      min_distance: 0.2         # naeher als 20 cm ist der Sensor selbst
+      max_distance: 150.0
+      use_lidar_clock: false    # ohne PTP ist die Host-Uhr die bessere
+      wait_for_difop: true      # ohne DIFOP fehlt die Werkskalibrierung
+      dense_points: false
+      ts_first_point: false
+    ros:
+      ros_frame_id: lidar3d_0_laser
+      ros_send_point_cloud_topic: /a200_0553/sensors/lidar3d_0/points
