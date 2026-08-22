@@ -59,7 +59,7 @@ PY_PATH="${BIN_DIR}/clearpath-custom-setup.py"
 UNIT_NAME="clearpath-custom-setup.service"
 UNIT_PATH="/etc/systemd/system/${UNIT_NAME}"
 
-# rg6-bringup ist STILLGELEGT (2026-08-19).  Der Custom-Treiber rg6_control
+# rg6-bringup ist STILLGELEGT.  Der Custom-Treiber rg6_control
 # steuerte den Greifer ausschliesslich ueber Tool-DO0, und dieser Weg ist seit
 # dem RTDE-Recipe-Split (31a45d0) tot: die OnRobot-URCap ist selbst RTDE-Client
 # und belegt tool_digital_output_mask, weshalb der ur_robot_driver auf einem
@@ -420,8 +420,8 @@ done
 for d in "${OLD_DIRS[@]}"; do
     [ -d "$d" ] && { echo ">>> Entferne verwaistes Verzeichnis $d"; rm -rf "$d"; }
 done
-# Stale Backup-Leichen der alten Namen raeumen (Commit a13f226 hat das Stapfen
-# beim Installer behoben; alte .bak.* vom letzten Stand liegen aber noch auf Platte).
+# Stale Backup-Leichen der alten Namen raeumen: der Installer stapft keine
+# neuen mehr an, .bak.* aus frueheren Laeufen liegen aber noch auf Platte.
 rm -f /etc/systemd/system/manipulators-watchdog.service.bak.* \
       /usr/local/bin/manipulators-watchdog.sh.bak.* 2>/dev/null || true
 # Handabschaltungen der rg6-bringup-Unit (2026-08-17 am Roboter angelegt, um
@@ -459,8 +459,8 @@ Patches:
 Jeder Edit ist chirurgisch, idempotent, mit .bak-Backup und atomarem Schreiben.
 Fehlt eine Datei/ein Key, wird die jeweilige Aenderung uebersprungen (Warnung).
 
-Hinweis: 'update_rate' (125) und 'io_and_status_controller' werden NICHT mehr
-hier gepatcht -> beide laufen ueber robot.yaml arm-level 'ros_parameters'
+Hinweis: 'update_rate' (125) und 'io_and_status_controller' werden hier
+NICHT gepatcht -> beide laufen ueber robot.yaml arm-level 'ros_parameters'
 (clearpath_common PR #347).
 """
 
@@ -648,11 +648,15 @@ def run_rg6_moveit_patch(label):
 
 def main():
     log("Start.")
-    # Hinweis: 'update_rate' (125) und 'io_and_status_controller' werden NICHT mehr
-    # hier gepatcht -> beide laufen ueber robot.yaml arm-level 'ros_parameters'
-    # (clearpath_common PR #347), verifiziert 2026-06.
-    # 1) ENTFERNT 2026-08-19: die foxglove-Allowlist steht jetzt in robot.yaml
-    #    unter platform.extras.ros_parameters.foxglove_bridge -- allerdings
+    # Was dieser Patcher NICHT anfasst, und wo es stattdessen steht.  Die
+    # Nummern der verbliebenen Schritte bleiben stehen, damit Verweise
+    # darauf (etwa "Schritt 3" im Watchdog) weiter tragen.
+    #
+    #  * 'update_rate' (125) und 'io_and_status_controller': robot.yaml,
+    #    arm-level 'ros_parameters' (clearpath_common PR #347, verifiziert
+    #    2026-06).
+    #  * Die foxglove-Allowlist: robot.yaml unter
+    #    platform.extras.ros_parameters.foxglove_bridge -- allerdings
     #    BACKSLASH-FREI ([A-Za-z0-9_] statt \w, [.] statt \.). Der ParamWriter
     #    des Generators serialisiert Listen ueber Pythons repr und verdoppelt
     #    dabei jeden Backslash; YAML-Single-Quotes lesen ihn literal zurueck,
@@ -660,6 +664,17 @@ def main():
     #    unveraendert durch. Gegen std::regex -- die Engine der
     #    foxglove_bridge, s. utils.hpp isWhitelisted -- sind beide Fassungen
     #    auf einem Korpus aus Treffern und Nicht-Treffern deckungsgleich.
+    #  * Die Occupancy-Map-Monitor-Sensorparameter: robot.yaml unter
+    #    manipulators.moveit.ros_parameters.move_group -- der Generator
+    #    schreibt sie selbst in moveit.yaml.
+    #  * Die Manipulator-Analyzer: robot.yaml unter
+    #    platform.extras.ros_parameters.diagnostic_aggregator -- der
+    #    Generator flacht die Verschachtelung selbst auf die Punkt-Keys ab,
+    #    die ROS erwartet. Unterschied zu einem Patch an dieser Stelle: der
+    #    griffe nur bei installiertem manipulator-diagnostics-Service (die
+    #    Unit-Datei waere der Schalter), robot.yaml kennt diese Bedingung
+    #    nicht -- ohne den Node zeigt Cockpit die Gruppe als STALE, statt
+    #    sie verschwinden zu lassen.
     # 2) Sensor-Meshes file:// -> package:// (foxglove_bridge serviert nur package://)
     fix_realsense_mesh_uris("sensor mesh package://")
     # 3) Phase 2: Arm-JSB joint_states raus aus dem platform-Namespace ->
@@ -671,17 +686,6 @@ def main():
     #    Greifer-Enum (franka/kinova/robotiq) hat keinen RG6.  Die
     #    moveit.yaml-Werte stehen in robot.yaml; das Tool prueft sie nur.
     run_rg6_moveit_patch("rg6 moveit")
-    # 5) ENTFERNT 2026-07-29 (A4): die Occupancy-Map-Monitor-Sensorparameter
-    #    stehen jetzt nativ in robot.yaml unter
-    #    manipulators.moveit.ros_parameters.move_group - der Generator
-    #    schreibt sie selbst in moveit.yaml. Kein Patch mehr noetig.
-    # 6) ENTFERNT 2026-08-19: die Manipulator-Analyzer stehen jetzt in
-    #    robot.yaml unter platform.extras.ros_parameters.diagnostic_aggregator
-    #    -- der Generator flacht die Verschachtelung selbst auf die Punkt-Keys
-    #    ab, die ROS erwartet. Unterschied zum Patcher: der lief nur bei
-    #    installiertem manipulator-diagnostics-Service (die Unit-Datei war der
-    #    Schalter), robot.yaml kennt diese Bedingung nicht -- ohne den Node
-    #    zeigt Cockpit die Gruppe als STALE, statt sie verschwinden zu lassen.
     log("Fertig.")
     return 0
 
@@ -1591,9 +1595,9 @@ fi
 if [ "$DO_OCTO" -eq 1 ]; then
     echo ">>> Installiere ${OCTO_FEED_BIN}"
     # repo_file nimmt den ausgecheckten Stand VOR GitHub-main (ROBOTER-TODO R6).
-    # Frueher war es andersherum, und ein Lauf aus dem Checkout installierte
-    # still etwas anderes, als im Checkout stand - genau so ist der
-    # octomap_feed-Drift in drei Fassungen entstanden.  Ist die gefundene
+    # Andersherum installierte ein Lauf aus dem Checkout still etwas
+    # anderes, als im Checkout steht - genau so entstand der
+    # octomap_feed-Drift in drei Fassungen.  Ist die gefundene
     # Datei kaputt, wird sie VERWORFEN und nicht heimlich durch main ersetzt:
     # ein kaputter Checkout soll auffallen.
     OCTO_SRC=""
@@ -1672,9 +1676,9 @@ fi
 if [ "$DO_MD" -eq 1 ]; then
     echo ">>> Installiere ${MD_BIN}"
     # repo_file nimmt den ausgecheckten Stand VOR GitHub-main (ROBOTER-TODO R6).
-    # Frueher war es andersherum, und ein Lauf aus dem Checkout installierte
-    # still etwas anderes, als im Checkout stand - genau so ist der
-    # octomap_feed-Drift in drei Fassungen entstanden.  Ist die gefundene
+    # Andersherum installierte ein Lauf aus dem Checkout still etwas
+    # anderes, als im Checkout steht - genau so entstand der
+    # octomap_feed-Drift in drei Fassungen.  Ist die gefundene
     # Datei kaputt, wird sie VERWORFEN und nicht heimlich durch main ersetzt:
     # ein kaputter Checkout soll auffallen.
     MD_SRC=""
@@ -1783,11 +1787,11 @@ if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
 fi
 
 if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
-    # Die Getriebetabelle (Gelenkwinkel -> Greifweite).  Sie ersetzt seit dem
-    # 2026-08-19 den Import von robot_contract: das Paket ist PRIVAT, vom
-    # Roboter aus nicht einmal klonbar (git fragt nach Zugangsdaten), und der
-    # Installer hat die Bruecke deshalb kommentarlos uebersprungen -- eine
-    # Abhaengigkeit, die das Ausrollen verhindert, sichert nichts.
+    # Die Getriebetabelle (Gelenkwinkel -> Greifweite).  Sie steht hier statt
+    # eines Imports von robot_contract: das Paket ist PRIVAT und vom Roboter
+    # aus nicht einmal klonbar (git fragt nach Zugangsdaten) -- der Installer
+    # uebersprunge die Bruecke dann kommentarlos, und eine Abhaengigkeit, die
+    # das Ausrollen verhindert, sichert nichts.
     # Erzeugt wird die Datei aus dem GENERIERTEN URDF, s.
     # onrobot-rg6/tools/derive_finger_kinematics.py.  Fehlt sie, startet der
     # Node nicht: ohne Kinematik kann er weder das Fingergelenk publizieren

@@ -560,9 +560,9 @@ def main(argv=None) -> int:
         UR_MSGS_ERROR = str(exc)
 
     # ToolDataMsg traegt AI2/AI3 und die Tool-Spannung -- die einzigen
-    # Greiferzahlen, die NICHT von der Bruecke kommen.  Frueher stand hier
-    # rg6_msgs/GripperState; das Paket faellt mit rg6_control aus dem
-    # Bootpfad, und der Zustand kommt seitdem als JSON von rg6_grip_bridge.
+    # Greiferzahlen, die NICHT von der Bruecke kommen.  rg6_msgs/GripperState
+    # steht hier bewusst nicht: das Paket faellt mit rg6_control aus dem
+    # Bootpfad, und der Zustand kommt als JSON von rg6_grip_bridge.
     try:
         from ur_msgs.msg import ToolDataMsg
         TOOL_MSGS_ERROR = None

@@ -28,8 +28,7 @@ platform:
       controller_manager:
         update_rate: 10 # mcu is slow so we give more time
         # cycle_time_error_threshold: 0.1
-      # Asset-Allowlist der foxglove_bridge. Stand bis 2026-08-19 im
-      # Boot-Patcher (Schritt 1).
+      # Asset-Allowlist der foxglove_bridge.
       #
       # WARUM DAS HIER UEBERHAUPT STEHEN MUSS: die foxglove_bridge bringt einen
       # korrekten Default mit (am Node gemessen: '^package://(?:[-\w%]+/)*
@@ -70,8 +69,8 @@ platform:
       # Analyzer-Gruppe "Manipulator" fuer den diagnostic_aggregator. Der
       # Clearpath-Generator kennt nur Platform- und Sensor-Analyzer; ohne
       # diesen Block landen die Status des manipulator_diagnostics-Node im
-      # Catch-All und erscheinen in Cockpit nicht als eigene Gruppe. Stand bis
-      # 2026-08-19 im Boot-Patcher (Schritt 6); der Generator flacht die
+      # Catch-All und erscheinen in Cockpit nicht als eigene Gruppe; der
+      # Generator flacht die
       # Verschachtelung selbst auf die Punkt-Keys ab, die ROS erwartet.
       #
       # UNTERSCHIED ZUM PATCHER: der lief nur, wenn
@@ -167,9 +166,9 @@ manipulators:
       move_group:
         trajectory_execution:
           allowed_goal_duration_margin: 6.0 # allows slow gripper opening/closing
-        # A4 (2026-07-29): Occupancy-Map-Monitor. Stand bis dahin im Boot-Patcher
-        # (Schritt 5) -- der Generator schreibt ros_parameters selbst in moveit.yaml.
-        # octomap_frame bewusst base_link: odom ist hier UTM-gestuetzt und springt.
+        # Occupancy-Map-Monitor -- der Generator schreibt ros_parameters
+        # selbst in moveit.yaml.  octomap_frame bewusst base_link: odom ist
+        # hier UTM-gestuetzt und springt.
         octomap_frame: base_link
         octomap_resolution: 0.025
         sensors:
@@ -194,8 +193,8 @@ manipulators:
           shape_transform_cache_lookup_wait_time: 0.3
           # Beschleunigungslimit des Greifer-Treibergelenks. Ohne das scheitert
           # die TOTG-Zeitparametrierung (AddTimeOptimalParameterization) fuer
-          # die gripper-Gruppe. Stand bis 2026-08-19 im rg6_moveit_patch --
-          # der Generator deep-merged es hier neben die sechs Arm-Gelenke.
+          # die gripper-Gruppe. Der Generator deep-merged es hier neben die
+          # sechs Arm-Gelenke.
           joint_limits:
             rg6_finger_joint:
               has_velocity_limits: true
@@ -274,8 +273,8 @@ sensors:
           enable_color: true
           rgb_camera.color_profile: 640,480,30
           enable_depth: true
-          # 30 fps setzt ZWEI Dinge voraus (beide seit 2026-07-23 erfuellt,
-          # Details in docs/hrl-real-perception-plan.md):
+          # 30 fps setzt ZWEI Dinge voraus (beide erfuellt, Details in
+          # docs/hrl-real-perception-plan.md):
           #  1. D435 an USB 3.2 (an USB 2 sind 15 fps das Limit bei 640x480).
           #  2. Robot UND Offboard-Workstation im 5-GHz-Band (HAWAX5): auf dem
           #     2,4-GHz-Band saettigen color@30 + depth@30 (~4,5 MB/s) den
