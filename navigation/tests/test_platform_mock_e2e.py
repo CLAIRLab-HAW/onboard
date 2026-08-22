@@ -65,9 +65,18 @@ def test_driving_forward_moves_the_odometry(container):
     script = r"""
 source ros-env
 # head -1: `--once` haengt eine "---"-Zeile an, an der float() scheitert.
+#
+# Mit Wiederholung: unter Last (Mock + Nav2 = gut drei Dutzend Knoten) kommt
+# das echo gelegentlich leer zurueck, und float("") beendet die Messung mit
+# einem Fehler, der nach "keine Odometrie" aussieht und keiner ist.  Fuenf
+# Versuche, dann ist es wirklich still.
 read_x() {
-  timeout 5 ros2 topic echo /a200_0553/platform/odom --once \
-    --field pose.pose.position.x 2>/dev/null | head -1
+  for _ in 1 2 3 4 5; do
+    V=$(timeout 8 ros2 topic echo /a200_0553/platform/odom --once \
+          --field pose.pose.position.x 2>/dev/null | head -1)
+    case "$V" in ''|*[!0-9.eE+-]*) sleep 2;; *) echo "$V"; return 0;; esac
+  done
+  echo ""
 }
 BEFORE=$(read_x)
 timeout 3 ros2 topic pub -r 20 /a200_0553/cmd_vel geometry_msgs/msg/TwistStamped \

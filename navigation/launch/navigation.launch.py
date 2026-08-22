@@ -13,7 +13,7 @@ Alle Topic- und Framenamen kommen aus husky_navigation.wiring.
 import os
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -27,6 +27,24 @@ MAPS = os.path.join(_HERE, "maps")
 #: Reihenfolge: erst die Karte, dann die Costmaps, dann, was auf ihnen plant.
 _CORE_NODES = ["map_server", "controller_server", "planner_server",
                "behavior_server", "bt_navigator"]
+
+#: Vorlauf, bevor der Lifecycle-Manager zu konfigurieren beginnt.
+#:
+#: Am 2026-08-22 gemessen: startet er sofort, scheitert der Hochlauf
+#: gelegentlich mit
+#:   map_server.rclcpp  failed to send response to .../change_state (timeout)
+#: und bleibt dann stehen -- map_server 'inactive', alle anderen
+#: 'unconfigured', keine navigate_to_pose-Action.  Ein zweiter Anlauf kommt
+#: durch.  Es ist also ein Rennen, kein Defekt: der Mock zieht kurz zuvor gut
+#: zwei Dutzend Knoten hoch, und der DDS-Graph ist noch in Bewegung, wenn der
+#: Manager seine erste Service-Antwort erwartet.
+#:
+#: nav2_lifecycle_manager hat in Jazzy KEINEN Parameter fuer dieses Timeout
+#: (`ros2 param list` kennt nur bond_timeout, bond_respawn_max_duration und
+#: attempt_respawn_reconnection -- die greifen erst NACH dem Hochlauf).  Also
+#: laesst man den Graphen sich setzen.  Ein Stack, der nur manchmal
+#: hochkommt, ist schlimmer als einer, der acht Sekunden laenger braucht.
+_LIFECYCLE_SETTLE_S = 8.0
 
 
 def _setup(context, *args, **kwargs):
@@ -76,11 +94,22 @@ def _setup(context, *args, **kwargs):
             arguments=["--frame-id", "map", "--child-frame-id", "odom"],
             **common))
 
-    nodes.append(Node(
-        package="nav2_lifecycle_manager", executable="lifecycle_manager",
-        name="lifecycle_manager_navigation",
-        parameters=[{"autostart": True, "node_names": managed}],
-        **common))
+    nodes.append(TimerAction(
+        period=_LIFECYCLE_SETTLE_S,
+        actions=[Node(
+            package="nav2_lifecycle_manager", executable="lifecycle_manager",
+            name="lifecycle_manager_navigation",
+            parameters=[{
+                "autostart": True,
+                "node_names": managed,
+                # Greift NACH dem Hochlauf: faellt ein Knoten spaeter weg,
+                # versucht der Manager ihn wieder einzubinden, statt den
+                # ganzen Stack abzuraeumen.
+                "attempt_respawn_reconnection": True,
+                "bond_timeout": 10.0,
+            }],
+            **common)],
+    ))
 
     return nodes
 

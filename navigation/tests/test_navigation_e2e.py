@@ -84,9 +84,15 @@ def test_navigates_without_localization(container):
     """
     script = r"""
 source ros-env
+# Mit Wiederholung -- s. test_platform_mock_e2e.py: unter Last kommt das
+# echo gelegentlich leer zurueck.
 read_x() {
-  timeout 5 ros2 topic echo /a200_0553/platform/odom --once \
-    --field pose.pose.position.x 2>/dev/null | head -1
+  for _ in 1 2 3 4 5; do
+    V=$(timeout 8 ros2 topic echo /a200_0553/platform/odom --once \
+          --field pose.pose.position.x 2>/dev/null | head -1)
+    case "$V" in ''|*[!0-9.eE+-]*) sleep 2;; *) echo "$V"; return 0;; esac
+  done
+  echo ""
 }
 BEFORE=$(read_x)
 GOAL=$(python3 -c "print(float('''$BEFORE''') + 1.0)")
