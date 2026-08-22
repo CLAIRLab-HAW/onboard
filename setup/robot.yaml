@@ -313,20 +313,37 @@ sensors:
 #          ip_port: 10940
 #          angle_min: -2.356
 #          angle_max: 2.356
+#  # Das Geraet ist ein RoboSense RS-LiDAR-16, montiert seit 2026-08.
+#  # NOCH NICHT AKTIV: parent/xyz/rpy sind ungemessen (R33 in
+#  # ROBOTER-TODO.md).  Einkommentieren erst mit echten Werten -- ein
+#  # geratener Montageort erzeugt eine TF, die plausibel aussieht und die
+#  # Hindernisse an die falsche Stelle legt.  Das sieht man am Bild nicht.
+#  #
+#  # WARUM 'velodyne_lidar' fuer ein RoboSense-Geraet: clearpath_config kennt
+#  # genau drei lidar3d-Modelle -- velodyne_lidar, ouster_os1, seyond_lidar
+#  # (nachgesehen 2026-08-22 in clearpath_config/sensors/types/lidars_3d.py,
+#  # Z. 162/247/359) und kein robosense.  Der Eintrag dient hier NUR als
+#  # Traeger fuer Link und Mesh, damit die Montagepose in DIESER Datei steht
+#  # (SSOT) und der Frame kanonisch 'lidar3d_0_laser' heisst -- derselbe Name,
+#  # den rslidar_sdk in jede PointCloud2 schreibt.
+#  #
+#  # launch_enabled: false ist deshalb PFLICHT, nicht Geschmack: sonst startet
+#  # Clearpath den velodyne_driver_node gegen ein Geraet, das kein Velodyne
+#  # ist -- die Paketformate von RS16 und VLP16 sind nicht kompatibel.  Der
+#  # Treiber ist rslidar_sdk und wird von robot/husky-navigation gestartet
+#  # (Konfiguration: config/rslidar_rs16.yaml, dieselbe Datei fuer Container
+#  # und Roboter).  Aus demselben Grund steht hier kein ros_parameters-Block.
+#  #
+#  # Das Mesh zeigt einen VLP16 (Ø103x72 mm) statt eines RS16 (Ø109x80 mm).
+#  # Fuer Kollision und Sichtpruefung nah genug; der Modellname bleibt
+#  # trotzdem falsch, und das ist der Preis dieses Wegs.
+#  #
+#  # Entwurf und Begruendung:
+#  # docs/superpowers/specs/2026-08-22-nav2-rs16-design.md
 #  lidar3d:
 #    - model: velodyne_lidar
 #      urdf_enabled: true
-#      launch_enabled: true
-#      parent: sensor_arch_mount
-#      xyz: [0.0, 0.0, 0.0]
-#      rpy: [0.0, 0.0, 0.0]
-#      ros_parameters:
-#        velodyne_driver_node:
-#          frame_id: lidar3d_0_laser
-#          device_ip: 192.168.131.25
-#          port: 2368
-#          model: VLP16
-#        velodyne_transform_node:
-#          model: VLP16
-#          fixed_frame: lidar3d_0_laser
-#          target_frame: lidar3d_0_laser
+#      launch_enabled: false
+#      parent: top_plate_rear_mount     # R33: zu MESSEN, nicht zu raten
+#      xyz: [0.0, 0.0, 0.0]             # R33
+#      rpy: [0.0, 0.0, 0.0]             # R33
