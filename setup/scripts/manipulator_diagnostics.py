@@ -4,12 +4,10 @@ Clearpath-Diagnose-Pipeline einspeisen.
 
 Warum das noetig ist
 --------------------
-Der ``diagnostic_aggregator`` auf dem a200-0553 abonniert ``<ns>/diagnostics``
-(also ``/a200_0553/diagnostics``) und faechert das Ergebnis nach
-``<ns>/diagnostics_agg`` auf -- genau der Topic, den die Cockpit-Erweiterung
-``cockpit-ros2-diagnostics`` ueber die foxglove_bridge liest.
-
-In dieser Kette fehlt der Manipulator vollstaendig:
+Der ``diagnostic_aggregator`` abonniert ``<ns>/diagnostics`` und faechert das
+Ergebnis nach ``<ns>/diagnostics_agg`` auf -- den Topic, den die
+Cockpit-Erweiterung ueber die foxglove_bridge liest.  In dieser Kette fehlt
+der Manipulator vollstaendig:
 
 * ``clearpath_generator_common`` erzeugt Analyzer nur fuer Platform (Power,
   E-Stop, Drive) und Sensoren -- Arm/Greifer kommen im Generator nicht vor.
@@ -21,12 +19,11 @@ In dieser Kette fehlt der Manipulator vollstaendig:
 * Der RG6-Zustand kommt als JSON von ``rg6_grip_bridge`` auf
   ``rg6/bridge_state``, nicht als typisierte Message.
 
-Dieser Node uebersetzt all das in ``diagnostic_msgs/DiagnosticArray`` und
-publiziert es auf ``/a200_0553/diagnostics``.  Zusammen mit dem Analyzer-Block,
-den der Boot-Patcher (``clearpath-custom-setup.py``, Schritt 6) in die
-generierte ``diagnostic_aggregator.yaml`` eintraegt, erscheint der Manipulator
-damit in *jedem* Diagnose-Konsumenten -- Cockpit, ``rqt_robot_monitor``,
-``ros2 topic echo diagnostics_agg`` und im Diagnose-Capture-Bundle.
+Dieser Node uebersetzt all das in ``diagnostic_msgs/DiagnosticArray``.
+Zusammen mit dem Analyzer-Block, den der Boot-Patcher
+(``clearpath-custom-setup.py``, Schritt 6) in die generierte
+``diagnostic_aggregator.yaml`` eintraegt, erscheint der Manipulator damit in
+*jedem* Diagnose-Konsumenten.
 
 Gelieferte Status (Prefix = Node-Name, so erwartet es der Analyzer)
 -------------------------------------------------------------------
@@ -34,15 +31,14 @@ Gelieferte Status (Prefix = Node-Name, so erwartet es der Analyzer)
     ``robot_mode`` + ``safety_mode`` (latched Topics des io_and_status_controller).
 ``manipulator_diagnostics: Arm Control``
     Der *eigentliche* Gesundheitsindikator: laeuft der joint_state-Strom des
-    ``joint_state_broadcaster``?  Der stroemt nur, wenn das ros2_control-
-    Hardware-Interface aktiviert ist -- ``robot_program_running`` allein ist
-    KEIN gueltiges Signal (bleibt true, waehrend die PC-seitige Motion-Link
-    tot ist; genau der Fall, den der manipulators-Watchdog behandelt).
+    ``joint_state_broadcaster``?  Er stroemt nur bei aktivem
+    ros2_control-Hardware-Interface -- ``robot_program_running`` allein ist
+    KEIN gueltiges Signal (bleibt true, waehrend die Motion-Link tot ist).
 ``manipulator_diagnostics: Arm Joints``
     Gelenkwinkel/-geschwindigkeiten, Rate, Bewegung ja/nein.
 ``manipulator_diagnostics: Arm Controllers``
     ``controller_manager/list_controllers`` -- welcher Kommando-Controller
-    ist aktiv (Trajectory/Freedrive/ForwardPosition/...), fehlt einer?
+    ist aktiv, fehlt einer?
 ``manipulator_diagnostics: Gripper``
     RG6: Weite, Kraftsignal, grip_detected, busy, Tool-Power, letzter Befehl.
 
@@ -203,14 +199,12 @@ def arm_control_level(program_running, joint_state_age, timeout, arm_off=False):
     """Bewertung der Motion-Link -> Verdict.
 
     ``joint_state_age`` ist das Alter der letzten joint_states-Nachricht mit
-    Arm-Gelenken in Sekunden (``None`` = noch nie eine bekommen).  Dieser Strom
-    ist das belastbare Signal: er fliesst nur, wenn das ros2_control-Hardware-
-    Interface aktiv ist.  ``program_running`` (ExternalControl, per RTDE/
-    Dashboard gemeldet) kann dabei faelschlich true bleiben.
+    Arm-Gelenken (``None`` = noch nie eine bekommen).  Dieser Strom ist das
+    belastbare Signal: er fliesst nur bei aktivem
+    ros2_control-Hardware-Interface, waehrend ``program_running`` faelschlich
+    true bleiben kann.
 
-    Ist der Arm ausgeschaltet, ist BEIDES erwartungsgemaess: ExternalControl
-    laeuft nicht, und ob der joint_state-Strom noch fliesst, haengt nur daran,
-    ob das Hardware-Interface vor dem Abschalten aktiviert war.  Daraus eine
+    Ist der Arm ausgeschaltet, ist BEIDES erwartungsgemaess.  Daraus eine
     Warnung oder gar einen Fehler zu machen, war die Hauptquelle fuer rote
     Anzeigen am ausgeschalteten Arm -- der Watchdog ruehrt bei POWER_OFF
     bewusst ebenfalls nichts an.
@@ -340,16 +334,15 @@ def gripper_signal_valid(width_raw, force_raw, dead_threshold):
     """Liefert der RG6 ueberhaupt ein gueltiges Tool-Signal? -> bool.
 
     Dieselbe Probe, die der stillgelegte rg6_control intern verwendete
-    (Parameter ``dead_input_threshold``, 0.2 V): liegt keine 24-V-Tool-
-    Spannung an, sinken AI2 (Weite) und AI3 (Kraft) auf ~0.05 V.
+    (``dead_input_threshold``, 0.2 V): liegt keine 24-V-Tool-Spannung an,
+    sinken AI2 (Weite) und AI3 (Kraft) auf ~0.05 V.
 
     Warum weiterhin die SPANNUNG und nicht die Antwort des XML-RPC-Endpoints:
     der Endpoint sitzt in der Control-Box und antwortet auch dann, wenn am
     Tool-Anschluss nichts anliegt.  Er weiss, was er zuletzt kommandiert hat
     -- AI2/AI3 wissen, was die Hardware tut.  Aus demselben Grund taugten
-    schon die Flags des alten ``rg6_msgs/GripperState`` nicht: sie waren
-    Latches bzw. der Treiber-Sollwert, und genau daran hat der Greifer am
-    ausgeschalteten Arm "OK" gemeldet.
+    schon die Flags des alten ``rg6_msgs/GripperState`` nicht: Latches bzw.
+    der Treiber-Sollwert.
     """
     if width_raw is None or force_raw is None:
         return False

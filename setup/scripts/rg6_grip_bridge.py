@@ -3,47 +3,45 @@
 
 Warum nicht mehr ueber rg6_control (Tool-DO0):  die URCap ist selbst
 RTDE-Client und belegt ``tool_digital_output_mask``.  Damit der
-ur_robot_driver ueberhaupt startet, laeuft er seit husky-custom-setup
-31a45d0 auf einem Input-Recipe OHNE die tool_digital_output*-Zeilen -- ROS
-kann seitdem kein Tool-DO mehr setzen, und rg6_control steuerte den Greifer
-ausschliesslich darueber.  Der Treiber ist damit tot, nicht kaputt.
+ur_robot_driver ueberhaupt startet, laeuft er auf einem Input-Recipe OHNE die
+tool_digital_output*-Zeilen -- ROS kann seitdem kein Tool-DO mehr setzen, und
+rg6_control steuerte den Greifer ausschliesslich darueber.  Der Treiber ist
+damit tot, nicht kaputt.
 
-Warum nicht per URScript ueber Port 30002:  rg_grip/rg_Width/rg_index_get()
-legt erst das Installations-Preamble an, das PolyScope vor jedes generierte
-Programm setzt.  Ein ueber 30002 gesendetes Skript laeuft ohne den Preamble,
-das Symbol wird verworfen (2026-08-17 gemessen: kein Programmwechsel, AI2
-unveraendert, ``textmsg("literal")`` als Kontrolle durch).
+Warum nicht per URScript ueber Port 30002:  ``rg_grip`` legt erst das
+Installations-Preamble an, das PolyScope vor jedes generierte Programm setzt.
+Ein ueber 30002 gesendetes Skript laeuft ohne den Preamble, das Symbol wird
+verworfen (gemessen: kein Programmwechsel, AI2 unveraendert,
+``textmsg("literal")`` als Kontrolle durch).
 
 Warum onboard und nicht im Offboard-Container:  der Endpoint haengt am
-Arm-Subnetz 192.168.131.0/24.  Von der Workstation gibt es dorthin keine
-Route (2026-08-17: TCP-Timeout, kein Interface; netbird annonciert das
-Subnetz nicht).  Und der Roboter muss greifen koennen, auch wenn die
-Funkstrecke weg ist -- dasselbe Argument, mit dem R16 die Reflexschicht
-onboard verortet.
+Arm-Subnetz 192.168.131.0/24, und von der Workstation gibt es dorthin keine
+Route.  Und der Roboter muss greifen koennen, auch wenn die Funkstrecke weg
+ist -- dasselbe Argument, mit dem R16 die Reflexschicht onboard verortet.
 
-Der Endpoint bietet mehr als ``rg_grip``: es gibt einen vollstaendigen
-Status-Rueckweg (``rg_get_width``, ``rg_get_busy``,
-``rg_get_grip_detected``, ``rg_get_status``, ``rg_get_safety_failed``).  Die
-Spannungsnaeherung ueber AI2 wird dadurch ueberfluessig -- und AI2 ist am
-2026-08-17 als um ~17 mm falsch geeicht aufgefallen, gemessen gegen genau
-diese Getter.
+Der Endpoint bietet mehr als ``rg_grip``: einen vollstaendigen Status-Rueckweg
+(``rg_get_width``, ``rg_get_busy``, ``rg_get_grip_detected``,
+``rg_get_status``, ``rg_get_safety_failed``).  Die Spannungsnaeherung ueber AI2
+wird dadurch ueberfluessig -- und AI2 ist als um ~17 mm falsch geeicht
+aufgefallen, gemessen gegen genau diese Getter.
 
 Was dieser Node NICHT tut:  er spricht das ``/twin/*``-JSON-Protokoll nicht.
-Das tut ``plan_server`` im Offboard-Container, der den Vertrag ohnehin fuehrt,
-und zwar auf ``mock`` und ``real`` gleich -- ein Codepfad statt zweier.  Hier
-gibt es ausschliesslich Standard-ROS-Schnittstellen:
+Das tut ``plan_server`` im Offboard-Container, und zwar auf ``mock`` und
+``real`` gleich -- ein Codepfad statt zweier.  Hier gibt es ausschliesslich
+Standard-ROS-Schnittstellen::
 
     control_msgs/GripperCommand  (Action)   <- MoveIt und plan_server
     sensor_msgs/JointState       (Topic)    -> rg6_finger_joint
     std_msgs/String              (Topic)    -> rg6/bridge_state, eigenes JSON
 
-Damit braucht der Roboter ``robot_contract`` NICHT mehr.  Das Paket ist privat
-(vom Roboter aus nicht einmal klonbar), und der Installer hat die Bruecke
-deshalb kommentarlos uebersprungen -- eine Abhaengigkeit, die das Deployment
-verhindert, ist keine Absicherung.  Was blieb, sind Namen (ROS-Parameter) und
+Damit braucht der Roboter ``robot_contract`` NICHT.  Das Paket ist privat (vom
+Roboter aus nicht einmal klonbar), und der Installer hat die Bruecke deshalb
+kommentarlos uebersprungen -- eine Abhaengigkeit, die das Deployment
+verhindert, ist keine Absicherung.  Geblieben sind Namen (ROS-Parameter) und
 die Getriebekinematik (erzeugte Tabelle, s. FingerKinematics).
 
-Selbsttest ohne ROS (laeuft auch auf der Workstation):
+Selbsttest ohne ROS (laeuft auch auf der Workstation)::
+
     python3 rg6_grip_bridge.py --selftest
 """
 from __future__ import annotations
@@ -153,17 +151,15 @@ def await_settled(client, start_timeout_s: float = 1.0,
     """Warten, bis die Hand steht, und DANN den Zustand lesen.
 
     ``rg_grip`` quittiert die **Annahme**, nicht das Ergebnis.  Wer sofort
-    danach liest, bekommt die Weite von vorher -- am 2026-08-19 ueber den
-    Draht gemessen: kommandierte 60 mm, gefahren auf 64,96 mm, gemeldete
-    2,8 mm (der Startwert).  Mit ``width_m`` war auch ``grasped`` wertlos,
-    und das ist das Feld, wegen dem der ganze Rueckweg existiert.
+    danach liest, bekommt die Weite von vorher -- ueber den Draht gemessen:
+    kommandierte 60 mm, gefahren auf 64,96 mm, gemeldete 2,8 mm (der
+    Startwert).  Mit ``width_m`` war auch ``grasped`` wertlos, und das ist das
+    Feld, wegen dem der ganze Rueckweg existiert.
 
     Gewartet wird auf **beide** Flanken, und der Grund fuer die erste ist
     gemessen: nach dem Kommando steht ``busy`` noch rund 0,4 s auf false,
-    bevor der Greifer losfaehrt (65 -> 20 mm, 5-Hz-Abtastung: false bei 0,0
-    und 0,2 s, true ab 0,41 s, wieder false ab 1,45 s).  Ein blosses "warte,
-    solange busy" kehrte in dieser Luecke sofort zurueck -- derselbe Fehler
-    in neuem Gewand.
+    bevor der Greifer losfaehrt.  Ein blosses "warte, solange busy" kehrte in
+    dieser Luecke sofort zurueck -- derselbe Fehler in neuem Gewand.
 
     Beide Fenster laufen ab, statt zu haengen: faehrt der Greifer gar nicht
     erst los (er steht schon am Ziel), antwortet die Funktion nach
@@ -185,15 +181,14 @@ class FingerKinematics:
     """Gelenkwinkel <-> Greifweite, aus einer erzeugten Tabelle.
 
     Warum eine Tabelle und kein Import:  dieser Node laeuft auf dem ROBOTER
-    und soll dort nichts brauchen, was nicht zum Roboter gehoert.  Frueher kam
-    die Umrechnung aus ``robot_contract.load_profile()``; das Paket ist privat,
-    liess sich vom Roboter aus nicht einmal klonen, und der Installer hat die
-    Bruecke deshalb kommentarlos uebersprungen.
+    und soll dort nichts brauchen, was nicht zum Roboter gehoert.  Ein Import
+    aus ``robot_contract`` scheiterte daran, dass das Paket privat ist und der
+    Installer die Bruecke deshalb kommentarlos uebersprang.
 
     Warum eine Tabelle und keine Formel:  die Finger des rg6_v2 sind eine
-    Viergelenkkette, fuer die es keine geschlossene Form gibt.  Eine
-    danebengestellte Naeherung waere die Zweitfassung, an der das alte Modell
-    und sein Treiber schon einmal auseinandergelaufen sind (R19).
+    Viergelenkkette ohne geschlossene Form.  Eine danebengestellte Naeherung
+    waere die Zweitfassung, an der Modell und Treiber schon einmal
+    auseinandergelaufen sind (R19).
 
     Die Datei erzeugt ``tools/derive_finger_kinematics.py`` aus dem
     GENERIERTEN URDF; sie ist Daten, kein Code, und traegt ihre Herkunft im
@@ -273,15 +268,13 @@ def goal_result(state, target_width_m: float, force_n: float, linkage,
     nicht am Ziel", was das Feld bedeutet.
 
     ``effort`` ist die KOMMANDIERTE Kraft, nicht eine gemessene: der Endpoint
-    bietet keinen Kraftrueckgabewert (die 289 Methoden kennen ``rg_get_width``,
-    ``rg_get_busy``, ``rg_get_grip_detected``, ``rg_get_status`` und
-    ``rg_get_safety_failed``, aber keine Kraft).  Eine erfundene Zahl waere
-    schlimmer als eine ehrliche Wiederholung des Sollwerts.
+    bietet keinen Kraftrueckgabewert.  Eine erfundene Zahl waere schlimmer als
+    eine ehrliche Wiederholung des Sollwerts.
 
     ``tolerance_m`` ist bewusst grob:  der Rueckgabewert des Geraets liegt um
-    +3 bis +5 mm ueber der wahren Weite (R19, am 2026-08-19 mit dem
-    Messschieber verankert).  Solange diese Abweichung nicht herausgerechnet
-    wird, kann ``reached_goal`` nicht schaerfer sein als dieser Fehler.
+    +3 bis +5 mm ueber der wahren Weite (R19, mit dem Messschieber
+    verankert).  Solange diese Abweichung nicht herausgerechnet wird, kann
+    ``reached_goal`` nicht schaerfer sein als dieser Fehler.
     """
     return {
         "position": float(linkage.angle_from_width(state.width_m)),
@@ -297,15 +290,13 @@ def status_payload(state, last_command: str = COMMAND_NONE) -> dict:
     Warum ein eigenes Topic und nicht rg6_msgs/GripperState:  rg6_msgs liegt
     nicht im Bootpfad des Roboters, und ein Statustopf, der ein Paket von dort
     braucht, waere genau die Abhaengigkeit, die hier abgebaut wird.  JSON in
-    einem std_msgs/String
-    kostet keinen Build und keinen Overlay -- dieselbe Entscheidung, die auf
-    ``/twin/*`` schon getragen hat.
+    einem std_msgs/String kostet keinen Build und kein Overlay.
 
     NICHT enthalten sind AI2/AI3:  die Rohspannungen stehen auf
     ``io_and_status_controller/tool_data``, und wer sie braucht, liest sie
     dort.  Sie hier zu spiegeln hiesse, eine zweite Quelle fuer dieselbe Zahl
-    zu schaffen -- und AI2 ist am 2026-08-19 als um bis zu 17 mm falsch
-    geeicht gemessen worden (R19), also gerade keine gute Zweitmeinung.
+    zu schaffen -- und AI2 ist als um bis zu 17 mm falsch geeicht gemessen
+    worden (R19), also gerade keine gute Zweitmeinung.
     """
     return {
         "width_m": state.width_m,
@@ -579,14 +570,13 @@ def run(argv) -> int:
         """Den Fingerwert aus der GEMESSENEN Weite, nicht aus dem Befehl.
 
         Eigener Thread und KEIN ROS-Timer:  ``client.state()`` ist ein
-        blockierender XML-RPC-Aufruf.  Im Timer-Callback haenge er am
-        Executor -- bei totem Endpoint 3 s (der Transport-Timeout) alle
-        200 ms, und der Greifbefehl kaeme in derselben Zeit nicht durch.
-        Das ist derselbe Grund, aus dem schon ``_work`` ausgelagert ist.
+        blockierender XML-RPC-Aufruf.  Im Timer-Callback haenge er am Executor
+        -- bei totem Endpoint 3 s alle 200 ms, und der Greifbefehl kaeme in
+        derselben Zeit nicht durch.  Derselbe Grund, aus dem schon ``_work``
+        ausgelagert ist.
 
-        Die Umrechnung Weite -> Gelenk macht die Getriebegeometrie des
-        Profils (R19), nicht dieser Node -- es ist dieselbe Kinematik, die
-        auch das URDF traegt.
+        Die Umrechnung Weite -> Gelenk macht die Getriebegeometrie des Profils
+        (R19), nicht dieser Node.
         """
         period = 1.0 / float(_p("joint_state_rate_hz"))
         while rclpy.ok():
@@ -616,11 +606,11 @@ def run(argv) -> int:
 
     # -- MoveIt ------------------------------------------------------------
     # Zweiter Eingang zum selben Geraet: die GripperCommand-Action.  Ohne sie
-    # zeigt der
-    # Controller-Eintrag in moveit.yaml auf nichts, und ein Greifbefehl aus
-    # RViz oder MoveGroupInterface laeuft auf `real` in einen Timeout statt
-    # in ein "kann ich nicht".  Im Mock bedient rg6_control_sim denselben
-    # Namen -- die Bruecke laeuft nur onboard, also gibt es nie zwei Server.
+    # zeigt der Controller-Eintrag in moveit.yaml auf nichts, und ein
+    # Greifbefehl aus RViz oder MoveGroupInterface laeuft auf `real` in einen
+    # Timeout statt in ein "kann ich nicht".  Im Mock bedient rg6_control_sim
+    # denselben Namen -- die Bruecke laeuft nur onboard, also gibt es nie zwei
+    # Server.
     #
     # Der Greifer haengt dabei NICHT am controller_manager: eine Action laeuft
     # im Executor, nicht im 8-ms-Zyklus des CB3.  Ein blockierender
