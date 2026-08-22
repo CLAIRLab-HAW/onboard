@@ -15,6 +15,25 @@ derselbe Treiber.
 - **ROS-freier Kern.** Die Entscheidungen liegen in `src/husky_navigation/`
   und sind ohne ROS testbar; die Launch-Dateien importieren sie.
 
+## Stand
+
+**Nav2 fährt im Container-Mock gegen eine synthetische Karte.** Belegt, nicht
+behauptet: ein `NavigateToPose` über 1 m endet mit `SUCCEEDED`, und die
+EKF-Odometrie vorher/nachher bestätigt die Strecke.
+
+**Der Sensorpfad ist gebaut und konfiguriert, aber ungefahren.** Es fehlt die
+RS16-Aufnahme (R-Punkt in `ROBOTER-TODO.md`); die zugehörigen Tests
+überspringen sich mit benannter Ursache. Bis dahin gilt:
+
+- `map→odom` liefert ein `static_transform_publisher` (Identität), nicht AMCL.
+  Ein AMCL ohne Scans publiziert *gar keine* Transformation.
+- Die Lokalisierung trägt allein die Radodometrie — der Roboter driftet gegen
+  die Karte.
+- Die Costmap hat **keine** Hindernisse.
+
+Der Satz lautet also nicht „Nav2 läuft", sondern: *Nav2 fährt im Mock gegen
+eine Karte; die Sensorkette wartet auf eine Aufnahme.*
+
 ## Tech Stack
 
 ROS 2 Jazzy · `rslidar_sdk` · `nav2` · `slam_toolbox` ·
