@@ -76,8 +76,8 @@ def test_the_map_to_base_link_transform_exists(container):
         f"Ausgabe:\n{out}")
 
 
-def test_navigates_without_localization(container):
-    """Ein Ziel 1 m voraus -- und die Odometrie sagt, ob er dort ankam.
+def test_navigates_without_localization(container, exclusive_base):
+    """Ein Ziel 1 m entfernt -- und die Odometrie sagt, ob er dort ankam.
 
     Bewusst NICHT: 'RViz sieht gut aus'.  Ein laufender Prozess ist kein
     Beleg, und eine Pose kann aus jedem Blickwinkel plausibel wirken.
@@ -95,7 +95,11 @@ read_x() {
   echo ""
 }
 BEFORE=$(read_x)
-GOAL=$(python3 -c "print(float('''$BEFORE''') + 1.0)")
+# Die Karte ist 10 x 10 m mit Ursprung in der Mitte -- x reicht von -5 bis
+# +5.  Ein Ziel "immer 1 m weiter vorne" fuehrt den Roboter nach genug
+# Testlaeufen aus der Karte heraus, und Nav2 lehnt es dann ab (am 2026-08-22
+# gemessen: bei x=4,63 wurden 0,000 m gefahren).  Deshalb immer ZUR MITTE hin.
+GOAL=$(python3 -c "import sys; x=float(sys.argv[1]); print(x - 1.0 if x > 0 else x + 1.0)" "$BEFORE")
 timeout 120 ros2 action send_goal /a200_0553/navigate_to_pose \
   nav2_msgs/action/NavigateToPose \
   "{pose: {header: {frame_id: map}, pose: {position: {x: $GOAL, y: 0.0, z: 0.0},
@@ -104,8 +108,9 @@ AFTER=$(read_x)
 python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after': float('''$AFTER''')}))"
 """
     result = json.loads(_exec(script, timeout=200).strip().splitlines()[-1])
-    travelled = result["after"] - result["before"]
+    travelled = abs(result["after"] - result["before"])
     assert travelled > 0.7, (
-        f"Ziel war 1,0 m voraus, gefahren wurden {travelled:.3f} m "
+        f"Ziel war 1,0 m entfernt (zur Kartenmitte hin), gefahren wurden "
+        f"{travelled:.3f} m "
         f"(vorher {result['before']:.3f}, nachher {result['after']:.3f}). "
         f"/tmp/nav_goal.log im Container lesen.")

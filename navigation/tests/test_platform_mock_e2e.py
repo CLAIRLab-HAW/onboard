@@ -60,7 +60,7 @@ def test_only_the_platform_hardware_is_claimed_by_the_platform_manager(container
         "prozessiertes URDF als Parameter (Spec Paragraph 3.4).")
 
 
-def test_driving_forward_moves_the_odometry(container):
+def test_driving_forward_moves_the_odometry(container, exclusive_base):
     """Der Kern: cmd_vel rein, Wegstrecke raus."""
     script = r"""
 source ros-env
@@ -79,16 +79,33 @@ read_x() {
   echo ""
 }
 BEFORE=$(read_x)
-timeout 3 ros2 topic pub -r 20 /a200_0553/cmd_vel geometry_msgs/msg/TwistStamped \
-  '{header: {frame_id: base_link}, twist: {linear: {x: 0.2}}}' > /dev/null 2>&1
+# Richtung IMMER zur Kartenmitte hin.  Faehrt der Test stets vorwaerts,
+# wandert der Roboter ueber viele Laeufe aus der 10-m-Karte heraus -- am
+# 2026-08-22 gemessen: bei x=4,63 lehnte Nav2 das naechste Ziel ab und der
+# Nachbartest mass 0,000 m.  So bleibt er beliebig oft wiederholbar.
+VX=$(python3 -c "import sys; print(-0.2 if float(sys.argv[1]) > 0 else 0.2)" "$BEFORE")
+# Fahrfenster 8 s, Messschwelle 0,3 m -- bewusst weit auseinander.
+#
+# `ros2 topic pub` braucht unter Last ein bis zwei Sekunden, bis das erste
+# Kommando auf dem Draht ist (Knoten anlegen, Discovery).  Mit `timeout 3`
+# blieben davon knapp 1 s Fahrt uebrig, und der Test mass 0,155-0,18 m statt
+# 0,6 m -- er mass also die Anlaufzeit des CLI, nicht die Basis.  Am
+# 2026-08-22 dreimal reproduziert.
+#
+# 8 s ergeben selbst mit 2 s Anlauf rund 1,2 m.  Die Schwelle bleibt bei
+# 0,3 m: weit ueber der Encoder-Drift (~0,01 rad) und weit unter dem
+# Erwartungswert, also unempfindlich gegen Last und trotzdem aussagekraeftig.
+timeout 8 ros2 topic pub -r 20 /a200_0553/cmd_vel geometry_msgs/msg/TwistStamped \
+  "{header: {frame_id: base_link}, twist: {linear: {x: $VX}}}" > /dev/null 2>&1
 sleep 1
 AFTER=$(read_x)
 python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after': float('''$AFTER''')}))"
 """
     result = json.loads(_exec(script).strip().splitlines()[-1])
-    travelled = result["after"] - result["before"]
+    travelled = abs(result["after"] - result["before"])
     assert travelled > 0.3, (
-        f"0,2 m/s ueber 3 s sollten rund 0,6 m ergeben, gemessen wurden "
+        f"0,2 m/s ueber 8 s sollten rund 1,2 m ergeben (Schwelle 0,3 m), "
+        f"gemessen wurden "
         f"{travelled:.3f} m (vorher {result['before']:.3f}, nachher "
         f"{result['after']:.3f}). Bleibt der Wert bei 0, fehlt "
         f"calculate_dynamics an der Mock-Hardware.")
