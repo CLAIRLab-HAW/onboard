@@ -114,3 +114,129 @@ python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after
         f"{travelled:.3f} m "
         f"(vorher {result['before']:.3f}, nachher {result['after']:.3f}). "
         f"/tmp/nav_goal.log im Container lesen.")
+
+
+def test_navigates_to_a_goal_it_has_to_turn_around_for(container, exclusive_base):
+    """Ein Ziel, das eine grosse Richtungsaenderung verlangt.
+
+    Der Nachbartest faehrt bewusst immer ZUR Kartenmitte hin -- also
+    praktisch geradeaus.  Genau deshalb hat er am 2026-08-22 nicht gemerkt,
+    dass der Husky bei einer Wende haengenblieb: in derselben Runde lief ein
+    Ziel geradeaus in 12 s durch, waehrend das Ziel (-2|2) aus (1,93|1,78)
+    nach 51 s ganze 0,06 m gefahren war und dann ABORTED meldete.
+
+    Dieser Test dreht den Roboter vorher ABSICHTLICH vom Ziel weg und prueft,
+    ob er trotzdem ankommt.  Er faellt aus, wenn der RotationShimController
+    fehlt oder der Antrieb die Drehung nicht ausfuehrt.
+    """
+    script = r"""
+source ros-env
+read_odom() {   # -> "x y yaw"
+  for _ in 1 2 3 4 5; do
+    timeout 8 ros2 topic echo /a200_0553/platform/odom --once \
+      --field pose.pose 2>/dev/null | grep -E '^  [xyzw]: ' > /tmp/o.txt
+    # pose.pose druckt position(x,y,z) dann orientation(x,y,z,w) -> 7 Werte-
+    # zeilen, jeweils mit ZWEI fuehrenden Leerzeichen (am 2026-08-22 mit
+    # `cat -A` nachgesehen; mit vier gerechnet und der grep lief leer).
+    if [ "$(wc -l < /tmp/o.txt)" = "7" ]; then
+      python3 -c "
+import math
+v=[float(l.split(': ')[1]) for l in open('/tmp/o.txt')]
+px,py,_,qx,qy,qz,qw = v
+print('%.4f %.4f %.4f' % (px, py,
+      math.atan2(2*(qw*qz+qx*qy), 1-2*(qy*qy+qz*qz))))"
+      return 0
+    fi
+    sleep 2
+  done
+  echo ""
+}
+read -r X0 Y0 YAW0 <<< "$(read_odom)"
+
+# Zielrichtung IMMER zur Kartenmitte -- sonst wandert der Roboter ueber viele
+# Laeufe aus der 10-m-Karte heraus und Nav2 lehnt das Ziel ab.  Steht er
+# schon fast in der Mitte, ist die Richtung beliebig; dann +x.
+read -r GX GY THETA <<< "$(python3 -c "
+import math,sys
+x,y = float('$X0'), float('$Y0')
+r = math.hypot(x,y)
+th = math.atan2(-y,-x) if r > 0.3 else 0.0
+print('%.4f %.4f %.4f' % (x+1.2*math.cos(th), y+1.2*math.sin(th), th))")"
+
+# Erst WEGDREHEN: Ziel-Blickrichtung ist theta+pi, also genau vom Ziel fort.
+# spin dreht RELATIV, deshalb die Differenz zum aktuellen Yaw ausrechnen und
+# auf [-pi,pi] normieren.
+DELTA=$(python3 -c "
+import math
+d = ($THETA + math.pi) - $YAW0
+while d >  math.pi: d -= 2*math.pi
+while d < -math.pi: d += 2*math.pi
+print('%.4f' % d)")
+timeout 60 ros2 action send_goal /a200_0553/spin nav2_msgs/action/Spin \
+  "{target_yaw: $DELTA}" > /dev/null 2>&1
+
+read -r X1 Y1 YAW1 <<< "$(read_odom)"
+S=$SECONDS
+STATUS=$(timeout 120 ros2 action send_goal /a200_0553/navigate_to_pose \
+  nav2_msgs/action/NavigateToPose \
+  "{pose: {header: {frame_id: map}, pose: {position: {x: $GX, y: $GY, z: 0.0},
+    orientation: {w: 1.0}}}}" 2>&1 | grep -oE 'SUCCEEDED|ABORTED|CANCELED' | tail -1)
+DUR=$((SECONDS-S))
+read -r X2 Y2 YAW2 <<< "$(read_odom)"
+python3 -c "
+import json,math
+print(json.dumps({
+  'status': '$STATUS',
+  'seconds': $DUR,
+  'goal': [$GX, $GY],
+  'yaw_before_goal': $YAW1,
+  'travelled': math.hypot($X2-($X1), $Y2-($Y1)),
+  'remaining': math.hypot($X2-($GX), $Y2-($GY)),
+}))"
+"""
+    result = json.loads(_exec(script, timeout=320).strip().splitlines()[-1])
+
+    assert result["status"] == "SUCCEEDED", (
+        f"Das Ziel hinter dem Roboter endete mit {result['status']!r} nach "
+        f"{result['seconds']} s; gefahren wurden {result['travelled']:.3f} m, "
+        f"es fehlen {result['remaining']:.3f} m. Ohne den "
+        f"RotationShimController bleibt der Husky bei grossen "
+        f"Richtungsaenderungen stehen -- pruefe, ob FollowPath.plugin noch "
+        f"RotationShimController ist.")
+    assert result["travelled"] > 0.8, (
+        f"Nav2 meldet SUCCEEDED, aber die Odometrie sieht nur "
+        f"{result['travelled']:.3f} m -- das Ziel lag 1,2 m entfernt. Ein "
+        f"Erfolg ohne Bewegung ist kein Erfolg.")
+    assert result["remaining"] < 0.35, (
+        f"Angekommen ist er nicht: {result['remaining']:.3f} m zum Ziel "
+        f"(xy_goal_tolerance ist 0,25).")
+
+
+def test_the_controller_actually_receives_odometry(container):
+    """Ein eingestelltes Topic ist noch keine Datenquelle.
+
+    In ROS 2 taucht ein Topic in `topic list` schon auf, wenn es nur
+    ABONNIERT wird.  Am 2026-08-22 stand der controller_server auf dem
+    Default "odom", war dort der einzige Teilnehmer -- Publisher count: 0 --
+    und bekam nie eine Geschwindigkeit.  Der statische Parametertest haette
+    das nicht gefunden, ein falscher Topicname sieht dort aus wie ein
+    richtiger.  Deshalb hier: gibt es einen Publisher, und kommen Daten an?
+    """
+    topic = _exec("source ros-env; timeout 15 ros2 param get "
+                  "/a200_0553/controller_server odom_topic 2>/dev/null "
+                  "| tail -1 | sed 's/.*: //'").strip()
+    assert topic, "odom_topic ist am laufenden controller_server nicht lesbar."
+
+    full = topic if topic.startswith("/") else f"/a200_0553/{topic}"
+    info = _exec(f"source ros-env; timeout 20 ros2 topic info -v {full} "
+                 "2>/dev/null | grep 'Publisher count'")
+    assert "Publisher count: 0" not in info, (
+        f"Auf {full} publiziert NIEMAND -- der controller_server bekommt "
+        f"seine Ist-Geschwindigkeit nie, `speed` bleibt 0, und der Regler "
+        f"regelt blind. Sichtbar wird das als kriechende Drehung (0,05 rad/s "
+        f"statt 0,8), nicht als Fehlermeldung. Gesehen: {info.strip()!r}")
+
+    sample = _exec(f"source ros-env; timeout 8 ros2 topic echo {full} --once "
+                   "--field twist.twist.angular.z 2>/dev/null | head -1")
+    assert sample.strip(), (
+        f"{full} hat einen Publisher, liefert aber keine Daten.")

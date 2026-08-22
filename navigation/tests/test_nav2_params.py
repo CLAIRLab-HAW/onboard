@@ -39,6 +39,32 @@ def test_every_node_lives_in_the_robot_namespace(params):
 # ein velocity_smoother oder docking_server dazu, gehoert er in diese Liste.
 CMD_VEL_PUBLISHERS = ("controller_server", "behavior_server")
 
+# Dieselbe Falle ein zweites Mal: `odom_topic` gilt ebenfalls pro Knoten.  Am
+# 2026-08-22 stand er im bt_navigator richtig und im controller_server auf dem
+# Nav2-Default "odom" -- ein Topic, auf das niemand publiziert.
+ODOM_CONSUMERS = ("controller_server", "bt_navigator")
+
+# Die EKF-Quelle, nicht die rohe des Radcontrollers: der EKF liefert auch die
+# TF odom -> base_link, also kommen Pose und Geschwindigkeit von derselben
+# Stelle.
+EXPECTED_ODOM_TOPIC = "platform/odom/filtered"
+
+
+@pytest.mark.parametrize("node", ODOM_CONSUMERS)
+def test_every_odom_consumer_reads_the_ekf(params, node):
+    """Der Default "odom" zeigt auf ein Topic ohne Publisher.
+
+    Das scheitert lautlos: `speed` bleibt 0, und jeder Regler, der die
+    Ist-Geschwindigkeit braucht, regelt blind.  Gemessen hat sich das als
+    RotationShim gezeigt, der statt 0,8 rad/s nur 0,05 kommandierte -- einen
+    einzigen Beschleunigungsschritt, immer wieder von null.
+    """
+    assert _node(params, node)["odom_topic"] == EXPECTED_ODOM_TOPIC, (
+        f"{node} liest ein anderes Odometrie-Topic. Der Nav2-Default 'odom' "
+        f"loest im Namespace zu /a200_0553/odom auf -- dort publiziert "
+        f"niemand, und es gibt dafuer keine Fehlermeldung.")
+
+
 
 @pytest.mark.parametrize("node", CMD_VEL_PUBLISHERS)
 def test_every_cmd_vel_publisher_is_stamped(params, node):
