@@ -143,6 +143,19 @@ a200_0553:
       local_frame: odom
       global_frame: map
       robot_base_frame: base_link
+      # Gilt PRO KNOTEN -- ihn nur beim controller_server zu setzen genuegt
+      # nicht.  Ohne ihn publizieren spin und backup geometry_msgs/Twist,
+      # waehrend twist_mux ausschliesslich TwistStamped abonniert: die
+      # Recovery-Kommandos kommen dann NIE an der Basis an, und der Roboter
+      # bleibt in der Sackgasse stehen, statt sich freizufahren.
+      #
+      # Am 2026-08-22 im Mock gemessen -- /a200_0553/cmd_vel trug beide Typen:
+      # controller_server -> TwistStamped, behavior_server -> Twist (3 Publisher,
+      # einer je Verhalten).  Kein Test hatte das gefunden: ohne Lidar hat die
+      # Costmap keine Hindernisse, also loest nie ein Recovery aus.  Gemeldet
+      # hat es Foxglove ("Multiple channels advertise the same topic ... but
+      # the schema ... do not match") -- die Warnung war echt, kein Anzeigefehler.
+      enable_stamped_cmd_vel: true
       behavior_plugins: ["spin", "backup", "wait"]
       spin:
         plugin: "nav2_behaviors::Spin"

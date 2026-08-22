@@ -33,10 +33,27 @@ def test_every_node_lives_in_the_robot_namespace(params):
         "starten mit ihren Defaults und niemand sagt es.")
 
 
-def test_the_controller_publishes_stamped_velocity(params):
-    assert _node(params, "controller_server")["enable_stamped_cmd_vel"] is True, (
-        "Ohne TwistStamped bindet die Subscription des twist_mux nicht. Der "
-        "Roboter steht dann still, ohne Fehlermeldung.")
+# Jeder Nav2-Knoten, der selbst auf cmd_vel schreibt.  Der Parameter gilt PRO
+# KNOTEN -- ihn nur beim controller_server zu setzen sieht richtig aus und
+# laesst die Recovery-Verhalten trotzdem ins Leere schreiben.  Kommt spaeter
+# ein velocity_smoother oder docking_server dazu, gehoert er in diese Liste.
+CMD_VEL_PUBLISHERS = ("controller_server", "behavior_server")
+
+
+@pytest.mark.parametrize("node", CMD_VEL_PUBLISHERS)
+def test_every_cmd_vel_publisher_is_stamped(params, node):
+    """Am 2026-08-22 war genau das falsch, und nichts hat es gemeldet.
+
+    /a200_0553/cmd_vel trug beide Typen: controller_server TwistStamped,
+    behavior_server dreimal Twist (einer je Verhalten).  Aufgefallen ist es
+    an einer Foxglove-Warnung, nicht an dieser Suite -- ohne Lidar hat die
+    Costmap keine Hindernisse, also loest im Mock nie ein Recovery aus, und
+    der tote Pfad wurde nie befahren.
+    """
+    assert _node(params, node)["enable_stamped_cmd_vel"] is True, (
+        f"{node} publiziert geometry_msgs/Twist, twist_mux abonniert aber nur "
+        "TwistStamped -- die Subscription bindet nicht, und der Roboter steht "
+        "still, ohne Fehlermeldung.")
 
 
 def test_both_costmaps_use_the_derived_scan(params):
