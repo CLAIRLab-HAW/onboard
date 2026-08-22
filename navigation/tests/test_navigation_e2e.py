@@ -240,3 +240,49 @@ def test_the_controller_actually_receives_odometry(container):
                    "--field twist.twist.angular.z 2>/dev/null | head -1")
     assert sample.strip(), (
         f"{full} hat einen Publisher, liefert aber keine Daten.")
+
+
+def test_the_ground_frame_matches_the_wheel_geometry(container):
+    """base_footprint muss dort liegen, wo die Raeder den Boden beruehren.
+
+    Die Probe verbindet zwei Quellen, die nichts voneinander wissen: das
+    URDF (Radachse, base_footprint) und control.yaml (wheel_radius, mit dem
+    der DiffDriveController die Odometrie rechnet).  Passen sie nicht
+    zusammen, ist entweder die Darstellung falsch oder -- schlimmer -- die
+    Odometrie, und Letzteres faellt an nichts auf.  Wer z. B. auf
+    Outdoor-Raeder wechselt und nur eine der beiden Stellen nachzieht,
+    bekommt hier einen Fehlschlag statt eines stillen Fahrfehlers.
+
+    Am 2026-08-22 gemessen: Radachse +0,03282 ueber base_link, Radradius
+    0,1651, base_footprint bei -0,13228 -- exakt die Differenz.
+
+    NICHT geprueft wird, ob base_footprint auf der odom-Ebene liegt: der EKF
+    laeuft mit `base_link_frame: base_link` und `two_d_mode: True`, pinnt
+    also base_link auf z=0.  Der ganze Roboter steht dadurch 13,2 cm unter
+    der Bodenebene der Karte, was in RViz und Foxglove sichtbar ist und wie
+    ein Fehler aussieht.  Es ist Clearpaths Konvention aus der generierten
+    localization.yaml, ueber robot.yaml nicht einstellbar, und fuer Nav2
+    folgenlos -- dort zaehlen nur x, y und yaw.
+    """
+    def _z(parent: str, child: str) -> float:
+        out = _exec(f"source ros-env; timeout 10 ros2 run tf2_ros tf2_echo "
+                    f"{parent} {child} --ros-args "
+                    "-r /tf:=/a200_0553/tf -r /tf_static:=/a200_0553/tf_static "
+                    "2>&1 | grep -m1 Translation")
+        assert "Translation" in out, f"Keine TF {parent} -> {child}: {out!r}"
+        return float(out.split("[")[1].split("]")[0].split(",")[2])
+
+    footprint_z = _z("base_link", "base_footprint")
+    axle_z = _z("base_link", "front_left_wheel_link")
+
+    radius = float(_exec(
+        "grep -m1 'wheel_radius:' /clearpath/platform/config/control.yaml "
+        "| tr -d ' ' | cut -d: -f2").strip())
+
+    expected = axle_z - radius
+    assert abs(footprint_z - expected) < 0.005, (
+        f"base_footprint liegt bei {footprint_z:.5f}, die Raeder beruehren "
+        f"den Boden aber bei {expected:.5f} (Achse {axle_z:.5f} minus "
+        f"Radradius {radius} aus control.yaml). URDF und Radcontroller "
+        f"rechnen mit verschiedenen Raedern -- dann ist auch die Odometrie "
+        f"um denselben Faktor falsch, und das meldet niemand.")

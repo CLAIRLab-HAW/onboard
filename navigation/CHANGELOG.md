@@ -66,6 +66,18 @@ Versionierung nach [SemVer](https://semver.org/).
   Regler.
 
 ### Added
+- `test_the_ground_frame_matches_the_wheel_geometry` — prüft, dass
+  `base_footprint` zur Radachse **und** zum `wheel_radius` aus
+  `control.yaml` passt. URDF und Radcontroller sind zwei Quellen, die
+  nichts voneinander wissen; laufen sie auseinander, ist nicht nur die
+  Darstellung falsch, sondern auch die Odometrie.
+
+  Anlass war die Beobachtung, dass der Husky in RViz 13,2 cm im Boden
+  steckt. Das URDF ist daran unschuldig (0,03282 − 0,1651 = −0,13228, exakt
+  der `base_footprint`-Wert); der Versatz kommt vom EKF, der mit
+  `base_link_frame: base_link` und `two_d_mode: True` **base_link** auf
+  z = 0 pinnt. Clearpaths Konvention, über `robot.yaml` nicht einstellbar,
+  für Nav2 folgenlos. Ausführlich im README unter „Frames".
 - `test_navigates_to_a_goal_it_has_to_turn_around_for` — dreht den Husky
   absichtlich vom Ziel weg und prüft, ob er ankommt. Der Nachbartest fährt
   bewusst immer zur Kartenmitte, also praktisch geradeaus, und hat deshalb
