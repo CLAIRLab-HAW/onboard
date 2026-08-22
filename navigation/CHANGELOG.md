@@ -5,6 +5,22 @@ Versionierung nach [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Hinzugefuegt
+- **Nav2 hat einen Verbraucher am `/twin/*`-Draht (2026-08-22).** Der
+  `plan_server` uebersetzt seit Protokoll v7 `/twin/nav_cmd` auf die hier
+  gestarteten Nav2-Actions, und `robot-mcp` gibt sie einem Agenten als acht
+  Skills. An dieser Schicht aendert das nichts -- sie bleibt der Ort, an dem
+  Nav2 und der Sensorpfad konfiguriert und gestartet werden. Wichtig ist die
+  Richtung: der Verbraucher baut **keinen** zweiten Planer, er setzt Ziele
+  auf `navigate_to_pose`, `navigate_through_poses`, `spin`, `backup` und
+  `compute_path_to_pose` ab.
+- **Der Stand aus diesem README ist damit auch der Stand der Skills.** Ein
+  Agent, der `nav_to_pose` fahren kann, faehrt gegen eine synthetische Karte
+  ohne Lokalisierung und ohne Hindernisse. `apps/robot-mcp/README.md` sagt
+  das an seiner Stelle noch einmal, damit niemand aus "der Skill existiert"
+  auf "der Roboter ist lokalisiert" schliesst.
+
+
 ### Fixed
 - **`odom_topic` im `controller_server` gesetzt — das war die Wurzel.** Der
   Nav2-Default ist `odom`, im Namespace also `/a200_0553/odom`, und darauf
