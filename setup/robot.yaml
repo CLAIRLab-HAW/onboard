@@ -58,9 +58,8 @@ platform:
       # diese Engine sind beide Fassungen auf einem Korpus aus Treffern und
       # Nicht-Treffern deckungsgleich, inklusive Nicht-ASCII.
       #
-      # Der Wert spiegelt bewusst Clearpaths Vorlage, nicht den Node-Default:
-      # genau das schrieb bis zum 2026-08-19 der Patcher, das Verhalten am
-      # Roboter aendert sich also nicht. Der einzige Unterschied waere ein
+      # Der Wert spiegelt bewusst Clearpaths Vorlage, nicht den Node-Default.
+      # Der einzige Unterschied waere ein
       # Punkt im Dateinamen-Stamm -- von 409 Meshes unter /opt/ros/jazzy/share
       # hat keines einen.
       foxglove_bridge:
