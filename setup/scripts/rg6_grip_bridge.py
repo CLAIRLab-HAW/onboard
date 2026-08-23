@@ -196,23 +196,23 @@ class FingerKinematics:
     unter der Fingerpositionsaufloesung des RG6 (0,1 mm laut Datenblatt).
     """
 
-    def __init__(self, pfad: str) -> None:
-        with open(pfad, "r", encoding="utf-8") as fh:
-            roh = json.load(fh)
-        tab = roh["table_q_rad_width_m"]
+    def __init__(self, path: str) -> None:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+        tab = raw["table_q_rad_width_m"]
         self._q = [float(z[0]) for z in tab]
         self._w = [float(z[1]) for z in tab]
         if sorted(self._q) != self._q:
-            raise ValueError(f"{pfad}: Stuetzstellen nicht aufsteigend in q")
+            raise ValueError(f"{path}: Stuetzstellen nicht aufsteigend in q")
         # Die Weite MUSS fallen: darauf beruht die Umkehrung.  Steigt sie
         # irgendwo, sind Stuetzstellen jenseits des Nulldurchgangs erwischt
         # worden, wo die Finger im Modell durcheinander hindurchfahren.
         if any(b >= a for a, b in zip(self._w, self._w[1:])):
-            raise ValueError(f"{pfad}: Weite faellt nicht monoton")
-        self.joint = str(roh.get("joint", "rg6_finger_joint"))
+            raise ValueError(f"{path}: Weite faellt nicht monoton")
+        self.joint = str(raw.get("joint", "rg6_finger_joint"))
         self.q_min, self.q_max = self._q[0], self._q[-1]
         self.max_width_m, self.min_width_m = self._w[0], self._w[-1]
-        self.quelle = pfad
+        self.source = path
 
     def width_from_angle(self, q: float) -> float:
         """Geklemmt auf den Tabellenrand: jenseits des Anschlags gilt der Anschlag."""
@@ -420,22 +420,22 @@ def selftest() -> int:
         #     Hardware-Interface zu sein.
         kin = FingerKinematics(str(pathlib.Path(__file__).with_name(
             "rg6_finger_kinematics.json")))
-        weite, kraft = goal_to_grip(kin.angle_from_width(0.100), 55.0,
+        width, force = goal_to_grip(kin.angle_from_width(0.100), 55.0,
                                     kin, 40.0, (25.0, 120.0))
-        assert abs(weite - 0.100) < 2e-4, weite      # Tabellenaufloesung
-        assert kraft == 55.0, kraft
+        assert abs(width - 0.100) < 2e-4, width      # Tabellenaufloesung
+        assert force == 55.0, force
         # Leeres max_effort heisst "nimm, was passt" -- nicht "Kraft null".
         assert goal_to_grip(0.0, 0.0, kin, 40.0, (25.0, 120.0))[1] == 40.0
         # ... und ein zu grosser Wunsch wird geklemmt, nicht durchgereicht.
         assert goal_to_grip(0.0, 999.0, kin, 40.0, (25.0, 120.0))[1] == 120.0
 
-        st_zu = Rg6State(width_m=0.0605, busy=False, grip_detected=True,
+        st_closed = Rg6State(width_m=0.0605, busy=False, grip_detected=True,
                          status=0, safety_failed=False)
-        res = goal_result(st_zu, 0.060, 40.0, kin, tolerance_m=0.008)
+        res = goal_result(st_closed, 0.060, 40.0, kin, tolerance_m=0.008)
         assert res["reached_goal"] is True and res["stalled"] is True, res
         assert res["effort"] == 40.0, res
         # Weit daneben ist weit daneben, auch wenn der Greifer steht.
-        assert goal_result(st_zu, 0.100, 40.0, kin,
+        assert goal_result(st_closed, 0.100, 40.0, kin,
                            tolerance_m=0.008)["reached_goal"] is False
 
         # 5b. Der Statustopf traegt den GERAETEZUSTAND, nicht den Befehl --
@@ -540,10 +540,10 @@ def run(argv) -> int:
     client = Rg6Client(_p("endpoint_url"), int(_p("tool_index")),
                        float(_p("timeout_s")))
 
-    kin_datei = _p("kinematics_file") or str(
+    kin_file = _p("kinematics_file") or str(
         pathlib.Path(__file__).with_name("rg6_finger_kinematics.json"))
-    linkage = FingerKinematics(kin_datei)
-    log.info(f"Getriebetabelle: {kin_datei} "
+    linkage = FingerKinematics(kin_file)
+    log.info(f"Getriebetabelle: {kin_file} "
              f"({linkage.max_width_m * 1000:.1f} mm offen, "
              f"q bis {linkage.q_max:.5f} rad)")
 
@@ -644,12 +644,12 @@ def run(argv) -> int:
             return result
         finally:
             inflight.release()
-        felder = goal_result(state, width_m, force_n, linkage,
+        fields = goal_result(state, width_m, force_n, linkage,
                              float(_p("goal_tolerance_m")))
-        result.position = felder["position"]
-        result.effort = felder["effort"]
-        result.stalled = felder["stalled"]
-        result.reached_goal = felder["reached_goal"]
+        result.position = fields["position"]
+        result.effort = fields["effort"]
+        result.stalled = fields["stalled"]
+        result.reached_goal = fields["reached_goal"]
         log.info(f"GripperCommand {width_m * 1000:.0f} mm @ {force_n:.0f} N -> "
                  f"{state.width_m * 1000:.1f} mm "
                  f"reached={result.reached_goal} stalled={result.stalled}")
