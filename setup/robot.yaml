@@ -28,56 +28,49 @@ platform:
       controller_manager:
         update_rate: 10 # mcu is slow so we give more time
         # cycle_time_error_threshold: 0.1
-      # Asset-Allowlist der foxglove_bridge.
+      # Asset allowlist of the foxglove_bridge.
       #
-      # WARUM DAS HIER UEBERHAUPT STEHEN MUSS: die foxglove_bridge bringt einen
-      # korrekten Default mit (am Node gemessen: '^package://(?:[-\w%]+/)*
-      # [-\w%.]+\.(...)$'). Er kommt nur nie zum Zug -- Clearpaths Vorlage
-      # clearpath_diagnostics/config/foxglove_bridge.yaml SETZT den Parameter,
-      # und ein gesetzter Parameter verdeckt den Node-Default. Der Generator
-      # schreibt ihn dabei verstuemmelt (s. u.), also traegt die generierte
-      # Datei ohne diesen Block eine Allowlist, die NICHTS matcht -- auch kein
-      # package://. Weglassen ginge nur, wenn der Schluessel gar nicht
-      # generiert wuerde; ros_parameters kann aber nur ueberschreiben, nicht
-      # loeschen. Dieser Block stellt also her, was ohne den Writer-Bug
-      # ohnehin gaelte.
+      # WHY THIS HAS TO STAND HERE AT ALL: the foxglove_bridge ships a correct
+      # default (measured at the node: '^package://(?:[-\w%]+/)*
+      # [-\w%.]+\.(...)$'). It just never comes into play -- Clearpath's
+      # template clearpath_diagnostics/config/foxglove_bridge.yaml SETS the
+      # parameter, and a set parameter hides the node default. The generator
+      # writes it mangled while doing so (see below), so without this block the
+      # generated file carries an allowlist that matches NOTHING -- not even
+      # package://. Leaving it out would only work if the key were not generated
+      # at all; but ros_parameters can only override, not delete. So this block
+      # restores what would hold anyway without the writer bug.
       #
-      # ACHTUNG, DER GRUND FUER DIE UNGEWOHNTE SCHREIBWEISE: hier darf KEIN
-      # Backslash vorkommen. Der ParamWriter des Generators schreibt Skalare
-      # zwar korrekt in Single-Quotes, LISTEN aber ueber Pythons repr --
-      # und das verdoppelt jeden Backslash. YAML-Single-Quotes lesen ihn dann
-      # literal zurueck, aus '\w' wird ein Backslash-Backslash-w, und die
-      # Regex matcht NICHTS mehr. Nachgemessen: mit \w ist die generierte
-      # Datei kaputt, egal ob gepatcht oder nicht.
+      # ATTENTION, THE REASON FOR THE UNUSUAL SPELLING: NO backslash may appear
+      # here. The generator's ParamWriter writes scalars correctly in single
+      # quotes, but LISTS through Python's repr -- and that doubles every
+      # backslash. YAML single quotes then read it back literally, '\w' becomes
+      # backslash-backslash-w, and the regex matches NOTHING any more. Measured:
+      # with \w the generated file is broken, patched or not.
       #
-      # Deshalb die backslash-freie, exakt gleichwertige Fassung:
-      #   \w -> [A-Za-z0-9_]   (in std::regex/ECMAScript genau das, was \w ist)
-      #   \. -> [.]            (im Zeichenklassen-Ausdruck ist . literal)
-      # foxglove_bridge haelt die Muster als std::vector<std::regex> und
-      # vergleicht mit std::regex_match (utils.hpp, isWhitelisted) -- gegen
-      # diese Engine sind beide Fassungen auf einem Korpus aus Treffern und
-      # Nicht-Treffern deckungsgleich, inklusive Nicht-ASCII.
+      # Hence the backslash-free, exactly equivalent version:
+      #   \w -> [A-Za-z0-9_]   (in std::regex/ECMAScript exactly what \w is)
+      #   \. -> [.]            (inside a character class, . is literal)
+      # foxglove_bridge keeps the patterns as std::vector<std::regex> and
+      # compares with std::regex_match (utils.hpp, isWhitelisted) -- against that
+      # engine both versions agree on a corpus of matches and non-matches,
+      # including non-ASCII.
       #
-      # Der Wert spiegelt bewusst Clearpaths Vorlage, nicht den Node-Default.
-      # Der einzige Unterschied waere ein
-      # Punkt im Dateinamen-Stamm -- von 409 Meshes unter /opt/ros/jazzy/share
-      # hat keines einen.
+      # The value deliberately mirrors Clearpath's template, not the node
+      # default. The only difference would be a dot in the filename stem -- of
+      # 409 meshes under /opt/ros/jazzy/share, none has one.
       foxglove_bridge:
         asset_uri_allowlist:
           - '^package://(?:[-A-Za-z0-9_%]+/)*[-A-Za-z0-9_%]+[.](?:dae|fbx|glb|gltf|jpeg|jpg|mtl|obj|png|stl|tif|tiff|urdf|webp|xacro)$'
-      # Analyzer-Gruppe "Manipulator" fuer den diagnostic_aggregator. Der
-      # Clearpath-Generator kennt nur Platform- und Sensor-Analyzer; ohne
-      # diesen Block landen die Status des manipulator_diagnostics-Node im
-      # Catch-All und erscheinen in Cockpit nicht als eigene Gruppe; der
-      # Generator flacht die
-      # Verschachtelung selbst auf die Punkt-Keys ab, die ROS erwartet.
+      # Analyzer group "Manipulator" for the diagnostic_aggregator. The
+      # Clearpath generator only knows platform and sensor analyzers; without
+      # this block the statuses of the manipulator_diagnostics node land in the
+      # catch-all and do not appear in Cockpit as their own group; the generator
+      # flattens the nesting onto the dotted keys ROS expects by itself.
       #
-      # UNTERSCHIED ZUM PATCHER: der lief nur, wenn
-      # clearpath-custom-manipulator-diagnostics.service installiert war (die
-      # Unit-Datei war der Schalter). Hier steht der Block bedingungslos --
-      # laeuft der Diagnose-Node nicht, zeigt Cockpit die Gruppe als STALE,
-      # statt sie verschwinden zu lassen. Das ist der sichtbarere Zustand;
-      # rueckgaengig macht man ihn, indem man diesen Block entfernt.
+      # The block stands here unconditionally: if the diagnostics node does not
+      # run, Cockpit shows the group as STALE instead of letting it vanish. That
+      # is the more visible state; to undo it, remove this block.
       diagnostic_aggregator:
         manipulator:
           type: diagnostic_aggregator/AnalyzerGroup
@@ -87,9 +80,9 @@ platform:
               type: diagnostic_aggregator/GenericAnalyzer
               path: Arm
               startswith: ['manipulator_diagnostics: Arm']
-              # 'expected' ist wichtig: fehlt ein Status (Node tot), erzeugt
-              # der Aggregator dafuer einen STALE-Eintrag, statt ihn
-              # stillschweigend verschwinden zu lassen.
+              # 'expected' matters: if a status is missing (node dead), the
+              # aggregator produces a STALE entry for it instead of letting it
+              # vanish silently.
               expected:
                 - 'manipulator_diagnostics: Arm Mode'
                 - 'manipulator_diagnostics: Arm Control'
@@ -165,9 +158,9 @@ manipulators:
       move_group:
         trajectory_execution:
           allowed_goal_duration_margin: 6.0 # allows slow gripper opening/closing
-        # Occupancy-Map-Monitor -- der Generator schreibt ros_parameters
-        # selbst in moveit.yaml.  octomap_frame bewusst base_link: odom ist
-        # hier UTM-gestuetzt und springt.
+        # Occupancy map monitor -- the generator writes ros_parameters into
+        # moveit.yaml itself.  octomap_frame is deliberately base_link: odom is
+        # UTM-backed here and jumps.
         octomap_frame: base_link
         octomap_resolution: 0.025
         sensors:
@@ -181,36 +174,36 @@ manipulators:
           padding_scale: 1.0
           max_update_rate: 5.0
           filtered_cloud_topic: ""
-        # Self-Filter-Robustheit (2026-07-29): der Shape-Mask-TF-Lookup zum
-        # Cloud-Stempel verpasste die Rad-Frames intermittierend (Default-Wait
-        # 0.05 s) -> "Missing transform for shape cylinder", Radpunkte wurden
-        # als Hindernis-Voxel eingefuegt und JEDER Plan aus einer Chassis-
-        # blickenden Pose scheiterte mit START_STATE_IN_COLLISION. 0.3 s Wait
-        # laesst den TF-Puffer aufholen; deep-merged neben cartesian_limits/
-        # joint_limits (Generator-Merge empirisch verifiziert).
+        # Self-filter robustness (2026-07-29): the shape mask TF lookup to the
+        # cloud stamp intermittently missed the wheel frames (default wait
+        # 0.05 s) -> "Missing transform for shape cylinder", wheel points were
+        # inserted as obstacle voxels and EVERY plan from a chassis-facing pose
+        # failed with START_STATE_IN_COLLISION. A 0.3 s wait lets the TF buffer
+        # catch up; deep-merged next to cartesian_limits/joint_limits (the
+        # generator merge verified empirically).
         robot_description_planning:
           shape_transform_cache_lookup_wait_time: 0.3
-          # Beschleunigungslimit des Greifer-Treibergelenks. Ohne das scheitert
-          # die TOTG-Zeitparametrierung (AddTimeOptimalParameterization) fuer
-          # die gripper-Gruppe. Der Generator deep-merged es hier neben die
-          # sechs Arm-Gelenke.
+          # Acceleration limit of the gripper driving joint. Without it the
+          # TOTG time parameterisation (AddTimeOptimalParameterization) fails for
+          # the gripper group. The generator deep-merges it next to the six arm
+          # joints here.
           joint_limits:
             rg6_finger_joint:
               has_velocity_limits: true
               max_velocity: 2.0
               has_acceleration_limits: true
               max_acceleration: 4.0
-        # GripperCommand-Controller fuer den OnRobot RG6. Clearpath kennt den
-        # RG6 nicht -- Gripper.MODEL ist ein geschlossenes Enum (franka_gripper,
-        # kinova_2f_lite, robotiq_2f_140, robotiq_2f_85), ein `gripper:`-Eintrag
-        # unter arms wuerde mit ValueError abbrechen. Der Generator schreibt hier
-        # aber jeden Boot einen moveit_simple_controller_manager mit dem Arm-
-        # Controller, und unser Block wird hineingemerged statt ihn zu ersetzen.
-        # Bedient wird die Action am Roboter von rg6_grip_bridge, im Container-
-        # Mock von rg6_control_sim (beide unter demselben Namen).
-        # ACHTUNG: merge_dict VERLAENGERT Listen, es ersetzt sie nicht. In
-        # controller_names darf deshalb NICHT der Arm-Controller stehen, den der
-        # Generator selbst schreibt -- er stuende sonst doppelt.
+        # GripperCommand controller for the OnRobot RG6. Clearpath does not know
+        # the RG6 -- Gripper.MODEL is a closed enum (franka_gripper,
+        # kinova_2f_lite, robotiq_2f_140, robotiq_2f_85), and a `gripper:` entry
+        # under arms would abort with a ValueError. But the generator writes a
+        # moveit_simple_controller_manager with the arm controller here on every
+        # boot, and our block is merged into it instead of replacing it.
+        # The action is served on the robot by rg6_grip_bridge, in the container
+        # mock by rg6_control_sim (both under the same name).
+        # ATTENTION: merge_dict EXTENDS lists, it does not replace them. So
+        # controller_names must NOT contain the arm controller the generator
+        # writes itself -- it would stand there twice.
         moveit_simple_controller_manager:
           controller_names:
             - manipulators/rg6_gripper_controller
@@ -220,8 +213,8 @@ manipulators:
             joints:
               - rg6_finger_joint
             type: GripperCommand
-            # Greifkraft der MoveIt-Goals [N]; 0 liesse die Bruecke auf ihren
-            # eigenen Default zurueckfallen. Wird dort auf 25...120 geklemmt.
+            # Grip force of the MoveIt goals [N]; 0 would let the bridge fall
+            # back on its own default. It is clamped to 25...120 there.
             max_effort: 60.0
   arms:
     - model: universal_robots
@@ -232,17 +225,16 @@ manipulators:
       robot_ip: 192.168.131.40
       headless_mode: true
       kinematics_parameters_file: "/home/robot/ur5_a200_0553_calibration.yaml" # "$(find ur_description)/config/ur5/default_kinematics.yaml"
-      # RTDE-Input-Recipe ohne tool_digital_output_mask/tool_digital_output.
-      # Die OnRobot-URCap ist selbst RTDE-Client und belegt diese beiden
-      # Input-Variablen; RTDE laesst pro Input-Variable nur EINEN schreibenden
-      # Client zu. Mit dem Standard-Recipe scheitert der ur_robot_driver beim
-      # Setup ("Variable 'tool_digital_output_mask' is currently controlled by
-      # another RTDE client"), ros2_control_node stirbt mit exit -6 und alle
-      # Controller-Spawner laufen in "Failed to acquire lock".
-      # Folge dieser Zeile: ROS kann kein Tool-DO und keine Tool-Spannung mehr
-      # setzen -- das Tool-I/O gehoert der URCap, der Arm gehoert ROS. Damit ist
-      # der rg6_control-Pfad (Tool-DO0-Flanken) endgueltig ausgeschlossen.
-      # Zurueck zum Custom-Treiber: Zeile entfernen UND URCap deaktivieren.
+      # RTDE input recipe without tool_digital_output_mask/tool_digital_output.
+      # The OnRobot URCap is an RTDE client itself and occupies these two input
+      # variables; RTDE allows only ONE writing client per input variable. With
+      # the standard recipe the ur_robot_driver fails during setup ("Variable
+      # 'tool_digital_output_mask' is currently controlled by another RTDE
+      # client"), ros2_control_node dies with exit -6 and all controller
+      # spawners run into "Failed to acquire lock".
+      # Consequence of this line: ROS can no longer set a tool DO or the tool
+      # voltage -- the tool I/O belongs to the URCap, the arm belongs to ROS.
+      # To go back to a tool-DO driver: remove the line AND disable the URCap.
       input_recipe_filename: "/home/robot/rtde_input_recipe_no_tool.txt"
       poses:
         - name: packed
@@ -272,15 +264,15 @@ sensors:
           enable_color: true
           rgb_camera.color_profile: 640,480,30
           enable_depth: true
-          # 30 fps setzt ZWEI Dinge voraus (beide erfuellt, Details in
+          # 30 fps requires TWO things (both fulfilled, details in
           # docs/hrl-real-perception-plan.md):
-          #  1. D435 an USB 3.2 (an USB 2 sind 15 fps das Limit bei 640x480).
-          #  2. Robot UND Offboard-Workstation im 5-GHz-Band (HAWAX5): auf dem
-          #     2,4-GHz-Band saettigen color@30 + depth@30 (~4,5 MB/s) den
-          #     Funkkanal -- gemessen: 8,7/s beim Client + 5,5 s stehender
-          #     Lag im foxglove-Sendepuffer. Nach Reboot Band pruefen
-          #     (netplan re-rendert HAWAX und HAWAX5 gleichrangig)!
-          # Aufloesung bleibt 640x480 (HSV-Detector-Gates darauf getunt).
+          #  1. the D435 on USB 3.2 (on USB 2, 15 fps is the limit at 640x480).
+          #  2. robot AND offboard workstation on the 5 GHz band (HAWAX5): on the
+          #     2.4 GHz band color@30 + depth@30 (~4.5 MB/s) saturate the radio
+          #     channel -- measured: 8.7/s at the client + 5.5 s of standing lag
+          #     in the foxglove send buffer. Check the band after a reboot
+          #     (netplan re-renders HAWAX and HAWAX5 with equal priority)!
+          # The resolution stays 640x480 (the HSV detector gates are tuned to it).
           depth_module.depth_profile: 640,480,30
           align_depth.enable: true
           pointcloud.enable: true
@@ -311,37 +303,37 @@ sensors:
 #          ip_port: 10940
 #          angle_min: -2.356
 #          angle_max: 2.356
-#  # Das Geraet ist ein RoboSense RS-LiDAR-16, montiert seit 2026-08.
-#  # NOCH NICHT AKTIV: parent/xyz/rpy sind ungemessen (R33 in
-#  # ROBOTER-TODO.md).  Einkommentieren erst mit echten Werten -- ein
-#  # geratener Montageort erzeugt eine TF, die plausibel aussieht und die
-#  # Hindernisse an die falsche Stelle legt.  Das sieht man am Bild nicht.
+#  # The device is a RoboSense RS-LiDAR-16, mounted since 2026-08.
+#  # NOT ACTIVE YET: parent/xyz/rpy are unmeasured (R33 in ROBOTER-TODO.md).
+#  # Uncomment only with real values -- a guessed mounting location produces a
+#  # TF that looks plausible and puts the obstacles in the wrong place.  You
+#  # cannot see that in the picture.
 #  #
-#  # WARUM 'velodyne_lidar' fuer ein RoboSense-Geraet: clearpath_config kennt
-#  # genau drei lidar3d-Modelle -- velodyne_lidar, ouster_os1, seyond_lidar
-#  # (nachgesehen 2026-08-22 in clearpath_config/sensors/types/lidars_3d.py,
-#  # Z. 162/247/359) und kein robosense.  Der Eintrag dient hier NUR als
-#  # Traeger fuer Link und Mesh, damit die Montagepose in DIESER Datei steht
-#  # (SSOT) und der Frame kanonisch 'lidar3d_0_laser' heisst -- derselbe Name,
-#  # den rslidar_sdk in jede PointCloud2 schreibt.
+#  # WHY 'velodyne_lidar' for a RoboSense device: clearpath_config knows exactly
+#  # three lidar3d models -- velodyne_lidar, ouster_os1, seyond_lidar (checked
+#  # 2026-08-22 in clearpath_config/sensors/types/lidars_3d.py, lines
+#  # 162/247/359) and no robosense.  The entry serves here ONLY as a carrier for
+#  # the link and the mesh, so that the mounting pose stands in THIS file (SSOT)
+#  # and the frame is canonically called 'lidar3d_0_laser' -- the same name
+#  # rslidar_sdk writes into every PointCloud2.
 #  #
-#  # launch_enabled: false ist deshalb PFLICHT, nicht Geschmack: sonst startet
-#  # Clearpath den velodyne_driver_node gegen ein Geraet, das kein Velodyne
-#  # ist -- die Paketformate von RS16 und VLP16 sind nicht kompatibel.  Der
-#  # Treiber ist rslidar_sdk und wird von robot/husky-navigation gestartet
-#  # (Konfiguration: config/rslidar_rs16.yaml, dieselbe Datei fuer Container
-#  # und Roboter).  Aus demselben Grund steht hier kein ros_parameters-Block.
+#  # launch_enabled: false is therefore MANDATORY, not taste: otherwise Clearpath
+#  # starts the velodyne_driver_node against a device that is not a Velodyne --
+#  # the packet formats of the RS16 and the VLP16 are not compatible.  The driver
+#  # is rslidar_sdk and is started by robot/husky-navigation (configuration:
+#  # config/rslidar_rs16.yaml, the same file for container and robot).  For the
+#  # same reason there is no ros_parameters block here.
 #  #
-#  # Das Mesh zeigt einen VLP16 (Ø103x72 mm) statt eines RS16 (Ø109x80 mm).
-#  # Fuer Kollision und Sichtpruefung nah genug; der Modellname bleibt
-#  # trotzdem falsch, und das ist der Preis dieses Wegs.
+#  # The mesh shows a VLP16 (Ø103x72 mm) instead of an RS16 (Ø109x80 mm).
+#  # Close enough for collision and visual checking; the model name stays wrong
+#  # nonetheless, and that is the price of this route.
 #  #
-#  # Entwurf und Begruendung:
+#  # Design and reasoning:
 #  # docs/superpowers/specs/2026-08-22-nav2-rs16-design.md
 #  lidar3d:
 #    - model: velodyne_lidar
 #      urdf_enabled: true
 #      launch_enabled: false
-#      parent: top_plate_rear_mount     # R33: zu MESSEN, nicht zu raten
+#      parent: top_plate_rear_mount     # R33: to be MEASURED, not guessed
 #      xyz: [0.0, 0.0, 0.0]             # R33
 #      rpy: [0.0, 0.0, 0.0]             # R33

@@ -5,86 +5,142 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
-## 2026-08-24 (Aufraeum-Eintraege raus)
+## 2026-08-24 (Prosa auf Englisch, Dateinamen nachgezogen)
 
-- **Der Installer raeumt keine Alt-Units mehr weg.** Die Migration auf das
+Reiner Prosa- und Namenslauf nach den Code-Stil-Regeln der Workspace-
+`CLAUDE.md` (Stand 2026-08-24). **Kein Verhalten geändert** — die einzigen
+Ausnahmen stehen unten unter „Sichtbar am Gerät".
+
+- **Kommentare und Docstrings sind englisch.** Betroffen sind alle vier
+  Python-Skripte, `wakeup.sh`, `shutdown.sh`, der Installer samt dem
+  eingebetteten `clearpath-custom-setup.py` und dem Watchdog-Wrapper sowie
+  die Kommentare in `robot.yaml`. Die deutsche Prosa bleibt, wo sie hingehört:
+  in `README.md` und in dieser Datei.
+- **`scripts/rg6_kennlinie.py` heißt jetzt `scripts/rg6_stroke_survey.py`.**
+  Der alte Name war der letzte deutsche Dateiname im Repo. Der Bericht
+  `docs/superpowers/reports/2026-08-19-rg6-kennlinie.md` und die dazugehörigen
+  Rohdaten behalten ihren Namen — sie sind eingefrorenes Protokoll. Der
+  Installer rollt das Skript nicht aus, die Umbenennung berührt also nichts
+  auf dem Roboter.
+- **Deutsche Bezeichner im Code sind fort:** die Schleifenvariablen `eintrag`
+  und `kandidat` im Installer heißen `entry` und `candidate`, die Zustände des
+  XML-RPC-Doppelgängers im Selbsttest der Brücke `phases`/`idle`/`moving`
+  statt `phasen`/`ruht`/`faehrt`.
+- **Umlaute stehen wieder ausgeschrieben** statt transliteriert: 90 Stellen in
+  dieser Datei, dazu die deutsche Prosa in `robot.yaml`, soweit sie nicht
+  ohnehin übersetzt wurde.
+- **Grabsteine sind raus.** Kommentare, die erzählten, was früher an einer
+  Stelle stand (der stillgelegte `rg6_control`, die abgeschaffte
+  `rg6-bringup`-Unit, das Patcher-Gate für die Analyzer), sagen jetzt nur noch
+  den Ist-Zustand; die Geschichte steht hier. Ebenso in der README, aus der
+  der Absatz „Bis zum 2026-08-19 stand das im Boot-Patcher" verschwunden ist.
+- **README:** englische Prosa in `Features`, `Tech Stack`, `Installation`,
+  dem Watchdog- und dem Drop-in-Abschnitt sowie in `Running Tests` und
+  `Related` ist deutsch geworden; die doppelte Einleitung vor `## Features`,
+  die Installation und Unit-Liste ein zweites Mal erzählte, ist zusammengezogen.
+  Der Selbsttest von `octomap_feed.py` ist in `Running Tests` nachgetragen.
+
+**Sichtbar am Gerät** — das ist der einzige Teil, der nicht reine Prosa ist:
+
+- Die Meldungen der Manipulator-Diagnose (`manipulator_diagnostics`) sind
+  englisch. In Cockpit steht also `arm switched off - gripper without supply`
+  statt „Arm ausgeschaltet – Greifer ohne Versorgung", und die Werte
+  `grip_detected`/`busy`/`moving` melden `unknown` statt `unbekannt` — damit
+  stehen sie in derselben Sprache wie ihre Nachbarn (`running`, `stopped`,
+  `live`, `dead`), die schon immer englisch waren. Die Tabellen in der README
+  zitieren die neuen Zeichenketten. Level, Struktur und `display=inactive`
+  sind unverändert.
+- Die Ausgaben von Installer, `wakeup.sh` und `shutdown.sh` sind englisch, wie
+  die `>>> `-Zeilen der Workspace-Skripte. Die Rückfragen heißen jetzt
+  `[y/N]` statt `[j/N]`; `j` wird weiterhin als Ja akzeptiert, damit eine
+  eingeübte Eingabe nicht ins Leere läuft.
+
+Gegengeprüft: `bash -n` über alle drei Shell-Skripte und den extrahierten
+Watchdog-Wrapper, `compile()` über den eingebetteten Patcher, `black --check`
+gegen die Root-Konfiguration über alle vier Python-Dateien, `yaml.safe_load`
+über `robot.yaml` und die drei Selbsttests (`manipulator_diagnostics`,
+`rg6_grip_bridge`, `octomap_feed`) — alle grün.
+
+## 2026-08-24 (Aufräum-Einträge raus)
+
+- **Der Installer räumt keine Alt-Units mehr weg.** Die Migration auf das
   `clearpath-custom-*`-Prefix und die abgeschafften Units sind auf a200-0553
-  durch, also traegt das Skript die Listen nicht laenger mit. Entfallen sind
-  `OLD_UNITS` (neun unpraefigierte Namen: `clearpath-set-update-rate`,
+  durch, also trägt das Skript die Listen nicht länger mit. Entfallen sind
+  `OLD_UNITS` (neun unpräfigierte Namen: `clearpath-set-update-rate`,
   `rg6-bringup`, `ur-dashboard`, `ur-state-manager`, `arm-controllers`,
   `joint-states`, `manipulators-watchdog.service`/`.timer`,
   `robot-yaml-update`), `RETIRED_UNITS` (`clearpath-custom-rg6-bringup`),
   `OLD_FILES` (`set-update-rate.py`, `wait-for-clearpath.sh`,
-  `rg6-bringup.sh`), `OLD_DIRS` (`joint-states.service.d`), das Wegraeumen
-  der `.bak`-Leichen sowie die beiden Einzelbloecke fuer
+  `rg6-bringup.sh`), `OLD_DIRS` (`joint-states.service.d`), das Wegräumen
+  der `.bak`-Leichen sowie die beiden Einzelblöcke für
   `clearpath-custom-arm-controllers` und
   `clearpath-custom-robot-yaml-update`. 88 Zeilen weniger.
 
-  Vorher am Roboter gegengeprueft (2026-08-24, rein lesend ueber SSH): alle
-  zwoelf Unit-Namen ohne Datei in `/etc/systemd/system`, ohne Eintrag in
-  `systemctl list-unit-files` und `is-active = inactive`; alle fuenf Wrapper
+  Vorher am Roboter gegengeprüft (2026-08-24, rein lesend über SSH): alle
+  zwölf Unit-Namen ohne Datei in `/etc/systemd/system`, ohne Eintrag in
+  `systemctl list-unit-files` und `is-active = inactive`; alle fünf Wrapper
   in `/usr/local/bin` fort; `/etc/systemd/system/joint-states.service.d`
   fort; keine `manipulators-watchdog.*.bak.*` und keine
   `clearpath-custom-rg6-bringup.service.bak*`. Was noch dort liegt, sind
   Backups AKTUELLER Artefakte (`clearpath-custom-ur-dashboard.service.bak.a2`,
   `clearpath-custom-setup.py.bak.a4`) -- die pflegt `prune_backups` weiter.
 
-  Damit faellt auch das Migrationsfenster weg: ein Installer-Lauf stoppt
+  Damit fällt auch das Migrationsfenster weg: ein Installer-Lauf stoppt
   keine Services mehr, bevor er die neuen schreibt. Wer eine Maschine mit
   altem Stand nachziehen muss, nimmt die Liste aus diesem Eintrag oder einen
   Checkout vor diesem Commit.
 
-- Kleinkram im selben Zug: die README beschrieb das Wegraeumen als laufendes
+- Kleinkram im selben Zug: die README beschrieb das Wegräumen als laufendes
   Verhalten, der Log-Hinweis `journalctl -t robot-yaml-update -b` zeigte auf
   einen abgeschafften Dienst, und drei Kommentare verwiesen auf das nun
-  geloeschte `RETIRED_UNITS`.
+  gelöschte `RETIRED_UNITS`.
 
 ## 2026-08-24 (Reste des Tool-DO-Greifers)
 
-- **Die Bruecke veroeffentlichte einen geschlossenen Greifer, wo sie gar
+- **Die Brücke veröffentlichte einen geschlossenen Greifer, wo sie gar
   nichts gemessen hatte.** Die URCap wirft keinen Fault, wenn am
   Tool-Anschluss nichts anliegt -- sie ANTWORTET, mit ihrem eigenen
-  Kennzeichen fuer "keine Messung": `rg_get_width -> -999.0`,
+  Kennzeichen für "keine Messung": `rg_get_width -> -999.0`,
   `rg_get_status -> -1`. Das lief durch `angle_from_width`, das die Weite
   KLEMMT statt zu extrapolieren, und kam als `1,25478 rad` heraus -- der
-  vollstaendig geschlossene Greifer. Am 2026-08-24 am a200-0553 gemessen,
+  vollständig geschlossene Greifer. Am 2026-08-24 am a200-0553 gemessen,
   Arm auf `POWER_OFF`: `rg6_finger_joint = 1,25478` mit 5 Hz auf
   `manipulators/endeffectors/joint_states`, vom Relay weiter auf
   `platform/joint_states` (in 8 s 34 Nachrichten) -- also in RSP, TF und der
   Planungsszene von `move_group`, bei stromlosem Greifer.
 - Ursache ist eine mit `rg6_control` weggefallene Sperre: der alte Treiber
   hatte die Totschwelle auf AI2/AI3 (`dead_input_threshold`), an ihre Stelle
-  trat nichts. Die Bruecke verliess sich darauf, dass ein toter Greifer eine
-  Exception wirft. Er wirft keine. `Rg6State.readable` prueft das jetzt
+  trat nichts. Die Brücke verliess sich darauf, dass ein toter Greifer eine
+  Exception wirft. Er wirft keine. `Rg6State.readable` prüft das jetzt
   (Status + Nennbereich); ist die Antwort keine Messung, bleibt das GELENK
   still -- der Zustandstopf geht weiter raus, damit die Manipulator-Diagnose
-  "Greifer stromlos" von "Bruecke tot" unterscheiden kann. Im Selbsttest
+  "Greifer stromlos" von "Brücke tot" unterscheiden kann. Im Selbsttest
   festgenagelt, mit den live gelesenen Werten.
-- **`clearpath-custom-joint-states.service` ordnete sich nach einer geloeschten
-  Unit.** `After=clearpath-custom-rg6-bringup.service` -- die raeumt derselbe
-  Installer 1100 Zeilen weiter oben weg. systemd traegt so einen Namen klaglos
-  mit (per `systemctl show` am Roboter bestaetigt), ordnet aber gegen nichts:
-  die Reihenfolge, die der Kommentarblock daneben ausfuehrlich begruendet, war
+- **`clearpath-custom-joint-states.service` ordnete sich nach einer gelöschten
+  Unit.** `After=clearpath-custom-rg6-bringup.service` -- die räumt derselbe
+  Installer 1100 Zeilen weiter oben weg. systemd trägt so einen Namen klaglos
+  mit (per `systemctl show` am Roboter bestätigt), ordnet aber gegen nichts:
+  die Reihenfolge, die der Kommentarblock daneben ausführlich begründet, war
   unbemerkt weg. Steht jetzt auf `clearpath-custom-rg6-grip-bridge.service`,
   der heutigen Greiferquelle -- und zwar in `After=` UND `PartOf=`: die
-  Bruecke startet fuer sich allein neu, und genau dann resubscribed der Relay
+  Brücke startet für sich allein neu, und genau dann resubscribed der Relay
   unter rmw_zenoh nicht.
 - **`rg6_msgs` wird nicht mehr gebaut.** Das Paket trug `GripperState` und
-  `Grip` fuer den Tool-DO-Treiber. Kein Paket deklariert es mehr als
-  Abhaengigkeit, kein Knoten baut den Typ; am Roboter gegengeprueft:
+  `Grip` für den Tool-DO-Treiber. Kein Paket deklariert es mehr als
+  Abhängigkeit, kein Knoten baut den Typ; am Roboter gegengeprüft:
   `<ns>/rg6/state` existiert nicht mehr, nur `rg6/bridge_state`.
   (Das Paket selbst liegt in `onrobot-rg6` und ist damit verwaist -- das zu
-  loeschen ist eine Entscheidung dort, nicht hier.)
-- `scripts/rg6_kennlinie.py` sagt jetzt, wofuer es noch da ist. Sein Kopf
-  begruendete sich mit der AI2-Kennlinie in `rg6_joint_state_broadcaster.cpp`
+  löschen ist eine Entscheidung dort, nicht hier.)
+- `scripts/rg6_kennlinie.py` sagt jetzt, wofür es noch da ist. Sein Kopf
+  begründete sich mit der AI2-Kennlinie in `rg6_joint_state_broadcaster.cpp`
   -- eine Datei, die es nicht mehr gibt -- und gab als Erholung aus einem
   festgefahrenen Greifer `set_tool_power` an, einen Service aus `rg6_control`.
   Offen ist an R19 nur noch der offene Anschlag (Modell 159 mm, Messschieber
-  ~151 mm), und dafuer braucht es AI2 nicht.
-- Kleinkram im selben Zug: die README zaehlte `clearpath-custom-rg6-bringup`
-  unter den Units auf, die der Installer ANLEGT (er loescht sie), und liess
-  die Bruecke weg; der Wrapper-Kommentar nannte `topic_tools`-Relays, obwohl
-  das Launch aus QoS-Gruenden ausdruecklich den eigenen `joint_state_relay`
+  ~151 mm), und dafür braucht es AI2 nicht.
+- Kleinkram im selben Zug: die README zählte `clearpath-custom-rg6-bringup`
+  unter den Units auf, die der Installer ANLEGT (er löscht sie), und liess
+  die Brücke weg; der Wrapper-Kommentar nannte `topic_tools`-Relays, obwohl
+  das Launch aus QoS-Gründen ausdrücklich den eigenen `joint_state_relay`
   nimmt.
 
 
@@ -113,14 +169,14 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   Checkout stand — genau das Muster, aus dem der `octomap_feed.py`-Drift in
   drei Fassungen entstanden ist (`min_depth` 0.15 vs. 0.35).
 
-  Beide Bloecke benutzen jetzt `repo_file`, das es seit dem RTDE-Recipe schon
+  Beide Blöcke benutzen jetzt `repo_file`, das es seit dem RTDE-Recipe schon
   richtig herum macht: neben dem Skript, dann `~/husky-custom-setup`, erst
-  danach das Netz. Ist die gefundene Datei **kein gueltiges Python**, wird sie
+  danach das Netz. Ist die gefundene Datei **kein gültiges Python**, wird sie
   verworfen und *nicht* still durch `main` ersetzt — ein kaputter Checkout soll
   auffallen.
 
 - **Neu: `--verify`.** Hasht die ausgerollten Kopien gegen den Checkout und
-  beendet sich; rein lesend, ohne root, ohne Netz. Diese Artefakte haengen an
+  beendet sich; rein lesend, ohne root, ohne Netz. Diese Artefakte hängen an
   keinem Git — dass sie inhaltlich passen, wusste man bis jetzt nur durch
   Hinsehen. Abgedeckt sind `octomap-feed`, `manipulator-diagnostics`,
   `rg6-grip-bridge`, `rg6_finger_kinematics.json`,
@@ -128,8 +184,8 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   onrobot-rg6-Workspace). Exit 0 = deckungsgleich, 1 = Abweichung.
 
   Am Roboter gefahren (2026-08-20): alle sechs Artefakte deckungsgleich mit dem
-  dortigen Checkout `464ed63`. Der Negativfall ist mitgeprueft — eine
-  hinzugefuegte Zeile in der Quelle wird als `ABWEICHUNG` mit Exit 1 gemeldet.
+  dortigen Checkout `464ed63`. Der Negativfall ist mitgeprüft — eine
+  hinzugefügte Zeile in der Quelle wird als `ABWEICHUNG` mit Exit 1 gemeldet.
 
 ### Patcher-Schritt 2 bleibt, und jetzt steht auch dabei warum
 - **`fix_realsense_mesh_uris` galt kurzzeitig als No-op und war es nie.** Die
@@ -137,7 +193,7 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   `clearpath_sensors_description` **2.9.8** selbst repariert; der Schritt kam
   deshalb am 2026-08-20 heraus und noch am selben Tag wieder herein.
 
-  Am Geraet nachgesehen, indem beide `.deb` ausgepackt und gelesen wurden:
+  Am Gerät nachgesehen, indem beide `.deb` ausgepackt und gelesen wurden:
 
   | Paket | Quelle | d415 / d435 / d455 / d456 |
   |---|---|---|
@@ -150,13 +206,13 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   Paket.
 
 - **Zwei naheliegende Proben taugen nicht als Beleg**, und beide sind an dem Tag
-  gefahren worden: „die URDF baut fehlerfrei" (xacro oeffnet nie ein Mesh —
-  selbst ein erfundenes `package://` laeuft mit Exit 0 durch) und „das Mesh ist
+  gefahren worden: „die URDF baut fehlerfrei" (xacro öffnet nie ein Mesh —
+  selbst ein erfundenes `package://` läuft mit Exit 0 durch) und „das Mesh ist
   in Foxglove sichtbar" (zeigt den Zustand *nach* dem letzten Patcherlauf; der
-  Patch ist persistent und bleibt stehen, bis dpkg ihn ueberbuegelt).
+  Patch ist persistent und bleibt stehen, bis dpkg ihn überbügelt).
   Entscheidend ist allein der Inhalt des `.deb`.
 
-- **Die Begruendung im Docstring war zudem falsch.** Nicht der
+- **Die Begründung im Docstring war zudem falsch.** Nicht der
   `resource_retriever` lehnt `file://` ab — der kann es —, sondern die
   `asset_uri_allowlist` der `foxglove_bridge`, die mit `^package://` beginnt.
   Per `fetchAsset` gemessen: `package://…/d435.dae` -> status 0, 15 782 439
@@ -179,7 +235,7 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   f-String-Interpolationen (unter Python 3.11 ist ein f-String EIN Token),
   die Parameternamen in `pytest.mark.parametrize` und Bezeichner, die
   quelltextlesende Tests als String erwarten.
-- Gegengemessen: `uv run pytest` steht unveraendert bei 2465 passed,
+- Gegengemessen: `uv run pytest` steht unverändert bei 2465 passed,
   3 skipped — derselbe Stand wie vor der Umbenennung.
 
 ## [Unreleased]
@@ -188,30 +244,30 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ### README-Greiferteil auf den Ist-Zustand
 - **Der Diagnose-Abschnitt der README stand noch vor der URCap-Uebergabe.** Er
-  nannte `rg6_msgs/GripperState` als Zustandsquelle, begruendete die
+  nannte `rg6_msgs/GripperState` als Zustandsquelle, begründete die
   Spannungsprobe mit `rg6_control` und dem `rg6_joint_state_broadcaster`, liess
-  den Wrapper den `onrobot-rg6`-Workspace fuer `rg6_msgs` sourcen und gab dem
+  den Wrapper den `onrobot-rg6`-Workspace für `rg6_msgs` sourcen und gab dem
   Bediener zweimal das Rezept `rg6_control/set_tool_power` + `open`.
 
-  Nichts davon existiert. Der schaerfste Fall: `manipulator_diagnostics.py`
-  prueft im Selbsttest ausdruecklich `assert "set_tool_power" not in
+  Nichts davon existiert. Der schärfste Fall: `manipulator_diagnostics.py`
+  prüft im Selbsttest ausdrücklich `assert "set_tool_power" not in
   dead_on.message, "der Service existiert nicht mehr"` -- der Code testete
   also aktiv gegen die Empfehlung, die die README gab. Jetzt steht dort, was
   gilt: Zustand als JSON auf `rg6/bridge_state`, Tool-Spannung als
   Versorgungsfrage (nicht als Weitenquelle, AI2 ist bis zu 17 mm falsch
   geeicht), und als Ausweg das URCap-Programm am Panel.
 - **`auto_recover` holt den Greifer nicht mit hoch.** Die README behauptete
-  das ueber die Programmflanke von `rg6_control`; die gibt es nicht mehr, und
+  das über die Programmflanke von `rg6_control`; die gibt es nicht mehr, und
   kein ROS-Service kann die Tool-Versorgung setzen.
-- **Historische Bezuege aus den Quellkommentaren entfernt** (`installer`,
+- **Historische Bezüge aus den Quellkommentaren entfernt** (`installer`,
   `manipulator_diagnostics.py`, `rg6_grip_bridge.py`): das wiederholte "seit
   dem rg6_control-Ruhestand" steht hier und muss nicht in jeder Datei noch
-  einmal erzaehlt werden. Die Begruendungen selbst sind geblieben, nur ohne
-  Vorgeschichte. Kommentare an **Aufraeumcode** (`RETIRED_UNITS`, das
-  Entfernen der abgeloesten Units) bleiben unveraendert -- dort *ist* die
+  einmal erzählt werden. Die Begründungen selbst sind geblieben, nur ohne
+  Vorgeschichte. Kommentare an **Aufräumcode** (`RETIRED_UNITS`, das
+  Entfernen der abgelösten Units) bleiben unverändert -- dort *ist* die
   Migration die Funktion.
 - Nebenbei korrigiert: der Build-Kommentar nannte `rg6_control` weiterhin
-  "Treiber/Broadcaster"; das Paket enthaelt heute den Simulations-Greifer, die
+  "Treiber/Broadcaster"; das Paket enthält heute den Simulations-Greifer, die
   joint_state-Hilfsnodes und `rg6_moveit_patch`.
 
 ### Boot-Patcher von 5 auf 3 Schritte
@@ -221,34 +277,34 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   AnalyzerGroup `Manipulator` mit `Arm` und `Gripper`. Der Generator merged sie
   in die erzeugte `diagnostic_aggregator.yaml` und flacht die Verschachtelung
   selbst auf die Punkt-Keys ab, die ROS erwartet. Im Container nachgemessen:
-  **alle 10 Analyzer-Keys wertgleich** zum frueheren Patch, die 20
+  **alle 10 Analyzer-Keys wertgleich** zum früheren Patch, die 20
   Upstream-`platform.analyzers.*` und die 8 Sensor-Keys unangetastet.
 
-  **Eine Kopplung entfaellt dabei:** `add_manipulator_analyzers` lief nur, wenn
+  **Eine Kopplung entfällt dabei:** `add_manipulator_analyzers` lief nur, wenn
   `clearpath-custom-manipulator-diagnostics.service` installiert war -- die
   Unit-Datei war der Feature-Schalter. `robot.yaml` kennt diese Bedingung
-  nicht. Laeuft der Diagnose-Node nicht, zeigt Cockpit die Gruppe jetzt als
-  STALE, statt sie verschwinden zu lassen; Rueckbau = Block entfernen.
+  nicht. Läuft der Diagnose-Node nicht, zeigt Cockpit die Gruppe jetzt als
+  STALE, statt sie verschwinden zu lassen; Rückbau = Block entfernen.
 - **Die foxglove-Allowlist auch -- der Trick ist eine backslash-freie Regex.**
   Bisher galt der Patch als unverschiebbar, und der Grund stimmte: der
   `ParamWriter` des Generators schreibt Skalare korrekt in Single-Quotes,
-  serialisiert **Listen** aber ueber Pythons `repr` und verdoppelt dabei jeden
-  Backslash. YAML-Single-Quotes lesen ihn literal zurueck, aus `\w` wird ein
+  serialisiert **Listen** aber über Pythons `repr` und verdoppelt dabei jeden
+  Backslash. YAML-Single-Quotes lesen ihn literal zurück, aus `\w` wird ein
   totes Muster. Gemessen: die generierte `foxglove_bridge.yaml` ist dadurch
   **im Auslieferungszustand kaputt** -- ihre Allowlist matcht keine einzige
   `package://`-URI, gepatcht oder nicht.
 
-  **Der Node-Default waere in Ordnung -- er kommt nur nie zum Zug.** Am
+  **Der Node-Default wäre in Ordnung -- er kommt nur nie zum Zug.** Am
   laufenden `foxglove_bridge` gemessen (`ros2 param get`): ohne jede Config
   meldet er `^package://(?:[-\w%]+/)*[-\w%.]+\.(...)$`, also die korrekte
   Fassung. Clearpaths Vorlage
   (`clearpath_diagnostics/config/foxglove_bridge.yaml`) **setzt** den Parameter
   aber immer, und ein gesetzter Parameter verdeckt den Default; mit der
   generierten Datei sieht der Node `[-\\w%]`. Weglassen ginge nur, wenn der
-  Schluessel gar nicht generiert wuerde -- `ros_parameters` kann nur
-  ueberschreiben, nicht loeschen. Dieser Eintrag ist also weder Dublette noch
-  zusaetzliche Einschraenkung, sondern stellt her, was ohne den Writer-Bug
-  ohnehin gaelte.
+  Schlüssel gar nicht generiert würde -- `ros_parameters` kann nur
+  überschreiben, nicht löschen. Dieser Eintrag ist also weder Dublette noch
+  zusätzliche Einschränkung, sondern stellt her, was ohne den Writer-Bug
+  ohnehin gälte.
 
   **Ein Generator-Upgrade hilft nicht.** Am neuesten Upstream-Tag 2.9.15
   nachgesehen (sieben Releases nach unserer 2.9.8, `jazzy`-HEAD identisch):
@@ -258,8 +314,8 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   ein Dauerzustand, kein Uebergangs-Workaround.
 
   Der Ausweg braucht keinen Backslash: `[A-Za-z0-9_]` statt `\w`, `[.]` statt
-  `\.`. Der Wert geht dann unveraendert durch den Writer. Belegt gegen die
-  echte Engine -- `foxglove_bridge` haelt die Muster als
+  `\.`. Der Wert geht dann unverändert durch den Writer. Belegt gegen die
+  echte Engine -- `foxglove_bridge` hält die Muster als
   `std::vector<std::regex>` und vergleicht mit `std::regex_match`
   (`utils.hpp::isWhitelisted`): auf einem Korpus aus 14 Treffern und
   Nicht-Treffern **null Divergenzen** zur korrekten `\w`-Fassung, inklusive
@@ -271,14 +327,14 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   `MANIPULATOR_UNIT_FILE`, `MANIPULATOR_STATUS_PREFIX` und der ungenutzte
   `tempfile`-Import entfallen. Was bleibt, patcht **apt-Pakete** (dort hat
   `robot.yaml` prinzipiell keinen Hebel) oder die SRDF.
-- Die Wache vor dem einmaligen Patcher-Lauf im Installer haengt jetzt an
+- Die Wache vor dem einmaligen Patcher-Lauf im Installer hängt jetzt an
   `robot.yaml` statt an der generierten `foxglove_bridge.yaml` -- die patcht er
   ja nicht mehr. Die verbliebenen Schritte sind einzeln gegen fehlende Dateien
   abgesichert.
 
 ### MoveIt-Greiferwerte in robot.yaml
 
-- **`robot.yaml` traegt den GripperCommand-Controller des RG6.** Neu unter
+- **`robot.yaml` trägt den GripperCommand-Controller des RG6.** Neu unter
   `manipulators.moveit.ros_parameters.move_group`: der
   `moveit_simple_controller_manager`-Eintrag
   `manipulators/rg6_gripper_controller` (Typ `GripperCommand`, `action_ns`
@@ -286,19 +342,19 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   `robot_description_planning.joint_limits.rg6_finger_joint` (TOTG braucht ein
   Beschleunigungslimit, sonst scheitert die Zeitparametrierung der
   gripper-Gruppe). Beides stand bisher im `rg6_moveit_patch` und wurde nach
-  jeder Generierung nachtraeglich in die erzeugte `moveit.yaml` geschrieben.
+  jeder Generierung nachträglich in die erzeugte `moveit.yaml` geschrieben.
   Im Container nachgemessen: das Ergebnis ist identisch bis auf die
   Reihenfolge in `controller_names`. Derselbe Weg, den 2026-07-29 schon die
   Occupancy-Map-Parameter genommen haben (A4).
 
-  Zwei Dinge, die man dabei wissen muss: `merge_dict` **verlaengert Listen**,
+  Zwei Dinge, die man dabei wissen muss: `merge_dict` **verlängert Listen**,
   statt sie zu ersetzen -- in `controller_names` darf deshalb nur *unser*
-  Controller stehen, der Arm-Controller kaeme sonst doppelt. Und weil
+  Controller stehen, der Arm-Controller käme sonst doppelt. Und weil
   `clearpath-robot-check` `robot.yaml` per md5 im Sekundentakt beobachtet,
   startet diese Aenderung am Roboter den kompletten Stack neu.
 - **Der Installer-Schritt 4 patcht nur noch die SRDF.** Kommentar und
   Docstring von `run_rg6_moveit_patch` sagen jetzt, warum die SRDF den Umweg
-  ueber das Tool braucht und die `moveit.yaml` nicht: `clearpath_config` kennt
+  über das Tool braucht und die `moveit.yaml` nicht: `clearpath_config` kennt
   das Wort `srdf` nicht, und der Greifer-Enum hat keinen RG6.
 
 - **Der Roboter braucht `robot_contract` nicht mehr.** Die Greiferbrücke

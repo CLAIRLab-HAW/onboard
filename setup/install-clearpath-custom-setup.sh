@@ -1,57 +1,62 @@
 #!/usr/bin/env bash
 #
-# All-in-One Installer für das Clearpath a200-0553 Custom-Setup + OnRobot RG6.
+# All-in-one installer for the Clearpath a200-0553 custom setup + OnRobot RG6.
 #
-# Macht in einem Rutsch:
-#   - Boot-Service clearpath-custom-setup: patcht bei JEDEM Boot die generierten
-#     Configs (foxglove asset_uri_allowlist, realsense mesh uris)
-#   - UDEV-Regeln (/etc/udev/rules.d/99-husky.rules), netplan (/etc/netplan/01-netcfg.yaml),
-#     systemd-networkd deaktivieren (NetworkManager)
-#   - optional: GRUB-Boot beschleunigen (Menü verstecken, GRUB_TIMEOUT=0)
-#   - optional: UR-Kinematik-Kalibrierung (ros-jazzy-ur-calibration -> YAML;
-#     robot.yaml-Pfad muss man selbst eintragen)
-#   - onrobot-rg6 per git klonen + bauen (colcon)
-#   - clearpath-custom-rg6-grip-bridge.service: kommandiert den RG6 per XML-RPC an die
-#     OnRobot-URCap und publiziert Fingergelenk + Greiferzustand (löst rg6-bringup ab,
-#     das seit dem RTDE-Recipe-Split nichts mehr bewirken konnte)
-#   - optional: clearpath-custom-ur-dashboard.service: startet den ur_robot_driver dashboard_client
-#     (power_on/brake_release/unlock_protective_stop/restart_safety) beim Boot
-#   - optional: clearpath-custom-ur-state-manager.service: klont+baut ur-state-manager und startet
-#     den State-Manager (prepare/recover/ensure_ready/power_off) beim Boot
-#     (inkl. Extra-Controller --inactive + ur_controller_mode_manager -- seit 2026-07-29
-#     Teil desselben Launch, keine eigene arm-controllers-Unit mehr)
-#   - optional: clearpath-custom-manipulators-watchdog.timer: startet clearpath-manipulators.service
-#     neu, wenn der Arm erst LANGE nach dem Boot bestromt wird (ros2_control retryt
-#     die einmalig gescheiterte HW-Aktivierung nicht -> Treiber bleibt tot). Prüft
-#     "Arm pingbar, aber robot_program_running publisht nicht" und startet EINMAL neu.
-#   - robot.yaml: Repo klonen und /etc/clearpath/robot.yaml als SYMLINK darauf setzen
-#     (offizieller Clearpath-Weg). Seit 2026-07-29 statt des Boot-Downloads: keine
-#     Netzabhängigkeit im Bootpfad, reproduzierbar, und ein 'git pull' wirkt sofort
-#     (clearpath-robot-check md5summt die Datei im Sekundentakt).
+# Does all of this in one go:
+#   - boot service clearpath-custom-setup: patches the generated configs on
+#     EVERY boot (foxglove asset_uri_allowlist, realsense mesh uris)
+#   - udev rules (/etc/udev/rules.d/99-husky.rules), netplan (/etc/netplan/01-netcfg.yaml),
+#     disable systemd-networkd (NetworkManager)
+#   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
+#   - optional: UR kinematics calibration (ros-jazzy-ur-calibration -> YAML;
+#     the robot.yaml path has to be entered by hand)
+#   - clone + build onrobot-rg6 via git (colcon)
+#   - clearpath-custom-rg6-grip-bridge.service: commands the RG6 over XML-RPC to
+#     the OnRobot URCap and publishes the finger joint plus the gripper state
+#   - optional: clearpath-custom-ur-dashboard.service: starts the ur_robot_driver
+#     dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
+#     at boot
+#   - optional: clearpath-custom-ur-state-manager.service: clones + builds
+#     ur-state-manager and starts the state manager
+#     (prepare/recover/ensure_ready/power_off) at boot
+#     (including the extra controller --inactive + ur_controller_mode_manager --
+#     part of the same launch, no separate arm-controllers unit)
+#   - optional: clearpath-custom-manipulators-watchdog.timer: restarts
+#     clearpath-manipulators.service when the arm is powered up LONG after the
+#     boot (ros2_control does not retry the HW activation that failed once ->
+#     the driver stays dead). It checks for "arm pingable, but
+#     robot_program_running does not publish" and restarts ONCE.
+#   - robot.yaml: clone the repo and point /etc/clearpath/robot.yaml at it as a
+#     SYMLINK (the official Clearpath way). No network dependency in the boot
+#     path, reproducible, and a 'git pull' takes effect immediately
+#     (clearpath-robot-check md5sums the file every second).
 #
-# Hinweis robot.yaml: Das Repo ist die Single Source of Truth, /etc/clearpath/robot.yaml
-#   ist ein SYMLINK darauf. Änderungen also im Repo-Klon pflegen - sie wirken sofort
-#   (clearpath-robot-check startet den Stack bei Inhaltsänderung neu).
+# Note on robot.yaml: the repo is the single source of truth,
+#   /etc/clearpath/robot.yaml is a SYMLINK onto it. So maintain changes in the
+#   repo clone - they take effect immediately (clearpath-robot-check restarts
+#   the stack when the content changes).
 #
-# Aufruf (sudo wird bei Bedarf geholt):
-#   1) unten RG6_REPO_URL setzen
-#   2) bash install-clearpath-custom-setup.sh         # interaktiv (fragt bei bereits
-#                                                       aktiven/abweichenden Änderungen)
-#      bash install-clearpath-custom-setup.sh -y      # alle Rückfragen mit "ja"
-#      bash install-clearpath-custom-setup.sh --verify # NUR prüfen: hasht die
-#                                                        ausgerollten Kopien gegen
-#                                                        den Checkout, ändert
-#                                                        nichts, braucht kein root
+# Invocation (sudo is acquired when needed):
+#   1) set RG6_REPO_URL below
+#   2) bash install-clearpath-custom-setup.sh         # interactive (asks when
+#                                                       changes are already
+#                                                       active or differ)
+#      bash install-clearpath-custom-setup.sh -y      # answer every question with "yes"
+#      bash install-clearpath-custom-setup.sh --verify # ONLY check: hashes the
+#                                                        rolled-out copies
+#                                                        against the checkout,
+#                                                        changes nothing, needs
+#                                                        no root
 #
-# Idempotent: beliebig oft ausführbar.
+# Idempotent: runnable any number of times.
 
 set -euo pipefail
 
-# ---- Konfiguration ---------------------------------------------------------
+# ---- configuration ---------------------------------------------------------
 RG6_REPO_URL="https://github.com/CLAIRLab-HAW/onrobot-rg6.git"
 USM_REPO_URL="https://github.com/CLAIRLab-HAW/ur-state-manager.git"
-# UR-Control-Box + manipulators-Namespace: EINE Quelle für Dashboard, Watchdog
-# und Kalibrierung (Sektions-Variablen unten leiten sich hieraus ab).
+# UR control box + manipulators namespace: ONE source for dashboard, watchdog
+# and calibration (the section variables below derive from these).
 ARM_ROBOT_IP="192.168.131.40"
 MANIP_NS="/a200_0553/manipulators"
 BIN_DIR="/usr/local/bin"
@@ -59,93 +64,95 @@ PY_PATH="${BIN_DIR}/clearpath-custom-setup.py"
 UNIT_NAME="clearpath-custom-setup.service"
 UNIT_PATH="/etc/systemd/system/${UNIT_NAME}"
 
-# RG6-Greifer-Brücke: kommandiert den Greifer per XML-RPC an die OnRobot-URCap
-# (Block weiter unten).  Die NAMEN stehen hier oben, weil die Diagnose-Unit sie
-# in ihrem After= braucht und weiter oben geschrieben wird -- unter 'set -u'
-# wäre eine spätere Definition ein Abbruch, kein leeres Feld.
+# RG6 gripper bridge: commands the gripper over XML-RPC to the OnRobot URCap
+# (block further down).  The NAMES sit up here because the diagnostics unit
+# needs them in its After= and is written further up -- under 'set -u' a later
+# definition would be an abort, not an empty field.
 RG6_BRIDGE_BIN="${BIN_DIR}/rg6-grip-bridge"
 RG6_BRIDGE_WRAPPER="${BIN_DIR}/rg6-grip-bridge-wrapper"
 RG6_BRIDGE_UNIT="clearpath-custom-rg6-grip-bridge.service"
 RG6_BRIDGE_UNIT_PATH="/etc/systemd/system/${RG6_BRIDGE_UNIT}"
-# Root-eigene Kopie des rg6_moveit_patch-Tools (siehe Kopier-Schritt nach dem
-# rg6-Build). Der Boot-Service clearpath-custom-setup (root) ruft NUR diese
-# Kopie auf - nie direkt den user-schreibbaren Workspace.
+# Root-owned copy of the rg6_moveit_patch tool (see the copy step after the
+# rg6 build). The boot service clearpath-custom-setup (root) calls ONLY this
+# copy - never the user-writable workspace directly.
 RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
 
-# Octomap-Feed (Schritt 2 der HRL-Hindernis-Architektur): gedrosselte
-# Depth->PointCloud2-Quelle für MoveIts Occupancy Map Monitor, damit
-# move_group auch UNGETRACKTEN Hindernissen ausweicht (dichte Voxel-Schicht;
-# die objekt-basierten Boxen von der Workstation bleiben für Task-Objekte + Twin).
-# Kanonische Quelle im Repo (scripts/octomap_feed.py, SSOT wie robot.yaml);
-# root-eigene Kopie unter /usr/local/bin, gestartet vom Boot-Service. Die
-# move_group-Sensorparameter setzt der Boot-Patcher (Schritt 5) NUR, wenn
-# die Unit-Datei existiert.  Die Quelle löst repo_file auf (Checkout vor
-# GitHub-main, s. dort) -- deshalb steht hier keine URL mehr.
+# Octomap feed (step 2 of the HRL obstacle architecture): throttled
+# depth->PointCloud2 source for MoveIt's occupancy map monitor, so that
+# move_group also avoids UNTRACKED obstacles (the dense voxel layer; the
+# object-based boxes from the workstation stay for task objects + twin).
+# The canonical source is in the repo (scripts/octomap_feed.py, SSOT like
+# robot.yaml); a root-owned copy sits under /usr/local/bin, started by the boot
+# service.  repo_file resolves the source (checkout before GitHub main, see
+# there) -- which is why no URL stands here.
 OCTO_FEED_BIN="${BIN_DIR}/octomap-feed"
 OCTO_WRAPPER="${BIN_DIR}/octomap-feed.sh"
 OCTO_UNIT="clearpath-custom-octomap-feed.service"
 OCTO_UNIT_PATH="/etc/systemd/system/${OCTO_UNIT}"
 
-# Manipulator-Diagnose: übersetzt UR-Mode/Safety/ExternalControl und den
-# RG6-Zustand in diagnostic_msgs und publiziert sie auf dem /diagnostics-Topic,
-# das der Clearpath-diagnostic_aggregator abonniert. Erst damit taucht der
-# Manipulator überhaupt in diagnostics_agg auf -- also in Cockpit,
-# rqt_robot_monitor und im Diagnose-Capture. Den passenden Analyzer-Block
-# trägt der Boot-Patcher (Schritt 6) ein, NUR wenn diese Unit existiert.
-# Quelle wie beim Octomap-Feed über repo_file (Checkout vor GitHub-main).
+# Manipulator diagnostics: translates UR mode/safety/external control and the
+# RG6 state into diagnostic_msgs and publishes them on the /diagnostics topic
+# the Clearpath diagnostic_aggregator subscribes to. Only with this does the
+# manipulator appear in diagnostics_agg at all -- so in Cockpit,
+# rqt_robot_monitor and the diagnostics capture. The matching analyzer block
+# comes from robot.yaml.
+# The source resolves through repo_file as for the octomap feed (checkout
+# before GitHub main).
 MD_BIN="${BIN_DIR}/manipulator-diagnostics"
 MD_WRAPPER="${BIN_DIR}/manipulator-diagnostics.sh"
 MD_UNIT="clearpath-custom-manipulator-diagnostics.service"
 MD_UNIT_PATH="/etc/systemd/system/${MD_UNIT}"
 
-# Cockpit-Plugin (Fork von clearpathrobotics/cockpit-ros2-diagnostics mit dem
-# Manipulator-Panel). Cockpit sucht Pakete in dieser Reihenfolge:
+# Cockpit plugin (fork of clearpathrobotics/cockpit-ros2-diagnostics with the
+# manipulator panel). Cockpit searches packages in this order:
 # ~/.local/share/cockpit, /etc/cockpit, /usr/local/share/cockpit,
-# /usr/share/cockpit -- der Fork unter /usr/local überdeckt also das
-# apt-Paket unter /usr/share, ohne es anzufassen. Deinstallation =
-# Verzeichnis löschen, dann ist das Original wieder aktiv (kein apt nötig).
-# Der Verzeichnisname MUSS 'ros2-diagnostics' sein (package.json "name"), sonst
-# überdeckt er nicht, sondern erscheint als zweiter Menüpunkt.
+# /usr/share/cockpit -- so the fork under /usr/local shadows the apt package
+# under /usr/share without touching it. Uninstalling = delete the directory,
+# then the original is active again (no apt needed).
+# The directory name MUST be 'ros2-diagnostics' (package.json "name"),
+# otherwise it does not shadow but appears as a second menu entry.
 CKPT_REPO_URL="https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics.git"
 CKPT_PKG_DIR="/usr/local/share/cockpit/ros2-diagnostics"
 
-# UR dashboard_client: Clearpath startet ihn im headless-Setup NICHT mit, liefert
-# aber power_on/brake_release/unlock_protective_stop/restart_safety/get_*_mode.
-# Kein Build nötig (kommt aus ros-jazzy-ur-robot-driver). robot_ip = UR-Control-Box.
+# UR dashboard_client: Clearpath does NOT start it in the headless setup, but
+# it provides power_on/brake_release/unlock_protective_stop/restart_safety/get_*_mode.
+# No build needed (comes from ros-jazzy-ur-robot-driver). robot_ip = UR control box.
 UR_DASH_WRAPPER="${BIN_DIR}/ur-dashboard.sh"
 UR_DASH_UNIT="clearpath-custom-ur-dashboard.service"
 UR_DASH_UNIT_PATH="/etc/systemd/system/${UR_DASH_UNIT}"
 UR_DASH_NS="${MANIP_NS}"
 UR_DASH_ROBOT_IP="${ARM_ROBOT_IP}"
 
-# ur-state-manager: prepare/recover/ensure_ready/power_off-Services für den Arm.
-# Wird (wie onrobot-rg6) geklont+gebaut und per Boot-Service gestartet. Braucht den
-# dashboard_client (clearpath-custom-ur-dashboard.service) -> startet das Launch mit start_dashboard_client:=false.
+# ur-state-manager: prepare/recover/ensure_ready/power_off services for the arm.
+# Cloned + built (like onrobot-rg6) and started by a boot service. Needs the
+# dashboard_client (clearpath-custom-ur-dashboard.service) -> starts the launch with start_dashboard_client:=false.
 USM_WRAPPER="${BIN_DIR}/ur-state-manager.sh"
 USM_UNIT="clearpath-custom-ur-state-manager.service"
 USM_UNIT_PATH="/etc/systemd/system/${USM_UNIT}"
 
-# joint-states (Phase 2): robot-weiter joint_state_aggregator (/a200_0553/joint_states)
-# + Relays der sauberen Arm-/Greifer-Quell-Topics zurück auf den platform/joint_states-
-# Bus (für RSP + move_group). Nutzt den onrobot-rg6-Workspace (rg6_control
-# joint_states.launch.py), kein eigener Build.
+# joint-states (phase 2): robot-wide joint_state_aggregator (/a200_0553/joint_states)
+# plus relays of the clean arm/gripper source topics back onto the
+# platform/joint_states bus (for RSP + move_group). Uses the onrobot-rg6
+# workspace (rg6_control joint_states.launch.py), no build of its own.
 JS_WRAPPER="${BIN_DIR}/joint-states.sh"
 JS_UNIT="clearpath-custom-joint-states.service"
 JS_UNIT_PATH="/etc/systemd/system/${JS_UNIT}"
 
-# manipulators-watchdog: deckt ZWEI Lücken ab, die auf ROS-Ebene NICHT lösbar sind.
-#  (a) Wird der UR erst LANGE NACH dem Boot bestromt, scheitert die einmalige
-#      ros2_control-HW-Aktivierung des ur_robot_driver (Arm war stromlos) - und
-#      ros2_control retryt sie NICHT. Folge: JSC stumm, Arm bleibt "Stopped".
-#  (b) clearpath-robot.service-Restart bei schon bestromtem Arm: alte ExternalControl-
-#      Instanz hält das Reverse-Socket, neue HW-Aktivierung schlägt fehl -> JSC
-#      stumm -> Arm in RViz flach. (robot_program_running allein ist KEIN Health-Signal:
-#      controller-seitig, bleibt 'true' bei totem PC-Motion-Link.)
-# Health-Signal ist daher der joint_state_broadcaster-Stream (.../manipulators/
-# joint_states). Dieser Timer erkennt "Arm pingbar, aber JSC stumm" und startet
-# clearpath-manipulators.service EINMAL neu (mit Cooldown gegen Schleifen). Zusätzlich
-# legt ein SIGINT-Stop-Drop-in auf clearpath-manipulators.service Ros-Graceful-Shutdown
-# statt SIGTERM-Ignore (90s Zombie mit Socket-Kollision) fest.
+# manipulators watchdog: covers TWO gaps that are NOT solvable at the ROS level.
+#  (a) If the UR is powered up LONG AFTER the boot, the one-shot ros2_control HW
+#      activation of the ur_robot_driver fails (the arm was unpowered) - and
+#      ros2_control does NOT retry it. Result: JSC silent, arm stays "Stopped".
+#  (b) A clearpath-robot.service restart with the arm already powered: the old
+#      external control instance holds the reverse socket, the new HW activation
+#      fails -> JSC silent -> the arm goes flat in RViz. (robot_program_running
+#      alone is NOT a health signal: it is controller side and stays 'true' with
+#      a dead PC-side motion link.)
+# The health signal is therefore the joint_state_broadcaster stream
+# (.../manipulators/joint_states). This timer detects "arm pingable, but JSC
+# silent" and restarts clearpath-manipulators.service ONCE (with a cooldown
+# against loops). In addition a SIGINT stop drop-in on
+# clearpath-manipulators.service pins a graceful ROS shutdown instead of the
+# SIGTERM ignore (a 90 s zombie with a socket collision).
 WD_WRAPPER="${BIN_DIR}/manipulators-watchdog.sh"
 WD_UNIT="clearpath-custom-manipulators-watchdog.service"
 WD_UNIT_PATH="/etc/systemd/system/${WD_UNIT}"
@@ -153,24 +160,23 @@ WD_TIMER="clearpath-custom-manipulators-watchdog.timer"
 WD_TIMER_PATH="/etc/systemd/system/${WD_TIMER}"
 WD_ROBOT_IP="${ARM_ROBOT_IP}"
 WD_PROGRAM_TOPIC="${MANIP_NS}/io_and_status_controller/robot_program_running"
-# SIGINT-Stop-Drop-in für clearpath-manipulators.service (sauberes Treiber-Shutdown,
-# siehe Skript-Kommentar). Drop-in überlebt Clearpath-Package-Updates (layert über
-# /usr/lib/systemd/system/clearpath-manipulators.service).
+# SIGINT stop drop-in for clearpath-manipulators.service (a clean driver
+# shutdown, see the script comment). The drop-in survives Clearpath package
+# updates (it layers over /usr/lib/systemd/system/clearpath-manipulators.service).
 WD_MANIP_DROPIN_DIR="/etc/systemd/system/clearpath-manipulators.service.d"
 WD_MANIP_DROPIN="${WD_MANIP_DROPIN_DIR}/override.conf"
 
-# robot.yaml: Das Git-Repo ist die Single Source of Truth. Beim Boot wird die
-# robot.yaml VOR der Config-Generierung (clearpath-robot.service) aus dem Repo
-# nachgezogen. Ohne Netz/bei Fehler bleibt die vorhandene Datei erhalten.
+# robot.yaml: the git repo is the single source of truth. /etc/clearpath/robot.yaml
+# is a symlink onto the clone, so a 'git pull' takes effect immediately.
 SETUP_REPO_URL="https://github.com/CLAIRLab-HAW/husky-custom-setup.git"
 ROBOT_YAML_PATH="/etc/clearpath/robot.yaml"
 # ---------------------------------------------------------------------------
 
-# --- Argumente -------------------------------------------------------------
-#   -y/--yes   beantwortet alle Rückfragen mit "ja"
-#   --verify   hasht die ausgerollten Artefakte gegen den Checkout und BEENDET.
-#              Rein lesend -- deshalb VOR dem root-Reexec ausgewertet, damit ein
-#              Nachsehen nicht nach sudo fragt.
+# --- arguments -------------------------------------------------------------
+#   -y/--yes   answers every question with "yes"
+#   --verify   hashes the rolled-out artefacts against the checkout and EXITS.
+#              Read only -- hence evaluated BEFORE the root re-exec, so that a
+#              quick look does not ask for sudo.
 ASSUME_YES=0
 DO_VERIFY=0
 for _a in "$@"; do
@@ -180,65 +186,65 @@ for _a in "$@"; do
     esac
 done
 
-# root braucht nur der Ausroll-Lauf, --verify nicht.
+# Only the roll-out run needs root, --verify does not.
 if [ "$DO_VERIFY" -eq 0 ] && [ "$(id -u)" -ne 0 ]; then
-    echo "Benoetige root-Rechte - starte via sudo neu ..."
+    echo "Need root privileges - restarting via sudo ..."
     exec sudo -- bash "$0" "$@"
 fi
 
-# confirm "Frage" -> 0 (ja) / 1 (nein).
-#   -y           -> immer ja
-#   keine Konsole -> nein (nicht-interaktiv, nichts überschreiben) -> hängt NICHT
-#   Timeout 60 s -> nein (verhindert Endlos-Warten)
-# Prompt geht bewusst direkt auf /dev/tty (sichtbar!), nicht nach stderr.
+# confirm "question" -> 0 (yes) / 1 (no).
+#   -y            -> always yes
+#   no console    -> no (non-interactive, overwrite nothing) -> does NOT hang
+#   timeout 60 s  -> no (prevents waiting forever)
+# The prompt deliberately goes straight to /dev/tty (visible!), not to stderr.
 confirm() {
     local _ans
     [ "$ASSUME_YES" -eq 1 ] && return 0
-    # /dev/tty wirklich öffenbar? (öffnen testen, nicht nur Permissions)
+    # Is /dev/tty really openable? (test the open, not just the permissions)
     if ! { true < /dev/tty; } 2>/dev/null; then
-        echo "    (keine interaktive Konsole -> übersprungen; mit -y erzwingen)"
+        echo "    (no interactive console -> skipped; force it with -y)"
         return 1
     fi
-    printf '%s [j/N] ' "$1" > /dev/tty
+    printf '%s [y/N] ' "$1" > /dev/tty
     if ! read -r -t 60 _ans < /dev/tty; then
-        printf '\n    (keine Eingabe/Timeout -> übersprungen)\n' > /dev/tty
+        printf '\n    (no input/timeout -> skipped)\n' > /dev/tty
         return 1
     fi
     case "$_ans" in [jJyY]*) return 0 ;; *) return 1 ;; esac
 }
 
-# Timestamp-Backups ("<datei>.bak.<zeitstempel>") rotieren: nur die KEEP neuesten
-# behalten (Default 5). Nie fatal (leeres Glob etc.) -> set -e-sicher.
+# Rotate timestamped backups ("<file>.bak.<timestamp>"): keep only the KEEP
+# newest ones (default 5). Never fatal (empty glob etc.) -> safe under set -e.
 prune_backups() {
     local file="$1" keep="${2:-5}"
     ls -1t "${file}".bak.* 2>/dev/null | tail -n "+$((keep + 1))" | xargs -r rm -f -- || true
 }
 
-# Realer Nutzer (für den Workspace-Build), nicht root:
+# The real user (for the workspace build), not root:
 REAL_USER="${SUDO_USER:-robot}"
 USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
 RG6_WS="${USER_HOME}/onrobot-rg6"
 USM_WS="${USER_HOME}/ur-state-manager"
-SETUP_WS="${USER_HOME}/husky-custom-setup"   # versionierte robot.yaml (Symlink-Ziel)
+SETUP_WS="${USER_HOME}/husky-custom-setup"   # versioned robot.yaml (symlink target)
 
-# Eine Datei DIESES Repos finden.  Der Installer läuft NICHT zwingend aus dem
-# Checkout -- er wird standalone aufgerufen, dann ist "$(dirname "$0")" ein
-# beliebiges Verzeichnis und jede Annahme "die Datei liegt neben mir" fällt um.
-# Am 2026-08-19 genau daran gescheitert: install(1) bekam Quelle == Ziel und
-# brach mit "are the same file" ab, und weil set -e gilt, starb der ganze Lauf
-# mitten im Ausrollen.
+# Find a file of THIS repo.  The installer does NOT necessarily run out of the
+# checkout -- it is called standalone, and then "$(dirname "$0")" is an
+# arbitrary directory and every assumption "the file lies next to me" collapses.
+# That is exactly what failed on 2026-08-19: install(1) got source == target and
+# aborted with "are the same file", and because set -e applies, the whole run
+# died in the middle of the roll-out.
 #
-# Reihenfolge: neben dem Skript, dann der Klon, den der Installer für die
-# robot.yaml ohnehin pflegt (SETUP_WS, s. o.), erst danach das Netz.  Lokal VOR
-# GitHub, sonst überschreibt main still einen ausgecheckten Stand -- das ist
-# ROBOTER-TODO R6.  Gibt den Pfad auf stdout aus; Rückgabe != 0 heißt
-# "nirgends gefunden", und der Aufrufer entscheidet, ob das ein WARN oder ein
-# Abbruch ist.  Abbrechen tut hier NIEMAND.
+# Order: next to the script, then the clone the installer maintains for
+# robot.yaml anyway (SETUP_WS, see above), and only after that the network.
+# Local BEFORE GitHub, otherwise main silently overwrites a checked-out state --
+# that is ROBOTER-TODO R6.  Prints the path on stdout; a return != 0 means "not
+# found anywhere", and the caller decides whether that is a warning or an abort.
+# NOBODY aborts here.
 repo_file() {
-    local rel="$1" kandidat tmp
-    for kandidat in "$(dirname "$0")/${rel}" "${SETUP_WS}/${rel}"; do
-        if [ -f "$kandidat" ]; then
-            printf '%s\n' "$kandidat"
+    local rel="$1" candidate tmp
+    for candidate in "$(dirname "$0")/${rel}" "${SETUP_WS}/${rel}"; do
+        if [ -f "$candidate" ]; then
+            printf '%s\n' "$candidate"
             return 0
         fi
     done
@@ -254,22 +260,23 @@ repo_file() {
 }
 
 # ---------------------------------------------------------------------------
-# --verify: prüft, ob die ausgerollten Kopien noch dem entsprechen, was im
-# Checkout steht.  Diese Artefakte hängen an KEINEM Git -- unter /usr/local/bin
-# liegen root-eigene Kopien, die sich nur durch einen Installer-Lauf ändern.
-# Dass sie inhaltlich zur Quelle passen, weiss man deshalb nur, wenn man es
-# misst; genau daran ist der octomap_feed-Drift in drei Fassungen entstanden
+# --verify: checks whether the rolled-out copies still match what is in the
+# checkout.  These artefacts hang off NO git -- under /usr/local/bin sit
+# root-owned copies that only change through an installer run.  Whether their
+# content matches the source is therefore only known by measuring it; that is
+# exactly how the octomap_feed drift across three versions came about
 # (ROBOTER-TODO R6).
 #
-# Bewusst LOKAL-ONLY: verglichen wird gegen den Checkout bzw. ${SETUP_WS}, NIE
-# gegen GitHub-main.  Ein Fallback aufs Netz würde die Frage verfälschen --
-# gefragt ist "läuft, was hier steht?", nicht "läuft, was auf main steht?".
+# Deliberately LOCAL ONLY: the comparison is against the checkout or
+# ${SETUP_WS}, NEVER against GitHub main.  A fallback to the network would
+# distort the question -- what is asked is "does what stands here run?", not
+# "does what is on main run?".
 #
-# Rein lesend.  Rückgabe 0 = alles deckungsgleich, 1 = mindestens eine
-# Abweichung, fehlende Kopie oder fehlende Quelle.
+# Read only.  Return 0 = everything matches, 1 = at least one deviation, a
+# missing copy or a missing source.
 # ---------------------------------------------------------------------------
 verify_deployments() {
-    local rc=0 eintrag dst rel src kandidat h_dst h_src status
+    local rc=0 entry dst rel src candidate h_dst h_src status
     local -a MANIFEST=(
         "${BIN_DIR}/octomap-feed|scripts/octomap_feed.py"
         "${BIN_DIR}/manipulator-diagnostics|scripts/manipulator_diagnostics.py"
@@ -277,51 +284,51 @@ verify_deployments() {
         "${BIN_DIR}/rg6_finger_kinematics.json|scripts/rg6_finger_kinematics.json"
         "${USER_HOME}/rtde_input_recipe_no_tool.txt|rtde_input_recipe_no_tool.txt"
     )
-    echo "=== --verify: ausgerollte Kopien gegen den Checkout ==="
-    for eintrag in "${MANIFEST[@]}"; do
-        dst="${eintrag%%|*}"
-        rel="${eintrag##*|}"
+    echo "=== --verify: rolled-out copies against the checkout ==="
+    for entry in "${MANIFEST[@]}"; do
+        dst="${entry%%|*}"
+        rel="${entry##*|}"
         src=""
-        for kandidat in "$(dirname "$0")/${rel}" "${SETUP_WS}/${rel}"; do
-            [ -f "$kandidat" ] && { src="$kandidat"; break; }
+        for candidate in "$(dirname "$0")/${rel}" "${SETUP_WS}/${rel}"; do
+            [ -f "$candidate" ] && { src="$candidate"; break; }
         done
         if [ ! -f "$dst" ]; then
-            status="NICHT-AUSGEROLLT"; rc=1
+            status="NOT-DEPLOYED"; rc=1
         elif [ -z "$src" ]; then
-            status="QUELLE-FEHLT"; rc=1
+            status="SOURCE-MISSING"; rc=1
         else
             h_dst="$(sha256sum "$dst" | cut -d" " -f1)"
             h_src="$(sha256sum "$src" | cut -d" " -f1)"
-            if [ "$h_dst" = "$h_src" ]; then status="OK"; else status="ABWEICHUNG"; rc=1; fi
+            if [ "$h_dst" = "$h_src" ]; then status="OK"; else status="DEVIATION"; rc=1; fi
         fi
-        printf "  %-16s %-46s <- %s\n" "$status" "$dst" "${src:-${rel} (nicht gefunden)}"
+        printf "  %-16s %-46s <- %s\n" "$status" "$dst" "${src:-${rel} (not found)}"
     done
 
-    # rg6-moveit-patch stammt aus dem onrobot-rg6-Workspace, nicht aus diesem
-    # Repo -- eigene Kandidatenliste, sonst fände ihn der Manifest-Lauf nie.
+    # rg6-moveit-patch comes from the onrobot-rg6 workspace, not from this repo
+    # -- its own candidate list, otherwise the manifest run would never find it.
     src=""
-    for kandidat in "${RG6_WS}/install/rg6_control/lib/rg6_control/rg6_moveit_patch" \
-                    "${RG6_WS}/src/rg6_control/scripts/rg6_moveit_patch"; do
-        [ -f "$kandidat" ] && { src="$kandidat"; break; }
+    for candidate in "${RG6_WS}/install/rg6_control/lib/rg6_control/rg6_moveit_patch" \
+                     "${RG6_WS}/src/rg6_control/scripts/rg6_moveit_patch"; do
+        [ -f "$candidate" ] && { src="$candidate"; break; }
     done
     if [ ! -f "$RG6_MOVEIT_PATCH_BIN" ]; then
-        status="NICHT-AUSGEROLLT"; rc=1
+        status="NOT-DEPLOYED"; rc=1
     elif [ -z "$src" ]; then
-        # Kein Fehler: der Workspace muss auf dem Roboter nicht gebaut sein.
-        status="QUELLE-FEHLT"
+        # Not an error: the workspace does not have to be built on the robot.
+        status="SOURCE-MISSING"
     elif [ "$(sha256sum "$RG6_MOVEIT_PATCH_BIN" | cut -d" " -f1)" \
          = "$(sha256sum "$src" | cut -d" " -f1)" ]; then
         status="OK"
     else
-        status="ABWEICHUNG"; rc=1
+        status="DEVIATION"; rc=1
     fi
     printf "  %-16s %-46s <- %s\n" "$status" "$RG6_MOVEIT_PATCH_BIN" \
-           "${src:-onrobot-rg6-Workspace (nicht gebaut)}"
+           "${src:-onrobot-rg6 workspace (not built)}"
 
     if [ "$rc" -eq 0 ]; then
-        echo "  -> alles deckungsgleich."
+        echo "  -> everything matches."
     else
-        echo "  -> ABWEICHUNGEN. Ein Installer-Lauf bringt die Kopien auf den Checkout-Stand."
+        echo "  -> DEVIATIONS. An installer run brings the copies to the checkout state."
     fi
     return "$rc"
 }
@@ -333,42 +340,38 @@ fi
 CKPT_WS="${USER_HOME}/cockpit-ros2-diagnostics"
 
 if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
-    echo "FEHLER: Bitte oben im Skript RG6_REPO_URL auf die Git-URL von onrobot-rg6 setzen."
+    echo "ERROR: set RG6_REPO_URL at the top of this script to the git URL of onrobot-rg6."
     exit 1
 fi
 
 DO_BOOT=1
 if systemctl list-unit-files | grep -q "^${UNIT_NAME}" && [ -f "$PY_PATH" ]; then
-    confirm ">>> clearpath-custom-setup ist bereits installiert. Aktualisieren?" || DO_BOOT=0
+    confirm ">>> clearpath-custom-setup is already installed. Update?" || DO_BOOT=0
 fi
 if [ "$DO_BOOT" -eq 1 ]; then
-echo ">>> Installiere ${PY_PATH}"
+echo ">>> Installing ${PY_PATH}"
 install -d -m 0755 "$BIN_DIR"
 cat > "$PY_PATH" <<'PY_EOF'
 #!/usr/bin/env python3
-"""Custom Clearpath setup: patcht generierte Config-Dateien nach der Generierung,
-bevor die Sub-Services sie einlesen.
+"""Custom Clearpath setup: patch generated config files after generation,
+before the sub-services read them.
 
 Patches:
-  1. foxglove_bridge 'asset_uri_allowlist' -> korrekt einfach-escapte Regex
-     in /etc/clearpath/platform/config/foxglove_bridge.yaml
-     (Clearpath generiert hier eine DOPPELT-escapte Regex, die als YAML-Param
-      jeden package://-Mesh ablehnt -> URDF ohne Geometrie in Foxglove.
-      Gelesen von der foxglove_bridge unter clearpath-platform.service)
+  2. Sensor mesh URIs file:// -> package:// (fix_realsense_mesh_uris)
 
-  2. Sensor-Mesh-URIs file:// -> package:// (fix_realsense_mesh_uris)
+  3. Arm JSB joint_states -> manipulators/joint_states (move_arm_joint_states,
+     phase 2) in /opt/ros/*/share/clearpath_manipulators/launch/control.launch.py.
+     Detaches the arm joints from the platform namespace; a relay + aggregator
+     (rg6_control joint_states.launch.py, clearpath-custom-joint-states.service)
+     keeps the platform/joint_states bus complete for RSP + move_group.
 
-  3. Arm-JSB joint_states -> manipulators/joint_states (move_arm_joint_states,
-     Phase 2) in /opt/ros/*/share/clearpath_manipulators/launch/control.launch.py.
-     Loest die Arm-Gelenke aus dem platform-Namespace; ein Relay + Aggregator
-     (rg6_control joint_states.launch.py, clearpath-custom-joint-states.service) hält den
-     platform/joint_states-Bus für RSP+move_group vollständig.
+  4. RG6 into the generated MoveIt config (run_rg6_moveit_patch).
 
-Jeder Edit ist chirurgisch, idempotent, mit .bak-Backup und atomarem Schreiben.
-Fehlt eine Datei/ein Key, wird die jeweilige Änderung übersprungen (Warnung).
+Every edit is surgical, idempotent, with a .bak backup and an atomic write.
+If a file or a key is missing, that change is skipped (with a warning).
 
-Hinweis: 'update_rate' (125) und 'io_and_status_controller' werden hier
-NICHT gepatcht -> beide laufen über robot.yaml arm-level 'ros_parameters'
+Note: 'update_rate' (125) and 'io_and_status_controller' are NOT patched here
+-> both go through robot.yaml arm-level 'ros_parameters'
 (clearpath_common PR #347).
 """
 
@@ -383,48 +386,44 @@ TAG = "clearpath-custom-setup"
 
 
 def log(msg, err=False):
-    """Logzeile (stdout/stderr); von journald via SyslogIdentifier erfasst."""
+    """Log line (stdout/stderr); captured by journald via SyslogIdentifier."""
     print(f"{TAG}: {msg}", file=(sys.stderr if err else sys.stdout), flush=True)
 
 
 def fix_realsense_mesh_uris(label):
-    """Clearpaths Sensor-Xacros referenzieren Meshes als
-    'file://$(find realsense2_description)/...'; hier auf
-    'package://realsense2_description' umstellen. Trifft apt-installierte Dateien
-    unter /opt/ros/*/share/clearpath_sensors_description -> bei jedem Boot
-    idempotent re-applied (uebersteht auch apt-Updates).
+    """Clearpath's sensor xacros reference meshes as
+    'file://$(find realsense2_description)/...'; switch them to
+    'package://realsense2_description' here. Applies to apt-installed files
+    under /opt/ros/*/share/clearpath_sensors_description -> re-applied
+    idempotently on every boot (survives apt updates too).
 
-    NICHT ENTFERNEN -- das ist kein Uebergangs-Workaround. Upstream hat die URIs
-    nie repariert; am 2026-08-20 auf a200-0553 nachgesehen, indem beide .deb
-    ausgepackt und gelesen wurden:
+    DO NOT REMOVE -- this is not a transitional workaround. Upstream never
+    fixed the URIs; checked on the a200-0553 on 2026-08-20 by unpacking and
+    reading both .deb files:
 
-        2.9.8  (packages.ros.org)              -> file://, alle vier intel-Xacros
-        2.9.15 (packages.clearpathrobotics.com) -> file://, alle vier
+        2.9.8  (packages.ros.org)               -> file://, all four intel xacros
+        2.9.15 (packages.clearpathrobotics.com) -> file://, all four
 
-    Genau das ist am selben Tag einmal falsch entschieden worden: der Schritt
-    galt als No-op, weil der Offboard-CONTAINER 'package://' zeigte -- dort
-    schreibt aber das Dockerfile von husky-offboard dieselbe Ersetzung beim Bau.
-    Gelesen wurde also die gepatchte Datei, nicht das Paket.
+    Two probes that can NOT settle this, even though they look as if they
+    could:
+      * 'the URDF builds without error' -- xacro substitutes $(find ...) and
+        writes text, it never opens a mesh. Even a completely made-up
+        package:// passes with exit 0 and empty stderr.
+      * 'the mesh is visible in Foxglove' -- that shows the state AFTER the
+        last patcher run. The patch is persistent: it writes into the package
+        files, and they stay written until dpkg overwrites them.
+    What counts is solely what is inside the .deb.
 
-    Zwei Proben, die das NICHT klaeren können, auch wenn sie danach aussehen:
-      * 'die URDF baut fehlerfrei' -- xacro ersetzt $(find ...) und schreibt
-        Text, es oeffnet nie ein Mesh. Selbst ein frei erfundenes package://
-        läuft mit Exit 0 und leerem stderr durch.
-      * 'das Mesh ist in Foxglove sichtbar' -- das zeigt den Zustand NACH dem
-        letzten Patcherlauf. Der Patch ist persistent: er schreibt in die
-        Paketdateien, und die bleiben geschrieben, bis dpkg sie überbügelt.
-    Entscheidend ist allein, was im .deb steht.
+    Why it matters at all: not the resource_retriever -- that can do file://
+    -- but the 'asset_uri_allowlist' of the foxglove_bridge, which starts with
+    ^package:// and rejects everything else. Measured via fetchAsset:
+    package://realsense2_description/meshes/d435.dae -> status 0, 15782439
+    bytes; the same file as file:// -> status 1, 'Failed to retrieve asset'.
 
-    Warum es überhaupt stoert: nicht der resource_retriever -- der kann
-    file:// -- sondern die 'asset_uri_allowlist' der foxglove_bridge, die mit
-    ^package:// beginnt und alles andere abweist. Gemessen per fetchAsset:
-    package://realsense2_description/meshes/d435.dae -> status 0, 15782439 Byte;
-    dieselbe Datei als file:// -> status 1, 'Failed to retrieve asset'.
-
-    Die Wirkung ist damit rein visuell (Kameramodell im Foxglove-3D-Panel).
-    RViz laedt beide Formen, und die <collision> ist eine Box-Primitive --
-    Planung, Kollisionspruefung und Self-Filter sind nicht betroffen.
-    Kontext: ROBOTER-TODO.md R25."""
+    The effect is therefore purely visual (the camera model in the Foxglove 3D
+    panel). RViz loads both forms, and the <collision> is a box primitive --
+    planning, collision checking and the self filter are not affected.
+    Context: ROBOTER-TODO.md R25."""
     import glob
     OLD = "file://$(find realsense2_description)"
     NEW = "package://realsense2_description"
@@ -453,30 +452,31 @@ def fix_realsense_mesh_uris(label):
             os.replace(tmp, path)
             changed.append(os.path.basename(path))
         except OSError as e:
-            log(f"{label}: kann {path} nicht schreiben: {e}", err=True)
+            log(f"{label}: cannot write {path}: {e}", err=True)
     if changed:
-        log(f"{label}: package:// gesetzt in: {', '.join(sorted(changed))}")
+        log(f"{label}: package:// set in: {', '.join(sorted(changed))}")
     else:
-        log(f"{label}: bereits package:// (oder nichts gefunden) - keine Änderung.")
+        log(f"{label}: already package:// (or nothing found) - no change.")
     return bool(changed)
 
 
 def move_arm_joint_states(label):
-    """Phase 2: Arm-JSB-Publisher-Remap von platform/ -> manipulators/joint_states.
+    """Phase 2: remap the arm JSB publisher from platform/ -> manipulators/joint_states.
 
-    clearpath_manipulators/control.launch.py remappt den joint_states-Output des
-    manipulators-ros2_control_node per
+    clearpath_manipulators/control.launch.py remaps the joint_states output of
+    the manipulators ros2_control_node via
         ('joint_states', PathJoinSubstitution(['/', namespace, 'platform', 'joint_states']))
-    nach /<ns>/platform/joint_states. Damit advertised der Arm-JSB faelschlich im
-    platform-Namespace. Hier die Tokenfolge 'platform','joint_states' ->
-    'manipulators','joint_states' -> /<ns>/manipulators/joint_states.
+    to /<ns>/platform/joint_states. That makes the arm JSB advertise in the
+    platform namespace by mistake. Here the token sequence
+    'platform','joint_states' becomes 'manipulators','joint_states' ->
+    /<ns>/manipulators/joint_states.
 
-    dynamic_joint_states bleibt bewusst auf platform: die Zeile
-    'platform','dynamic_joint_states' wird NICHT getroffen (nach dem Komma steht
-    dort 'dynamic_joint_states', nicht 'joint_states'). Trifft die apt-Stock-Datei
-    unter /opt/ros/*/share -> idempotent bei jedem Boot (uebersteht apt-Updates).
-    Ein Relay (rg6_control joint_states.launch.py) spiegelt manipulators/joint_states
-    zurueck auf platform/joint_states für RSP/move_group (Live-TF/MoveIt unangetastet).
+    dynamic_joint_states deliberately stays on platform: the line
+    'platform','dynamic_joint_states' is NOT matched (after the comma it says
+    'dynamic_joint_states', not 'joint_states'). Applies to the apt stock file
+    under /opt/ros/*/share -> idempotent on every boot (survives apt updates).
+    A relay (rg6_control joint_states.launch.py) mirrors manipulators/joint_states
+    back onto platform/joint_states for RSP/move_group (live TF/MoveIt untouched).
     """
     import glob
     files = glob.glob(
@@ -491,7 +491,7 @@ def move_arm_joint_states(label):
             continue
         new_content, n = rx.subn(r"\1manipulators\1\2\3joint_states\3", content)
         if n == 0:
-            continue  # schon gepatcht oder Muster nicht (mehr) vorhanden
+            continue  # already patched, or the pattern is not (or no longer) present
         backup = path + ".bak"
         if not os.path.exists(backup):
             try:
@@ -505,11 +505,11 @@ def move_arm_joint_states(label):
             os.replace(tmp, path)
             changed.append(f"{os.path.basename(path)} ({n}x)")
         except OSError as e:
-            log(f"{label}: kann {path} nicht schreiben: {e}", err=True)
+            log(f"{label}: cannot write {path}: {e}", err=True)
     if changed:
         log(f"{label}: Arm joint_states -> manipulators in: {', '.join(changed)}")
     else:
-        log(f"{label}: bereits manipulators (oder Muster nicht gefunden) - keine Änderung.")
+        log(f"{label}: already manipulators (or pattern not found) - no change.")
     return bool(changed)
 
 
@@ -517,27 +517,28 @@ def move_arm_joint_states(label):
 
 
 def run_rg6_moveit_patch(label):
-    """RG6 in die frisch generierte MoveIt-Config einhaengen.
+    """Hook the RG6 into the freshly generated MoveIt config.
 
-    Delegiert an die root-eigene Kopie des selbst-enthaltenen Tools aus dem
-    onrobot-rg6-Repo (rg6_moveit_patch: robot.srdf, idempotent), die der
-    Installer nach /usr/local/bin kopiert.  moveit.yaml patcht es seit dem
-    2026-08-19 NICHT mehr - Greifer-Controller und joint_limits kommen aus
-    robot.yaml (manipulators.moveit.ros_parameters.move_group); das Tool
-    prueft nur noch, ob sie angekommen sind, und quittiert mit Exit-Code 1,
-    wenn nicht.
-    Bewusst KEIN Aufruf direkt aus /home/*: dieser Service läuft als root -
-    Code aus einem user-schreibbaren Workspace wäre eine Rechteausweitung
-    (Workspace-/Repo-Schreibzugriff -> root bei jedem Boot). Die Kopie ändert
-    sich nur durch einen erneuten Installer-Lauf (explizite Admin-Entscheidung).
-    Muss NACH clearpath-robot-generate und VOR clearpath-manipulators laufen -
-    genau das Fenster dieses Services. Fehlt die Kopie (Installer nie mit
-    vorhandenem onrobot-rg6-Workspace gelaufen), wird nur gewarnt."""
+    Delegates to the root-owned copy of the self-contained tool from the
+    onrobot-rg6 repo (rg6_moveit_patch: robot.srdf, idempotent) that the
+    installer copies to /usr/local/bin.  It does NOT patch moveit.yaml -
+    gripper controller and joint_limits come from robot.yaml
+    (manipulators.moveit.ros_parameters.move_group); the tool only checks that
+    they arrived and exits with code 1 if they did not.
+
+    Deliberately NO call directly out of /home/*: this service runs as root -
+    code from a user-writable workspace would be a privilege escalation
+    (workspace/repo write access -> root on every boot). The copy only changes
+    through another installer run (an explicit admin decision).
+    Must run AFTER clearpath-robot-generate and BEFORE clearpath-manipulators -
+    exactly the window of this service. If the copy is missing (the installer
+    never ran with an onrobot-rg6 workspace present), only a warning is
+    issued."""
     import subprocess
     tool = "/usr/local/bin/rg6-moveit-patch"
     if not os.path.isfile(tool):
-        log(f"{label}: {tool} fehlt (Installer mit onrobot-rg6-Workspace "
-            "laufen lassen) - MoveIt ohne Greifer.", err=True)
+        log(f"{label}: {tool} missing (run the installer with an "
+            "onrobot-rg6 workspace) - MoveIt without the gripper.", err=True)
         return False
     try:
         out = subprocess.run(
@@ -546,55 +547,54 @@ def run_rg6_moveit_patch(label):
         for line in (out.stdout + out.stderr).splitlines():
             log(f"{label}: {line}")
         if out.returncode != 0:
-            log(f"{label}: Exit-Code {out.returncode}.", err=True)
+            log(f"{label}: exit code {out.returncode}.", err=True)
             return False
         return True
     except (OSError, subprocess.TimeoutExpired) as e:
-        log(f"{label}: Aufruf fehlgeschlagen: {e}", err=True)
+        log(f"{label}: call failed: {e}", err=True)
         return False
 
 
 def main():
-    log("Start.")
-    # Was dieser Patcher NICHT anfasst, und wo es stattdessen steht.  Die
-    # Nummern der verbliebenen Schritte bleiben stehen, damit Verweise
-    # darauf (etwa "Schritt 3" im Watchdog) weiter tragen.
+    log("start.")
+    # What this patcher does NOT touch, and where it lives instead.  The
+    # numbers of the remaining steps stay as they are, so that references to
+    # them (such as "step 3" in the watchdog) keep pointing at the right thing.
     #
-    #  * 'update_rate' (125) und 'io_and_status_controller': robot.yaml,
-    #    arm-level 'ros_parameters' (clearpath_common PR #347, verifiziert
+    #  * 'update_rate' (125) and 'io_and_status_controller': robot.yaml,
+    #    arm-level 'ros_parameters' (clearpath_common PR #347, verified
     #    2026-06).
-    #  * Die foxglove-Allowlist: robot.yaml unter
-    #    platform.extras.ros_parameters.foxglove_bridge -- allerdings
-    #    BACKSLASH-FREI ([A-Za-z0-9_] statt \w, [.] statt \.). Der ParamWriter
-    #    des Generators serialisiert Listen über Pythons repr und verdoppelt
-    #    dabei jeden Backslash; YAML-Single-Quotes lesen ihn literal zurueck,
-    #    und die Regex matcht nichts mehr. Ohne Backslashes geht der Wert
-    #    unverändert durch. Gegen std::regex -- die Engine der
-    #    foxglove_bridge, s. utils.hpp isWhitelisted -- sind beide Fassungen
-    #    auf einem Korpus aus Treffern und Nicht-Treffern deckungsgleich.
-    #  * Die Occupancy-Map-Monitor-Sensorparameter: robot.yaml unter
-    #    manipulators.moveit.ros_parameters.move_group -- der Generator
-    #    schreibt sie selbst in moveit.yaml.
-    #  * Die Manipulator-Analyzer: robot.yaml unter
-    #    platform.extras.ros_parameters.diagnostic_aggregator -- der
-    #    Generator flacht die Verschachtelung selbst auf die Punkt-Keys ab,
-    #    die ROS erwartet. Unterschied zu einem Patch an dieser Stelle: der
-    #    griffe nur bei installiertem manipulator-diagnostics-Service (die
-    #    Unit-Datei wäre der Schalter), robot.yaml kennt diese Bedingung
-    #    nicht -- ohne den Node zeigt Cockpit die Gruppe als STALE, statt
-    #    sie verschwinden zu lassen.
-    # 2) Sensor-Meshes file:// -> package:// (foxglove_bridge serviert nur package://)
+    #  * The foxglove allowlist: robot.yaml under
+    #    platform.extras.ros_parameters.foxglove_bridge -- but
+    #    BACKSLASH-FREE ([A-Za-z0-9_] instead of \w, [.] instead of \.). The
+    #    generator's ParamWriter serialises lists through Python's repr and
+    #    doubles every backslash while doing so; YAML single quotes read it
+    #    back literally, and the regex then matches nothing. Without
+    #    backslashes the value passes through unchanged. Against std::regex --
+    #    the engine of the foxglove_bridge, see utils.hpp isWhitelisted -- both
+    #    spellings agree on a corpus of matches and non-matches.
+    #  * The occupancy map monitor sensor parameters: robot.yaml under
+    #    manipulators.moveit.ros_parameters.move_group -- the generator writes
+    #    them into moveit.yaml itself.
+    #  * The manipulator analyzers: robot.yaml under
+    #    platform.extras.ros_parameters.diagnostic_aggregator -- the generator
+    #    flattens the nesting onto the dotted keys ROS expects by itself. The
+    #    difference to a patch here: a patch would only bite with the
+    #    manipulator-diagnostics service installed (the unit file would be the
+    #    switch), and robot.yaml does not know that condition -- without the
+    #    node, Cockpit shows the group as STALE instead of letting it vanish.
+    # 2) Sensor meshes file:// -> package:// (foxglove_bridge only serves package://)
     fix_realsense_mesh_uris("sensor mesh package://")
-    # 3) Phase 2: Arm-JSB joint_states raus aus dem platform-Namespace ->
-    #    manipulators/joint_states (Relay + Aggregator via clearpath-custom-joint-states.service).
+    # 3) Phase 2: arm JSB joint_states out of the platform namespace ->
+    #    manipulators/joint_states (relay + aggregator via clearpath-custom-joint-states.service).
     move_arm_joint_states("arm joint_states -> manipulators")
-    # 4) RG6 in MoveIt: robot.srdf (Gruppe 'gripper' + EE) patchen
-    #    (onrobot-rg6-Tool).  Fuer die SRDF gibt es in robot.yaml keinen
-    #    Hebel -- clearpath_config kennt das Wort 'srdf' nicht, und der
-    #    Greifer-Enum (franka/kinova/robotiq) hat keinen RG6.  Die
-    #    moveit.yaml-Werte stehen in robot.yaml; das Tool prueft sie nur.
+    # 4) RG6 into MoveIt: patch robot.srdf (group 'gripper' + EE)
+    #    (onrobot-rg6 tool).  For the SRDF there is no lever in robot.yaml --
+    #    clearpath_config does not know the word 'srdf', and the gripper enum
+    #    (franka/kinova/robotiq) has no RG6.  The moveit.yaml values live in
+    #    robot.yaml; the tool only checks them.
     run_rg6_moveit_patch("rg6 moveit")
-    log("Fertig.")
+    log("done.")
     return 0
 
 
@@ -603,31 +603,32 @@ if __name__ == "__main__":
 PY_EOF
 chmod 0755 "$PY_PATH"
 
-echo ">>> Installiere ${UNIT_PATH}"
+echo ">>> Installing ${UNIT_PATH}"
 cat > "$UNIT_PATH" <<'UNIT_EOF'
 [Unit]
-Description=Custom Clearpath setup: patcht generierte Configs vor dem Start der Sub-Services
-# NACH der Generierung: control.yaml & foxglove_bridge.yaml entstehen in
+Description=Custom Clearpath setup: patch generated configs before the sub-services start
+# AFTER the generation: control.yaml and foxglove_bridge.yaml are created in
 # clearpath-robot.service ExecStartPre (/usr/sbin/clearpath-robot-generate).
 After=clearpath-robot.service
 Wants=clearpath-robot.service
-# Mit-Neustart: clearpath-robot.service generiert in ExecStartPre
-# (clearpath-robot-generate) die Configs NEU -> die Patches werden
-# ueberschrieben. PartOf sorgt dafür, dass dieser Service bei JEDEM
-# Restart von clearpath-robot.service (nicht nur beim Boot) erneut
-# läuft und die Configs wieder patcht. Propagiert Stop UND Restart.
+# Restart along: clearpath-robot.service regenerates the configs in
+# ExecStartPre (clearpath-robot-generate) -> the patches get overwritten.
+# PartOf makes this service run again on EVERY restart of
+# clearpath-robot.service (not only at boot) and patch the configs anew.
+# Propagates stop AND restart.
 PartOf=clearpath-robot.service
-# VOR den Consumern der gepatchten Dateien:
-#   - clearpath-platform.service startet die foxglove_bridge (asset_uri_allowlist +
-#     Sensor-Meshes).
-#   - clearpath-manipulators.service liest control.launch.py -> der Arm-JSB-
-#     joint_states-Patch (move_arm_joint_states, Phase 2) MUSS davor greifen.
+# BEFORE the consumers of the patched files:
+#   - clearpath-platform.service starts the foxglove_bridge (asset_uri_allowlist
+#     + sensor meshes).
+#   - clearpath-manipulators.service reads control.launch.py -> the arm JSB
+#     joint_states patch (move_arm_joint_states, phase 2) MUST take effect
+#     before that.
 Before=clearpath-platform.service clearpath-manipulators.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# Saubere Journal-Kennung:  journalctl -t clearpath-custom-setup -b
+# A clean journal identity:  journalctl -t clearpath-custom-setup -b
 SyslogIdentifier=clearpath-custom-setup
 StandardOutput=journal
 StandardError=journal
@@ -638,15 +639,15 @@ WantedBy=multi-user.target
 UNIT_EOF
 chmod 0644 "$UNIT_PATH"
 else
-    echo ">>> clearpath-custom-setup: übersprungen (vorhandene Installation bleibt)."
+    echo ">>> clearpath-custom-setup: skipped (the existing installation stays)."
 fi
 
-# --- UDEV-Regeln (managed block) -------------------------------------------
+# --- udev rules (managed block) --------------------------------------------
 UDEV_FILE="/etc/udev/rules.d/99-husky.rules"
 UDEV_BEGIN="# >>> clearpath-custom-setup (managed) >>>"
 UDEV_END="# <<< clearpath-custom-setup (managed) <<<"
 
-# Gewünschten managed-Block (inkl. Marker) in temp-Datei erzeugen
+# Build the desired managed block (including markers) in a temp file
 udev_block="$(mktemp)"
 cat > "$udev_block" <<'UDEV_EOF'
 # >>> clearpath-custom-setup (managed) >>>
@@ -670,15 +671,15 @@ if [ -f "$UDEV_FILE" ] && grep -qF "$UDEV_BEGIN" "$UDEV_FILE"; then
     awk -v b="$UDEV_BEGIN" -v e="$UDEV_END" '$0==b{p=1} p{print} $0==e{p=0}' \
         "$UDEV_FILE" > "$existing_udev"
     if cmp -s "$existing_udev" "$udev_block"; then
-        confirm ">>> UDEV-Regeln sind bereits identisch aktiv. Trotzdem neu schreiben?" || DO_UDEV=0
+        confirm ">>> The udev rules are already active and identical. Write them anyway?" || DO_UDEV=0
     else
-        confirm ">>> UDEV-Regeln (managed block) weichen ab. Ueberschreiben?" || DO_UDEV=0
+        confirm ">>> The udev rules (managed block) differ. Overwrite?" || DO_UDEV=0
     fi
     rm -f "$existing_udev"
 fi
 
 if [ "$DO_UDEV" -eq 1 ]; then
-    echo ">>> Schreibe UDEV-Regeln nach ${UDEV_FILE}"
+    echo ">>> Writing udev rules to ${UDEV_FILE}"
     install -d -m 0755 /etc/udev/rules.d
     touch "$UDEV_FILE"
     tmp_udev="$(mktemp)"
@@ -692,45 +693,45 @@ if [ "$DO_UDEV" -eq 1 ]; then
     rm -f "$tmp_udev"
     udevadm control --reload-rules
     udevadm trigger --subsystem-match=tty
-    echo "    UDEV-Regeln gesetzt und neu geladen."
+    echo "    udev rules set and reloaded."
 else
-    echo ">>> UDEV-Regeln: übersprungen."
+    echo ">>> udev rules: skipped."
 fi
 rm -f "$udev_block"
 
-# --- UR-Treiber-Ports vor der Ephemeral-Vergabe schützen -------------------
-# ur_client_library bindet FESTE Ports: 50001 reverse, 50002 script sender,
-# 50003 trajectory, 50004 script command. Alle vier liegen im flüchtigen
-# Portbereich des Kernels (net.ipv4.ip_local_port_range = 32768-60999) -> jeder
-# andere Prozess kann einen davon für eine AUSGEHENDE Verbindung zugewiesen
-# bekommen, bevor der Arm-Treiber ihn bindet. Passiert am 2026-07-29 real:
-# der image_processing_container (clearpath-platform) zog 50004 als Quellport
-# für eine Loopback-Verbindung zu teleop_node -> der Treiber scheiterte mit
-# "Failed to bind socket for port 50004. Reason: Address already in use" und
-# hing in einer Retry-Schleife; die Controller-Spawner gaben nach 5 Versuchen
-# auf -> Arm ohne Controller. Ein Treiber-Neustart half NICHT (die fremde
-# Verbindung lebte weiter) - erst ein Neustart von clearpath-platform gab den
-# Port frei. Reservieren nimmt die Ports aus der automatischen Vergabe;
-# explizites bind() durch den Treiber bleibt erlaubt. Rein additiv, idempotent.
+# --- protect the UR driver ports from ephemeral allocation ------------------
+# ur_client_library binds FIXED ports: 50001 reverse, 50002 script sender,
+# 50003 trajectory, 50004 script command. All four lie inside the kernel's
+# ephemeral port range (net.ipv4.ip_local_port_range = 32768-60999) -> any other
+# process can be assigned one of them for an OUTGOING connection before the arm
+# driver binds it. This happened for real on 2026-07-29: the
+# image_processing_container (clearpath-platform) took 50004 as the source port
+# for a loopback connection to teleop_node -> the driver failed with "Failed to
+# bind socket for port 50004. Reason: Address already in use" and hung in a
+# retry loop; the controller spawners gave up after 5 attempts -> an arm without
+# controllers. Restarting the driver did NOT help (the foreign connection stayed
+# alive) - only a restart of clearpath-platform freed the port. Reserving takes
+# the ports out of the automatic allocation; an explicit bind() by the driver
+# stays allowed. Purely additive, idempotent.
 SYSCTL_UR_PORTS="/etc/sysctl.d/10-ur-reserved-ports.conf"
-echo ">>> Schreibe ${SYSCTL_UR_PORTS} (UR-Ports 50001-50004 reservieren)"
+echo ">>> Writing ${SYSCTL_UR_PORTS} (reserving UR ports 50001-50004)"
 install -d -m 0755 /etc/sysctl.d
 cat > "$SYSCTL_UR_PORTS" <<'SYSCTL_EOF'
-# UR-Treiber-Ports (ur_client_library) aus der Ephemeral-Vergabe nehmen.
-# Ohne das kann ein beliebiger Prozess 50001-50004 als Quellport belegen und
-# der ur_robot_driver scheitert beim Binden ("Address already in use").
+# Take the UR driver ports (ur_client_library) out of the ephemeral allocation.
+# Without this, any process can occupy 50001-50004 as a source port and the
+# ur_robot_driver fails to bind ("Address already in use").
 net.ipv4.ip_local_reserved_ports = 50001-50004
 SYSCTL_EOF
 chmod 0644 "$SYSCTL_UR_PORTS"
 if sysctl -p "$SYSCTL_UR_PORTS" >/dev/null 2>&1; then
-    echo "    aktiv: $(cat /proc/sys/net/ipv4/ip_local_reserved_ports)"
+    echo "    active: $(cat /proc/sys/net/ipv4/ip_local_reserved_ports)"
 else
-    echo "    WARN: sysctl -p fehlgeschlagen - greift spaetestens beim nächsten Boot."
+    echo "    WARN: sysctl -p failed - it takes effect on the next boot at the latest."
 fi
 
 # --- netplan ---------------------------------------------------------------
 NETPLAN_FILE="/etc/netplan/01-netcfg.yaml"
-echo ">>> Schreibe netplan ${NETPLAN_FILE}"
+echo ">>> Writing netplan ${NETPLAN_FILE}"
 install -d -m 0755 /etc/netplan
 tmp_np="$(mktemp)"
 cat > "$tmp_np" <<'NETPLAN_EOF'
@@ -748,10 +749,10 @@ network:
 NETPLAN_EOF
 DO_NETPLAN=1
 if [ -f "$NETPLAN_FILE" ] && cmp -s "$tmp_np" "$NETPLAN_FILE"; then
-    echo "    netplan bereits aktuell - keine Änderung."
+    echo "    netplan already up to date - no change."
     DO_NETPLAN=0
 elif [ -f "$NETPLAN_FILE" ]; then
-    confirm ">>> netplan ${NETPLAN_FILE} weicht ab. Ueberschreiben (Backup wird angelegt)?" || DO_NETPLAN=0
+    confirm ">>> netplan ${NETPLAN_FILE} differs. Overwrite (a backup is created)?" || DO_NETPLAN=0
 fi
 if [ "$DO_NETPLAN" -eq 1 ]; then
     if [ -f "$NETPLAN_FILE" ]; then
@@ -759,208 +760,206 @@ if [ "$DO_NETPLAN" -eq 1 ]; then
         prune_backups "$NETPLAN_FILE"
     fi
     install -m 0600 "$tmp_np" "$NETPLAN_FILE"
-    command -v netplan >/dev/null 2>&1 && { netplan generate || echo "    WARN: netplan generate Problem"; }
-    echo "    netplan geschrieben (Mode 0600). 'sudo netplan apply' NICHT automatisch."
+    command -v netplan >/dev/null 2>&1 && { netplan generate || echo "    WARN: netplan generate problem"; }
+    echo "    netplan written (mode 0600). 'sudo netplan apply' is NOT automatic."
 else
-    echo "    netplan: übersprungen."
+    echo "    netplan: skipped."
 fi
 rm -f "$tmp_np"
 
-# --- systemd-networkd deaktivieren -----------------------------------------
-# Nur fragen, wenn networkd überhaupt aktiv/enabled ist.
+# --- disable systemd-networkd ----------------------------------------------
+# Only ask when networkd is active/enabled at all.
 networkd_on=0
 systemctl is-enabled systemd-networkd.service >/dev/null 2>&1 && networkd_on=1
 systemctl is-active  systemd-networkd.service >/dev/null 2>&1 && networkd_on=1
 DO_NETWORKD=1
 if [ "$networkd_on" -eq 0 ]; then
-    echo ">>> systemd-networkd ist bereits inaktiv - keine Änderung."
+    echo ">>> systemd-networkd is already inactive - no change."
     DO_NETWORKD=0
 else
-    confirm ">>> systemd-networkd deaktivieren (zugunsten NetworkManager)?" || DO_NETWORKD=0
+    confirm ">>> Disable systemd-networkd (in favour of NetworkManager)?" || DO_NETWORKD=0
 fi
 if [ "$DO_NETWORKD" -eq 1 ]; then
-    echo ">>> Deaktiviere systemd-networkd zugunsten von NetworkManager"
+    echo ">>> Disabling systemd-networkd in favour of NetworkManager"
     if systemctl list-unit-files | grep -q '^NetworkManager\.service'; then
         systemctl enable NetworkManager.service 2>/dev/null || true
     fi
     for u in systemd-networkd.service systemd-networkd.socket systemd-networkd-wait-online.service; do
         if systemctl list-unit-files | grep -q "^${u}"; then
             systemctl disable "$u" 2>/dev/null || true
-            echo "    deaktiviert: $u"
+            echo "    disabled: $u"
         fi
     done
 else
-    echo ">>> systemd-networkd: übersprungen."
+    echo ">>> systemd-networkd: skipped."
 fi
 
-# --- GRUB: schneller Boot (Menü verstecken, direkter Boot der 1. Option) ---
-# Optional + per Default AUS: ein verstecktes Menü erschwert Recovery (kommt
-# aber mit gehaltener SHIFT/ESC-Taste beim Boot weiterhin). GRUB_TIMEOUT_STYLE=
-# hidden + GRUB_TIMEOUT=0 => sofortiger Boot der Default-Option.
+# --- GRUB: fast boot (hide the menu, boot the 1st option directly) ---------
+# Optional and OFF by default: a hidden menu makes recovery harder (it still
+# comes up by holding SHIFT/ESC during boot). GRUB_TIMEOUT_STYLE=hidden +
+# GRUB_TIMEOUT=0 => immediate boot of the default option.
 GRUB_FILE="/etc/default/grub"
 if [ ! -f "$GRUB_FILE" ]; then
-    echo ">>> GRUB: ${GRUB_FILE} nicht vorhanden - übersprungen."
+    echo ">>> GRUB: ${GRUB_FILE} not present - skipped."
 elif grep -qE '^GRUB_TIMEOUT_STYLE=hidden$' "$GRUB_FILE" && grep -qE '^GRUB_TIMEOUT=0$' "$GRUB_FILE"; then
-    echo ">>> GRUB: bereits auf schnellen Boot gestellt - keine Änderung."
-elif confirm ">>> GRUB-Boot beschleunigen (GRUB_TIMEOUT_STYLE=hidden, GRUB_TIMEOUT=0)?"; then
+    echo ">>> GRUB: already set to fast boot - no change."
+elif confirm ">>> Speed up the GRUB boot (GRUB_TIMEOUT_STYLE=hidden, GRUB_TIMEOUT=0)?"; then
     cp -a "$GRUB_FILE" "${GRUB_FILE}.bak.$(date +%Y%m%d%H%M%S)"
     prune_backups "$GRUB_FILE"
-    # GRUB_TIMEOUT_STYLE setzen (vorhandene/auskommentierte Zeile ersetzen, sonst anhängen)
+    # Set GRUB_TIMEOUT_STYLE (replace an existing/commented line, else append)
     if grep -qE '^[#[:space:]]*GRUB_TIMEOUT_STYLE=' "$GRUB_FILE"; then
         sed -i -E 's|^[#[:space:]]*GRUB_TIMEOUT_STYLE=.*|GRUB_TIMEOUT_STYLE=hidden|' "$GRUB_FILE"
     else
         printf 'GRUB_TIMEOUT_STYLE=hidden\n' >> "$GRUB_FILE"
     fi
-    # GRUB_TIMEOUT=0 (direkter Boot); matcht NICHT GRUB_TIMEOUT_STYLE=
+    # GRUB_TIMEOUT=0 (direct boot); does NOT match GRUB_TIMEOUT_STYLE=
     if grep -qE '^[#[:space:]]*GRUB_TIMEOUT=' "$GRUB_FILE"; then
         sed -i -E 's|^[#[:space:]]*GRUB_TIMEOUT=.*|GRUB_TIMEOUT=0|' "$GRUB_FILE"
     else
         printf 'GRUB_TIMEOUT=0\n' >> "$GRUB_FILE"
     fi
-    echo "    ${GRUB_FILE} gepatcht (Backup angelegt). Aktualisiere GRUB..."
+    echo "    ${GRUB_FILE} patched (backup created). Updating GRUB..."
     if command -v update-grub >/dev/null 2>&1; then
-        update-grub || echo "    WARN: update-grub fehlgeschlagen"
+        update-grub || echo "    WARN: update-grub failed"
     elif command -v grub-mkconfig >/dev/null 2>&1; then
-        grub-mkconfig -o /boot/grub/grub.cfg || echo "    WARN: grub-mkconfig fehlgeschlagen"
+        grub-mkconfig -o /boot/grub/grub.cfg || echo "    WARN: grub-mkconfig failed"
     else
-        echo "    WARN: weder update-grub noch grub-mkconfig gefunden - bitte manuell ausfuehren."
+        echo "    WARN: neither update-grub nor grub-mkconfig found - please run it by hand."
     fi
-    echo "    GRUB: schneller Boot aktiv (Menü weiterhin per gehaltener SHIFT/ESC erreichbar)."
+    echo "    GRUB: fast boot active (the menu is still reachable by holding SHIFT/ESC)."
 else
-    echo ">>> GRUB: übersprungen (Boot-Menü unverändert)."
+    echo ">>> GRUB: skipped (boot menu unchanged)."
 fi
 
-# --- UR-Kinematik-Kalibrierung (optional, einmalig) ------------------------
-# Holt die individuelle Werks-Kalibrierung des UR-Arms (DH-Offsets). Ohne sie
-# rechnet das Modell mit Nominal-Werten -> TCP real bis ~1cm daneben.
-# Voraussetzung: Arm an + über UR_ROBOT_IP erreichbar. robot.yaml wird NICHT
-# angefasst (handgepflegt) -> Pfad danach selbst als kinematics_parameters_file
-# eintragen. Per Env überschreibbar: UR_ROBOT_IP=, UR_CALIB_FILE=.
+# --- UR kinematics calibration (optional, one-off) -------------------------
+# Fetches the individual factory calibration of the UR arm (DH offsets).
+# Without it the model computes with nominal values -> the real TCP is off by
+# up to ~1 cm. Prerequisite: arm on and reachable at UR_ROBOT_IP. robot.yaml is
+# NOT touched (hand maintained) -> enter the path yourself afterwards as
+# kinematics_parameters_file. Overridable via env: UR_ROBOT_IP=, UR_CALIB_FILE=.
 UR_ROBOT_IP="${UR_ROBOT_IP:-${ARM_ROBOT_IP}}"
 UR_CALIB_FILE="${UR_CALIB_FILE:-${USER_HOME}/ur5_a200_0553_calibration.yaml}"
 
 DO_CALIB=0
 if [ -f "$UR_CALIB_FILE" ]; then
-    confirm ">>> UR-Kalibrierdatei existiert bereits (${UR_CALIB_FILE}). NEU kalibrieren (ueberschreibt; Arm an + ${UR_ROBOT_IP} erreichbar)?" \
+    confirm ">>> The UR calibration file already exists (${UR_CALIB_FILE}). Calibrate AGAIN (overwrites; arm on + ${UR_ROBOT_IP} reachable)?" \
         && DO_CALIB=1
 else
-    confirm ">>> UR-Kinematik jetzt kalibrieren? (einmalig; installiert ros-jazzy-ur-calibration; Arm muss an + ${UR_ROBOT_IP} erreichbar sein)" \
+    confirm ">>> Calibrate the UR kinematics now? (one-off; installs ros-jazzy-ur-calibration; the arm must be on and reachable at ${UR_ROBOT_IP})" \
         && DO_CALIB=1
 fi
 
 if [ "$DO_CALIB" -eq 1 ]; then
-    # ur-calibration braucht ein zur ur-client-library passendes ABI. Clearpath
-    # installiert evtl. einen älteren UR-Stack (driver/urcl) -> die neueste
-    # ur-calibration passt dann nicht (undefined symbol ...urcl...SafetyModeMessage,
-    # und 3.7.0 ist nicht mehr im Repo). Lösung: den GANZEN UR-Stack KONSISTENT
-    # (zusammen) installieren/aktualisieren -> alle aus demselben Release.
-    # Hinweis: kann ur-robot-driver hochziehen (z.B. 3.7.0 -> 3.8.0). Im Test
-    # entfernte das KEIN clearpath-Paket; danach Manipulator kurz testen.
-    echo ">>> Installiere/aktualisiere UR-Stack konsistent (client-library + driver + calibration)"
+    # ur-calibration needs an ABI matching the ur-client-library. Clearpath may
+    # install an older UR stack (driver/urcl) -> the newest ur-calibration then
+    # does not fit (undefined symbol ...urcl...SafetyModeMessage, and 3.7.0 is no
+    # longer in the repo). Solution: install/update the WHOLE UR stack
+    # CONSISTENTLY (together) -> all from the same release.
+    # Note: this can pull ur-robot-driver up (e.g. 3.7.0 -> 3.8.0). In testing it
+    # removed NO clearpath package; test the manipulator briefly afterwards.
+    echo ">>> Installing/updating the UR stack consistently (client-library + driver + calibration)"
     apt-get update || true
     apt-get install -y \
         ros-jazzy-ur-client-library ros-jazzy-ur-robot-driver ros-jazzy-ur-calibration \
-        || echo "    WARN: UR-Stack-Installation fehlgeschlagen."
+        || echo "    WARN: UR stack installation failed."
     if ! dpkg -s ros-jazzy-ur-calibration >/dev/null 2>&1; then
-        echo ">>> ur_calibration nicht verfuegbar - Kalibrierung übersprungen."
+        echo ">>> ur_calibration not available - calibration skipped."
     elif ! ping -c1 -W2 "$UR_ROBOT_IP" >/dev/null 2>&1; then
-        echo ">>> UR-Arm ${UR_ROBOT_IP} nicht erreichbar (ping) - Kalibrierung übersprungen."
+        echo ">>> UR arm ${UR_ROBOT_IP} not reachable (ping) - calibration skipped."
     else
         if [ -f "$UR_CALIB_FILE" ]; then
             cp -a "$UR_CALIB_FILE" "${UR_CALIB_FILE}.bak.$(date +%Y%m%d%H%M%S)"
             prune_backups "$UR_CALIB_FILE"
         fi
-        echo ">>> Kalibriere UR-Arm (${UR_ROBOT_IP}) -> ${UR_CALIB_FILE}"
-        echo "    Hinweis: bei 'Could not connect' belegt evtl. der Treiber die Schnittstelle ->"
-        echo "             'sudo systemctl stop clearpath-manipulators.service', dann erneut."
+        echo ">>> Calibrating the UR arm (${UR_ROBOT_IP}) -> ${UR_CALIB_FILE}"
+        echo "    Note: on 'Could not connect' the driver may occupy the interface ->"
+        echo "          'sudo systemctl stop clearpath-manipulators.service', then retry."
         if sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
               "source /opt/ros/jazzy/setup.bash && ros2 launch ur_calibration calibration_correction.launch.py robot_ip:=${UR_ROBOT_IP} target_filename:='${UR_CALIB_FILE}'"; then
             chown "$REAL_USER":"$REAL_USER" "$UR_CALIB_FILE" 2>/dev/null || true
-            echo "    Kalibrierung gespeichert: ${UR_CALIB_FILE}"
-            echo "    -> In robot.yaml beim Arm eintragen und neu generieren (reboot):"
+            echo "    Calibration saved: ${UR_CALIB_FILE}"
+            echo "    -> Enter it in robot.yaml at the arm and regenerate (reboot):"
             echo "         kinematics_parameters_file: \"${UR_CALIB_FILE}\""
         else
-            echo "    WARN: Kalibrierung fehlgeschlagen (Arm an/erreichbar? Schnittstelle frei?)."
+            echo "    WARN: calibration failed (arm on/reachable? interface free?)."
         fi
     fi
 else
-    echo ">>> UR-Kalibrierung: übersprungen."
+    echo ">>> UR calibration: skipped."
 fi
 
-# --- onrobot-rg6 klonen + bauen (als realer Nutzer, nicht root) ------------
+# --- clone + build onrobot-rg6 (as the real user, not root) ----------------
 DO_RG6=1
 if [ -d "${RG6_WS}/.git" ]; then
-    confirm ">>> onrobot-rg6 existiert in ${RG6_WS}. git pull + neu bauen?" || DO_RG6=0
+    confirm ">>> onrobot-rg6 exists in ${RG6_WS}. git pull + rebuild?" || DO_RG6=0
 fi
 if [ "$DO_RG6" -eq 1 ]; then
-    echo ">>> onrobot-rg6 nach ${RG6_WS} (Nutzer ${REAL_USER})"
+    echo ">>> onrobot-rg6 to ${RG6_WS} (user ${REAL_USER})"
     if [ -d "${RG6_WS}/.git" ]; then
-        sudo -u "$REAL_USER" git -C "$RG6_WS" pull --ff-only || echo "    WARN: git pull fehlgeschlagen, nutze vorhandenen Stand"
+        sudo -u "$REAL_USER" git -C "$RG6_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
     else
         sudo -u "$REAL_USER" git clone "$RG6_REPO_URL" "$RG6_WS"
     fi
-    echo ">>> Baue Workspace (colcon)"
-    # rg6_description = Greifermodell + Meshes + clearpath_extras (Glue);
-    # rg6_control = Simulations-Greifer, joint_state-Hilfsnodes, rg6_moveit_patch.
+    echo ">>> Building the workspace (colcon)"
+    # rg6_description = gripper model + meshes + clearpath_extras (the glue);
+    # rg6_control = simulation gripper, joint_state helper nodes, rg6_moveit_patch.
     #
-    # Der Workspace wird WEITER gebaut, obwohl der rg6_control-TREIBER
-    # stillgelegt ist (s. Kommentar am Kopf): rg6_description trägt das
-    # Greifermodell im URDF, rg6_moveit_patch die SRDF-Anpassung, und
-    # clearpath-custom-joint-states startet das Relay aus rg6_control.  Was
-    # entfällt, ist ausschließlich der laufende Treiber-Knoten.
+    # rg6_description carries the gripper model in the URDF, rg6_moveit_patch
+    # the SRDF adjustment, and clearpath-custom-joint-states starts the relay out
+    # of rg6_control.  The gripper itself is driven by rg6_grip_bridge, not by a
+    # node from this workspace.
     #
-    # rg6_msgs steht NICHT mehr dabei.  Das Paket trug GripperState und Grip
-    # für den Tool-DO-Treiber; seit die Brücke ihren Zustand als flaches
-    # JSON auf rg6/bridge_state legt, deklariert es kein Paket mehr als
-    # Abhängigkeit und kein Knoten baut den Typ.  Am 2026-08-24 am Roboter
-    # gegengeprüft: <ns>/rg6/state existiert nicht mehr, nur bridge_state.
+    # rg6_msgs is deliberately NOT in the list.  The bridge publishes its state
+    # as flat JSON on rg6/bridge_state, so no package declares rg6_msgs as a
+    # dependency and no node builds the type.  Cross-checked on the robot on
+    # 2026-08-24: <ns>/rg6/state does not exist, only bridge_state.
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
         "source /etc/clearpath/setup.bash && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_control" \
-        || echo "    WARN: colcon build fehlgeschlagen - ohne rg6_description fehlt der Greifer im URDF, ohne rg6_control das joint-states-Relay."
+        || echo "    WARN: colcon build failed - without rg6_description the gripper is missing from the URDF, without rg6_control the joint-states relay."
 else
-    echo ">>> onrobot-rg6: übersprungen (vorhandener Stand bleibt)."
+    echo ">>> onrobot-rg6: skipped (the existing state stays)."
 fi
 
-# --- rg6_moveit_patch als root-eigene Kopie installieren --------------------
-# Der Boot-Service clearpath-custom-setup läuft als root und hängt den RG6
-# in die MoveIt-Config. Das Tool dafür stammt aus dem User-Workspace - es als
-# root DIREKT von dort auszuführen wäre eine Rechteausweitung (wer in den
-# Workspace schreiben kann, bekäme root bei jedem Boot; via git pull sogar das
-# Remote-Repo). Daher hier eine root-eigene Kopie: sie ändert sich nur durch
-# einen erneuten Installer-Lauf, nicht durch Änderungen im Workspace.
+# --- install rg6_moveit_patch as a root-owned copy --------------------------
+# The boot service clearpath-custom-setup runs as root and hooks the RG6 into
+# the MoveIt config. The tool for that comes from the user workspace - running
+# it as root DIRECTLY from there would be a privilege escalation (whoever can
+# write into the workspace would get root on every boot; via git pull even the
+# remote repo). Hence a root-owned copy here: it only changes through another
+# installer run, not through changes in the workspace.
 RG6_PATCH_SRC=""
 for cand in "${RG6_WS}/install/rg6_control/lib/rg6_control/rg6_moveit_patch" \
             "${RG6_WS}/src/rg6_control/scripts/rg6_moveit_patch"; do
     [ -f "$cand" ] && { RG6_PATCH_SRC="$cand"; break; }
 done
 if [ -n "$RG6_PATCH_SRC" ]; then
-    echo ">>> Installiere ${RG6_MOVEIT_PATCH_BIN} (Kopie von ${RG6_PATCH_SRC})"
+    echo ">>> Installing ${RG6_MOVEIT_PATCH_BIN} (copy of ${RG6_PATCH_SRC})"
     install -m 0755 -o root -g root "$RG6_PATCH_SRC" "$RG6_MOVEIT_PATCH_BIN"
 elif [ -f "$RG6_MOVEIT_PATCH_BIN" ]; then
-    echo ">>> rg6_moveit_patch: Workspace-Tool nicht gefunden - vorhandene Kopie ${RG6_MOVEIT_PATCH_BIN} bleibt."
+    echo ">>> rg6_moveit_patch: workspace tool not found - the existing copy ${RG6_MOVEIT_PATCH_BIN} stays."
 else
-    echo "    WARN: rg6_moveit_patch nicht gefunden (onrobot-rg6 geklont/gebaut?) - RG6-MoveIt-Patch beim Boot inaktiv, bis der Installer mit vorhandenem Workspace erneut läuft."
+    echo "    WARN: rg6_moveit_patch not found (is onrobot-rg6 cloned/built?) - the RG6 MoveIt patch is inactive at boot until the installer runs again with the workspace present."
 fi
 
-# --- UR dashboard_client als Boot-Service (optional) -----------------------
-# Liefert die Dashboard-Services (power_on/brake_release/unlock_protective_stop/
-# restart_safety/get_robot_mode/get_safety_mode). Eigener Service, kein Build:
-# 'ros2 run ur_robot_driver dashboard_client' verbindet sich auf <ip>:29999.
-# __node:=dashboard_client wird gepinnt -> Services landen deterministisch unter
-# ${UR_DASH_NS}/dashboard_client/* (passt zum ur_state_manager-Default).
+# --- UR dashboard_client as a boot service (optional) ----------------------
+# Provides the dashboard services (power_on/brake_release/unlock_protective_stop/
+# restart_safety/get_robot_mode/get_safety_mode). Its own service, no build:
+# 'ros2 run ur_robot_driver dashboard_client' connects to <ip>:29999.
+# __node:=dashboard_client is pinned -> the services land deterministically under
+# ${UR_DASH_NS}/dashboard_client/* (matching the ur_state_manager default).
 DO_DASH=1
 if [ -f "$UR_DASH_UNIT_PATH" ]; then
-    confirm ">>> ${UR_DASH_UNIT} ist bereits installiert. Aktualisieren?" || DO_DASH=0
+    confirm ">>> ${UR_DASH_UNIT} is already installed. Update?" || DO_DASH=0
 else
-    confirm ">>> UR dashboard_client als Boot-Service installieren (power_on/brake_release/unlock/restart_safety)?" || DO_DASH=0
+    confirm ">>> Install the UR dashboard_client as a boot service (power_on/brake_release/unlock/restart_safety)?" || DO_DASH=0
 fi
 if [ "$DO_DASH" -eq 1 ]; then
-    echo ">>> Installiere ${UR_DASH_WRAPPER} + ${UR_DASH_UNIT}"
+    echo ">>> Installing ${UR_DASH_WRAPPER} + ${UR_DASH_UNIT}"
     cat > "$UR_DASH_WRAPPER" <<EOF
 #!/usr/bin/env bash
-# Startet den ur_robot_driver dashboard_client im manipulators-Namespace.
-# Verbindet sich auf den UR Dashboard-Server (${UR_DASH_ROBOT_IP}:29999) und legt
-# die Services ${UR_DASH_NS}/dashboard_client/* an.
+# Starts the ur_robot_driver dashboard_client in the manipulators namespace.
+# Connects to the UR dashboard server (${UR_DASH_ROBOT_IP}:29999) and creates the
+# services ${UR_DASH_NS}/dashboard_client/*.
 source /etc/clearpath/setup.bash
 exec ros2 run ur_robot_driver dashboard_client --ros-args \\
     -r __ns:=${UR_DASH_NS} \\
@@ -972,22 +971,23 @@ EOF
     cat > "$UR_DASH_UNIT_PATH" <<EOF
 [Unit]
 Description=UR dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
-# A2: KEINE Kopplung an clearpath-manipulators. Der dashboard_client spricht
-# ausschliesslich TCP:29999 mit der UR-Control-Box und braucht den ROS-Treiber
-# nicht. Der Watchdog startet clearpath-manipulators neu und braucht die
-# Dashboard-Services waehrend genau dieser Recovery durchgehend (get_robot_mode,
-# get_safety_mode, resend_robot_program) - mit PartOf riss er sie selbst mit runter.
-# Ordnung an clearpath-robot bleibt: erst danach existiert /etc/clearpath/setup.bash.
+# NO coupling to clearpath-manipulators. The dashboard_client speaks solely
+# TCP:29999 with the UR control box and does not need the ROS driver. The
+# watchdog restarts clearpath-manipulators and needs the dashboard services
+# throughout exactly that recovery (get_robot_mode, get_safety_mode,
+# resend_robot_program) - with PartOf it would tear them down itself.
+# The ordering against clearpath-robot stays: only after it does
+# /etc/clearpath/setup.bash exist.
 After=clearpath-robot.service
-# PartOf nur an clearpath-robot: ein Stack-Stop/-Restart nimmt ihn mit,
-# ein reiner Treiber-Restart (clearpath-manipulators) nicht.
+# PartOf only against clearpath-robot: a stack stop/restart takes it along, a
+# pure driver restart (clearpath-manipulators) does not.
 PartOf=clearpath-robot.service
 
 [Service]
 User=${REAL_USER}
 ExecStart=${UR_DASH_WRAPPER}
-# dashboard_client beendet sich, wenn die Control-Box (29999) noch nicht bereit
-# ist -> automatisch erneut versuchen.
+# dashboard_client exits when the control box (29999) is not ready yet ->
+# retry automatically.
 Restart=on-failure
 RestartSec=5
 
@@ -996,42 +996,42 @@ WantedBy=multi-user.target
 EOF
     chmod 0644 "$UR_DASH_UNIT_PATH"
 else
-    echo ">>> UR dashboard_client: übersprungen."
+    echo ">>> UR dashboard_client: skipped."
 fi
 
-# --- ur-state-manager klonen + bauen + Boot-Service (optional) -------------
-# prepare/recover/ensure_ready/power_off-Services für den Arm. Wie onrobot-rg6:
-# als realer Nutzer klonen+bauen, dann per systemd starten. Braucht den
-# dashboard_client (clearpath-custom-ur-dashboard.service) -> Launch mit start_dashboard_client:=false.
+# --- clone + build ur-state-manager + boot service (optional) --------------
+# prepare/recover/ensure_ready/power_off services for the arm. Like onrobot-rg6:
+# clone + build as the real user, then start it via systemd. Needs the
+# dashboard_client (clearpath-custom-ur-dashboard.service) -> launch with start_dashboard_client:=false.
 DO_USM=1
 if [ -d "${USM_WS}/.git" ]; then
-    confirm ">>> ur-state-manager existiert in ${USM_WS}. git pull + neu bauen + Service aktualisieren?" || DO_USM=0
+    confirm ">>> ur-state-manager exists in ${USM_WS}. git pull + rebuild + update the service?" || DO_USM=0
 else
-    confirm ">>> ur-state-manager installieren (prepare/recover-Services; klont+baut + Boot-Service)?" || DO_USM=0
+    confirm ">>> Install ur-state-manager (prepare/recover services; clones + builds + boot service)?" || DO_USM=0
 fi
 if [ "$DO_USM" -eq 1 ]; then
-    echo ">>> ur-state-manager nach ${USM_WS} (Nutzer ${REAL_USER})"
+    echo ">>> ur-state-manager to ${USM_WS} (user ${REAL_USER})"
     if [ -d "${USM_WS}/.git" ]; then
-        sudo -u "$REAL_USER" git -C "$USM_WS" pull --ff-only || echo "    WARN: git pull fehlgeschlagen, nutze vorhandenen Stand"
+        sudo -u "$REAL_USER" git -C "$USM_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
     else
         sudo -u "$REAL_USER" git clone "$USM_REPO_URL" "$USM_WS"
     fi
-    echo ">>> Baue Workspace (colcon)"
+    echo ">>> Building the workspace (colcon)"
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
         "source /etc/clearpath/setup.bash && cd '$USM_WS' && colcon build --packages-select ur_state_manager" \
-        || echo "    WARN: colcon build fehlgeschlagen - ${USM_UNIT} läuft erst nach erfolgreichem Build."
+        || echo "    WARN: colcon build failed - ${USM_UNIT} only runs after a successful build."
 
-    echo ">>> Installiere ${USM_WRAPPER} + ${USM_UNIT}"
+    echo ">>> Installing ${USM_WRAPPER} + ${USM_UNIT}"
     cat > "$USM_WRAPPER" <<EOF
 #!/usr/bin/env bash
-# Startet den ur_state_manager (prepare/recover/ensure_ready/power_off).
-# start_dashboard_client:=false -> der dashboard_client läuft via clearpath-custom-ur-dashboard.service.
-# auto_recover:=false -> der auto_recover-Watcher AUS: er würde per 'recover'
-#   die Bremsen loesen + ExternalControl starten (Arm -> RUNNING). Wir wollen nach
-#   einem Restart aber NUR 'Treiber verbunden' (Arm bleibt IDLE, Bremsen angelegt,
-#   kein automatisches Bremsenlösen/Bestromen). Zum Bewegen ruft der Bediener
-#   manuell 'prepare'. Treiber-Connect passiert von selbst (JSC); der Watchdog ist
-#   die Notbremse (nur Treiber-Restart, keine Bremsen/Bestromung).
+# Starts the ur_state_manager (prepare/recover/ensure_ready/power_off).
+# start_dashboard_client:=false -> the dashboard_client runs via clearpath-custom-ur-dashboard.service.
+# auto_recover:=false -> the auto_recover watcher is OFF: it would release the
+#   brakes and start external control via 'recover' (arm -> RUNNING). After a
+#   restart we want ONLY 'driver connected' (the arm stays IDLE, brakes engaged,
+#   no automatic brake release or powering). To move it, the operator calls
+#   'prepare' by hand. The driver connect happens on its own (JSC); the watchdog
+#   is the emergency brake (driver restart only, no brakes/powering).
 source /etc/clearpath/setup.bash
 source ${USM_WS}/install/setup.bash
 exec ros2 launch ur_state_manager ur_state_manager.launch.py start_dashboard_client:=false auto_recover:=false
@@ -1040,19 +1040,19 @@ EOF
 
     cat > "$USM_UNIT_PATH" <<EOF
 [Unit]
-Description=UR state manager (prepare/recover/ensure_ready/power_off für den UR5)
-# Nach dem dashboard_client starten (liefert die Dashboard-Services). Ist
-# clearpath-custom-ur-dashboard.service nicht installiert, ist das After= ein No-op.
+Description=UR state manager (prepare/recover/ensure_ready/power_off for the UR5)
+# Start after the dashboard_client (which provides the dashboard services). If
+# clearpath-custom-ur-dashboard.service is not installed, this After= is a no-op.
 After=clearpath-manipulators.service clearpath-custom-ur-dashboard.service
 Wants=clearpath-manipulators.service
-# Mit-Neustart: startet clearpath-manipulators (Treiber/controller_manager) neu,
-# muss auch dieser Node neu starten - sonst zeigen der robot_state_helper und der
-# Adapter auf stale io_and_status_controller-Topics/-Services.
-# PartOf propagiert Stop/Restart nur eine Hop-Ebene und nur bei DIREKTEM Job auf
-# der Ziel-Unit. Stack-Restart via 'systemctl restart clearpath-robot' startet
-# clearpath-manipulators nur indirekt -> ohne PartOf=clearpath-robot würde dieser
-# Service nicht mit-restarten. Daher an BEIDE Wurzeln (robot + manipulators);
-# Stop clearpath-robot stoppt ihn dann mit.
+# Restart along: when clearpath-manipulators (driver/controller_manager)
+# restarts, this node must restart too - otherwise the robot_state_helper and the
+# adapter point at stale io_and_status_controller topics/services.
+# PartOf propagates stop/restart only one hop and only on a DIRECT job on the
+# target unit. A stack restart via 'systemctl restart clearpath-robot' starts
+# clearpath-manipulators only indirectly -> without PartOf=clearpath-robot this
+# service would not restart along. Hence against BOTH roots (robot +
+# manipulators); stopping clearpath-robot then stops it too.
 PartOf=clearpath-robot.service clearpath-manipulators.service
 
 [Service]
@@ -1066,120 +1066,121 @@ WantedBy=multi-user.target
 EOF
     chmod 0644 "$USM_UNIT_PATH"
 else
-    echo ">>> ur-state-manager: übersprungen."
+    echo ">>> ur-state-manager: skipped."
 fi
 
-# --- arm-controllers: kein eigener Service ---------------------------------
-# Die Extra-Controller (ft/tcp_pose/speed_scaling aktiv; freedrive/forward/
-# passthrough --inactive) und der ur_controller_mode_manager kommen aus
-# ur_state_manager.launch.py (Argument load_arm_controllers, Default true):
-# gleiches Paket, gleicher Workspace, gleicher User, identischer Lifecycle ->
-# kein Grund für eine zweite Unit.
+# --- arm controllers: no service of their own ------------------------------
+# The extra controllers (ft/tcp_pose/speed_scaling active; freedrive/forward/
+# passthrough --inactive) and the ur_controller_mode_manager come from
+# ur_state_manager.launch.py (argument load_arm_controllers, default true): same
+# package, same workspace, same user, identical lifecycle -> no reason for a
+# second unit.
 
-# --- manipulators-watchdog: Treiber-Reconnect bei spätem Einschalten -------
-# Siehe Variablen-Kommentar oben. Behebt den Fall "Arm zu lange stromlos ->
-# ur_robot_driver einmalig gescheitert -> bleibt tot", den auto_recover
-# konstruktionsbedingt NICHT abdecken kann (falsche Ebene: der Watcher braucht die
-# tote Treiber-Verbindung für seine eigenen Eingaben und kann keinen Prozess neu
-# starten). Timer-getrieben; Wrapper läuft als root (für systemctl restart), die
-# ROS-Prüfung als ${REAL_USER} (gleicher ROS-Graph).
+# --- manipulators watchdog: driver reconnect on late power-up --------------
+# See the variable comment above. Fixes the case "arm unpowered too long ->
+# ur_robot_driver failed once -> stays dead", which auto_recover cannot cover by
+# construction (wrong level: the watcher needs the dead driver connection for its
+# own inputs and cannot restart a process). Timer driven; the wrapper runs as
+# root (for systemctl restart), the ROS check as ${REAL_USER} (same ROS graph).
 DO_WD=1
 if [ -f "$WD_UNIT_PATH" ]; then
-    confirm ">>> manipulators-watchdog ist bereits installiert. Aktualisieren?" || DO_WD=0
+    confirm ">>> manipulators-watchdog is already installed. Update?" || DO_WD=0
 else
-    confirm ">>> manipulators-watchdog installieren (Treiber-Neustart, wenn der Arm spaet eingeschaltet wird)?" || DO_WD=0
+    confirm ">>> Install manipulators-watchdog (driver restart when the arm is powered up late)?" || DO_WD=0
 fi
 if [ "$DO_WD" -eq 1 ]; then
-    echo ">>> Installiere ${WD_WRAPPER} + ${WD_UNIT} + ${WD_TIMER}"
+    echo ">>> Installing ${WD_WRAPPER} + ${WD_UNIT} + ${WD_TIMER}"
     cat > "$WD_WRAPPER" <<'WD_EOF'
 #!/usr/bin/env bash
-# Watchdog: erkennt "Arm erreichbar, aber PC-seitiger Motion-Link (ur_robot_driver)
-# NICHT verbunden". Health-Signal ist der joint_state_broadcaster-Stream auf
-# .../manipulators/joint_states - der publisht NUR, wenn das ros2_control-HW-Interface
-# aktiviert ist und reale Arm-Gelenke liest.
-# robot_program_running allein reicht NICHT als "verbunden": das ist der
-# controller-seitige ExternalControl-Status (via Dashboard/RTDE) und bleibt 'true',
-# selbst wenn der PC-Motion-Link tot ist - z.B. hängengebliebener Reconnect nach einem
-# clearpath-robot.service-Restart bei schon bestromtem Arm (alte ExternalControl-
-# Instanz hält das Reverse-Socket, neue HW-Aktivierung schlägt fehl, JSC bleibt
-# inactive -> Topic stumm -> Arm in RViz flach). Deckt damit ZWEI Faelle ab:
-#   (a) Kaltstart mit spaet bestromtem Arm: HW-Aktivierung einmalig gescheitert (Arm
-#       war stromlos), ros2_control retryt sie nicht -> JSC stumm.
-#   (b) Service-Restart mit schon bestromtem Arm: neue HW-Aktivierung schlägt fehl
-#       (Socket-Kollision mit der alten Instanz) -> JSC stumm.
-# Recovery: Treiber neu starten (clearpath-manipulators.service) + ExternalControl
-# neu starten (resend_robot_program). Der Arm wird NICHT automatisch bestromt
-# (kein power_on/brake_release) - Bestromung ist Bediener-Entscheidung (schuetzt
-# Wartung/Feierabend); ist der Arm POWER_OFF, läuft keine Recovery (kein
-# Treiber-Loop gegen stromlosen Arm). Protective-/Safety-Stops (safety_mode !=
-# NORMAL) werden NICHT auto-gecleart (bleiben manuell) - resend übersprungen.
-# Aufruf: manipulators-watchdog.sh <ROBOT_IP> <TOPIC> <RUN_USER> <RUN_HOME>
-#   TOPIC = .../io_and_status_controller/robot_program_running (Namespace wird
-#   daraus abgeleitet; Dashboard- + Resend-Services + JSC-Topic unter demselben NS).
+# Watchdog: detects "arm reachable, but the PC-side motion link
+# (ur_robot_driver) NOT connected". The health signal is the
+# joint_state_broadcaster stream on .../manipulators/joint_states - it publishes
+# ONLY when the ros2_control HW interface is activated and reads real arm joints.
+# robot_program_running alone is NOT enough as "connected": that is the
+# controller-side external control status (via dashboard/RTDE) and stays 'true'
+# even when the PC-side motion link is dead - e.g. a stuck reconnect after a
+# clearpath-robot.service restart with the arm already powered (the old external
+# control instance holds the reverse socket, the new HW activation fails, the JSC
+# stays inactive -> topic silent -> the arm goes flat in RViz). It thereby covers
+# TWO cases:
+#   (a) cold start with a late-powered arm: HW activation failed once (the arm was
+#       unpowered), ros2_control does not retry it -> JSC silent.
+#   (b) service restart with the arm already powered: the new HW activation fails
+#       (socket collision with the old instance) -> JSC silent.
+# Recovery: restart the driver (clearpath-manipulators.service) + restart external
+# control (resend_robot_program). The arm is NOT powered automatically (no
+# power_on/brake_release) - powering is an operator decision (it protects
+# maintenance/end of day); with the arm at POWER_OFF no recovery runs (no driver
+# loop against an unpowered arm). Protective/safety stops (safety_mode != NORMAL)
+# are NOT auto-cleared (they stay manual) - the resend is skipped.
+# Invocation: manipulators-watchdog.sh <ROBOT_IP> <TOPIC> <RUN_USER> <RUN_HOME>
+#   TOPIC = .../io_and_status_controller/robot_program_running (the namespace is
+#   derived from it; dashboard + resend services and the JSC topic sit under the
+#   same NS).
 set -uo pipefail
 
-ROBOT_IP="${1:?ROBOT_IP fehlt}"
-TOPIC="${2:?TOPIC fehlt}"
-RUN_USER="${3:?RUN_USER fehlt}"
-RUN_HOME="${4:?RUN_HOME fehlt}"
+ROBOT_IP="${1:?ROBOT_IP missing}"
+TOPIC="${2:?TOPIC missing}"
+RUN_USER="${3:?RUN_USER missing}"
+RUN_HOME="${4:?RUN_HOME missing}"
 SERVICE="clearpath-manipulators.service"
 DASH_SVC="clearpath-custom-ur-dashboard.service"
-COOLDOWN="${WD_COOLDOWN:-180}"          # s: nach einer Recovery so lange nicht erneut
-JS_TIMEOUT="${WD_JS_TIMEOUT:-25}"      # s: auf JSC-Nachricht warten (JSC braucht nach manipulators-Restart bis ~15s -> großzügig, erst >JS_TIMEOUT ohne Nachricht = Motion-Link wirklich tot)
-RPR_WAIT="${WD_RPR_WAIT:-15}"           # Iterationen: JSC-streamt-wieder-Bestaetigung nach resend
+COOLDOWN="${WD_COOLDOWN:-180}"          # s: no further recovery for this long after one
+JS_TIMEOUT="${WD_JS_TIMEOUT:-25}"      # s: wait for a JSC message (after a manipulators restart the JSC takes up to ~15s -> generous, only >JS_TIMEOUT without a message means the motion link is really dead)
+RPR_WAIT="${WD_RPR_WAIT:-15}"           # iterations: confirmation that the JSC streams again after a resend
 STATE="/run/manipulators-watchdog.state"
 TAG="manipulators-watchdog"
 log() { echo "${TAG}: $*"; }
 
-# Namespace aus dem Topic ableiten (.../io_and_status_controller/robot_program_running).
+# Derive the namespace from the topic (.../io_and_status_controller/robot_program_running).
 NS="${TOPIC%/io_and_status_controller/*}"
 DASH_NS="${NS}/dashboard_client"
 RESEND_SVC="${NS}/io_and_status_controller/resend_robot_program"
-JS_TOPIC="${NS}/joint_states"   # joint_state_broadcaster-Ausgang; lebt nur bei aktivem HW-Interface
-PLATFORM_JS_TOPIC="${NS%/manipulators}/platform/joint_states"  # Fallback-Bus (s. Health-Check)
-DRY_RUN="${WD_DRY_RUN:-0}"      # 1 = nur melden, was passieren würde (Test)
+JS_TOPIC="${NS}/joint_states"   # joint_state_broadcaster output; alive only with an active HW interface
+PLATFORM_JS_TOPIC="${NS%/manipulators}/platform/joint_states"  # fallback bus (see the health check)
+DRY_RUN="${WD_DRY_RUN:-0}"      # 1 = only report what would happen (test)
 RPR_TOPIC="${TOPIC}"            # robot_program_running (latched/transient_local!)
-RPR_TIMEOUT="${WD_RPR_TIMEOUT:-6}"      # s: auf den gelatchten Wert warten
+RPR_TIMEOUT="${WD_RPR_TIMEOUT:-6}"      # s: wait for the latched value
 RESEND_STATE="/run/manipulators-watchdog.resend"
-RESEND_COOLDOWN="${WD_RESEND_COOLDOWN:-60}"  # s: nicht im Timer-Takt spammen
+RESEND_COOLDOWN="${WD_RESEND_COOLDOWN:-60}"  # s: do not spam at the timer rate
 
-# ROS-Befehl als RUN_USER im selben Graphen ausfuehren.
+# Run a ROS command as RUN_USER in the same graph.
 ros_cmd() { sudo -u "$RUN_USER" env HOME="$RUN_HOME" bash -lc "source /etc/clearpath/setup.bash && $*"; }
 
-# --- Helfer: Modus-/Safety-Abfrage und Trigger-Aufrufe (alle via Dashboard) ---
+# --- helpers: mode/safety query and trigger calls (all via the dashboard) ---
 robot_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_robot_mode' ur_dashboard_msgs/srv/GetRobotMode" 2>&1 | grep -oE 'Robotmode: [A-Z_]+' | head -1; }
 safety_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_safety_mode' ur_dashboard_msgs/srv/GetSafetyMode" 2>&1 | grep -oE 'Safetymode: [A-Z_]+' | head -1; }
-call_trigger() {  # $1 Service-Pfad, $2 Timeout(s); 0 = success=True
+call_trigger() {  # $1 service path, $2 timeout(s); 0 = success=True
     local svc="$1" t="${2:-12}"
     ros_cmd "timeout ${t} ros2 service call '${svc}' std_srvs/srv/Trigger" 2>&1 | grep -q 'success=True'
 }
 
 
 
-# --- ExternalControl-Nachzuendung (Fall: RTDE liest, aber Motion-Link fehlt) ---
-# Der JSC streamt schon, sobald die Control-Box an ist - RTDE-Lesen funktioniert
-# unabhaengig von ExternalControl. Wird der Arm ERST NACH der HW-Aktivierung
-# bestromt (typisch: App ruft prepare), ging das einmalig gesendete
-# ExternalControl-Programm ins Leere und ros2_control wiederholt es nicht:
-# Lesen ok, Schreiben tot, Arm bewegt sich nicht. Der JSC-Health-Check sieht das
-# NICHT - erst die Konjunktion "JSC streamt UND robot_program_running" ist
-# belastbar. Reaktion hier bewusst MINIMAL: nur resend_robot_program, kein
-# Treiber-Neustart, kein Bestromen. Gate: nur wenn der Bediener den Arm schon
-# auf RUNNING gebracht hat und keine Safety-Stoerung ansteht.
+# --- re-ignite external control (case: RTDE reads, but the motion link is gone) ---
+# The JSC already streams as soon as the control box is on - RTDE reading works
+# independently of external control. If the arm is powered ONLY AFTER the HW
+# activation (typically: the app calls prepare), the external control program sent
+# once went nowhere and ros2_control does not repeat it: reading ok, writing dead,
+# the arm does not move. The JSC health check does NOT see that - only the
+# conjunction "JSC streams AND robot_program_running" is trustworthy. The reaction
+# here is deliberately MINIMAL: only resend_robot_program, no driver restart, no
+# powering. Gate: only when the operator has already brought the arm to RUNNING and
+# no safety fault is pending.
 ensure_external_control() {
     ros_cmd "timeout ${RPR_TIMEOUT} ros2 topic echo --once --qos-durability transient_local '${RPR_TOPIC}'" 2>/dev/null \
         | grep -q 'data: true' && return 0
     if [ "$DRY_RUN" = "1" ]; then
-        log "DRY_RUN=1 -> ExternalControl steht nicht; haette resend_robot_program geschickt."
+        log "DRY_RUN=1 -> external control is not up; would have sent resend_robot_program."
         return 0
     fi
     local rm_now; rm_now="$(robot_mode)"
     if [ "$rm_now" != "Robotmode: RUNNING" ]; then
-        return 0   # Arm nicht betriebsbereit -> nichts tun (Bediener-Entscheidung)
+        return 0   # arm not ready -> do nothing (operator decision)
     fi
     local sm_now; sm_now="$(safety_mode)"
     if [ "$sm_now" != "Safetymode: NORMAL" ]; then
-        log "ExternalControl steht nicht, aber Safety-Modus ist '${sm_now:-unbekannt}' -> kein resend (manuelle Freigabe noetig)."
+        log "external control is not up, but the safety mode is '${sm_now:-unknown}' -> no resend (manual release needed)."
         return 0
     fi
     local now_r; now_r="$(date +%s)"
@@ -1191,121 +1192,125 @@ ensure_external_control() {
         fi
     fi
     echo "$now_r" > "$RESEND_STATE"
-    log "Arm ist RUNNING und der JSC streamt, aber ExternalControl läuft nicht (robot_program_running != true) -> resend_robot_program. KEIN Treiber-Neustart, kein Bestromen."
+    log "the arm is RUNNING and the JSC streams, but external control is not running (robot_program_running != true) -> resend_robot_program. NO driver restart, no powering."
     if call_trigger "${RESEND_SVC}" 20; then
         sleep 3
         if ros_cmd "timeout ${RPR_TIMEOUT} ros2 topic echo --once --qos-durability transient_local '${RPR_TOPIC}'" 2>/dev/null | grep -q 'data: true'; then
-            log "ExternalControl wieder aktiv."
+            log "external control active again."
         else
-            log "resend gesendet, robot_program_running noch nicht true - naechster Lauf prueft erneut (Cooldown ${RESEND_COOLDOWN}s)."
+            log "resend sent, robot_program_running not true yet - the next run checks again (cooldown ${RESEND_COOLDOWN}s)."
         fi
     else
-        log "resend_robot_program fehlgeschlagen - naechster Lauf prueft erneut (Cooldown ${RESEND_COOLDOWN}s)."
+        log "resend_robot_program failed - the next run checks again (cooldown ${RESEND_COOLDOWN}s)."
     fi
 }
 
-# 1) Arm überhaupt erreichbar? Nein -> bewusst nichts tun (Arm noch aus; der
-#    Watchdog soll NUR beim spaeten Einschalten / nach Treiber-Ausfall anspringen,
-#    nicht dauernd).
+# 1) Is the arm reachable at all? No -> deliberately do nothing (the arm is still
+#    off; the watchdog should fire ONLY on a late power-up or after a driver
+#    failure, not constantly).
 if ! ping -c1 -W1 "$ROBOT_IP" >/dev/null 2>&1; then
     exit 0
 fi
 
-# 2) Health-Check: lebt der PC-seitige Motion-Link? Signal = JSC-Stream auf
-#    .../manipulators/joint_states (reale Arm-Gelenke, nur verfuegbar wenn das
-#    ros2_control-HW-Interface aktiviert ist). robot_program_running (true/false)
-#    ist KEIN ausreichendes Signal (controller-seitig, bleibt true bei totem
-#    PC-Motion-Link). Grace-Timeout großzügig: der JSC braucht nach einem
-#    manipulators-Restart bis ~15s -> erst >JS_TIMEOUT ohne Nachricht = wirklich tot.
+# 2) Health check: is the PC-side motion link alive? The signal is the JSC stream
+#    on .../manipulators/joint_states (real arm joints, available only when the
+#    ros2_control HW interface is activated). robot_program_running (true/false) is
+#    NOT a sufficient signal (controller side, stays true with a dead PC-side motion
+#    link). The grace timeout is generous: after a manipulators restart the JSC
+#    takes up to ~15s -> only >JS_TIMEOUT without a message means really dead.
 if ros_cmd "timeout ${JS_TIMEOUT} ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
-    ensure_external_control    # JSC-Lesepfad ok - aber steht auch der Schreibpfad?
+    ensure_external_control    # the JSC read path is ok - but is the write path up too?
     exit 0
 fi
-# Fallback: Arm-Joints können auch auf dem platform-Bus ankommen - naemlich dann,
-# wenn der Stock-Patch move_arm_joint_states (clearpath-custom-setup.py Schritt 3)
-# nach einem apt-Update nicht mehr greift. Ohne diesen Zweig laese der Watchdog
-# Stille auf einem KERNGESUNDEN Roboter und startete den Treiber im Cooldown-Takt
-# dauerhaft neu. Health-Signal ist "Arm-Gelenke kommen an" - egal auf welchem Bus.
+# Fallback: the arm joints can also arrive on the platform bus - namely when the
+# stock patch move_arm_joint_states (clearpath-custom-setup.py step 3) no longer
+# takes effect after an apt update. Without this branch the watchdog would read
+# silence on a PERFECTLY HEALTHY robot and restart the driver permanently at the
+# cooldown rate. The health signal is "arm joints arrive" - on whichever bus.
 if ros_cmd "timeout ${JS_TIMEOUT} ros2 topic echo --once '${PLATFORM_JS_TOPIC}'" 2>/dev/null \
      | grep -q 'arm_0_shoulder_pan_joint'; then
-    log "WARN: Arm-Joints kommen auf ${PLATFORM_JS_TOPIC} statt ${JS_TOPIC} an -> der Stock-Patch move_arm_joint_states greift NICHT (apt-Update?). Motion-Link ist GESUND, keine Recovery. Pruefen: journalctl -t clearpath-custom-setup -b"
+    log "WARN: arm joints arrive on ${PLATFORM_JS_TOPIC} instead of ${JS_TOPIC} -> the stock patch move_arm_joint_states does NOT take effect (apt update?). The motion link is HEALTHY, no recovery. Check: journalctl -t clearpath-custom-setup -b"
     exit 0
 fi
 
-# 3) Cooldown pruefen (/run wird beim Boot geleert -> pro Boot frisch).
+# 3) Check the cooldown (/run is cleared at boot -> fresh per boot).
 now="$(date +%s)"
 if [ -f "$STATE" ]; then
     last="$(cat "$STATE" 2>/dev/null || echo 0)"
     [ -n "$last" ] || last=0
     if [ "$(( now - last ))" -lt "$COOLDOWN" ]; then
-        log "Motion-Link tot (JSC stumm), aber letzte Recovery < ${COOLDOWN}s her -> warte."
+        log "motion link dead (JSC silent), but the last recovery was < ${COOLDOWN}s ago -> waiting."
         exit 0
     fi
 fi
 
-log "Arm erreichbar (${ROBOT_IP}), aber JSC ${JS_TOPIC} stumm (Motion-Link tot) -> Recovery: ${SERVICE} neu starten + ExternalControl neu starten. KEIN Auto-Bestromen des Arms (Bediener-Entscheidung)."
+log "arm reachable (${ROBOT_IP}), but JSC ${JS_TOPIC} silent (motion link dead) -> recovery: restart ${SERVICE} + restart external control. NO automatic powering of the arm (operator decision)."
 echo "$now" > "$STATE"
 
-# 3a) clearpath-custom-ur-dashboard.service sicherstellen (Mode-Abfrage + resend
-#     brauchen den Dashboard-Client; unabhaengig von manipulators, bleibt oben).
+# 3a) Ensure clearpath-custom-ur-dashboard.service (the mode query and the resend
+#     need the dashboard client; independent of manipulators, it stays up).
 if [ "$(systemctl is-active "$DASH_SVC" 2>/dev/null)" != "active" ]; then
-    log "${DASH_SVC} nicht aktiv -> starte es."
+    log "${DASH_SVC} not active -> starting it."
     systemctl start "$DASH_SVC" || true
     sleep 3
 fi
 
-# 3b) Arm bewusst aus? KEIN Auto-Recovery und KEIN Auto-Bestromen - der Watchdog
-#     powert den Arm NIE selbst (Bediener-Entscheidung; schuetzt Wartung/Feierabend).
-#     Verhindert zusätzlich ein Endlos-Restarten des Treibers gegen einen stromlosen
-#     Arm (HW-Aktivierung schlägt ohnehin fehl -> JSC bliebe stumm -> Loop).
+# 3b) Arm switched off on purpose? NO auto recovery and NO auto powering - the
+#     watchdog NEVER powers the arm itself (operator decision; it protects
+#     maintenance/end of day). It additionally prevents an endless driver restart
+#     against an unpowered arm (the HW activation fails anyway -> the JSC would
+#     stay silent -> loop).
 rm_mode="$(robot_mode)"
 if [ "$rm_mode" = "Robotmode: POWER_OFF" ]; then
-    log "Arm ist POWER_OFF (bewusst stromlos) -> kein Auto-Recovery, kein Bestromen. Bei Bedarf manuell bestromen; der Watchdog verbindet den Motion-Link, sobald der Arm an ist."
+    log "the arm is POWER_OFF (deliberately unpowered) -> no auto recovery, no powering. Power it up by hand if needed; the watchdog connects the motion link as soon as the arm is on."
     exit 0
 fi
 
-# 3c) Treiber neu starten (blockierend). Mit dem SIGINT-Stop-Drop-in auf
-#     clearpath-manipulators.service (siehe unten, WD_MANIP_DROPIN) stirbt der alte
-#     ros2_control_node sauber (Reverse-Socket geordnet geschlossen) statt SIGTERM bis
-#     zu 90s zu ignorieren -> der neue Controller-Manager startet gegen ein freies Socket.
-#     TimeoutStartSec des watchdog-Service (300s) deckt langsames Stoppen + Recovery ab.
+# 3c) Restart the driver (blocking). With the SIGINT stop drop-in on
+#     clearpath-manipulators.service (see below, WD_MANIP_DROPIN) the old
+#     ros2_control_node dies cleanly (the reverse socket is closed in an orderly
+#     way) instead of ignoring SIGTERM for up to 90s -> the new controller manager
+#     starts against a free socket. TimeoutStartSec of the watchdog service (300s)
+#     covers a slow stop plus the recovery.
 if [ "$DRY_RUN" = "1" ]; then
-    log "DRY_RUN=1 -> haette jetzt ${SERVICE} neu gestartet + ExternalControl resendet. Kein Eingriff."
+    log "DRY_RUN=1 -> would have restarted ${SERVICE} now + resent external control. No intervention."
     exit 0
 fi
-systemctl restart "$SERVICE" || log "systemctl restart ${SERVICE} lief nicht sauber - versuche Recovery trotzdem weiter."
+systemctl restart "$SERVICE" || log "systemctl restart ${SERVICE} did not run cleanly - continuing the recovery anyway."
 
-# 3d) Safety-Check: Protective-/Safety-Stop wird NICHT auto-gecleart (manuell).
-#     Waehrend eines Safety-Stops kein resend (Bediener muss erst freigeben).
+# 3d) Safety check: a protective/safety stop is NOT auto-cleared (manual only).
+#     During a safety stop there is no resend (the operator must release first).
 sm="$(safety_mode)"
 if [ "$sm" != "Safetymode: NORMAL" ]; then
-    log "Safety-Modus ist '${sm:-unbekannt}' (kein NORMAL) -> Protective-/Safety-Stop. NICHT auto-gecleart, resend übersprungen. Manuelle Begutachtung noetig."
+    log "the safety mode is '${sm:-unknown}' (not NORMAL) -> protective/safety stop. NOT auto-cleared, resend skipped. Manual inspection needed."
     exit 0
 fi
 
-# 3e) ExternalControl direkt neu starten (resend_robot_program) - mit Retries, weil
-#     der neue manipulators-CM ein paar Sekunden braucht, bis io_and_status_controller
-#     aktiv ist, und Service-Discovery unter rmw_zenoh zaehe sein kann. Direkter Aufruf
-#     statt ros2-service-list-Poll (letzterer ist unter rmw_zenoh unzuverlaessig).
-#     Laeuft der ur_state_manager mit, resettet dessen auto_recover parallel; ein
-#     doppelter resend ist idempotent (Programm läuft schon -> Erfolg ohne Wirkung).
+# 3e) Restart external control directly (resend_robot_program) - with retries,
+#     because the new manipulators CM needs a few seconds until
+#     io_and_status_controller is active, and service discovery can be sluggish
+#     under rmw_zenoh. A direct call instead of a ros2-service-list poll (the
+#     latter is unreliable under rmw_zenoh). If the ur_state_manager runs along,
+#     its auto_recover resets in parallel; a double resend is idempotent (the
+#     program already runs -> success without effect).
 sent=""
 for attempt in 1 2 3 4 5 6; do
     if call_trigger "${RESEND_SVC}" 20; then
-        log "resend_robot_program gesendet (Versuch ${attempt})."
+        log "resend_robot_program sent (attempt ${attempt})."
         sent=1; break
     fi
-    log "resend Versuch ${attempt} fehlgeschlagen; erneut."
+    log "resend attempt ${attempt} failed; retrying."
     sleep 3
 done
 if [ -z "$sent" ]; then
-    log "resend_robot_program nach 6 Versuchen fehlgeschlagen - ExternalControl nicht neu gestartet. Naechster Timer-Lauf (Cooldown ${COOLDOWN}s)."
+    log "resend_robot_program failed after 6 attempts - external control not restarted. Next timer run (cooldown ${COOLDOWN}s)."
     exit 0
 fi
 
-# 3f) Erfolg verifizieren: JSC streamt wieder (reale Arm-Gelenke). Zuverlaessiger als
-#     rpr, weil es direkt den PC-Motion-Link bestaetigt (nicht nur das controller-seitige
-#     Programm). Kurz - resend hat ExternalControl gestartet, JSC wird schnell aktiv.
+# 3f) Verify success: the JSC streams again (real arm joints). More reliable than
+#     rpr, because it confirms the PC-side motion link directly (not only the
+#     controller-side program). Short - the resend started external control, the
+#     JSC becomes active quickly.
 ok=""
 for i in $(seq 1 "${RPR_WAIT}"); do
     if ros_cmd "timeout 6 ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
@@ -1314,9 +1319,9 @@ for i in $(seq 1 "${RPR_WAIT}"); do
     sleep 1
 done
 if [ -n "$ok" ]; then
-    log "Recovery erfolgreich: ${JS_TOPIC} streamt wieder."
+    log "recovery successful: ${JS_TOPIC} streams again."
 else
-    log "resend gesendet, aber ${JS_TOPIC} noch stumm. Naechster Timer-Lauf prueft erneut (Cooldown ${COOLDOWN}s)."
+    log "resend sent, but ${JS_TOPIC} still silent. The next timer run checks again (cooldown ${COOLDOWN}s)."
 fi
 WD_EOF
     chmod 0755 "$WD_WRAPPER"
@@ -1324,8 +1329,8 @@ WD_EOF
     cat > "$WD_UNIT_PATH" <<EOF
 [Unit]
 Description=Watchdog check: restart clearpath-manipulators when the arm is reachable but the UR driver is not connected
-# Nur nach dem Treiber pruefen; KEIN Wants/PartOf (rein periodischer Check, darf
-# den Treiber nicht mit-starten/-stoppen).
+# Only check after the driver; NO Wants/PartOf (a purely periodic check, it must
+# not start or stop the driver along with it).
 After=clearpath-manipulators.service
 
 [Service]
@@ -1333,26 +1338,28 @@ Type=oneshot
 # Läuft als root (Default) -> darf systemctl restart. Die ROS-Prüfung im Wrapper
 # wechselt selbst per 'sudo -u' auf ${REAL_USER}.
 ExecStart=${WD_WRAPPER} ${WD_ROBOT_IP} ${WD_PROGRAM_TOPIC} ${REAL_USER} ${USER_HOME}
-# Recovery blockiert beim systemctl restart + Dashboard-Aufrufe + Polls. Mit dem
-# SIGINT-Stop-Drop-in (WD_MANIP_DROPIN) stoppt der Treiber in ~1-3s; ohne Drop-in
-# kann SIGTERM bis zu 90s bis SIGKILL brauchen. systemd-Default-Timeout (90s) würde
-# den oneshot mittendrin killen -> großzügig (Puffer für Slow-Stop + Recovery).
+# The recovery blocks on the systemctl restart plus dashboard calls and polls.
+# With the SIGINT stop drop-in (WD_MANIP_DROPIN) the driver stops in ~1-3s;
+# without the drop-in SIGTERM can take up to 90s until SIGKILL. The systemd
+# default timeout (90s) would kill the oneshot midway -> generous (headroom for a
+# slow stop plus the recovery).
 TimeoutStartSec=300
-# Script-echo-Zeilen unter journalctl -t manipulators-watchdog sammelbar.
+# The script's echo lines are collectable under journalctl -t manipulators-watchdog.
 SyslogIdentifier=manipulators-watchdog
 EOF
     chmod 0644 "$WD_UNIT_PATH"
 
     cat > "$WD_TIMER_PATH" <<EOF
 [Unit]
-Description=Periodischer manipulators-watchdog-Check (Treiber-Reconnect bei spätem Arm-Einschalten ODER hängengebliebenem Reconnect nach Service-Restart)
+Description=Periodic manipulators-watchdog check (driver reconnect on a late arm power-up OR a stuck reconnect after a service restart)
 
 [Timer]
-# Erst nach der normalen Boot-Hochlaufzeit beginnen (Treiber Zeit geben), dann
-# regelmäßig. Kadenz 10s (statt 30s): so schlägt der Watchdog auch nach einem
-# clearpath-robot.service-Restart mit schon bestromtem Arm binnen ~10s an, sobald
-# der JSC-Stream (Health-Signal) aussetzt. Grace-Timeout im Skript (JS_TIMEOUT=25s)
-# verhindert Fehl-Alarme waehrend des ~15s manipulators-Hochlaufs.
+# Start only after the normal boot ramp-up time (give the driver time), then
+# regularly. A cadence of 10s (instead of 30s): that way the watchdog also fires
+# within ~10s after a clearpath-robot.service restart with the arm already
+# powered, as soon as the JSC stream (the health signal) stops. The grace timeout
+# in the script (JS_TIMEOUT=25s) prevents false alarms during the ~15s
+# manipulators ramp-up.
 OnBootSec=90
 OnUnitActiveSec=10
 AccuracySec=2
@@ -1362,52 +1369,52 @@ WantedBy=timers.target
 EOF
     chmod 0644 "$WD_TIMER_PATH"
 
-    # --- SIGINT-Stop-Drop-in für clearpath-manipulators.service -------------
-    # Ros-Knoten (ros2_control_node, move_group, robot_state_pub) reagieren auf SIGINT
-    # mit sauberem ROS-Graceful-Shutdown (Reverse-/Dashboard-Socket geordnet
-    # geschlossen) statt SIGTERM bis zu 90s zu ignorieren. Verhindert die Socket-
-    # Kollision beim Reconnect nach einem Service-Restart mit schon bestromtem Arm
-    # (alte ExternalControl-Instanz hält das Reverse-Socket -> neue HW-Aktivierung
-    # schlägt fehl -> Arm in RViz flach). Drop-in layert über der Clearpath-Unit
-    # (/usr/lib/systemd/system/...) und überlebt Package-Updates.
+    # --- SIGINT stop drop-in for clearpath-manipulators.service -------------
+    # ROS nodes (ros2_control_node, move_group, robot_state_pub) react to SIGINT
+    # with a clean graceful ROS shutdown (the reverse/dashboard socket is closed in
+    # an orderly way) instead of ignoring SIGTERM for up to 90s. Prevents the
+    # socket collision on the reconnect after a service restart with the arm
+    # already powered (the old external control instance holds the reverse socket
+    # -> the new HW activation fails -> the arm goes flat in RViz). The drop-in
+    # layers over the Clearpath unit (/usr/lib/systemd/system/...) and survives
+    # package updates.
     install -d -m 0755 "$WD_MANIP_DROPIN_DIR"
     cat > "$WD_MANIP_DROPIN" <<'DROPEOF'
 [Unit]
-Description=Harte Stop-Parameter für clearpath-manipulators (sauberes Treiber-Shutdown)
+Description=Hard stop parameters for clearpath-manipulators (a clean driver shutdown)
 
 [Service]
 KillSignal=SIGINT
 TimeoutStopSec=95
 KillMode=control-group
 SendSIGKILL=yes
-# A7: ros2_control_node setzt seinen Control-Thread per configure_sched_fifo()
-# auf SCHED_FIFO (Default-Prio 50). Systemd-Units lesen KEINE
-# /etc/security/limits.conf (pam_limits gilt nur für Login-Sessions) -> ohne
-# LimitRTPRIO scheitert das mit EPERM und der Loop läuft SCHED_OTHER.
-# Gemessen 2026-07-29: Overruns bei 125 Hz (bis 18.5 ms Zyklus).
+# ros2_control_node puts its control thread on SCHED_FIFO via
+# configure_sched_fifo() (default priority 50). Systemd units do NOT read
+# /etc/security/limits.conf (pam_limits only applies to login sessions) -> without
+# LimitRTPRIO that fails with EPERM and the loop runs SCHED_OTHER.
+# Measured 2026-07-29: overruns at 125 Hz (cycles up to 18.5 ms).
 LimitRTPRIO=99
 DROPEOF
     chmod 0644 "$WD_MANIP_DROPIN"
 else
-    echo ">>> manipulators-watchdog: übersprungen."
+    echo ">>> manipulators-watchdog: skipped."
 fi
 
-# --- joint-states Aggregation + Legacy-Bus-Relays (Phase 2) ----------------
-# Startet rg6_control/joint_states.launch.py: joint_state_aggregator
-# (-> /a200_0553/joint_states, vollständig, für rosbag/Foxglove) + den
-# EIGENEN joint_state_relay (manipulators/joint_states und manipulators/
-# endeffectors/joint_states -> platform/joint_states, damit RSP+move_group
-# unverändert laufen).  Bewusst NICHT topic_tools: das publiziert best-effort,
-# move_group abonniert RELIABLE -> die Gelenke kämen dort nie an
-# (Begründung im Kopf von joint_state_relay.cpp).
-# Voraussetzung: Arm-JSB-Remap ist auf manipulators/joint_states umgestellt
-# (Patch move_arm_joint_states im clearpath-custom-setup.py) und der Greifer
-# publiziert auf manipulators/endeffectors/joint_states -- das tut seit dem
-# URCap-Umstieg rg6_grip_bridge (5 Hz), nicht mehr rg6-bringup.
-echo ">>> Installiere ${JS_WRAPPER} + ${JS_UNIT}"
+# --- joint-states aggregation + legacy bus relays (phase 2) ----------------
+# Starts rg6_control/joint_states.launch.py: joint_state_aggregator
+# (-> /a200_0553/joint_states, complete, for rosbag/Foxglove) plus the OWN
+# joint_state_relay (manipulators/joint_states and
+# manipulators/endeffectors/joint_states -> platform/joint_states, so that RSP and
+# move_group run unchanged).  Deliberately NOT topic_tools: that publishes
+# best-effort, move_group subscribes RELIABLE -> the joints would never arrive
+# there (the reasoning sits at the head of joint_state_relay.cpp).
+# Prerequisite: the arm JSB remap is switched to manipulators/joint_states (patch
+# move_arm_joint_states in clearpath-custom-setup.py) and the gripper publishes on
+# manipulators/endeffectors/joint_states -- which rg6_grip_bridge does (5 Hz).
+echo ">>> Installing ${JS_WRAPPER} + ${JS_UNIT}"
 cat > "$JS_WRAPPER" <<EOF
 #!/usr/bin/env bash
-# Robot-weite joint_states-Aggregation + Legacy-Bus-Relays (siehe joint_states.launch.py).
+# Robot-wide joint_states aggregation + legacy bus relays (see joint_states.launch.py).
 source /etc/clearpath/setup.bash
 source ${RG6_WS}/install/setup.bash
 exec ros2 launch rg6_control joint_states.launch.py
@@ -1416,29 +1423,30 @@ chmod 0755 "$JS_WRAPPER"
 
 cat > "$JS_UNIT_PATH" <<EOF
 [Unit]
-Description=Robot-weite joint_states-Aggregation + Legacy-Bus-Relays (Phase 2)
-# Braucht die Quell-Topics: Raeder (clearpath-platform) + Arm (clearpath-
-# manipulators) + Greifer (${RG6_BRIDGE_UNIT}). Die Greiferquelle ist seit dem
-# URCap-Umstieg die Brücke, nicht mehr rg6-bringup -- die Unit gibt es nicht
-# mehr. Ein After= auf einen geloeschten Namen ordnet gegen nichts: systemd
-# trägt ihn klaglos mit, und die Reihenfolge, um die es hier geht, wäre
-# unbemerkt weg.
-# PartOf: der Relay/Aggregator (custom rg6_control-Nodes joint_state_relay/
-# joint_state_aggregator) resubscribed unter rmw_zenoh NICHT zuverlaessig, wenn
-# die Quelle nach einem Restart neu publisht -> ohne Mit-Restart fallen die
-# rg6-Joints aus dem TF-Feed und der Greifer-TF wird flach. Deshalb hängt die
-# Unit auch an der Brücke: ein blosser Bruecken-Restart ist genau der Fall.
-# Arm-Relay unbeeinflusst (Arm-JSC geht direkt in manipulators/joint_states).
+Description=Robot-wide joint_states aggregation + legacy bus relays (phase 2)
+# Needs the source topics: wheels (clearpath-platform) + arm
+# (clearpath-manipulators) + gripper (${RG6_BRIDGE_UNIT}). The gripper source is
+# the bridge. An After= on a name that does not exist orders against nothing:
+# systemd carries it without complaint, and the ordering this is about would be
+# gone unnoticed.
+# PartOf: the relay/aggregator (the custom rg6_control nodes joint_state_relay/
+# joint_state_aggregator) does NOT resubscribe reliably under rmw_zenoh when the
+# source publishes anew after a restart -> without restarting along, the rg6
+# joints drop out of the TF feed and the gripper TF goes flat. That is why the
+# unit also hangs off the bridge: a mere bridge restart is exactly that case.
+# The arm relay is unaffected (the arm JSC goes straight into
+# manipulators/joint_states).
 After=clearpath-platform.service clearpath-manipulators.service ${RG6_BRIDGE_UNIT}
 Wants=clearpath-platform.service
-# Mit-Neustart an BEIDE Wurzeln (robot + manipulators): PartOf propagiert
-# Stop/Restart nur eine Hop-Ebene und nur bei DIREKTEM Job. Stack-Restart via
-# 'systemctl restart clearpath-robot' startet clearpath-manipulators nur indirekt
-# -> ohne PartOf=clearpath-robot wuerden die rg6-Joint-Relays/Aggregatoren nicht
-# mit-restarten -> Greifer-TF wird flach. Stop clearpath-robot stoppt ihn mit.
-# ${RG6_BRIDGE_UNIT} steht mit dabei, weil die Brücke die Greiferquelle ist und
-# für sich allein neu startet (Restart=on-failure, oder von Hand) -- ohne
-# diesen Eintrag überlebt der Relay den Wechsel, resubscribed aber nicht.
+# Restart along against BOTH roots (robot + manipulators): PartOf propagates
+# stop/restart only one hop and only on a DIRECT job. A stack restart via
+# 'systemctl restart clearpath-robot' starts clearpath-manipulators only
+# indirectly -> without PartOf=clearpath-robot the rg6 joint relays/aggregators
+# would not restart along -> the gripper TF goes flat. Stopping clearpath-robot
+# stops it too.
+# ${RG6_BRIDGE_UNIT} is in the list because the bridge is the gripper source and
+# restarts on its own (Restart=on-failure, or by hand) -- without this entry the
+# relay survives the change but does not resubscribe.
 PartOf=clearpath-robot.service clearpath-manipulators.service ${RG6_BRIDGE_UNIT}
 
 [Service]
@@ -1452,86 +1460,82 @@ WantedBy=multi-user.target
 EOF
 chmod 0644 "$JS_UNIT_PATH"
 
-# --- robot.yaml: versionierte Datei per Symlink (offizieller Clearpath-Weg) ---
-# Clearpath sieht vor, die robot.yaml versioniert zu halten und per SYMLINK nach
-# /etc/clearpath/robot.yaml zu legen (Customization-Package-Konzept). Gegenüber
-# einem Boot-Download (die abgeschaffte Unit
-# clearpath-custom-robot-yaml-update.service): keine Netzabhängigkeit im
-# Bootpfad, reproduzierbar, und
-# ein 'git pull' wirkt SOFORT statt erst beim nächsten Boot -- clearpath-robot-check
-# md5summt /etc/clearpath/robot.yaml im Sekundentakt und startet den Stack bei
-# Änderung neu (md5sum folgt dem Symlink).
-echo ">>> robot.yaml: Repo-Klon + Symlink (${SETUP_WS} -> ${ROBOT_YAML_PATH})"
+# --- robot.yaml: the versioned file via a symlink (the official Clearpath way) ---
+# Clearpath intends robot.yaml to be kept under version control and placed at
+# /etc/clearpath/robot.yaml as a SYMLINK (the customization package concept). No
+# network dependency in the boot path, reproducible, and a 'git pull' takes effect
+# IMMEDIATELY instead of only on the next boot -- clearpath-robot-check md5sums
+# /etc/clearpath/robot.yaml every second and restarts the stack on a change
+# (md5sum follows the symlink).
+echo ">>> robot.yaml: repo clone + symlink (${SETUP_WS} -> ${ROBOT_YAML_PATH})"
 if [ -d "${SETUP_WS}/.git" ]; then
-    sudo -u "$REAL_USER" git -C "$SETUP_WS" pull --ff-only || echo "    WARN: git pull fehlgeschlagen, nutze vorhandenen Stand"
+    sudo -u "$REAL_USER" git -C "$SETUP_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
 else
-    sudo -u "$REAL_USER" git clone "$SETUP_REPO_URL" "$SETUP_WS" || echo "    WARN: git clone fehlgeschlagen"
+    sudo -u "$REAL_USER" git clone "$SETUP_REPO_URL" "$SETUP_WS" || echo "    WARN: git clone failed"
 fi
 if [ -f "${SETUP_WS}/robot.yaml" ]; then
     if [ -L "$ROBOT_YAML_PATH" ] && [ "$(readlink -f "$ROBOT_YAML_PATH")" = "$(readlink -f "${SETUP_WS}/robot.yaml")" ]; then
-        echo "    Symlink bereits korrekt - keine Änderung."
+        echo "    symlink already correct - no change."
     else
-        # Vorhandene ECHTE Datei sichern, bevor sie durch den Symlink ersetzt wird.
+        # Back up an existing REAL file before the symlink replaces it.
         if [ -f "$ROBOT_YAML_PATH" ] && [ ! -L "$ROBOT_YAML_PATH" ]; then
             if ! cmp -s "$ROBOT_YAML_PATH" "${SETUP_WS}/robot.yaml"; then
-                echo "    ACHTUNG: vorhandene ${ROBOT_YAML_PATH} weicht vom Repo-Stand ab!"
-                confirm "    Trotzdem durch den Symlink ersetzen (Backup wird angelegt)?" || {
-                    echo "    robot.yaml: übersprungen (Symlink NICHT gesetzt)."; SKIP_SYMLINK=1; }
+                echo "    ATTENTION: the existing ${ROBOT_YAML_PATH} differs from the repo state!"
+                confirm "    Replace it with the symlink anyway (a backup is created)?" || {
+                    echo "    robot.yaml: skipped (symlink NOT set)."; SKIP_SYMLINK=1; }
             fi
             [ "${SKIP_SYMLINK:-0}" = "1" ] || cp -a "$ROBOT_YAML_PATH" "${ROBOT_YAML_PATH}.pre-symlink.$(date +%Y%m%d%H%M%S)"
         fi
         if [ "${SKIP_SYMLINK:-0}" != "1" ]; then
             install -d -m 0755 "$(dirname "$ROBOT_YAML_PATH")"
             ln -sfn "${SETUP_WS}/robot.yaml" "$ROBOT_YAML_PATH"
-            echo "    Symlink gesetzt: ${ROBOT_YAML_PATH} -> ${SETUP_WS}/robot.yaml"
+            echo "    symlink set: ${ROBOT_YAML_PATH} -> ${SETUP_WS}/robot.yaml"
         fi
     fi
 else
-    echo "    WARN: ${SETUP_WS}/robot.yaml fehlt - Symlink NICHT gesetzt, vorhandene Datei bleibt."
+    echo "    WARN: ${SETUP_WS}/robot.yaml missing - symlink NOT set, the existing file stays."
 fi
-# --- Octomap-Feed (optional): dichte Hindernis-Schicht für move_group -----
-# Schritt 2 der HRL-Hindernis-Architektur: move_group pflegt aus der Wrist-
-# D435 einen Octomap (Occupancy Map Monitor) und weicht damit auch Hindernissen
-# aus, die der offboard Objekt-Tracker nicht (oder noch nicht) kennt --
-# Raycasts räumen freigewordenen Raum automatisch.  Dieser Service liefert
-# die gedrosselte PointCloud2 (octomap_feed.py, Default 5 Hz / stride 2);
-# die move_group-Sensorparameter setzt der Boot-Patcher (Schritt 5) NUR,
-# wenn die Unit-Datei existiert.  Deinstallation: 'systemctl disable --now
-# clearpath-custom-octomap-feed', Unit-Datei löschen, reboot (der Patcher
-# lässt moveit.yaml dann wieder unangetastet; .bak liegt daneben).
+# --- octomap feed (optional): the dense obstacle layer for move_group ------
+# Step 2 of the HRL obstacle architecture: move_group maintains an octomap
+# (occupancy map monitor) from the wrist D435 and thereby also avoids obstacles
+# the offboard object tracker does not (or does not yet) know about -- raycasts
+# clear freed space automatically.  This service delivers the throttled
+# PointCloud2 (octomap_feed.py, default 5 Hz / stride 2); the move_group sensor
+# parameters come from robot.yaml.  Uninstalling: 'systemctl disable --now
+# clearpath-custom-octomap-feed', delete the unit file, reboot.
 DO_OCTO=1
 if [ -f "$OCTO_UNIT_PATH" ]; then
-    confirm ">>> ${OCTO_UNIT} ist bereits installiert. Aktualisieren?" || DO_OCTO=0
+    confirm ">>> ${OCTO_UNIT} is already installed. Update?" || DO_OCTO=0
 else
-    confirm ">>> Octomap-Feed installieren (move_group weicht dann auch ungetrackten Hindernissen aus; ~5 Hz Onboard-Last)?" || DO_OCTO=0
+    confirm ">>> Install the octomap feed (move_group then also avoids untracked obstacles; ~5 Hz onboard load)?" || DO_OCTO=0
 fi
 if [ "$DO_OCTO" -eq 1 ]; then
-    echo ">>> Installiere ${OCTO_FEED_BIN}"
-    # repo_file nimmt den ausgecheckten Stand VOR GitHub-main (ROBOTER-TODO R6).
-    # Andersherum installierte ein Lauf aus dem Checkout still etwas
-    # anderes, als im Checkout steht - genau so entstand der
-    # octomap_feed-Drift in drei Fassungen.  Ist die gefundene
-    # Datei kaputt, wird sie VERWORFEN und nicht heimlich durch main ersetzt:
-    # ein kaputter Checkout soll auffallen.
+    echo ">>> Installing ${OCTO_FEED_BIN}"
+    # repo_file takes the checked-out state BEFORE GitHub main (ROBOTER-TODO R6).
+    # The other way round, a run from the checkout would silently install
+    # something other than what is in the checkout - exactly how the
+    # octomap_feed drift across three versions came about.  If the file found is
+    # broken, it is DISCARDED and not quietly replaced by main: a broken
+    # checkout should be noticed.
     OCTO_SRC=""
     if OCTO_CAND="$(repo_file scripts/octomap_feed.py)"; then
         if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$OCTO_CAND"; then
             OCTO_SRC="$OCTO_CAND"
         else
-            echo "    WARN: $OCTO_CAND ist kein gueltiges Python - verwerfe."
+            echo "    WARN: $OCTO_CAND is not valid Python - discarding it."
         fi
     else
-        echo "    WARN: scripts/octomap_feed.py weder im Checkout noch unter ${SETUP_WS} noch auf GitHub gefunden."
+        echo "    WARN: scripts/octomap_feed.py found neither in the checkout nor under ${SETUP_WS} nor on GitHub."
     fi
     if [ -n "$OCTO_SRC" ]; then
         install -m 0755 -o root -g root "$OCTO_SRC" "$OCTO_FEED_BIN"
-        # Selbsttest der Konvertierung (numpy-only, kein ROS nötig).
-        python3 "$OCTO_FEED_BIN" --selftest || echo "    WARN: Selbsttest fehlgeschlagen - Service wird trotzdem installiert (Logs pruefen)."
+        # Selftest of the conversion (numpy only, no ROS needed).
+        python3 "$OCTO_FEED_BIN" --selftest || echo "    WARN: selftest failed - the service is installed anyway (check the logs)."
 
-        echo ">>> Installiere ${OCTO_WRAPPER} + ${OCTO_UNIT}"
+        echo ">>> Installing ${OCTO_WRAPPER} + ${OCTO_UNIT}"
         cat > "$OCTO_WRAPPER" <<EOF
 #!/usr/bin/env bash
-# Gedrosselte Depth->PointCloud2-Quelle für MoveIts Octomap (octomap_feed).
+# Throttled depth->PointCloud2 source for MoveIt's octomap (octomap_feed).
 source /etc/clearpath/setup.bash
 exec python3 ${OCTO_FEED_BIN}
 EOF
@@ -1539,11 +1543,11 @@ EOF
 
         cat > "$OCTO_UNIT_PATH" <<EOF
 [Unit]
-Description=Octomap feed: Depth -> PointCloud2 für MoveIts Occupancy Map Monitor
+Description=Octomap feed: depth -> PointCloud2 for MoveIt's occupancy map monitor
 After=clearpath-sensors.service
 Wants=clearpath-sensors.service
-# Stack-Restart-Verhalten wie bei den uebrigen Custom-Units: an beide Wurzeln
-# haengen (praktischer Stack-Restart läuft über clearpath-robot).
+# Stack restart behaviour as for the other custom units: hang off both roots
+# (the practical stack restart goes through clearpath-robot).
 PartOf=clearpath-robot.service clearpath-sensors.service
 
 [Service]
@@ -1556,65 +1560,65 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
         chmod 0644 "$OCTO_UNIT_PATH"
-        # Reine PRÜFUNG (kein apt!): der PointCloudOctomapUpdater kommt aus
-        # moveit_ros_perception. Fehlt das Paket, läuft der Feed zwar, aber
-        # der Boot-Patcher trägt die move_group-Sensorparameter bewusst
-        # nicht ein (Gate) - Installation ist eine Admin-Entscheidung.
+        # A pure CHECK (no apt!): the PointCloudOctomapUpdater comes from
+        # moveit_ros_perception. Without that package the feed still runs, but
+        # move_group has no updater to hand the cloud to - installing it is an
+        # admin decision.
         if ! ls -d /opt/ros/*/share/moveit_ros_perception >/dev/null 2>&1; then
-            echo "    WARN: ros-<distro>-moveit-ros-perception ist NICHT installiert."
-            echo "          Der Octomap bleibt inaktiv (Patcher-Gate), bis das Paket da ist."
-            echo "          Installation NUR bewusst im Wartungsfenster (apt-Historie dieses"
-            echo "          Roboters beachten; vorher 'apt-get install -s' pruefen)."
+            echo "    WARN: ros-<distro>-moveit-ros-perception is NOT installed."
+            echo "          The octomap stays inactive until the package is there."
+            echo "          Install it ONLY deliberately, in a maintenance window (mind the"
+            echo "          apt history of this robot; check with 'apt-get install -s' first)."
         fi
     else
-        echo "    WARN: octomap_feed.py weder ladbar noch lokal vorhanden - Octomap übersprungen."
+        echo "    WARN: octomap_feed.py neither loadable nor present locally - octomap skipped."
     fi
 else
-    echo ">>> Octomap-Feed: übersprungen."
+    echo ">>> Octomap feed: skipped."
 fi
 
-# --- Manipulator-Diagnose (optional) ---------------------------------------
-# UR-Mode/Safety/ExternalControl + RG6-Zustand -> diagnostic_msgs auf dem
-# /diagnostics-Topic des Clearpath-Aggregators. Der Aggregator-Analyzer dazu
-# kommt vom Boot-Patcher (Schritt 6) und ist auf DIESE Unit-Datei gegated:
-# Unit löschen + reboot = Manipulator wieder aus der Diagnose raus.
-# Deinstallation: 'systemctl disable --now clearpath-custom-manipulator-diagnostics',
-# Unit-Datei löschen, reboot (.bak der aggregator-yaml liegt daneben).
+# --- manipulator diagnostics (optional) ------------------------------------
+# UR mode/safety/external control + RG6 state -> diagnostic_msgs on the
+# /diagnostics topic of the Clearpath aggregator. The matching aggregator
+# analyzer comes from robot.yaml, unconditionally: without this node, Cockpit
+# shows the group as STALE instead of letting it vanish.
+# Uninstalling: 'systemctl disable --now clearpath-custom-manipulator-diagnostics',
+# delete the unit file, reboot.
 DO_MD=1
 if [ -f "$MD_UNIT_PATH" ]; then
-    confirm ">>> ${MD_UNIT} ist bereits installiert. Aktualisieren?" || DO_MD=0
+    confirm ">>> ${MD_UNIT} is already installed. Update?" || DO_MD=0
 else
-    confirm ">>> Manipulator-Diagnose installieren (UR5 + RG6 erscheinen dann in Cockpit/diagnostics_agg)?" || DO_MD=0
+    confirm ">>> Install the manipulator diagnostics (UR5 + RG6 then appear in Cockpit/diagnostics_agg)?" || DO_MD=0
 fi
 if [ "$DO_MD" -eq 1 ]; then
-    echo ">>> Installiere ${MD_BIN}"
-    # repo_file nimmt den ausgecheckten Stand VOR GitHub-main (ROBOTER-TODO R6).
-    # Andersherum installierte ein Lauf aus dem Checkout still etwas
-    # anderes, als im Checkout steht - genau so entstand der
-    # octomap_feed-Drift in drei Fassungen.  Ist die gefundene
-    # Datei kaputt, wird sie VERWORFEN und nicht heimlich durch main ersetzt:
-    # ein kaputter Checkout soll auffallen.
+    echo ">>> Installing ${MD_BIN}"
+    # repo_file takes the checked-out state BEFORE GitHub main (ROBOTER-TODO R6).
+    # The other way round, a run from the checkout would silently install
+    # something other than what is in the checkout - exactly how the
+    # octomap_feed drift across three versions came about.  If the file found is
+    # broken, it is DISCARDED and not quietly replaced by main: a broken
+    # checkout should be noticed.
     MD_SRC=""
     if MD_CAND="$(repo_file scripts/manipulator_diagnostics.py)"; then
         if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$MD_CAND"; then
             MD_SRC="$MD_CAND"
         else
-            echo "    WARN: $MD_CAND ist kein gueltiges Python - verwerfe."
+            echo "    WARN: $MD_CAND is not valid Python - discarding it."
         fi
     else
-        echo "    WARN: scripts/manipulator_diagnostics.py weder im Checkout noch unter ${SETUP_WS} noch auf GitHub gefunden."
+        echo "    WARN: scripts/manipulator_diagnostics.py found neither in the checkout nor under ${SETUP_WS} nor on GitHub."
     fi
     if [ -n "$MD_SRC" ]; then
         install -m 0755 -o root -g root "$MD_SRC" "$MD_BIN"
-        # Selbsttest der Bewertungslogik (reines Python, kein ROS nötig).
-        python3 "$MD_BIN" --selftest || echo "    WARN: Selbsttest fehlgeschlagen - Service wird trotzdem installiert (Logs pruefen)."
+        # Selftest of the evaluation logic (pure Python, no ROS needed).
+        python3 "$MD_BIN" --selftest || echo "    WARN: selftest failed - the service is installed anyway (check the logs)."
 
-        echo ">>> Installiere ${MD_WRAPPER} + ${MD_UNIT}"
+        echo ">>> Installing ${MD_WRAPPER} + ${MD_UNIT}"
         cat > "$MD_WRAPPER" <<EOF
 #!/usr/bin/env bash
-# UR5 + OnRobot RG6 als diagnostic_msgs für den Clearpath-diagnostic_aggregator.
-# Kein onrobot-rg6-Overlay noetig: der Greiferzustand kommt als JSON von der
-# Brücke (rg6/bridge_state), nicht als rg6_msgs-Typ.
+# UR5 + OnRobot RG6 as diagnostic_msgs for the Clearpath diagnostic_aggregator.
+# No onrobot-rg6 overlay needed: the gripper state arrives as JSON from the
+# bridge (rg6/bridge_state), not as an rg6_msgs type.
 source /etc/clearpath/setup.bash
 exec python3 ${MD_BIN} --ros-args \\
     -p manipulator_ns:=${MANIP_NS} \\
@@ -1624,11 +1628,11 @@ EOF
 
         cat > "$MD_UNIT_PATH" <<EOF
 [Unit]
-Description=Manipulator-Diagnose: UR5 + RG6 -> diagnostic_msgs (Cockpit/diagnostics_agg)
+Description=Manipulator diagnostics: UR5 + RG6 -> diagnostic_msgs (Cockpit/diagnostics_agg)
 After=clearpath-manipulators.service ${RG6_BRIDGE_UNIT}
 Wants=clearpath-manipulators.service
-# An BEIDE Wurzeln haengen: der praktische Stack-Restart läuft über
-# clearpath-robot, der direkte Treiber-Restart über clearpath-manipulators.
+# Hang off BOTH roots: the practical stack restart goes through clearpath-robot,
+# the direct driver restart through clearpath-manipulators.
 PartOf=clearpath-robot.service clearpath-manipulators.service
 
 [Service]
@@ -1642,93 +1646,92 @@ WantedBy=multi-user.target
 EOF
         chmod 0644 "$MD_UNIT_PATH"
     else
-        echo "    WARN: manipulator_diagnostics.py weder ladbar noch lokal vorhanden - Manipulator-Diagnose übersprungen."
+        echo "    WARN: manipulator_diagnostics.py neither loadable nor present locally - manipulator diagnostics skipped."
     fi
 else
-    echo ">>> Manipulator-Diagnose: übersprungen."
+    echo ">>> Manipulator diagnostics: skipped."
 fi
 
-# --- RTDE-Input-Recipe ohne Tool-DO ----------------------------------------
-# Voraussetzung dafür, dass der ur_robot_driver neben der OnRobot-URCap
-# überhaupt startet: die URCap ist selbst RTDE-Client und belegt
-# tool_digital_output_mask, der Treiber stirbt sonst beim RTDE-Setup an
-# "controlled by another RTDE client". robot.yaml zeigt FEST auf
-# /home/robot/rtde_input_recipe_no_tool.txt -- fehlt die Datei nach einem
-# Neuaufsetzen, startet der Treiber nicht, und zwar ohne Hinweis auf sie.
+# --- RTDE input recipe without the tool DO ---------------------------------
+# The prerequisite for the ur_robot_driver to start alongside the OnRobot URCap
+# at all: the URCap is an RTDE client itself and occupies
+# tool_digital_output_mask, otherwise the driver dies during the RTDE setup with
+# "controlled by another RTDE client". robot.yaml points FIXEDLY at
+# /home/robot/rtde_input_recipe_no_tool.txt -- if the file is missing after a
+# reinstall, the driver does not start, and without any hint at it.
 RTDE_RECIPE_DST="${USER_HOME}/rtde_input_recipe_no_tool.txt"
 if RTDE_RECIPE_SRC="$(repo_file rtde_input_recipe_no_tool.txt)"; then
     if [ "$RTDE_RECIPE_SRC" -ef "$RTDE_RECIPE_DST" ]; then
-        # Quelle und Ziel sind dieselbe Datei -- passiert, wenn der Installer
-        # aus ${USER_HOME} heraus läuft.  install(1) bricht dann ab, und mit
-        # set -e nimmt es den ganzen Lauf mit.  Hier ist schlicht nichts zu tun.
-        echo ">>> RTDE-Recipe liegt bereits an seinem Platz (${RTDE_RECIPE_DST})"
+        # Source and target are the same file -- this happens when the installer
+        # runs out of ${USER_HOME}.  install(1) then aborts, and with set -e it
+        # takes the whole run along.  There is simply nothing to do here.
+        echo ">>> RTDE recipe is already in place (${RTDE_RECIPE_DST})"
     else
         install -m 0644 -o "$REAL_USER" -g "$REAL_USER" \
             "$RTDE_RECIPE_SRC" "$RTDE_RECIPE_DST"
-        echo ">>> RTDE-Recipe -> ${RTDE_RECIPE_DST}  (aus ${RTDE_RECIPE_SRC})"
+        echo ">>> RTDE recipe -> ${RTDE_RECIPE_DST}  (from ${RTDE_RECIPE_SRC})"
     fi
 else
-    echo "    WARN: rtde_input_recipe_no_tool.txt weder lokal noch abrufbar -"
-    echo "          der UR-Treiber startet ohne sie NICHT."
+    echo "    WARN: rtde_input_recipe_no_tool.txt neither local nor retrievable -"
+    echo "          the UR driver does NOT start without it."
 fi
 
-# --- RG6-Greifer-Brücke (XML-RPC an die OnRobot-URCap) --------------------
-# Ersetzt den rg6_control-Tool-DO-Pfad, den das Recipe oben totlegt: ROS kann
-# kein Tool-DO mehr setzen, also kommandiert dieser Node den Greifer direkt
-# per XML-RPC (rg_grip auf 192.168.131.40:41414). Er läuft ONBOARD, weil der
-# Endpoint am Arm-Subnetz hängt -- von der Workstation gibt es dorthin keine
-# Route -- und weil der Roboter auch ohne Funkstrecke greifen können muss.
+# --- RG6 gripper bridge (XML-RPC to the OnRobot URCap) --------------------
+# The recipe above takes the tool DO path out: ROS can no longer set a tool DO,
+# so this node commands the gripper directly over XML-RPC (rg_grip on
+# 192.168.131.40:41414). It runs ONBOARD because the endpoint hangs off the arm
+# subnet -- from the workstation there is no route to it -- and because the robot
+# must be able to grip without the radio link too.
 RG6_KIN_DST="${BIN_DIR}/rg6_finger_kinematics.json"
 
 DO_RG6_BRIDGE=1
 if [ -f "$RG6_BRIDGE_UNIT_PATH" ]; then
-    confirm ">>> ${RG6_BRIDGE_UNIT} ist bereits installiert. Aktualisieren?" || DO_RG6_BRIDGE=0
+    confirm ">>> ${RG6_BRIDGE_UNIT} is already installed. Update?" || DO_RG6_BRIDGE=0
 else
-    confirm ">>> RG6-Greifer-Brücke installieren (kommandiert den Greifer per XML-RPC an die OnRobot-URCap; ersetzt den toten rg6_control-Tool-DO-Pfad)?" || DO_RG6_BRIDGE=0
+    confirm ">>> Install the RG6 gripper bridge (commands the gripper over XML-RPC to the OnRobot URCap)?" || DO_RG6_BRIDGE=0
 fi
 
 if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
     if ! RG6_SRC="$(repo_file scripts/rg6_grip_bridge.py)"; then
-        echo "    WARN: scripts/rg6_grip_bridge.py weder lokal noch abrufbar -"
-        echo "          RG6-Brücke übersprungen."
+        echo "    WARN: scripts/rg6_grip_bridge.py neither local nor retrievable -"
+        echo "          RG6 bridge skipped."
         DO_RG6_BRIDGE=0
         RG6_SRC=""
     elif ! python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$RG6_SRC"; then
-        echo "    WARN: ${RG6_SRC} ist kein gueltiges Python - verwerfe."
+        echo "    WARN: ${RG6_SRC} is not valid Python - discarding it."
         DO_RG6_BRIDGE=0
     fi
 fi
 
 if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
-    # Die Getriebetabelle (Gelenkwinkel -> Greifweite).  Sie steht hier statt
-    # eines Imports von robot_contract: das Paket ist PRIVAT und vom Roboter
-    # aus nicht einmal klonbar (git fragt nach Zugangsdaten) -- der Installer
-    # überspringe die Brücke dann kommentarlos, und eine Abhängigkeit, die
-    # das Ausrollen verhindert, sichert nichts.
-    # Erzeugt wird die Datei aus dem GENERIERTEN URDF, s.
-    # onrobot-rg6/tools/derive_finger_kinematics.py.  Fehlt sie, startet der
-    # Node nicht: ohne Kinematik kann er weder das Fingergelenk publizieren
-    # noch ein GripperCommand-Ziel in eine Weite übersetzen.
+    # The linkage table (joint angle -> grip width).  It sits here instead of an
+    # import from robot_contract: that package is PRIVATE and not even clonable
+    # from the robot (git asks for credentials) -- a dependency that prevents the
+    # roll-out secures nothing.
+    # The file is generated from the GENERATED URDF, see
+    # onrobot-rg6/tools/derive_finger_kinematics.py.  Without it the node does
+    # not start: with no kinematics it can neither publish the finger joint nor
+    # translate a GripperCommand goal into a width.
     if RG6_KIN_SRC="$(repo_file scripts/rg6_finger_kinematics.json)"; then
         install -m 0644 -o root -g root "$RG6_KIN_SRC" "$RG6_KIN_DST"
-        echo "    Getriebetabelle -> ${RG6_KIN_DST}  (aus ${RG6_KIN_SRC})"
+        echo "    linkage table -> ${RG6_KIN_DST}  (from ${RG6_KIN_SRC})"
     else
-        echo "    WARN: rg6_finger_kinematics.json fehlt - der Node startet ohne sie NICHT."
+        echo "    WARN: rg6_finger_kinematics.json missing - the node does NOT start without it."
         DO_RG6_BRIDGE=0
     fi
 fi
 
 if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
-    echo ">>> Installiere ${RG6_BRIDGE_BIN}"
+    echo ">>> Installing ${RG6_BRIDGE_BIN}"
     install -m 0755 -o root -g root "$RG6_SRC" "$RG6_BRIDGE_BIN"
-    # Selbsttest ohne ROS -- Einheiten, float-Zwang, Klemmung, Timeout,
-    # Draht-Vertrag, Getriebe, Nebenläufigkeit.
+    # Selftest without ROS -- units, float coercion, clamping, timeout, the wire
+    # contract, the linkage, concurrency.
     python3 "$RG6_BRIDGE_BIN" --selftest \
-        || echo "    WARN: Selbsttest fehlgeschlagen - Service wird trotzdem installiert (Logs pruefen)."
+        || echo "    WARN: selftest failed - the service is installed anyway (check the logs)."
 
     cat > "$RG6_BRIDGE_WRAPPER" <<EOF
 #!/usr/bin/env bash
-# RG6-Greifer per XML-RPC an die OnRobot-URCap (rg6_grip_bridge).
+# RG6 gripper over XML-RPC to the OnRobot URCap (rg6_grip_bridge).
 source /etc/clearpath/setup.bash
 exec python3 ${RG6_BRIDGE_BIN}
 EOF
@@ -1736,15 +1739,15 @@ EOF
 
     cat > "$RG6_BRIDGE_UNIT_PATH" <<EOF
 [Unit]
-Description=RG6 gripper bridge (XML-RPC an die OnRobot-URCap)
+Description=RG6 gripper bridge (XML-RPC to the OnRobot URCap)
 After=clearpath-manipulators.service
 Wants=clearpath-manipulators.service
 PartOf=clearpath-robot.service clearpath-manipulators.service
-# OHNE diese beiden dreht eine kaputte Unit ENDLOS: die systemd-Voreinstellung
-# ist Burst=5 in 10 s, bei RestartSec=5 passen da nur zwei Versuche hinein --
-# die Grenze wird nie erreicht. Am 2026-08-17 an der rg6-bringup-Unit
-# nachgerechnet. 120 s, weil fuenf Versuche a 5 s rund 25 s dauern; die Unit
-# bleibt danach sichtbar als 'failed' stehen, statt sich selbst zu verdecken.
+# WITHOUT these two a broken unit spins FOREVER: the systemd default is burst=5
+# in 10 s, and with RestartSec=5 only two attempts fit into that -- so the limit
+# is never reached. Worked out on 2026-08-17. 120 s, because five attempts at 5 s
+# take about 25 s; the unit then stays visibly 'failed' instead of hiding
+# itself.
 StartLimitIntervalSec=120
 StartLimitBurst=5
 
@@ -1761,102 +1764,102 @@ EOF
     chmod 0644 "$RG6_BRIDGE_UNIT_PATH"
     systemctl daemon-reload
     systemctl enable "$RG6_BRIDGE_UNIT" >/dev/null 2>&1 \
-        || echo "    WARN: systemctl enable ${RG6_BRIDGE_UNIT} fehlgeschlagen."
-    echo ">>> ${RG6_BRIDGE_UNIT} installiert und aktiviert."
+        || echo "    WARN: systemctl enable ${RG6_BRIDGE_UNIT} failed."
+    echo ">>> ${RG6_BRIDGE_UNIT} installed and enabled."
 else
-    echo ">>> RG6-Greifer-Brücke: übersprungen."
+    echo ">>> RG6 gripper bridge: skipped."
 fi
 
-# --- Cockpit-Plugin mit Manipulator-Panel (optional) ------------------------
-# Fork von clearpathrobotics/cockpit-ros2-diagnostics: zusätzlich zum
-# generischen Diagnose-Baum eine eigene Manipulator-Ansicht (Arm-Mode/Safety/
-# ExternalControl/Motion-Link + Gelenktabelle, Greifer-Weite/grip_detected/
-# Tool-Power). Die Daten kommen aus demselben diagnostics_agg-Strom -- ohne
-# den manipulator-diagnostics-Service oben bleibt das Panel unsichtbar.
+# --- Cockpit plugin with the manipulator panel (optional) -------------------
+# Fork of clearpathrobotics/cockpit-ros2-diagnostics: in addition to the generic
+# diagnostics tree, its own manipulator view (arm mode/safety/external
+# control/motion link + joint table, gripper width/grip_detected/tool power). The
+# data comes from the same diagnostics_agg stream -- without the
+# manipulator-diagnostics service above the panel stays invisible.
 #
-# Installation nach /usr/local/share/cockpit/ros2-diagnostics: Cockpit
-# bevorzugt /usr/local vor /usr/share, der Fork überdeckt also das apt-Paket,
-# ohne es zu ersetzen. Rückbau = Verzeichnis löschen (kein apt).
-# HINWEIS: apt-Updates von cockpit-ros2-diagnostics wirken sich dann nicht
-# mehr sichtbar aus, solange der Fork liegt - Fork bei Bedarf nachziehen.
+# Installed to /usr/local/share/cockpit/ros2-diagnostics: Cockpit prefers
+# /usr/local over /usr/share, so the fork shadows the apt package without
+# replacing it. Rollback = delete the directory (no apt).
+# NOTE: apt updates of cockpit-ros2-diagnostics then have no visible effect as
+# long as the fork is there - update the fork when needed.
 DO_CKPT=1
 if [ -d "$CKPT_PKG_DIR" ]; then
-    confirm ">>> Cockpit-Plugin (Fork mit Manipulator-Panel) ist installiert. Aktualisieren?" || DO_CKPT=0
+    confirm ">>> The Cockpit plugin (fork with the manipulator panel) is installed. Update?" || DO_CKPT=0
 else
-    confirm ">>> Cockpit-Plugin mit Manipulator-Panel installieren (überdeckt das apt-Plugin unter /usr/share)?" || DO_CKPT=0
+    confirm ">>> Install the Cockpit plugin with the manipulator panel (shadows the apt plugin under /usr/share)?" || DO_CKPT=0
 fi
 if [ "$DO_CKPT" -eq 1 ]; then
     if ! dpkg -s cockpit-bridge >/dev/null 2>&1; then
-        echo "    WARN: cockpit-bridge ist nicht installiert - das Plugin wird erst nach der Cockpit-Installation sichtbar."
+        echo "    WARN: cockpit-bridge is not installed - the plugin only becomes visible after Cockpit is installed."
     fi
-    echo ">>> cockpit-ros2-diagnostics (Fork) nach ${CKPT_WS} (Nutzer ${REAL_USER})"
+    echo ">>> cockpit-ros2-diagnostics (fork) to ${CKPT_WS} (user ${REAL_USER})"
     CKPT_OK=1
     if [ -d "${CKPT_WS}/.git" ]; then
-        sudo -u "$REAL_USER" git -C "$CKPT_WS" pull --ff-only || echo "    WARN: git pull fehlgeschlagen, nutze vorhandenen Stand"
+        sudo -u "$REAL_USER" git -C "$CKPT_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
     else
         sudo -u "$REAL_USER" git clone "$CKPT_REPO_URL" "$CKPT_WS" || CKPT_OK=0
     fi
     if [ "$CKPT_OK" -eq 1 ]; then
-        # Bevorzugt ein vorgebautes dist/ aus dem Checkout. Der Build braucht
-        # nodejs+npm (~500 Pakete) und einen git-fetch der Cockpit-Bibliothek --
-        # das gehört bewusst NICHT auf den Roboter, wenn es vermeidbar ist
-        # (apt-Historie dieses Roboters). Der Installer installiert daher kein
-        # nodejs; er baut nur, wenn die Toolchain schon da ist.
+        # Prefers a prebuilt dist/ from the checkout. The build needs nodejs+npm
+        # (~500 packages) and a git fetch of the Cockpit library -- that
+        # deliberately does NOT belong on the robot when it is avoidable (mind the
+        # apt history of this robot). The installer therefore installs no nodejs;
+        # it only builds when the toolchain is already there.
         if [ ! -f "${CKPT_WS}/dist/manifest.json" ]; then
             if command -v npm >/dev/null 2>&1 && command -v make >/dev/null 2>&1; then
-                echo ">>> Kein vorgebautes dist/ - baue auf dem Roboter (npm + make)"
+                echo ">>> No prebuilt dist/ - building on the robot (npm + make)"
                 sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
                     "cd '$CKPT_WS' && make" || CKPT_OK=0
             else
-                echo "    WARN: weder dist/ noch npm/make vorhanden."
-                echo "          Auf einem Rechner MIT Toolchain bauen und das Ergebnis herbringen:"
+                echo "    WARN: neither dist/ nor npm/make present."
+                echo "          Build it on a machine WITH the toolchain and bring the result over:"
                 echo "            git clone ${CKPT_REPO_URL} && cd cockpit-ros2-diagnostics && make"
                 echo "            rsync -a dist/ ${REAL_USER}@<robot>:${CKPT_WS}/dist/"
-                echo "          Danach diesen Installer erneut laufen lassen."
+                echo "          Then run this installer again."
                 CKPT_OK=0
             fi
         fi
     fi
     if [ "$CKPT_OK" -eq 1 ] && [ -f "${CKPT_WS}/dist/manifest.json" ]; then
-        echo ">>> Installiere Plugin nach ${CKPT_PKG_DIR}"
-        # Alten Inhalt entfernen, damit gelöschte Dateien nicht liegenbleiben.
+        echo ">>> Installing the plugin to ${CKPT_PKG_DIR}"
+        # Remove the old content so that deleted files do not linger.
         rm -rf "$CKPT_PKG_DIR"
         install -d -m 0755 "$CKPT_PKG_DIR"
         cp -r "${CKPT_WS}/dist/." "$CKPT_PKG_DIR/"
         chown -R root:root "$CKPT_PKG_DIR"
-        # Source-Maps sind gross und auf dem Roboter nutzlos (das Debian-Paket
-        # wirft sie ebenfalls weg).
+        # Source maps are large and useless on the robot (the Debian package
+        # throws them away too).
         find "$CKPT_PKG_DIR" -name '*.map' -delete
-        echo "    Cockpit neu laden: Browser-Reload auf http://<robot>:9090 genuegt."
+        echo "    Reload Cockpit: a browser reload on http://<robot>:9090 is enough."
     else
-        echo "    WARN: Cockpit-Plugin nicht installiert (s. Meldungen oben) - das apt-Plugin bleibt aktiv."
+        echo "    WARN: Cockpit plugin not installed (see the messages above) - the apt plugin stays active."
     fi
 else
-    echo ">>> Cockpit-Plugin: übersprungen."
+    echo ">>> Cockpit plugin: skipped."
 fi
 
-# --- aktivieren ------------------------------------------------------------
-echo ">>> systemd neu einlesen + Services aktivieren (+ starten, nicht nur Boot-Symlink)"
+# --- enable ----------------------------------------------------------------
+echo ">>> Reloading systemd + enabling the services (+ starting them, not only the boot symlink)"
 systemctl daemon-reload
-# enable --now: aktiviert den Boot-Symlink UND startet die Unit SOFORT. Wichtig bei
-# Re-Deploy/Rename auf einem laufenden System: das Migration-disable --now der alten
-# Namen stoppt sie, und plain 'enable' würde die neuen erst beim nächsten Reboot
-# starten -> der ganze Custom-Stack (inkl. ur-state-manager/auto_recover + Watchdog-
-# Timer) bliebe bis zum Reboot tot. Wants=clearpath-manipulators zieht den Treiber
-# hoch, falls er noch nicht läuft; After= sichert die Reihenfolge.
+# enable --now: activates the boot symlink AND starts the unit IMMEDIATELY.
+# Important on a running system: plain 'enable' would start the units only on the
+# next reboot -> the whole custom stack (including ur-state-manager/auto_recover
+# and the watchdog timer) would stay dead until then.
+# Wants=clearpath-manipulators pulls the driver up if it is not running yet;
+# After= secures the ordering.
 systemctl enable --now "$UNIT_NAME" "$JS_UNIT"
 [ -f "$UR_DASH_UNIT_PATH" ] && systemctl enable --now "$UR_DASH_UNIT"
 [ -f "$USM_UNIT_PATH" ] && systemctl enable --now "$USM_UNIT"
-# Watchdog: den TIMER aktivieren + starten (die .service ist der oneshot-Check, den er triggert).
+# Watchdog: enable + start the TIMER (the .service is the oneshot check it triggers).
 [ -f "$WD_TIMER_PATH" ] && systemctl enable --now "$WD_TIMER"
 [ -f "$OCTO_UNIT_PATH" ] && systemctl enable --now "$OCTO_UNIT"
 [ -f "$MD_UNIT_PATH" ] && systemctl enable --now "$MD_UNIT"
-# Die Brücke ebenfalls SOFORT starten, nicht erst beim nächsten Boot: ohne
-# sie fehlt rg6_finger_joint in /joint_states, und move_group plant bis zum
-# Reboot gegen eine Hand in Default-Stellung (R22).
+# Start the bridge IMMEDIATELY too, not only on the next boot: without it
+# rg6_finger_joint is missing from /joint_states, and until the reboot move_group
+# plans against a hand in its default pose (R22).
 [ -f "$RG6_BRIDGE_UNIT_PATH" ] && systemctl enable --now "$RG6_BRIDGE_UNIT"
 
-echo ">>> Unit-Syntax pruefen"
+echo ">>> Checking the unit syntax"
 VERIFY_UNITS=("$UNIT_PATH" "$JS_UNIT_PATH")
 [ -f "$UR_DASH_UNIT_PATH" ] && VERIFY_UNITS+=("$UR_DASH_UNIT_PATH")
 [ -f "$USM_UNIT_PATH" ] && VERIFY_UNITS+=("$USM_UNIT_PATH")
@@ -1864,43 +1867,43 @@ VERIFY_UNITS=("$UNIT_PATH" "$JS_UNIT_PATH")
 [ -f "$OCTO_UNIT_PATH" ] && VERIFY_UNITS+=("$OCTO_UNIT_PATH")
 [ -f "$MD_UNIT_PATH" ] && VERIFY_UNITS+=("$MD_UNIT_PATH")
 [ -f "$RG6_BRIDGE_UNIT_PATH" ] && VERIFY_UNITS+=("$RG6_BRIDGE_UNIT_PATH")
-systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    Units OK."
+systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    units OK."
 
-# --- Patches jetzt einmal anwenden -----------------------------------------
-# Wache ist robot.yaml: sie belegt, dass /etc/clearpath eingerichtet ist. Die
-# generierte foxglove_bridge.yaml taugt dafür nicht mehr, weil der Patcher sie
-# nicht anfasst; die verbliebenen Schritte sind einzeln gegen fehlende Dateien
-# abgesichert.
+# --- apply the patches once now --------------------------------------------
+# The guard is robot.yaml: it proves that /etc/clearpath is set up. The generated
+# foxglove_bridge.yaml is no longer suitable for that, because the patcher does
+# not touch it; the remaining steps are individually guarded against missing
+# files.
 if [ -f "$ROBOT_YAML_PATH" ]; then
-    echo ">>> Wende Config-Patches jetzt einmalig an"
+    echo ">>> Applying the config patches once now"
     "$PY_PATH" || true
 fi
 
 echo
 echo "=============================================================="
-echo "Installation abgeschlossen."
-echo "  ${UNIT_NAME} : patcht Configs bei jedem Boot"
-echo "  ${ROBOT_YAML_PATH} -> ${SETUP_WS}/robot.yaml (Symlink, SSOT im Repo)"
-echo "  ${JS_UNIT}           : joint_state_aggregator + Legacy-Bus-Relays (Phase 2)"
+echo "Installation complete."
+echo "  ${UNIT_NAME} : patches the configs on every boot"
+echo "  ${ROBOT_YAML_PATH} -> ${SETUP_WS}/robot.yaml (symlink, SSOT in the repo)"
+echo "  ${JS_UNIT}           : joint_state_aggregator + legacy bus relays (phase 2)"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
-echo "  ${UR_DASH_UNIT}           : startet ur_robot_driver dashboard_client"
+echo "  ${UR_DASH_UNIT}           : starts the ur_robot_driver dashboard_client"
 [ -f "$USM_UNIT_PATH" ] && \
-echo "  ${USM_UNIT}       : startet ur_state_manager (prepare/recover) + Extra-Controller + Mode-Manager"
+echo "  ${USM_UNIT}       : starts ur_state_manager (prepare/recover) + extra controllers + mode manager"
 [ -f "$WD_TIMER_PATH" ] && \
-echo "  ${WD_TIMER}    : Treiber-Reconnect bei spätem Arm-Einschalten ODER hängengebliebenem Reconnect nach Service-Restart (Health-Signal = JSC-Stream, Kadenz 10s)"
-echo "  clearpath-manipulators.service.d/override.conf : SIGINT-Stop-Drop-in (sauberes Treiber-Shutdown, verhindert Socket-Kollision beim Reconnect)"
+echo "  ${WD_TIMER}    : driver reconnect on a late arm power-up OR a stuck reconnect after a service restart (health signal = JSC stream, cadence 10s)"
+echo "  clearpath-manipulators.service.d/override.conf : SIGINT stop drop-in (clean driver shutdown, prevents the socket collision on reconnect)"
 [ -f "$RG6_MOVEIT_PATCH_BIN" ] && \
-echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-eigene Kopie des rg6_moveit_patch (vom Boot-Service genutzt, aktualisiert nur der Installer)"
+echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-owned copy of rg6_moveit_patch (used by the boot service, updated only by the installer)"
 [ -f "$OCTO_UNIT_PATH" ] && \
-echo "  ${OCTO_UNIT}   : Depth->PointCloud2 für MoveIts Octomap (Patch-Schritt 5 setzt die move_group-Sensorparameter beim Boot)"
+echo "  ${OCTO_UNIT}   : depth->PointCloud2 for MoveIt's octomap (the move_group sensor parameters come from robot.yaml)"
 [ -f "$MD_UNIT_PATH" ] && \
-echo "  ${MD_UNIT} : UR5 + RG6 -> diagnostic_msgs (Patch-Schritt 6 trägt die Analyzer beim Boot ein)"
+echo "  ${MD_UNIT} : UR5 + RG6 -> diagnostic_msgs (the analyzers come from robot.yaml)"
 [ -f "$RG6_BRIDGE_UNIT_PATH" ] && \
-echo "  ${RG6_BRIDGE_UNIT} : RG6 per XML-RPC an die OnRobot-URCap (Greifbefehle, Fingergelenk, Greiferzustand)"
+echo "  ${RG6_BRIDGE_UNIT} : RG6 over XML-RPC to the OnRobot URCap (grip commands, finger joint, gripper state)"
 [ -d "$CKPT_PKG_DIR" ] && \
-echo "  ${CKPT_PKG_DIR} : Cockpit-Plugin mit Manipulator-Panel (überdeckt das apt-Plugin unter /usr/share)"
+echo "  ${CKPT_PKG_DIR} : Cockpit plugin with the manipulator panel (shadows the apt plugin under /usr/share)"
 echo
-echo "Damit ALLES greift, einmal neu starten:"
+echo "For EVERYTHING to take effect, restart once:"
 echo "  sudo systemctl restart clearpath-robot   # oder reboot"
 echo
 echo "Logs:"
@@ -1919,8 +1922,8 @@ echo "  journalctl -u ${MD_UNIT} -b   # + 'ros2 topic echo ${MANIP_NS%/manipulat
 [ -f "$RG6_BRIDGE_UNIT_PATH" ] && \
 echo "  journalctl -u ${RG6_BRIDGE_UNIT} -b   # + 'ros2 topic echo ${MANIP_NS}/rg6/bridge_state'"
 echo
-echo "Hinweis: robot.yaml wird aus dem Git-Repo verwaltet (SSOT)."
-echo "  Änderungen (platform.extras.urdf, system.ros2.workspaces, Arm-/Sensor-Config)"
-echo "  im Repo pflegen (${SETUP_WS}) - der Symlink macht sie SOFORT wirksam:"
-echo "  clearpath-robot-check erkennt die Änderung und startet den Stack neu."
+echo "Note: robot.yaml is managed from the git repo (SSOT)."
+echo "  Maintain changes (platform.extras.urdf, system.ros2.workspaces, arm/sensor config)"
+echo "  in the repo (${SETUP_WS}) - the symlink makes them effective IMMEDIATELY:"
+echo "  clearpath-robot-check detects the change and restarts the stack."
 echo "=============================================================="

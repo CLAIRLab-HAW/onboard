@@ -1,108 +1,122 @@
 # Husky
-After installing the clearpath software stack (see [Clearpath Installation](https://docs.clearpathrobotics.com/docs/ros/installation/robot)), run this line in your user directory:
 
-``
-wget -c https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/install-clearpath-custom-setup.sh && bash -e install-clearpath-custom-setup.sh
-``
-
-The installer is interactive and asks (each step `[j/N]`, or pass `-y` to accept all) before optional parts. One of them installs **`clearpath-custom-ur-dashboard.service`** — it starts the `ur_robot_driver` `dashboard_client` on boot (`power_on`/`brake_release`/`unlock_protective_stop`/`restart_safety`/`get_robot_mode`/`get_safety_mode`), which Clearpath does *not* bring up in the headless setup. The services land under `/a200_0553/manipulators/dashboard_client/*` and are consumed by the `ur_state_manager` package (repo [`ur-state-manager`](https://github.com/CLAIRLab-HAW/ur-state-manager)), which the installer can also clone, build and start on boot (`clearpath-custom-ur-state-manager.service`).
-
-All custom units the installer creates carry the `clearpath-custom-*` prefix (`clearpath-custom-rg6-grip-bridge`, `clearpath-custom-joint-states`, `clearpath-custom-ur-dashboard`, `clearpath-custom-ur-state-manager`, `clearpath-custom-manipulator-diagnostics`, `clearpath-custom-octomap-feed`, `clearpath-custom-manipulators-watchdog.service`/`.timer`, plus `clearpath-custom-setup`) — **8 Services + 1 Timer**. Die Arm-Controller sind kein eigener Service, sondern Teil von `ur_state_manager.launch.py` (Argument `load_arm_controllers`). Der Installer räumt keine Alt-Units mehr weg — die abgeschafften (`clearpath-custom-arm-controllers`, `clearpath-custom-robot-yaml-update`, das stillgelegte `clearpath-custom-rg6-bringup`) und die alten, unpräfigierten Namen sind auf a200-0553 durch; ein Lauf stoppt dafür also auch nichts mehr kurz. Der Greifer hängt an der OnRobot-URCap und wird von `clearpath-custom-rg6-grip-bridge` kommandiert. Drop-ins on Clearpath-owned units (`clearpath-manipulators.service.d/override.conf`) keep their target-unit name by systemd convention.
-
-**`/etc/clearpath/robot.yaml` ist ein Symlink** auf den Repo-Klon `~/husky-custom-setup/robot.yaml` — der offizielle Clearpath-Weg, kein eigener Update-Service. `clearpath-robot-check` md5summt die Datei im Sekundentakt, ein `git pull` wirkt also sofort statt erst beim nächsten Boot.
+Das Custom-Setup des Clearpath a200-0553: ein Installer, der die Boot-Services,
+udev-Regeln, das Netz und den OnRobot-RG6 einrichtet, dazu die Knoten, die
+Clearpath selbst nicht mitbringt. `robot.yaml` ist dabei die einzige Quelle der
+Wahrheit — `/etc/clearpath/robot.yaml` ist ein Symlink auf den Repo-Klon.
 
 ## Features
 
-- **`robot.yaml` is the single source of truth** — `/etc/clearpath/robot.yaml`
-  is a symlink onto the repo clone, so a `git pull` takes effect within seconds
-  instead of at the next boot.
-- **8 services + 1 timer**, all prefixed `clearpath-custom-*`; an installer run
-  also removes units from older setups.
-- **A watchdog for late arm power-on** and for a motion link that died while
-  ExternalControl kept claiming to run.
-- **`rg6_grip_bridge`** — the node that actually drives the RG6, over XML-RPC
-  against the OnRobot URCap.
-- **Manipulator diagnostics in Cockpit**: arm mode, control, joints,
-  controllers and gripper as `diagnostic_msgs`, with an explicit
-  *out-of-service* state rather than invented numbers.
-- **A boot patcher down to three steps** — everything that `robot.yaml` can
-  express has moved there.
+- **`robot.yaml` ist die Single Source of Truth** —
+  `/etc/clearpath/robot.yaml` ist ein Symlink auf den Repo-Klon, ein
+  `git pull` wirkt also binnen Sekunden statt erst beim nächsten Boot.
+- **8 Services + 1 Timer**, alle mit dem Präfix `clearpath-custom-*`.
+- **Ein Watchdog für spätes Einschalten des Arms** und für eine Motion-Link,
+  die gestorben ist, während ExternalControl weiter „läuft" meldete.
+- **`rg6_grip_bridge`** — der Knoten, der den RG6 tatsächlich fährt, per
+  XML-RPC gegen die OnRobot-URCap.
+- **Manipulator-Diagnose in Cockpit**: Arm-Mode, Control, Gelenke, Controller
+  und Greifer als `diagnostic_msgs`, mit einem ausdrücklichen Zustand
+  *außer Betrieb* statt erfundener Zahlen.
+- **Ein Boot-Patcher mit drei Schritten** — alles, was `robot.yaml`
+  ausdrücken kann, ist dorthin gewandert.
 
 ## Tech Stack
 
-Ubuntu + ROS 2 Jazzy on the Clearpath a200-0553, systemd, `rclpy`,
-`ur_robot_driver`, Zenoh (`rmw_zenoh_cpp`). Bash installer, no configuration
-management.
+Ubuntu + ROS 2 Jazzy auf dem Clearpath a200-0553, systemd, `rclpy`,
+`ur_robot_driver`, Zenoh (`rmw_zenoh_cpp`). Bash-Installer, kein
+Konfigurationsmanagement.
 
 ## Installation
 
-After installing the Clearpath software stack
-([Clearpath Installation](https://docs.clearpathrobotics.com/docs/ros/installation/robot)),
-run this in your user directory:
+Nach der Installation des Clearpath-Software-Stacks
+([Clearpath Installation](https://docs.clearpathrobotics.com/docs/ros/installation/robot))
+im eigenen Nutzerverzeichnis:
 
 ```bash
 wget -c https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/install-clearpath-custom-setup.sh
 bash -e install-clearpath-custom-setup.sh
 ```
 
-The installer is interactive and asks before each optional part (`[j/N]`, or
-`-y` to accept all).
+Der Installer ist interaktiv und fragt vor jedem optionalen Teil (`[y/N]`,
+oder `-y`, um alles zu bejahen). `--verify` prüft rein lesend, ob die
+ausgerollten Kopien noch dem Checkout entsprechen, und ändert nichts.
+
+Alle Units, die der Installer anlegt, tragen das Präfix `clearpath-custom-*`
+(`clearpath-custom-rg6-grip-bridge`, `clearpath-custom-joint-states`,
+`clearpath-custom-ur-dashboard`, `clearpath-custom-ur-state-manager`,
+`clearpath-custom-manipulator-diagnostics`, `clearpath-custom-octomap-feed`,
+`clearpath-custom-manipulators-watchdog.service`/`.timer` und
+`clearpath-custom-setup`). Die Arm-Controller sind kein eigener Service,
+sondern Teil von `ur_state_manager.launch.py` (Argument
+`load_arm_controllers`). Drop-ins auf Clearpath-eigenen Units
+(`clearpath-manipulators.service.d/override.conf`) behalten nach
+systemd-Konvention den Namen ihrer Ziel-Unit.
 
 ## Usage
 
 Was die installierten Units tun, je ein Abschnitt.
 
-### `clearpath-custom-manipulators-watchdog.timer` (late arm power-on + stuck reconnect after restart)
+### `clearpath-custom-manipulators-watchdog.timer` (spätes Einschalten)
 
-The watchdog covers two cases that are unfixable from a ROS node (both need the dead
-driver connection for their own inputs and can't restart the driver process they
-depend on), so the installer offers a small **systemd timer** watchdog instead:
+Der Watchdog deckt zwei Fälle ab, die aus einem ROS-Knoten heraus nicht zu
+beheben sind — beide brauchen die tote Treiber-Verbindung für ihre eigenen
+Eingaben und können den Treiber-Prozess, von dem sie abhängen, nicht neu
+starten. Der Installer bietet deshalb einen kleinen **systemd-Timer** an:
 
-**(a) Late arm power-on.** If the UR5 is powered on **long after** the ROS stack booted,
-the `ur_robot_driver`'s one-shot ros2_control hardware activation has already failed
-against the then-unpowered arm — and ros2_control does **not** retry it. The driver
-sits there with a dead hardware component and the pendant stays **"Stopped"**.
+**(a) Später eingeschalteter Arm.** Wird der UR5 erst **lange nach** dem Boot
+des ROS-Stacks bestromt, ist die einmalige ros2_control-Hardware-Aktivierung
+des `ur_robot_driver` schon gegen den damals stromlosen Arm gescheitert — und
+ros2_control wiederholt sie **nicht**. Der Treiber steht mit einer toten
+Hardware-Komponente da, das Panel bleibt auf **„Stopped"**.
 
-**(b) Stuck reconnect after a `clearpath-robot.service` restart with the arm already
-powered.** The old `ExternalControl` instance holds the reverse socket; the new driver's
-hardware activation fails on the socket collision → `joint_state_broadcaster` stays
-inactive → RViz/MoveIt fall back to the URDF default pose (the arm lies **flat**).
+**(b) Hängender Reconnect nach einem `clearpath-robot.service`-Restart bei
+schon bestromtem Arm.** Die alte `ExternalControl`-Instanz hält das
+Reverse-Socket; die Hardware-Aktivierung des neuen Treibers scheitert an der
+Socket-Kollision → `joint_state_broadcaster` bleibt inaktiv → RViz und
+MoveIt fallen auf die URDF-Default-Pose zurück, der Arm liegt **flach**.
 
-The health signal is **the `joint_state_broadcaster` stream**
-(`/a200_0553/manipulators/joint_states`), which publishes real arm joints **only** when
-the ros2_control hardware interface is activated. `robot_program_running` alone is **not**
-a valid health signal — it is the controller-side ExternalControl status (read via
-dashboard/RTDE) and stays `true` even when the PC-side motion link is dead, which is
-exactly case (b).
+Das Health-Signal ist **der `joint_state_broadcaster`-Strom**
+(`/a200_0553/manipulators/joint_states`): er publiziert echte Arm-Gelenke
+**nur**, wenn das ros2_control-Hardware-Interface aktiviert ist.
+`robot_program_running` allein ist **kein** gültiges Health-Signal — das ist
+der controller-seitige ExternalControl-Status (über Dashboard/RTDE gelesen)
+und bleibt `true`, auch wenn die PC-seitige Motion-Link tot ist. Genau das ist
+Fall (b).
 
-Every 10 s (from `OnBootSec=90`) it checks: **arm pingable** (`192.168.131.40`) **but
-the JSC stream silent** → if the arm is **not** `POWER_OFF`, it runs
-`systemctl restart clearpath-manipulators.service` **once** (cooldown-guarded, state in
-`/run`, so it can't loop) and restarts `ExternalControl` (`resend_robot_program`). It
-does **not** power the arm (`power_on`/`brake_release`) — powering is an operator
-decision (protecting maintenance / end-of-day shutdown); if the arm is `POWER_OFF`, no
-recovery runs (no driver-restart loop against an unpowered arm). Once the operator
-powers the arm, the watchdog reconnects the motion link on the next tick. Protective /
-safety stops (`safety_mode != NORMAL`) are **not** auto-cleared — `resend` is skipped,
-manual clear required. The restarted driver reconnects, the JSC stream resumes, and
-`ur_state_manager`'s `auto_recover` brings the arm's motion link back once the arm is
-powered and the program runs. The **gripper** is not part of that: it hangs off the
-OnRobot URCap, and no ROS service can power its tool connector — see the gripper section
-below. A generous `JS_TIMEOUT` (25 s) grace window prevents false alarms during the ~15 s
-the JSC needs to come up after a restart; it stays silent on a healthy boot (JSC
-streaming) and while the arm is off (not pingable). Logs:
-`journalctl -t manipulators-watchdog -b`; schedule:
+Alle 10 s (ab `OnBootSec=90`) prüft er: **Arm pingbar** (`192.168.131.40`),
+**aber JSC-Strom stumm** → ist der Arm **nicht** `POWER_OFF`, läuft
+`systemctl restart clearpath-manipulators.service` **einmal** (mit Cooldown,
+Zustand in `/run`, damit es nicht schleifen kann) und danach ein Neustart von
+`ExternalControl` (`resend_robot_program`). Er bestromt den Arm **nicht**
+(kein `power_on`/`brake_release`) — Bestromen ist eine Bedienerentscheidung
+und schützt Wartung und Feierabend; steht der Arm auf `POWER_OFF`, läuft
+keine Recovery, damit kein Treiber-Neustart gegen einen stromlosen Arm
+schleift.
+Sobald der Bediener bestromt, verbindet der Watchdog die Motion-Link beim
+nächsten Takt. Protective- und Safety-Stops (`safety_mode != NORMAL`) werden
+**nicht** automatisch aufgehoben — der `resend` entfällt, das Freigeben
+bleibt manuell.
+
+Ein großzügiges Grace-Fenster (`JS_TIMEOUT`, 25 s) verhindert Fehlalarme
+während der rund 15 s, die der JSC nach einem Neustart braucht; auf einem
+gesunden Boot (JSC streamt) und bei ausgeschaltetem Arm (nicht pingbar) bleibt
+der Watchdog still. Der **Greifer** ist davon nicht berührt: er hängt an der
+OnRobot-URCap, und kein ROS-Service kann seinen Tool-Anschluss bestromen —
+siehe den Greifer-Abschnitt weiter unten. Logs:
+`journalctl -t manipulators-watchdog -b`; Zeitplan:
 `systemctl list-timers clearpath-custom-manipulators-watchdog.timer`.
 
-### `clearpath-manipulators.service.d/override.conf` (clean driver shutdown)
+### `clearpath-manipulators.service.d/override.conf` (sauberer Stopp)
 
-A drop-in that makes `clearpath-manipulators.service` stop with `KillSignal=SIGINT`
-instead of the default `SIGTERM`. `ros2_control_node` / `move_group` / `robot_state_pub`
-are ROS nodes and handle `SIGINT` as graceful shutdown (reverse/dashboard sockets closed
-in ~1–3 s); under `SIGTERM` the old `ros2_control_node` ignores the signal and lingers up
-to 90 s as a zombie still holding the reverse socket — which is what causes the socket
-collision in case (b) above. The drop-in layers over the Clearpath-owned unit and
-survives package updates.
+Ein Drop-in, das `clearpath-manipulators.service` mit `KillSignal=SIGINT`
+statt des voreingestellten `SIGTERM` stoppen lässt. `ros2_control_node`,
+`move_group` und `robot_state_pub` sind ROS-Knoten und behandeln `SIGINT` als
+Graceful Shutdown (Reverse- und Dashboard-Sockets in rund 1–3 s geschlossen);
+unter `SIGTERM` ignoriert der alte `ros2_control_node` das Signal und hängt
+bis zu 90 s als Zombie herum, der das Reverse-Socket weiter hält — genau das
+verursacht die Socket-Kollision in Fall (b) oben. Das Drop-in layert über der
+Clearpath-eigenen Unit und überlebt Paket-Updates.
 
 ### `clearpath-custom-manipulator-diagnostics.service` (UR5 + RG6 in Cockpit)
 
@@ -156,11 +170,11 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
 
    | Lage | Meldung |
    |---|---|
-   | Arm `POWER_OFF` | **außer Betrieb** (grau): „Arm ausgeschaltet – Greifer ohne Versorgung" |
-   | Arm bestromt, kein Signal | **WARNUNG**: „Tool stromlos — läuft das URCap-Programm auf dem Panel?" |
-   | Arm sonst unbestromt (z. B. `BOOTING`) | **WARNUNG**: „Arm nicht bestromt" |
+   | Arm `POWER_OFF` | **außer Betrieb** (grau): `arm switched off - gripper without supply` |
+   | Arm bestromt, kein Signal | **WARNUNG**: `tool unpowered: is the URCap program running on the pendant?` |
+   | Arm sonst unbestromt (z. B. `BOOTING`) | **WARNUNG**: `arm not powered` |
 
-   und Weite/Prozent/`grip_detected`/`busy` stehen dann auf `unbekannt` statt
+   und Weite/Prozent/`grip_detected`/`busy` stehen dann auf `unknown` statt
    auf erfundenen Zahlen; die Rohspannungen bleiben sichtbar (sie *sind* die
    Diagnose).
 
@@ -171,11 +185,10 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
    (bei `POWER_OFF` läuft keine Recovery). Ein echtes Problem schlägt das
    weiterhin durch: ein Safety-Stopp bleibt auch am ausgeschalteten Arm ROT
    (live verifiziert an einem `FAULT` nach Power-Cycle), ein fehlender
-   Controller ebenfalls. Nebenbei behoben: `Arm Joints` meldete am
-   unbestromten Arm „in Bewegung", weil die Gelenkgeschwindigkeit dort bis
-   0,055 rad/s rauscht (bestromt: exakt 0,0000) — `moving` ist jetzt
-   `unbekannt`, solange der Arm aus ist, und die Schwelle liegt bei
-   0,02 rad/s (`motion_eps_rad_s`).
+   Controller ebenfalls. Am unbestromten Arm rauscht die
+   Gelenkgeschwindigkeit bis 0,055 rad/s (bestromt: exakt 0,0000) — `moving`
+   steht deshalb auf `unknown`, solange der Arm aus ist, und die Schwelle
+   liegt bei 0,02 rad/s (`motion_eps_rad_s`).
 
    **Kodierung von „außer Betrieb":** `diagnostic_msgs` kennt nur
    OK/WARN/ERROR/STALE. Ein eigener Byte-Wert würde die `max()`-Rollups des
@@ -192,11 +205,10 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
    Die Analyzer listen ihre Status als `expected`: stirbt der Node, bleiben sie
    als **STALE** in der Anzeige stehen statt spurlos zu verschwinden.
 
-   Bis zum 2026-08-19 stand das im Boot-Patcher (Schritt 6) und lief **nur**,
-   wenn die Unit-Datei existierte — die Datei war der Feature-Schalter. Diese
-   Kopplung gibt es nicht mehr: der Block steht bedingungslos in `robot.yaml`.
-   Ohne den Diagnose-Node zeigt Cockpit die Gruppe darum als STALE, statt sie
-   verschwinden zu lassen. Rückbau = Block aus `robot.yaml` entfernen.
+   Der Block steht bedingungslos in `robot.yaml`, an keine Unit-Datei
+   gekoppelt. Ohne den Diagnose-Node zeigt Cockpit die Gruppe darum als STALE,
+   statt sie verschwinden zu lassen. Rückbau = Block aus `robot.yaml`
+   entfernen.
 
 3. **Cockpit-Plugin-Fork**
    ([`CLAIRLab-HAW/cockpit-ros2-diagnostics`](https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics),
@@ -255,7 +267,7 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
 5. Funktionsprobe: Greifer öffnen/schließen → Balken + `grip_detected` folgen.
 6. Abschaltprobe (`ur_state_manager/power_off`): Manipulator-Kachel, Arm- und
    Greifer-Kachel werden **grau/„Außer Betrieb"**, der Öffnungsbalken
-   verschwindet, `grip_detected`/`busy`/`moving` stehen auf `unbekannt`.
+   verschwindet, `grip_detected`/`busy`/`moving` stehen auf `unknown`.
    Danach `prepare` und das URCap-Programm am Panel starten → wieder alles grün.
    (Die Tool-Versorgung setzt die OnRobot-URCap, nicht ROS: der Weg dorthin ging
    über Tool-DO, und den belegt die URCap selbst. Kein ROS-Service kann das hier
@@ -338,27 +350,33 @@ ohnehin bei jedem Boot neu, ein `.bak` liegt daneben.
 
 ## Running Tests
 
-Both Python nodes carry a ROS-free self-test:
+Drei der Python-Knoten tragen einen ROS-freien Selbsttest:
 
 ```bash
 python3 scripts/manipulator_diagnostics.py --selftest
 python3 scripts/rg6_grip_bridge.py --selftest
+python3 scripts/octomap_feed.py --selftest
 ```
+
+Der Installer fährt denselben Selbsttest, bevor er eine Datei ausrollt, und
+verwirft eine Quelle, die sich nicht einmal übersetzen lässt.
+`bash install-clearpath-custom-setup.sh --verify` vergleicht rein lesend die
+ausgerollten Kopien mit dem Checkout.
 
 ## Related
 
-- [onrobot-rg6](../onrobot-rg6/README.md) — gripper model, MoveIt patch,
-  container mock
-- [ur-state-manager](../ur-state-manager/README.md) — arm state and controller
-  modes
-- [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — the panel
-  that renders these diagnostics
+- [onrobot-rg6](../onrobot-rg6/README.md) — Greifermodell, MoveIt-Patch,
+  Container-Mock
+- [ur-state-manager](../ur-state-manager/README.md) — Armzustand und
+  Controller-Modi
+- [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — das
+  Panel, das diese Diagnose darstellt
 
 ## Versioning
 
-[Semantic Versioning](https://semver.org/) via the `VERSION` file and
+[Semantic Versioning](https://semver.org/) über die Datei `VERSION` und
 [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-See workspace root.
+Siehe Workspace-Wurzel.

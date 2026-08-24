@@ -1,47 +1,48 @@
 #!/usr/bin/env bash
-# wakeup.sh - Gegenstueck zu shutdown.sh: Roboterarm aus der Ruhepose
-#             "packed" zurueck in die Arbeitspose ("home", per Default
-#             aus robot.yaml) fahren.
+# wakeup.sh - counterpart to shutdown.sh: drive the robot arm out of the
+#             rest pose "packed" back into the working pose ("home", by
+#             default from robot.yaml).
 #
-# Laeuft DIREKT auf dem Roboter-PC (a200-0553) gegen den lokalen ROS-2-Graph.
-# Ablauf:
-#   1. Arm einsatzbereit machen        (ur_state_manager/prepare - Power On +
-#                                       Bremsen loesen; idempotent)
-#   2. auf Trajectory-Modus schalten   (ur_controller_mode_manager/mode/trajectory,
-#                                       damit der JTC den Goal annimmt)
-#   3. Zielpose aufloesen              (robot.yaml -> poses[name].joints)
-#   4. Startpose pruefen               (Arm sollte in "packed" stehen; sonst ist
-#                                       die Gelenk-Interpolation nicht geprueft)
-#   5. Arm auf Zielpose fahren         (arm_0_joint_trajectory_controller)
+# Runs DIRECTLY on the robot PC (a200-0553) against the local ROS 2 graph.
+# Sequence:
+#   1. make the arm ready              (ur_state_manager/prepare - power on +
+#                                       release brakes; idempotent)
+#   2. switch to trajectory mode       (ur_controller_mode_manager/mode/trajectory,
+#                                       so that the JTC accepts the goal)
+#   3. resolve the target pose         (robot.yaml -> poses[name].joints)
+#   4. check the start pose            (the arm should stand in "packed";
+#                                       otherwise the joint interpolation is
+#                                       not collision checked)
+#   5. drive the arm to the target     (arm_0_joint_trajectory_controller)
 #
-# Es wird NICHTS gestartet und nichts abgeschaltet - die Plattform-Services
-# muessen bereits laufen (Boot-Services aus husky-custom-setup). Der Arm bleibt
-# am Ende bestromt und im Trajectory-Modus, also bereit fuer MoveIt.
+# NOTHING is started and nothing is shut down - the platform services must
+# already be running (boot services from husky-custom-setup). The arm stays
+# powered and in trajectory mode at the end, so it is ready for MoveIt.
 #
-# Der Arm bewegt sich gross und schnell -> vor der Fahrt gibt es eine
-# Bestaetigung (ueberspringbar mit -y / --yes).
+# The arm moves widely and fast -> there is a confirmation before the travel
+# (skippable with -y / --yes).
 #
-# Optionen:
-#   -y, --yes           keine Rueckfrage vor der Armbewegung
-#   --pose <name>       Zielpose aus robot.yaml (Default: home, Fallback forward)
-#   --joints <csv>      Zielpose direkt als 6 Gelenkwinkel in rad, kommasepariert
-#                       (ueberschreibt --pose)
-#   --from-any          Startpose NICHT gegen "packed" pruefen
-#   --time <sek>        Fahrzeit (Default 10.0)
-#   --ns <namespace>    Roboter-Namespace (Default: a200_0553 bzw. $CLEARPATH_NS)
-#   -h, --help          diese Hilfe
+# Options:
+#   -y, --yes           no confirmation before the arm moves
+#   --pose <name>       target pose from robot.yaml (default: home, fallback forward)
+#   --joints <csv>      target pose directly as 6 joint angles in rad, comma separated
+#                       (overrides --pose)
+#   --from-any          do NOT check the start pose against "packed"
+#   --time <sec>        travel time (default 10.0)
+#   --ns <namespace>    robot namespace (default: a200_0553 or $CLEARPATH_NS)
+#   -h, --help          this help
 #
 # Env:
-#   CLEARPATH_NS        Roboter-Namespace (Default a200_0553)
-#   ROBOT_YAML          Pfad zur robot.yaml (Default: Suche, s.u.)
-#   WAKEUP_ARM_TIME     Fahrzeit in s (Default 10.0 - grosse Bewegung)
-#   WAKEUP_GOAL_TIMEOUT Max. Warten auf Trajectory-Ergebnis in s (Default 60)
-#   WAKEUP_TOL          Toleranz der Startpose-Pruefung in rad (Default 0.35)
+#   CLEARPATH_NS        robot namespace (default a200_0553)
+#   ROBOT_YAML          path to robot.yaml (default: search, see below)
+#   WAKEUP_ARM_TIME     travel time in s (default 10.0 - a large movement)
+#   WAKEUP_GOAL_TIMEOUT max wait for the trajectory result in s (default 60)
+#   WAKEUP_TOL          tolerance of the start pose check in rad (default 0.35)
 #
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Konfiguration
+# configuration
 # ---------------------------------------------------------------------------
 NS="${CLEARPATH_NS:-a200_0553}"
 MANIP_NS="${NS}/manipulators"
@@ -50,11 +51,11 @@ GOAL_TIMEOUT="${WAKEUP_GOAL_TIMEOUT:-60}"
 START_TOL="${WAKEUP_TOL:-0.35}"
 
 POSE_NAME="home"
-POSE_FALLBACKS="forward"     # probiert, wenn POSE_NAME nicht in robot.yaml steht
-JOINTS_CSV=""                # via --joints; leer -> aus robot.yaml aufloesen
+POSE_FALLBACKS="forward"     # tried when POSE_NAME is not in robot.yaml
+JOINTS_CSV=""                # via --joints; empty -> resolve from robot.yaml
 
-# Erwartete Startpose = "packed" aus robot.yaml (identisch zu shutdown.sh).
-# Nur fuer die Plausibilitaets-Pruefung, nicht als Fahrziel.
+# Expected start pose = "packed" from robot.yaml (identical to shutdown.sh).
+# Only for the sanity check, not as a travel target.
 PACKED_JOINTS=(
   -0.000695530568258107
   -3.1283000151263636
@@ -63,7 +64,7 @@ PACKED_JOINTS=(
    1.5455983877182007
   -0.0000837484928349762
 )
-# Fallback-Zielpose, falls robot.yaml nicht gefunden/lesbar ist: "forward".
+# Fallback target pose if robot.yaml is not found/readable: "forward".
 FORWARD_JOINTS=(
   -0.00532704988588506
   -2.2551897207843226
@@ -85,9 +86,9 @@ DO_YES=0
 CHECK_START=1
 
 # ---------------------------------------------------------------------------
-# Argumente
+# arguments
 # ---------------------------------------------------------------------------
-usage() { sed -n '2,39p' "$0" | sed 's/^# \{0,1\}//'; exit 0; }
+usage() { sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'; exit 0; }
 while [ $# -gt 0 ]; do
   case "$1" in
     -y|--yes)        DO_YES=1; shift ;;
@@ -97,7 +98,7 @@ while [ $# -gt 0 ]; do
     --time)          ARM_TIME="$2"; shift 2 ;;
     --ns)            NS="$2"; MANIP_NS="${NS}/manipulators"; shift 2 ;;
     -h|--help)       usage ;;
-    *) echo "wakeup: unbekannte Option: $1" >&2; exit 2 ;;
+    *) echo "wakeup: unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
@@ -109,15 +110,15 @@ warn() { printf '\033[1;33m[wakeup]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[wakeup]\033[0m %s\n' "$*" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
-# ROS-Umgebung
+# ROS environment
 # ---------------------------------------------------------------------------
-# Kanonischer Einstieg ist /etc/clearpath/setup.bash: sie sourct das
-# Jazzy-Setup, onrobot-rg6 und - ENTSCHEIDEND - setzt ROS_DOMAIN_ID und
-# RMW_IMPLEMENTATION (rmw_zenoh_cpp). Ohne letzteres laeuft das Script im
-# ROS-Jazzy-Default (FastDDS) und ist NICHT im selben Graph wie die
-# Roboter-Stacks -> ros2 service call haengt. Daher VOR dem nackten
-# /opt/ros-Pfad probieren. ROS-Setup-Scripts fassen Variablen an, die unter
-# `set -u` ungebunden sind (z.B. AMENT_TRACE_SETUP_FILES) -> beim Sourcen -u aus.
+# The canonical entry point is /etc/clearpath/setup.bash: it sources the
+# jazzy setup, onrobot-rg6 and - DECISIVELY - sets ROS_DOMAIN_ID and
+# RMW_IMPLEMENTATION (rmw_zenoh_cpp). Without the latter the script runs in
+# the ROS jazzy default (FastDDS) and is NOT in the same graph as the robot
+# stacks -> ros2 service call hangs. So try it BEFORE the bare
+# /opt/ros path. ROS setup scripts touch variables that are unbound under
+# `set -u` (e.g. AMENT_TRACE_SETUP_FILES) -> turn -u off while sourcing.
 if [ -f /etc/clearpath/setup.bash ]; then
   # shellcheck disable=SC1091
   set +u; source /etc/clearpath/setup.bash; set -u
@@ -127,7 +128,7 @@ elif [ -f /opt/ros/jazzy/setup.bash ]; then
   : "${ROS_DOMAIN_ID:=0}";        export ROS_DOMAIN_ID
   : "${RMW_IMPLEMENTATION:=rmw_zenoh_cpp}"; export RMW_IMPLEMENTATION
 else
-  die "/etc/clearpath/setup.bash und /opt/ros/jazzy/setup.bash fehlen - wakeup.sh laeuft auf dem Roboter-PC?"
+  die "/etc/clearpath/setup.bash and /opt/ros/jazzy/setup.bash are missing - is wakeup.sh running on the robot PC?"
 fi
 for ws in /opt/ros/clearpath/setup.bash /opt/ros/robot/setup.bash \
           /home/robot/ros2_ws/install/setup.bash /ros2_ws/install/setup.bash; do
@@ -141,46 +142,45 @@ PREPARE_SRV="/${MANIP_NS}/ur_state_manager/prepare"
 TRAJ_MODE_SRV="/${MANIP_NS}/ur_controller_mode_manager/mode/trajectory"
 
 # ---------------------------------------------------------------------------
-# ROS-Service-Helfer: ruft einen std_srvs/Trigger auf und wertet success aus.
+# ROS service helper: calls a std_srvs/Trigger and evaluates success.
 # ---------------------------------------------------------------------------
 call_trigger() {
-  # std_srvs/Trigger hat einen LEEREN Request (nur bool success + string message
-  # auf der Response) - kein Feld uebergeben. ros2 kennt kein `service wait`,
-  # darum harten Timeout außenrum (Service nicht da -> ros2 service call wuerde
-  # sonst haengen).
+  # std_srvs/Trigger has an EMPTY request (only bool success + string message on
+  # the response) - pass no field. ros2 has no `service wait`, hence the hard
+  # timeout around it (service absent -> ros2 service call would hang).
   local srv="$1" label="$2" timeout="${3:-30}"
-  local secs="${timeout%.*}"   # Float -> Int (z.B. 30.0 -> 30) fuer Bash-Arithmetik
+  local secs="${timeout%.*}"   # float -> int (e.g. 30.0 -> 30) for bash arithmetic
   [ -z "$secs" ] && secs="$timeout"
-  log "${label}: rufe ${srv}"
-  # Exit-Code des timeouts DIREKT via `|| rc=$?` einfangen - NICHT `|| true`
-  # in die Substitution und danach `rc=$?`: das liest den Status der
-  # Zuweisung (immer 0), der 124-Zweig waere tot.
+  log "${label}: calling ${srv}"
+  # Catch the exit code of timeout DIRECTLY via `|| rc=$?` - NOT `|| true`
+  # inside the substitution and `rc=$?` afterwards: that reads the status of
+  # the assignment (always 0), which would make the 124 branch dead code.
   local out rc=0
   out="$(timeout "$((secs + 15))" ros2 service call "$srv" std_srvs/srv/Trigger 2>&1)" || rc=$?
   if [ "$rc" -eq 124 ]; then
-    warn "${label}: Timeout - Service ${srv} nicht erreichbar."
+    warn "${label}: timeout - service ${srv} not reachable."
     return 1
   fi
-  # ros2 service call druckt die Response als Python-Repr
-  # (`Trigger_Response(success=True, ...)`), NICHT als YAML (`success: true`).
-  # Beide Schreibweisen akzeptieren, sonst sieht jeder Erfolg wie ein Fehler aus.
+  # ros2 service call prints the response as a Python repr
+  # (`Trigger_Response(success=True, ...)`), NOT as YAML (`success: true`).
+  # Accept both spellings, otherwise every success looks like a failure.
   echo "$out" | grep -qiE 'success[:=][[:space:]]*true' && { log "${label}: ok"; return 0; }
-  warn "${label}: kein success=true. Auszug:"
+  warn "${label}: no success=true. Excerpt:"
   echo "$out" | tail -n 6 | sed 's/^/    /' >&2
   return 1
 }
 
 # ---------------------------------------------------------------------------
-# 1. Zielpose aufloesen (robot.yaml ist die Quelle der Wahrheit)
+# 1. resolve the target pose (robot.yaml is the source of truth)
 # ---------------------------------------------------------------------------
-log "Schritt 1/5: Zielpose '${POSE_NAME}' aufloesen"
+log "step 1/5: resolving target pose '${POSE_NAME}'"
 
 if [ -n "$JOINTS_CSV" ]; then
-  log "Zielpose aus --joints uebernommen"
+  log "target pose taken from --joints"
 else
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  # Suchreihenfolge: explizit gesetzt -> installierte Clearpath-Config ->
-  # Checkout neben diesem Script -> Home des robot-Users.
+  # Search order: explicitly set -> installed Clearpath config -> checkout next
+  # to this script -> home of the robot user.
   YAML_CANDIDATES=(
     "${ROBOT_YAML:-}"
     /etc/clearpath/robot.yaml
@@ -202,8 +202,8 @@ names = [os.environ["POSE_NAME"]] + \
 try:
     with open(path) as fh:
         cfg = yaml.safe_load(fh) or {}
-except Exception as exc:                       # kaputte/unlesbare YAML -> naechster Kandidat
-    print(f"wakeup: {path} nicht lesbar: {exc}", file=sys.stderr)
+except Exception as exc:                       # broken/unreadable YAML -> next candidate
+    print(f"wakeup: {path} not readable: {exc}", file=sys.stderr)
     sys.exit(1)
 
 poses = {}
@@ -215,13 +215,13 @@ for arm in (cfg.get("manipulators") or {}).get("arms") or []:
 for name in names:
     j = poses.get(name.strip())
     if j and len(j) == 6:
-        # stderr = Diagnose fuer den Bediener, stdout = reines Ergebnis fuer bash
-        print(f"wakeup: Pose '{name.strip()}' aus {path}", file=sys.stderr)
+        # stderr = diagnosis for the operator, stdout = the plain result for bash
+        print(f"wakeup: pose '{name.strip()}' from {path}", file=sys.stderr)
         print(",".join(repr(float(v)) for v in j))
         sys.exit(0)
 
-print(f"wakeup: keine der Posen {names} in {path} "
-      f"(vorhanden: {sorted(poses)})", file=sys.stderr)
+print(f"wakeup: none of the poses {names} in {path} "
+      f"(present: {sorted(poses)})", file=sys.stderr)
 sys.exit(1)
 PY
                   )"
@@ -230,44 +230,44 @@ PY
 fi
 
 if [ -z "$JOINTS_CSV" ]; then
-  warn "Zielpose nicht aus robot.yaml aufloesbar - nutze eingebaute Pose 'forward'."
+  warn "target pose not resolvable from robot.yaml - using the built-in pose 'forward'."
   JOINTS_CSV="$(IFS=,; echo "${FORWARD_JOINTS[*]}")"
 fi
-log "Ziel-Gelenkwinkel: ${JOINTS_CSV}"
+log "target joint angles: ${JOINTS_CSV}"
 
 # ---------------------------------------------------------------------------
-# 2. Arm einsatzbereit (idempotent: Power On + Bremsen loesen)
+# 2. make the arm ready (idempotent: power on + release brakes)
 # ---------------------------------------------------------------------------
-log "Schritt 2/5: Arm vorbereiten (ur_state_manager/prepare)"
+log "step 2/5: preparing the arm (ur_state_manager/prepare)"
 call_trigger "$PREPARE_SRV" "prepare" 30.0 \
-  || die "prepare fehlgeschlagen - Arm nicht bestromt/entbremst. Abbruch, es wird nicht gefahren."
+  || die "prepare failed - arm not powered/unbraked. Aborting, nothing is driven."
 
 # ---------------------------------------------------------------------------
-# 3. Trajectory-Modus aktivieren (sonst lehnt der JTC den Goal ab)
+# 3. activate trajectory mode (otherwise the JTC rejects the goal)
 # ---------------------------------------------------------------------------
-log "Schritt 3/5: Trajectory-Modus aktivieren (mode/trajectory)"
+log "step 3/5: activating trajectory mode (mode/trajectory)"
 call_trigger "$TRAJ_MODE_SRV" "mode/trajectory" 15.0 \
-  || warn "mode/trajectory nicht erfolgreich - versuche Bewegung trotzdem."
+  || warn "mode/trajectory not successful - attempting the movement anyway."
 
 # ---------------------------------------------------------------------------
-# 4. Bestaetigung - ab hier bewegt sich der Arm gross
+# 4. confirmation - from here on the arm makes a large movement
 # ---------------------------------------------------------------------------
 if [ "$DO_YES" -ne 1 ]; then
-  echo "  Der Arm faehrt jetzt von 'packed' nach '${POSE_NAME}' (${ARM_TIME}s)." >&2
-  echo "  Arbeitsraum frei? Niemand im Schwenkbereich?" >&2
-  printf '  Weiter? [j/N] ' >&2
+  echo "  The arm now travels from 'packed' to '${POSE_NAME}' (${ARM_TIME}s)." >&2
+  echo "  Workspace clear? Nobody inside the swivel range?" >&2
+  printf '  Continue? [y/N] ' >&2
   read -r ans
   case "$ans" in
     j|J|y|Y) : ;;
-    *) warn "Abgebrochen - Arm ist bestromt und im Trajectory-Modus, steht aber still."; exit 0 ;;
+    *) warn "aborted - the arm is powered and in trajectory mode, but stands still."; exit 0 ;;
   esac
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Startpose pruefen + Arm auf Zielpose fahren
+# 5. check the start pose + drive the arm to the target pose
 # ---------------------------------------------------------------------------
-log "Schritt 4/5: Startpose pruefen (erwartet 'packed', Toleranz ${START_TOL} rad)"
-log "Schritt 5/5: Arm nach '${POSE_NAME}' fahren (${ARM_TIME}s)"
+log "step 4/5: checking the start pose (expects 'packed', tolerance ${START_TOL} rad)"
+log "step 5/5: driving the arm to '${POSE_NAME}' (${ARM_TIME}s)"
 
 JN_CSV="$(IFS=,; echo "${ARM_JOINTS[*]}")"
 PK_CSV="$(IFS=,; echo "${PACKED_JOINTS[*]}")"
@@ -304,22 +304,22 @@ check     = os.environ["CHECK_START"] == "1"
 pose_name = os.environ["POSE_NAME"]
 
 if len(joints) != 6 or len(targets) != 6:
-    print(f"FEHLER: brauche 6 Joints/6 Werte, got {len(joints)}/{len(targets)}", file=sys.stderr)
+    print(f"ERROR: need 6 joints/6 values, got {len(joints)}/{len(targets)}", file=sys.stderr)
     sys.exit(2)
 
 def to_dur(s):
     sec = int(s); return Duration(sec=sec, nanosec=int(round((s-sec)*1e9)))
 
 def fail(node, msg, code=1):
-    print(f"FEHLER: {msg}", file=sys.stderr)
+    print(f"ERROR: {msg}", file=sys.stderr)
     node.destroy_node(); rclpy.shutdown(); sys.exit(code)
 
 rclpy.init()
 node = Node("wakeup_move")
 
-# --- Startpose lesen (advisory): der JTC veroeffentlicht seinen Ist-Zustand.
-# Reine Diagnose - schlaegt sie fehl, wird nur gewarnt, denn die Bewegung ist
-# vom Bediener bereits bestaetigt worden.
+# --- read the start pose (advisory): the JTC publishes its actual state.
+# Pure diagnosis - if it fails, only a warning is issued, because the operator
+# has already confirmed the movement.
 latest = {}
 def on_state(msg):
     pt = getattr(msg, "actual", None) or getattr(msg, "feedback", None)
@@ -333,58 +333,58 @@ while not latest and node.get_clock().now().nanoseconds < deadline:
     rclpy.spin_once(node, timeout_sec=0.2)
 
 if not latest:
-    print(f"WARNUNG: keine Ist-Pose auf {state_top} - Startpose ungeprueft.", file=sys.stderr)
+    print(f"WARNING: no actual pose on {state_top} - start pose unchecked.", file=sys.stderr)
 else:
     idx = {n: i for i, n in enumerate(latest["names"])}
     cur = [latest["pos"][idx[n]] if n in idx else float("nan") for n in joints]
-    print("[wakeup] Ist-Pose: " + ", ".join(f"{v:+.3f}" for v in cur), flush=True)
+    print("[wakeup] actual pose: " + ", ".join(f"{v:+.3f}" for v in cur), flush=True)
     dev = [abs(c - p) for c, p in zip(cur, packed)]
     worst = max(dev)
     if worst > tol:
         bad = ", ".join(f"{joints[i]}={dev[i]:.2f}" for i in range(6) if dev[i] > tol)
-        msg = (f"Arm steht nicht in 'packed' (Abweichung bis {worst:.2f} rad: {bad}). "
-               f"Die Fahrt ist eine reine Gelenk-Interpolation und daher nur aus "
-               f"'packed' heraus kollisionsgeprueft.")
+        msg = (f"the arm does not stand in 'packed' (deviation up to {worst:.2f} rad: {bad}). "
+               f"The travel is a pure joint interpolation and is therefore only "
+               f"collision checked when starting from 'packed'.")
         if check:
-            fail(node, msg + " Mit --from-any trotzdem fahren.")
-        print(f"WARNUNG: {msg} (--from-any gesetzt, fahre trotzdem)", file=sys.stderr)
+            fail(node, msg + " Use --from-any to drive anyway.")
+        print(f"WARNING: {msg} (--from-any set, driving anyway)", file=sys.stderr)
     else:
-        print(f"[wakeup] Startpose ok (max. Abweichung {worst:.3f} rad)", flush=True)
+        print(f"[wakeup] start pose ok (max deviation {worst:.3f} rad)", flush=True)
 
-# --- Fahrt
+# --- travel
 cli = ActionClient(node, FollowJointTrajectory, action)
-print(f"[wakeup] warte auf Action-Server {action} ...", flush=True)
+print(f"[wakeup] waiting for action server {action} ...", flush=True)
 if not cli.wait_for_server(timeout_sec=15.0):
-    fail(node, "Action-Server nicht erreichbar - laeuft der JTC?")
+    fail(node, "action server not reachable - is the JTC running?")
 
 traj = JointTrajectory()
 traj.joint_names = joints
 traj.points = [JointTrajectoryPoint(positions=targets, time_from_start=to_dur(arm_time))]
 goal = FollowJointTrajectory.Goal(); goal.trajectory = traj
-print(f"[wakeup] sende Trajectory nach {pose_name} (Fahrzeit {arm_time}s)", flush=True)
+print(f"[wakeup] sending trajectory to {pose_name} (travel time {arm_time}s)", flush=True)
 
 gh = cli.send_goal_async(goal)
 rclpy.spin_until_future_complete(node, gh, timeout_sec=15.0)
 if gh.result() is None or not gh.result().accepted:
-    fail(node, "Trajectory-Goal abgelehnt (Arm in trajectory-Modus? Schutzstop?)")
+    fail(node, "trajectory goal rejected (arm in trajectory mode? protective stop?)")
 
 rf = gh.result().get_result_async()
 rclpy.spin_until_future_complete(node, rf, timeout_sec=goal_to + 15.0)
 res = rf.result()
 if res is None:
-    fail(node, f"kein Ergebnis innerhalb {goal_to}s")
+    fail(node, f"no result within {goal_to}s")
 ec = res.result.error_code
 if ec == FollowJointTrajectory.Result.SUCCESSFUL:
-    print(f"[wakeup] Arm in {pose_name} (error_code={ec})", flush=True)
+    print(f"[wakeup] arm in {pose_name} (error_code={ec})", flush=True)
     ok = 0
 else:
-    print(f"FEHLER: Trajectory nicht erfolgreich (error_code={ec})", file=sys.stderr)
+    print(f"ERROR: trajectory not successful (error_code={ec})", file=sys.stderr)
     ok = 1
 node.destroy_node(); rclpy.shutdown(); sys.exit(ok)
 PY
 MOVE_RC=$?
 if [ "$MOVE_RC" -ne 0 ]; then
-  die "Fahrt nach '${POSE_NAME}' fehlgeschlagen (rc=${MOVE_RC}) - Arm bleibt stehen, bestromt."
+  die "travel to '${POSE_NAME}' failed (rc=${MOVE_RC}) - the arm stays put, powered."
 fi
 
-log "Wakeup: Arm steht in '${POSE_NAME}', bestromt und im Trajectory-Modus (MoveIt-bereit)."
+log "wakeup: the arm stands in '${POSE_NAME}', powered and in trajectory mode (ready for MoveIt)."

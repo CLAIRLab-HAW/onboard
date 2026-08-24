@@ -1,37 +1,40 @@
 #!/usr/bin/env python3
-"""octomap_feed: gedrosselte Depth->PointCloud2-Quelle fuer MoveIts Octomap.
+"""octomap_feed: throttled depth->PointCloud2 source for MoveIt's octomap.
 
-Onboard-Gegenstueck zu Schritt 2 der HRL-Hindernis-Architektur (dichte
-Sicherheitsschicht): move_group bekommt ueber den Occupancy Map Monitor
-(``PointCloudOctomapUpdater``, s. clearpath-custom-setup.py Patch-Schritt 5)
-eine Punktwolke der Wrist-D435 und pflegt daraus einen probabilistischen
-Voxel-Octree -- Raycasts raeumen freigewordenen Raum automatisch, beliebige
-Formen werden bei Voxelaufloesung erfasst, und die von der Workstation gepushten
-Collision-Objects (Wuerfel, Boden-Slab, Hindernis-Boxen) maskiert MoveIt
-selbst aus dem Octree (PlanningSceneMonitor exclude*FromOctree).
+Onboard counterpart to step 2 of the HRL obstacle architecture (the dense
+safety layer): through the occupancy map monitor (``PointCloudOctomapUpdater``,
+see clearpath-custom-setup.py patch step 5) move_group receives a point cloud
+from the wrist D435 and maintains a probabilistic voxel octree from it --
+raycasts clear freed space automatically, arbitrary shapes are captured at
+voxel resolution, and MoveIt masks the collision objects pushed by the
+workstation (cubes, floor slab, obstacle boxes) out of the octree itself
+(``PlanningSceneMonitor`` ``exclude*FromOctree``).
 
-Warum ein eigener Node statt realsense pointcloud.enable / depth_image_proc:
+Why a dedicated node instead of realsense ``pointcloud.enable`` /
+``depth_image_proc``:
 
-* Die RealSense laeuft mit 30 fps -- Octomap-Insertion bei 30 Hz frisst den
-  Onboard-Rechner.  Hier wird auf ``rate_hz`` (Default 5) gedrosselt und mit
-  ``stride`` (Default 2) subsampled: 320x240 Punkte @ 5 Hz sind fuer den
-  Updater bequem.
-* ``DepthImageOctomapUpdater`` (der Depth direkt konsumieren koennte)
-  self-filtert per OpenGL-Offscreen-Rendering -- auf dem headless Onboard-PC
-  fragil.  Der ``PointCloudOctomapUpdater`` filtert geometrisch (kein GL),
-  braucht aber eine PointCloud2: die liefert dieser Node.
-* Kein zusaetzliches apt-Paket, keine Composition: rclpy + numpy (beides da).
+* The RealSense runs at 30 fps -- octomap insertion at 30 Hz eats the onboard
+  computer.  Here it is throttled to ``rate_hz`` (default 5) and subsampled
+  with ``stride`` (default 2): 320x240 points at 5 Hz are comfortable for the
+  updater.
+* ``DepthImageOctomapUpdater`` (which could consume depth directly)
+  self-filters via OpenGL offscreen rendering -- fragile on the headless
+  onboard PC.  ``PointCloudOctomapUpdater`` filters geometrically (no GL) but
+  needs a PointCloud2: this node delivers it.
+* No extra apt package, no composition: rclpy + numpy (both present).
 
-Die Wolke wird im OPTISCHEN Frame der Kamera publiziert (frame_id/stamp der
-Depth-Message durchgereicht); die TF-Transformation in den ``octomap_frame``
-macht der Updater selbst.  QoS: Publisher RELIABLE (matcht sowohl reliable
-als auch best-effort Subscriber -- die QoS des MoveIt-Updaters muss uns damit
-nicht kuemmern), Subscriber SensorData (best effort, wie die Kamera).
+The cloud is published in the OPTICAL frame of the camera (frame_id/stamp of
+the depth message passed through); the TF transform into ``octomap_frame`` is
+done by the updater itself.  QoS: publisher RELIABLE (matches both reliable
+and best-effort subscribers -- so the QoS of the MoveIt updater does not
+concern us), subscriber SensorData (best effort, like the camera).
 
-Aufruf (Service clearpath-custom-octomap-feed, s. Installer):
+Invocation (service clearpath-custom-octomap-feed, see installer)::
+
     octomap-feed --ros-args -p depth_topic:=... -p rate_hz:=5.0
 
-Selbsttest ohne ROS (nur numpy -- laeuft auch auf der Workstation):
+Selftest without ROS (numpy only -- runs on the workstation too)::
+
     python3 octomap_feed.py --selftest
 """
 
@@ -42,7 +45,7 @@ import sys
 import numpy as np
 
 # --------------------------------------------------------------------------- #
-# Pure Konvertierung (ROS-frei, damit ohne Roboter testbar)
+# Pure conversion (ROS-free, so it is testable without a robot)
 # --------------------------------------------------------------------------- #
 
 
@@ -53,12 +56,12 @@ def depth_to_cloud(
     min_depth: float = 0.15,
     max_depth: float = 2.5,
 ) -> np.ndarray:
-    """Depth-Bild -> (N, 3) float32 Punkte im OPTISCHEN Kameraframe.
+    """Depth image -> (N, 3) float32 points in the OPTICAL camera frame.
 
-    ROS-Optik-Konvention (REP 103): x rechts, y unten, z vorwaerts --
-    x = (u-cx)/fx * z, y = (v-cy)/fy * z.  ``depth`` in Metern (float) oder
-    Millimetern (uint16, wird konvertiert).  Ungueltige/ausserhalb
-    [min_depth, max_depth] liegende Pixel fallen weg.
+    ROS optical convention (REP 103): x right, y down, z forward --
+    ``x = (u-cx)/fx * z``, ``y = (v-cy)/fy * z``.  ``depth`` in metres (float)
+    or millimetres (uint16, converted).  Invalid pixels and those outside
+    ``[min_depth, max_depth]`` are dropped.
     """
     if depth.dtype == np.uint16:
         depth = depth.astype(np.float32) / 1000.0
@@ -82,36 +85,36 @@ def depth_to_cloud(
 
 
 def selftest() -> int:
-    """Numpy-only Plausibilitaetstest der Konvertierung."""
+    """Numpy-only sanity check of the conversion."""
     h, w = 120, 160
     K = np.array([[140.0, 0.0, w / 2.0], [0.0, 140.0, h / 2.0], [0.0, 0.0, 1.0]])
     depth = np.full((h, w), 1.2, dtype=np.float32)
-    depth[40:60, 60:100] = 0.8  # ein "Objekt" naeher an der Kamera
-    depth[0:5, :] = 0.0  # ungueltige Zeilen
+    depth[40:60, 60:100] = 0.8  # an "object" closer to the camera
+    depth[0:5, :] = 0.0  # invalid rows
 
     pts = depth_to_cloud(depth, K, stride=2, min_depth=0.15, max_depth=2.5)
     assert pts.dtype == np.float32 and pts.shape[1] == 3, "shape/dtype"
-    assert len(pts) > 0.9 * (h / 2) * (w / 2) - (5 * w / 4), "zu viele Punkte verworfen"
+    assert len(pts) > 0.9 * (h / 2) * (w / 2) - (5 * w / 4), "too many points dropped"
     assert np.all(pts[:, 2] > 0.15) and np.all(pts[:, 2] < 2.5), "z-Band"
-    # Hauptpunkt-Pixel muss auf der optischen Achse landen (x=y=0, z=depth).
+    # The principal point pixel must land on the optical axis (x=y=0, z=depth).
     centre = depth_to_cloud(depth, K, stride=1)[
         np.argmin(np.abs(depth_to_cloud(depth, K, stride=1)[:, :2]).sum(axis=1))
     ]
-    assert abs(centre[0]) < 1e-3 and abs(centre[1]) < 1e-3, "Hauptpunkt"
-    # mm-Eingang (uint16) muss identisch skalieren.
+    assert abs(centre[0]) < 1e-3 and abs(centre[1]) < 1e-3, "principal point"
+    # The mm input (uint16) must scale identically.
     mm = (depth * 1000.0).astype(np.uint16)
     pts_mm = depth_to_cloud(mm, K, stride=2)
-    assert len(pts_mm) == len(pts), "mm/uint16-Pfad"
-    assert np.allclose(pts_mm[:, 2], pts[:, 2], atol=1e-3), "mm-Skalierung"
+    assert len(pts_mm) == len(pts), "mm/uint16 path"
+    assert np.allclose(pts_mm[:, 2], pts[:, 2], atol=1e-3), "mm scaling"
     print(
         "octomap_feed selftest: OK "
-        f"({len(pts)} Punkte, z {pts[:, 2].min():.2f}..{pts[:, 2].max():.2f} m)"
+        f"({len(pts)} points, z {pts[:, 2].min():.2f}..{pts[:, 2].max():.2f} m)"
     )
     return 0
 
 
 # --------------------------------------------------------------------------- #
-# ROS-Node (nur importiert, wenn nicht --selftest)
+# ROS node (only imported when not running --selftest)
 # --------------------------------------------------------------------------- #
 
 
@@ -120,7 +123,7 @@ def main(argv=None) -> int:
     if "--selftest" in argv:
         return selftest()
 
-    import struct  # noqa: F401  (nur zur Dokumentation: Layout ist 3x float32)
+    import struct  # noqa: F401  (documentation only: the layout is 3x float32)
 
     import rclpy
     from rclpy.executors import ExternalShutdownException
@@ -134,9 +137,9 @@ def main(argv=None) -> int:
             ns = self.declare_parameter(
                 "camera_ns", "/a200_0553/sensors/camera_0"
             ).value
-            # Treiber-registriertes aligned-Depth (robot.yaml align_depth.enable):
-            # heisst beim realsense2_camera-Treiber '.../image', NICHT
-            # '.../image_raw' (Kontrakt-Profil camera.depth).
+            # Driver-registered aligned depth (robot.yaml align_depth.enable):
+            # in the realsense2_camera driver this is '.../image', NOT
+            # '.../image_raw' (contract profile camera.depth).
             self.depth_topic = self.declare_parameter(
                 "depth_topic", f"{ns}/aligned_depth_to_color/image"
             ).value
@@ -148,18 +151,19 @@ def main(argv=None) -> int:
             ).value
             self.rate_hz = float(self.declare_parameter("rate_hz", 5.0).value)
             self.stride = int(self.declare_parameter("stride", 2).value)
-            # Near-Clip 0.35 m = Wrist-Selbst-Exklusion: RG6-Finger (~0.15-0.25 m
-            # vor der Kamera) und die GETRAGENE Fracht (haengt unter dem TCP,
-            # < ~0.3 m) liegen IMMER in diesem Band -- ihre Voxel kollidierten
-            # sonst mit dem attachten Objekt selbst (real 2026-07-29: Transport
-            # nach dem Grasp unplanbar, "<octomap> vs 'Robot attached'"; die
-            # Attached-Body-Maskierung des Occupancy-Monitors griff nicht).
-            # Nahe ECHTE Hindernisse deckt die Objekt-Box-Ebene ab (Workstation-seitig,
-            # min_depth dort 0.15).
+            # Near clip 0.35 m = wrist self-exclusion: the RG6 fingers
+            # (~0.15-0.25 m in front of the camera) and the CARRIED payload
+            # (hangs below the TCP, < ~0.3 m) are ALWAYS inside this band --
+            # otherwise their voxels collide with the attached object itself
+            # (measured on the robot 2026-07-29: transport after the grasp
+            # unplannable, "<octomap> vs 'Robot attached'"; the attached-body
+            # masking of the occupancy monitor did not take effect).  Nearby
+            # REAL obstacles are covered by the object box layer (workstation
+            # side, min_depth 0.15 there).
             self.min_depth = float(self.declare_parameter("min_depth", 0.35).value)
             self.max_depth = float(self.declare_parameter("max_depth", 2.5).value)
 
-            self._depth = None  # letzte Depth-Message (Rohdaten)
+            self._depth = None  # last depth message (raw data)
             self._K = None
             self._published_stamp = None
 
@@ -169,8 +173,8 @@ def main(argv=None) -> int:
             self.create_subscription(
                 CameraInfo, self.info_topic, self._on_info, qos_profile_sensor_data
             )
-            # RELIABLE matcht reliable- UND best-effort-Subscriber; KEEP_LAST 2
-            # haelt den Speicher klein.
+            # RELIABLE matches reliable AND best-effort subscribers; KEEP_LAST 2
+            # keeps memory small.
             self._pub = self.create_publisher(
                 PointCloud2,
                 self.cloud_topic,
@@ -195,7 +199,7 @@ def main(argv=None) -> int:
                 return
             stamp = (msg.header.stamp.sec, msg.header.stamp.nanosec)
             if stamp == self._published_stamp:
-                return  # kein neues Bild seit dem letzten Tick
+                return  # no new image since the last tick
             enc = (msg.encoding or "").lower()
             if enc in ("16uc1", "mono16"):
                 depth = np.frombuffer(msg.data, dtype=np.uint16)
@@ -203,7 +207,7 @@ def main(argv=None) -> int:
                 depth = np.frombuffer(msg.data, dtype=np.float32)
             else:
                 self.get_logger().warning(
-                    f"unbekanntes Depth-Encoding {msg.encoding!r} -- Frame verworfen",
+                    f"unknown depth encoding {msg.encoding!r} -- frame dropped",
                     throttle_duration_sec=10.0,
                 )
                 return
@@ -213,7 +217,7 @@ def main(argv=None) -> int:
                 return
             pts = depth_to_cloud(depth, K, self.stride, self.min_depth, self.max_depth)
             cloud = PointCloud2()
-            cloud.header = msg.header  # Frame + Stamp der Kamera durchreichen
+            cloud.header = msg.header  # pass the camera frame + stamp through
             cloud.height = 1
             cloud.width = len(pts)
             cloud.fields = [
@@ -233,12 +237,12 @@ def main(argv=None) -> int:
     try:
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
-        pass  # normaler Stopp (Ctrl+C / systemd)
+        pass  # normal stop (Ctrl+C / systemd)
     except Exception:
-        # SIGTERM-Shutdown-Race (systemd stop): rclpys Signal-Handler
-        # invalidiert den Context, waehrend spin noch ein WaitSet baut ->
-        # RCLError "context is not valid".  Das ist ein normaler Stopp --
-        # nur bei noch gueltigem Context ist es ein echter Fehler.
+        # SIGTERM shutdown race (systemd stop): rclpy's signal handler
+        # invalidates the context while spin is still building a wait set ->
+        # RCLError "context is not valid".  That is a normal stop -- only with
+        # a still-valid context is it a real error.
         if rclpy.ok():
             raise
     finally:
