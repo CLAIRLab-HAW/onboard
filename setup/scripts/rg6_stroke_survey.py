@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
 """rg6_stroke_survey: measure the gripper stroke point by point (R19 item 2).
 
-The open question:  the model puts the open limit at 159.0 mm, the caliper
-says ~151 mm.  If the width is off by the same amount over the WHOLE stroke,
-the error sits in the pad offset (``kPadOffsetM``); if the hand never reaches
-159 mm at all, the crank dead centre is too generous an open limit.  Only a
-run across the full stroke answers that, and this script drives it.
+The open question:  the model puts the open limit at 159.0 mm, the caliper says ~151 mm.  If the width is off by the
+same amount over the WHOLE stroke, the error sits in the pad offset (``kPadOffsetM``); if the hand never reaches 159 mm
+at all, the crank dead centre is too generous an open limit.  Only a run across the full stroke answers that, and this
+script drives it.
 
-``analog_input2_v`` is always ``None``.  AI2 answers a different question --
-whether the tool connector has power at all -- and is explicitly rejected as
-a width source: on 2026-08-19 it measured up to 17 mm off.  The field stays
-in the output so runs recorded under the older calibration line up column for
-column (see the repo CHANGELOG).
+``analog_input2_v`` is always ``None``.  AI2 answers a different question -- whether the tool connector has power at all
+-- and is explicitly rejected as a width source: on 2026-08-19 it measured up to 17 mm off.  The field stays in the
+output so runs recorded under the older calibration line up column for column (see the repo CHANGELOG).
 
     !!! THIS SCRIPT MOVES THE GRIPPER !!!
 
-Only run it with somebody at the device.  The arm stays put; only the hand
-moves.  On 2026-08-17 the gripper jammed in ``busy: true`` once already.  The
-way out is the URCap: ``rg_stop``, then a fresh command; if that does not
-help, restart the URCap program from the teach pendant.
+Only run it with somebody at the device.  The arm stays put; only the hand moves.  On 2026-08-17 the gripper jammed in
+``busy: true`` once already.  The way out is the URCap: ``rg_stop``, then a fresh command; if that does not help,
+restart the URCap program from the teach pendant.
 
     python3 rg6_stroke_survey.py > /tmp/rg6-stroke-survey.json
 
@@ -30,8 +26,8 @@ To compare against older runs, AI2 still comes from
 
     /a200_0553/manipulators/io_and_status_controller/tool_data
 
-with ``manipulators/`` in the path.  The path without that segment silently
-delivers nothing, and that looks like a dead topic.
+with ``manipulators/`` in the path.  The path without that segment silently delivers nothing, and that looks like a dead
+topic.
 """
 
 from __future__ import annotations
@@ -93,8 +89,8 @@ def main() -> int:
             rows.append({"commanded_mm": width_mm, "error": str(exc)})
             print(f"# {width_mm:6.1f} mm -> ERROR {exc}", file=sys.stderr)
             continue
-        # Wait for the travel to end (busy edges) FIRST, THEN settle: with a
-        # short --settle, half the settle time would fall into the travel.
+        # Wait for the travel to end (busy edges) FIRST, THEN settle: with a short --settle, half the settle time would
+        # fall into the travel.
         try:
             await_settled(client)
         except Rg6Error as exc:
@@ -109,17 +105,16 @@ def main() -> int:
         rows.append(
             {
                 "commanded_mm": width_mm,
-                # Wall clock of the state read -- pins the row to a moment a
-                # separately recorded trace can be laid against.
+                # Wall clock of the state read -- pins the row to a moment a separately recorded trace can be laid
+                # against.
                 "t_read": time.time(),
                 "device_width_mm": st.width_m * 1000.0,
                 "busy": st.busy,
                 "grip_detected": st.grip_detected,
                 "status": st.status,
                 "safety_failed": st.safety_failed,
-                # Always None: the width comes from the device, see the module
-                # docstring.  The field is kept so runs recorded under the older
-                # calibration line up row for row.
+                # Always None: the width comes from the device, see the module docstring.  The field is kept so runs
+                # recorded under the older calibration line up row for row.
                 "analog_input2_v": None,
             }
         )

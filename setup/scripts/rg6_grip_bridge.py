@@ -1,28 +1,21 @@
 #!/usr/bin/env python3
 """rg6_grip_bridge: commands the RG6 over XML-RPC to the OnRobot URCap.
 
-Why not over a tool digital output:  the URCap is an RTDE client itself and
-occupies ``tool_digital_output_mask``.  For ``ur_robot_driver`` to start at
-all it runs on an input recipe WITHOUT the ``tool_digital_output*`` lines --
-so ROS cannot set a tool DO, and a driver that steers the gripper that way
-cannot work here.
+Why not over a tool digital output:  the URCap is an RTDE client itself and occupies ``tool_digital_output_mask``.  For
+``ur_robot_driver`` to start at all it runs on an input recipe WITHOUT the ``tool_digital_output*`` lines -- so ROS
+cannot set a tool DO, and a driver that steers the gripper that way cannot work here.
 
-Why not by URScript over port 30002:  ``rg_grip`` is only defined by the
-installation preamble that PolyScope puts in front of every generated
-program.  A script sent over 30002 runs without that preamble, so the symbol
-is discarded (measured: no program change, AI2 unchanged,
-``textmsg("literal")`` passes through as a control).
+Why not by URScript over port 30002:  ``rg_grip`` is only defined by the installation preamble that PolyScope puts in
+front of every generated program.  A script sent over 30002 runs without that preamble, so the symbol is discarded
+(measured: no program change, AI2 unchanged, ``textmsg("literal")`` passes through as a control).
 
-Why onboard and not in the offboard container:  the endpoint hangs off the
-arm subnet 192.168.131.0/24, and from the workstation there is no route to
-it.  And the robot must be able to grip even when the radio link is gone --
-the same argument with which R16 puts the reflex layer onboard.
+Why onboard and not in the offboard container:  the endpoint hangs off the arm subnet 192.168.131.0/24, and from the
+workstation there is no route to it.  And the robot must be able to grip even when the radio link is gone -- the same
+argument with which R16 puts the reflex layer onboard.
 
-The endpoint offers more than ``rg_grip``: a complete status path back
-(``rg_get_width``, ``rg_get_busy``, ``rg_get_grip_detected``,
-``rg_get_status``, ``rg_get_safety_failed``).  That makes the voltage
-approximation over AI2 unnecessary -- and AI2 has turned out to be
-mis-calibrated by ~17 mm, measured against exactly these getters.
+The endpoint offers more than ``rg_grip``: a complete status path back (``rg_get_width``, ``rg_get_busy``,
+``rg_get_grip_detected``, ``rg_get_status``, ``rg_get_safety_failed``).  That makes the voltage approximation over AI2
+unnecessary -- and AI2 has turned out to be mis-calibrated by ~17 mm, measured against exactly these getters.
 
 What this node does NOT do:  it does not speak the ``/twin/*`` JSON
 protocol.  That is ``plan_server`` in the offboard container, and it does so
@@ -33,9 +26,8 @@ there are exclusively standard ROS interfaces::
     sensor_msgs/JointState       (topic)    -> rg6_finger_joint
     std_msgs/String              (topic)    -> rg6/bridge_state, own JSON
 
-So the robot does NOT need ``robot_contract``.  That package is private (not
-even clonable from the robot), and a dependency that prevents the deployment
-is no safeguard.  What is kept are names (ROS parameters) and the linkage
+So the robot does NOT need ``robot_contract``.  That package is private (not even clonable from the robot), and a
+dependency that prevents the deployment is no safeguard.  What is kept are names (ROS parameters) and the linkage
 kinematics (a generated table, see FingerKinematics).
 
 Selftest without ROS (runs on the workstation too)::
@@ -88,16 +80,13 @@ class Rg6State:
             rg_get_width -> -999.0    rg_get_status -> -1
             rg_get_busy  -> True      rg_get_safety_failed -> True
 
-        Queried directly at the endpoint on the a200-0553 on 2026-08-24 while
-        the arm stood at POWER_OFF.  Without this check, -999 mm passes
-        through ``angle_from_width`` (which clamps the WIDTH instead of
-        extrapolating) and comes out as 1.25478 rad -- a FULLY CLOSED gripper,
-        published as a measurement.  That was visible live: rg6_finger_joint =
-        1.25478 on platform/joint_states, hence in RSP, TF and the planning
-        scene of move_group, with the gripper unpowered.
+        Queried directly at the endpoint on the a200-0553 on 2026-08-24 while the arm stood at POWER_OFF.  Without this
+        check, -999 mm passes through ``angle_from_width`` (which clamps the WIDTH instead of extrapolating) and comes
+        out as 1.25478 rad -- a FULLY CLOSED gripper, published as a measurement.  That was visible live:
+        rg6_finger_joint = 1.25478 on platform/joint_states, hence in RSP, TF and the planning scene of move_group, with
+        the gripper unpowered.
 
-        This check is the only guard: a dead gripper does NOT raise an
-        exception, it answers with the sentinels above.
+        This check is the only guard: a dead gripper does NOT raise an exception, it answers with the sentinels above.
         """
         lo_mm, hi_mm = WIDTH_RANGE_MM
         return self.status >= 0 and lo_mm <= self.width_m * 1000.0 <= hi_mm
@@ -110,22 +99,20 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 class Rg6Client:
     """XML-RPC interface to the OnRobot URCap.
 
-    The ONLY place where units change: the profile and the ``/twin/*`` wire
-    work in metres, the endpoint in millimetres.
+    The ONLY place where units change: the profile and the ``/twin/*`` wire work in metres, the endpoint in millimetres.
     """
 
     def __init__(self, url: str = DEFAULT_URL, tool_index: int = 0, timeout_s: float = 3.0) -> None:
         self._url = url
         self._tool = int(tool_index)
-        # Hard timeout: without it a dead endpoint holds the worker thread
-        # indefinitely, and with it the joint_states publisher.
+        # Hard timeout: without it a dead endpoint holds the worker thread indefinitely, and with it the joint_states
+        # publisher.
         transport = xmlrpc.client.Transport()
         transport.timeout = float(timeout_s)
         self._proxy = xmlrpc.client.ServerProxy(url, transport=transport, allow_none=True)
-        # ServerProxy is NOT thread safe: proxy and transport share ONE HTTP
-        # connection.  Two threads reach for it here -- the grip worker and the
-        # state poller of the finger joint -- and without this lock their
-        # requests interleave on the socket.
+        # ServerProxy is NOT thread safe: proxy and transport share ONE HTTP connection.  Two threads reach for it here
+        # -- the grip worker and the state poller of the finger joint -- and without this lock their requests interleave
+        # on the socket.
         self._lock = threading.Lock()
 
     @property
@@ -136,8 +123,8 @@ class Rg6Client:
         """Drive to ``width_m``.  ``Rg6Error`` if the device says no."""
         width_mm = _clamp(width_m * 1000.0, *WIDTH_RANGE_MM)
         force = _clamp(force_n, *FORCE_RANGE_N)
-        # "+ 0.0" is NOT cosmetic: an int gives fault -501.  A commanded
-        # 0 mm or 60 N would otherwise go onto the wire as an int.
+        # "+ 0.0" is NOT cosmetic: an int gives fault -501.  A commanded 0 mm or 60 N would otherwise go onto the wire
+        # as an int.
         rc = self._call("rg_grip", self._tool, width_mm + 0.0, force + 0.0)
         if int(rc) != 0:
             raise Rg6Error(f"rg_grip({width_mm:.1f} mm, {force:.1f} N) " f"answered {rc!r} instead of 0")
@@ -169,20 +156,15 @@ def await_settled(
 ) -> Rg6State:
     """Wait until the hand stands still, and THEN read the state.
 
-    ``rg_grip`` acknowledges the **acceptance**, not the result.  Reading
-    immediately afterwards yields the width from before -- measured over the
-    wire: commanded 60 mm, driven to 64.96 mm, reported 2.8 mm (the starting
-    value).  With ``width_m`` wrong, ``grasped`` is worthless too, and that is
-    the field the whole return path exists for.
+    ``rg_grip`` acknowledges the **acceptance**, not the result.  Reading immediately afterwards yields the width from
+    before -- measured over the wire: commanded 60 mm, driven to 64.96 mm, reported 2.8 mm (the starting value).  With
+    ``width_m`` wrong, ``grasped`` is worthless too, and that is the field the whole return path exists for.
 
-    Both edges are waited for, and the reason for the first one is measured:
-    after the command ``busy`` stays false for about 0.4 s before the gripper
-    starts moving.  A plain "wait while busy" returns immediately inside that
-    gap.
+    Both edges are waited for, and the reason for the first one is measured: after the command ``busy`` stays false for
+    about 0.4 s before the gripper starts moving.  A plain "wait while busy" returns immediately inside that gap.
 
-    Both windows expire instead of hanging: if the gripper never starts moving
-    (it already stands at the target), the function answers after
-    ``start_timeout_s`` with whatever is there.
+    Both windows expire instead of hanging: if the gripper never starts moving (it already stands at the target), the
+    function answers after ``start_timeout_s`` with whatever is there.
     """
     deadline = time.monotonic() + start_timeout_s
     state = client.state()
@@ -199,18 +181,15 @@ def await_settled(
 class FingerKinematics:
     """Joint angle <-> grip width, from a generated table.
 
-    Why a table and not an import:  this node runs on the ROBOT and must need
-    nothing there that does not belong to the robot.  ``robot_contract`` is
-    private, so importing it would make the bridge undeployable.
+    Why a table and not an import:  this node runs on the ROBOT and must need nothing there that does not belong to the
+    robot.  ``robot_contract`` is private, so importing it would make the bridge undeployable.
 
-    Why a table and not a formula:  the fingers of the rg6_v2 are a four-bar
-    linkage with no closed form.  An approximation placed next to it would be
-    the second version model and driver have already drifted apart on (R19).
+    Why a table and not a formula:  the fingers of the rg6_v2 are a four-bar linkage with no closed form.  An
+    approximation placed next to it would be the second version model and driver have already drifted apart on (R19).
 
-    The file is generated by ``tools/derive_finger_kinematics.py`` from the
-    GENERATED URDF; it is data, not code, and carries its provenance in its
-    head.  27 support points keep the interpolation error at 0.047 mm --
-    below the finger position resolution of the RG6 (0.1 mm per datasheet).
+    The file is generated by ``tools/derive_finger_kinematics.py`` from the GENERATED URDF; it is data, not code, and
+    carries its provenance in its head.  27 support points keep the interpolation error at 0.047 mm -- below the finger
+    position resolution of the RG6 (0.1 mm per datasheet).
     """
 
     def __init__(self, path: str) -> None:
@@ -221,9 +200,8 @@ class FingerKinematics:
         self._w = [float(z[1]) for z in tab]
         if sorted(self._q) != self._q:
             raise ValueError(f"{path}: support points not ascending in q")
-        # The width MUST fall: the inversion rests on that.  If it rises
-        # anywhere, support points beyond the zero crossing were caught, where
-        # the fingers pass through each other in the model.
+        # The width MUST fall: the inversion rests on that.  If it rises anywhere, support points beyond the zero
+        # crossing were caught, where the fingers pass through each other in the model.
         if any(b >= a for a, b in zip(self._w, self._w[1:])):
             raise ValueError(f"{path}: width does not fall monotonically")
         self.joint = str(raw.get("joint", "rg6_finger_joint"))
@@ -260,13 +238,12 @@ COMMAND_STOP = "STOP"
 def goal_to_grip(position_rad: float, max_effort_n: float, linkage, default_force_n: float, force_range_n) -> tuple:
     """``control_msgs/GripperCommand`` goal -> ``(width in m, force in N)``.
 
-    MoveIt commands the gripper as a JOINT VALUE, not as a width -- the
-    conversion uses the same linkage geometry the URDF carries.
+    MoveIt commands the gripper as a JOINT VALUE, not as a width -- the conversion uses the same linkage geometry the
+    URDF carries.
 
-    ``max_effort <= 0`` means "take whatever fits" in the GripperCommand
-    contract, not "zero force": MoveIt frequently leaves the field empty.  The
-    profile default then applies.  Clamping to the device range makes an
-    oversized request arrive as what the RG6 can do.
+    ``max_effort <= 0`` means "take whatever fits" in the GripperCommand contract, not "zero force": MoveIt frequently
+    leaves the field empty.  The profile default then applies.  Clamping to the device range makes an oversized request
+    arrive as what the RG6 can do.
     """
     lo, hi = float(force_range_n[0]), float(force_range_n[1])
     force = (
@@ -278,13 +255,11 @@ def goal_to_grip(position_rad: float, max_effort_n: float, linkage, default_forc
 def goal_result(state, target_width_m: float, force_n: float, linkage, tolerance_m: float) -> dict:
     """Result fields for GripperCommand, from the MEASURED state.
 
-    ``stalled`` is ``grip_detected``:  with it the RG6 reports that it reached
-    the force limit BEFORE the target width -- which is exactly "standing, but
-    not at the goal", what the field means.
+    ``stalled`` is ``grip_detected``:  with it the RG6 reports that it reached the force limit BEFORE the target width
+    -- which is exactly "standing, but not at the goal", what the field means.
 
-    ``effort`` is the COMMANDED force, not a measured one: the endpoint offers
-    no force reading.  An invented number would be worse than an honest repeat
-    of the setpoint.
+    ``effort`` is the COMMANDED force, not a measured one: the endpoint offers no force reading.  An invented number
+    would be worse than an honest repeat of the setpoint.
 
     ``tolerance_m`` is deliberately coarse:  the value the device returns lies
     +3 to +5 mm above the true width (R19, anchored with the caliper).  As
@@ -302,16 +277,13 @@ def goal_result(state, target_width_m: float, force_n: float, linkage, tolerance
 def status_payload(state, last_command: str = COMMAND_NONE) -> dict:
     """Device state for ``<ns>/rg6/bridge_state`` -- flat, as JSON.
 
-    Why an own topic and not rg6_msgs/GripperState:  rg6_msgs does not sit in
-    the boot path of the robot, and a status message that needs a package from
-    there would be exactly the dependency this node avoids.  JSON inside a
+    Why an own topic and not rg6_msgs/GripperState:  rg6_msgs does not sit in the boot path of the robot, and a status
+    message that needs a package from there would be exactly the dependency this node avoids.  JSON inside a
     std_msgs/String costs no build and no overlay.
 
-    NOT included are AI2/AI3:  the raw voltages sit on
-    ``io_and_status_controller/tool_data``, and whoever needs them reads them
-    there.  Mirroring them here would create a second source for the same
-    number -- and AI2 has been measured as mis-calibrated by up to 17 mm
-    (R19), so it is precisely not a good second opinion.
+    NOT included are AI2/AI3:  the raw voltages sit on ``io_and_status_controller/tool_data``, and whoever needs them
+    reads them there.  Mirroring them here would create a second source for the same number -- and AI2 has been measured
+    as mis-calibrated by up to 17 mm (R19), so it is precisely not a good second opinion.
     """
     return {
         "width_m": state.width_m,
@@ -329,8 +301,8 @@ def status_payload(state, last_command: str = COMMAND_NONE) -> dict:
 def _spawn_fake_urcap():
     """Local XML-RPC stand-in; returns ``(server, thread, url, log)``.
 
-    It reproduces the two quirks of the real endpoint that hide a bug: int
-    arguments are a fault -501, and the width comes back in millimetres.
+    It reproduces the two quirks of the real endpoint that hide a bug: int arguments are a fault -501, and the width
+    comes back in millimetres.
     """
     from xmlrpc.server import SimpleXMLRPCServer
 
@@ -341,11 +313,9 @@ def _spawn_fake_urcap():
         if not isinstance(width, float) or not isinstance(force, float):
             raise xmlrpc.client.Fault(-501, "expected double")
         log.append(("grip", tool, width, force))
-        # Modelled on the measurement from 2026-08-19 (65 -> 20 mm): after the
-        # command ``busy`` stays false for about 0.4 s, THEN the hand moves for
-        # about 1.2 s, and only at the end does the new width stand.
-        # ``rg_grip`` itself returns immediately -- it acknowledges the
-        # acceptance, not the result.
+        # Modelled on the measurement from 2026-08-19 (65 -> 20 mm): after the command ``busy`` stays false for about
+        # 0.4 s, THEN the hand moves for about 1.2 s, and only at the end does the new width stand. ``rg_grip`` itself
+        # returns immediately -- it acknowledges the acceptance, not the result.
         state["target_mm"] = width
         state["phases"] = ["idle", "idle", "moving", "moving", "moving"]
         return 0
@@ -419,8 +389,8 @@ def selftest() -> int:
         settled = await_settled(cli, poll_s=0.0)
         assert abs(settled.width_m - 0.045) < 1e-9, settled
 
-        # If the gripper never starts moving (it already stands at the
-        # target), the wait answers after the start window -- not never.
+        # If the gripper never starts moving (it already stands at the target), the wait answers after the start window
+        # -- not never.
         stalled = await_settled(cli, start_timeout_s=0.05, poll_s=0.0)
         assert abs(stalled.width_m - 0.045) < 1e-9, stalled
 
@@ -453,8 +423,7 @@ def selftest() -> int:
         assert status["last_command"] == COMMAND_GRIP, status
         # It must survive json.dumps -- it goes onto the wire as a string.
         assert json.loads(json.dumps(status)) == status, status
-        # AI2/AI3 do NOT belong in it (see the docstring): a second source
-        # for the same number, and the worse one.
+        # AI2/AI3 do NOT belong in it (see the docstring): a second source for the same number, and the worse one.
         assert "width_raw" not in status and "force_raw" not in status, status
 
         # 5c. An ANSWER is not yet a MEASUREMENT (Rg6State.readable).  The
@@ -463,16 +432,15 @@ def selftest() -> int:
         assert st.readable, "a real measurement must pass"
         dead = Rg6State(width_m=-0.999, busy=True, grip_detected=True, status=-1, safety_failed=True)
         assert not dead.readable, "-999 mm / status -1 is not a measurement"
-        # Without the guard this would become a FULLY CLOSED gripper -- the
-        # clamp does not extrapolate, it snaps to the stop.
+        # Without the guard this would become a FULLY CLOSED gripper -- the clamp does not extrapolate, it snaps to the
+        # stop.
         assert abs(kin.angle_from_width(dead.width_m) - kin.q_max) < 1e-9
-        # Both halves of the check bite on their own: an error status alone
-        # is enough, and so is a width beyond the nominal range.
+        # Both halves of the check bite on their own: an error status alone is enough, and so is a width beyond the
+        # nominal range.
         assert not Rg6State(width_m=0.060, busy=False, grip_detected=False, status=-1, safety_failed=False).readable
         assert not Rg6State(width_m=0.400, busy=False, grip_detected=False, status=0, safety_failed=False).readable
-        # The nominal limits themselves are still valid -- the device reports
-        # up to 5 mm above the jaw measurement (R19), which must not count as
-        # dead.
+        # The nominal limits themselves are still valid -- the device reports up to 5 mm above the jaw measurement
+        # (R19), which must not count as dead.
         assert Rg6State(width_m=0.160, busy=False, grip_detected=False, status=0, safety_failed=False).readable
         assert Rg6State(width_m=0.0, busy=False, grip_detected=False, status=0, safety_failed=False).readable
 
@@ -481,19 +449,16 @@ def selftest() -> int:
         #    the private contract).
         # Monotonic: wider open -> SMALLER joint value (0 = fully open).
         assert kin.angle_from_width(0.100) < kin.angle_from_width(0.045)
-        # A round trip meets itself, within the table resolution.
-        # min_width_m instead of 0.0: the model only closes to 0.4 mm, where
-        # the pads touch.  A round trip over 0.0 would test the clamp, not the
-        # interpolation.
+        # A round trip meets itself, within the table resolution. min_width_m instead of 0.0: the model only closes to
+        # 0.4 mm, where the pads touch.  A round trip over 0.0 would test the clamp, not the interpolation.
         for w in (kin.min_width_m, 0.020, 0.060, 0.100, kin.max_width_m):
             assert abs(kin.width_from_angle(kin.angle_from_width(w)) - w) < 2e-4, w
-        # The WIDTH is clamped, not extrapolated: beyond the stop the stop
-        # applies, otherwise a negative width would silently sit behind the
-        # closed position.
+        # The WIDTH is clamped, not extrapolated: beyond the stop the stop applies, otherwise a negative width would
+        # silently sit behind the closed position.
         assert kin.angle_from_width(-0.05) == kin.angle_from_width(kin.min_width_m)
         assert kin.angle_from_width(0.300) == kin.angle_from_width(kin.max_width_m)
-        # The table ends BEFORE the point where the fingers pass through each
-        # other in the model -- otherwise the inversion would be ambiguous.
+        # The table ends BEFORE the point where the fingers pass through each other in the model -- otherwise the
+        # inversion would be ambiguous.
         assert kin.q_max < 1.30, kin.q_max
         assert kin.max_width_m > 0.15 and kin.min_width_m < 0.002
 
@@ -542,20 +507,17 @@ def run(argv) -> int:
     node.declare_parameter("endpoint_url", DEFAULT_URL)
     node.declare_parameter("tool_index", 0)
     node.declare_parameter("timeout_s", 3.0)
-    # Names and limits as PARAMETERS, not from a profile: they are the only
-    # thing this node needs to know about its environment, and putting a
-    # private Python package on the robot for them would make the bridge
-    # undeployable.
+    # Names and limits as PARAMETERS, not from a profile: they are the only thing this node needs to know about its
+    # environment, and putting a private Python package on the robot for them would make the bridge undeployable.
     node.declare_parameter("manipulators_ns", "/a200_0553/manipulators")
     node.declare_parameter("driver_joint", "rg6_finger_joint")
     node.declare_parameter("action_name", "")  # empty = derived from manipulators_ns
     node.declare_parameter("default_force_n", 40.0)
     node.declare_parameter("force_range_n", [25.0, 120.0])
     node.declare_parameter("kinematics_file", "")  # empty = next to the script
-    # Waiting for the end of the travel (see await_settled).  As parameters,
-    # because the numbers come from a measurement on ONE gripper: 0.4 s
-    # start-up, 1.2 s travel over 45 mm.  The 1.0 s start window is at the same
-    # time the wait for a command that has nothing to do.
+    # Waiting for the end of the travel (see await_settled).  As parameters, because the numbers come from a measurement
+    # on ONE gripper: 0.4 s start-up, 1.2 s travel over 45 mm.  The 1.0 s start window is at the same time the wait for
+    # a command that has nothing to do.
     node.declare_parameter("settle_start_timeout_s", 1.0)
     node.declare_parameter("settle_motion_timeout_s", 10.0)
     node.declare_parameter("settle_poll_s", 0.05)
@@ -583,30 +545,27 @@ def run(argv) -> int:
     manip_ns = str(_p("manipulators_ns")).rstrip("/")
     finger_joint = str(_p("driver_joint"))
     joints = node.create_publisher(JointState, f"{manip_ns}/endeffectors/joint_states", 10)
-    # The same poll carries the state for the manipulator diagnostics.  It
-    # reads it here -- <ns>/rg6/state has no publisher.
+    # The same poll carries the state for the manipulator diagnostics.  It reads it here -- <ns>/rg6/state has no
+    # publisher.
     states = node.create_publisher(String, f"{manip_ns}/rg6/bridge_state", 10)
     last_command = [COMMAND_NONE]
 
     def _poll_joint() -> None:
         """The finger value from the MEASURED width, not from the command.
 
-        An own thread and NO ROS timer:  ``client.state()`` is a blocking
-        XML-RPC call.  In a timer callback it would hang on the executor -- 3 s
-        every 200 ms with a dead endpoint, and the grip command would not get
-        through in that same time.
+        An own thread and NO ROS timer:  ``client.state()`` is a blocking XML-RPC call.  In a timer callback it would
+        hang on the executor -- 3 s every 200 ms with a dead endpoint, and the grip command would not get through in
+        that same time.
 
-        The conversion width -> joint is done by the linkage geometry of the
-        profile (R19), not by this node.
+        The conversion width -> joint is done by the linkage geometry of the profile (R19), not by this node.
         """
         period = 1.0 / float(_p("joint_state_rate_hz"))
         while rclpy.ok():
             try:
                 state = client.state()
             except Rg6Error:
-                # Staying silent is better than lying -- and the SILENCE is
-                # the signal at the same time: the diagnostics judges the age
-                # of the last status and reports the outage from it.
+                # Staying silent is better than lying -- and the SILENCE is the signal at the same time: the diagnostics
+                # judges the age of the last status and reports the outage from it.
                 time.sleep(period)
                 continue
             # The same rule, only for the case where the endpoint ANSWERS
@@ -632,9 +591,8 @@ def run(argv) -> int:
 
     threading.Thread(target=_poll_joint, daemon=True).start()
 
-    # ONE command at a time.  A second one during the travel is REJECTED, not
-    # queued: on 2026-08-17 ten goals stacked on top of each other jammed the
-    # gripper in busy=true with the reported width at the range end.
+    # ONE command at a time.  A second one during the travel is REJECTED, not queued: on 2026-08-17 ten goals stacked on
+    # top of each other jammed the gripper in busy=true with the reported width at the range end.
     inflight = threading.Lock()
 
     # -- MoveIt ------------------------------------------------------------
@@ -697,9 +655,8 @@ def run(argv) -> int:
     ActionServer(node, GripperCommand, action_name, on_action, callback_group=ReentrantCallbackGroup())
 
     log.info(f"rg6_grip_bridge ready: {client.url} <- {action_name}")
-    # MultiThreaded because on_action blocks until the hand stands still
-    # (about 1.3 s).  Single threaded, that one call would stall
-    # /twin/gripper_cmd and every further delivery for the same time.
+    # MultiThreaded because on_action blocks until the hand stands still (about 1.3 s).  Single threaded, that one call
+    # would stall /twin/gripper_cmd and every further delivery for the same time.
     from rclpy.executors import MultiThreadedExecutor
 
     executor = MultiThreadedExecutor(num_threads=3)

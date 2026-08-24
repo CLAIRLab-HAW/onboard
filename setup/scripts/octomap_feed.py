@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 """octomap_feed: throttled depth->PointCloud2 source for MoveIt's octomap.
 
-Onboard counterpart to step 2 of the HRL obstacle architecture (the dense
-safety layer): through the occupancy map monitor (``PointCloudOctomapUpdater``,
-see clearpath-custom-setup.py patch step 5) move_group receives a point cloud
-from the wrist D435 and maintains a probabilistic voxel octree from it --
-raycasts clear freed space automatically, arbitrary shapes are captured at
-voxel resolution, and MoveIt masks the collision objects pushed by the
-workstation (cubes, floor slab, obstacle boxes) out of the octree itself
-(``PlanningSceneMonitor`` ``exclude*FromOctree``).
+Onboard counterpart to step 2 of the HRL obstacle architecture (the dense safety layer): through the occupancy map
+monitor (``PointCloudOctomapUpdater``, see clearpath-custom-setup.py patch step 5) move_group receives a point cloud
+from the wrist D435 and maintains a probabilistic voxel octree from it -- raycasts clear freed space automatically,
+arbitrary shapes are captured at voxel resolution, and MoveIt masks the collision objects pushed by the workstation
+(cubes, floor slab, obstacle boxes) out of the octree itself (``PlanningSceneMonitor`` ``exclude*FromOctree``).
 
-Why a dedicated node instead of realsense ``pointcloud.enable`` /
-``depth_image_proc``:
+Why a dedicated node instead of realsense ``pointcloud.enable`` / ``depth_image_proc``:
 
 * The RealSense runs at 30 fps -- octomap insertion at 30 Hz eats the onboard
   computer.  Here it is throttled to ``rate_hz`` (default 5) and subsampled
@@ -23,11 +19,10 @@ Why a dedicated node instead of realsense ``pointcloud.enable`` /
   needs a PointCloud2: this node delivers it.
 * No extra apt package, no composition: rclpy + numpy (both present).
 
-The cloud is published in the OPTICAL frame of the camera (frame_id/stamp of
-the depth message passed through); the TF transform into ``octomap_frame`` is
-done by the updater itself.  QoS: publisher RELIABLE (matches both reliable
-and best-effort subscribers -- so the QoS of the MoveIt updater does not
-concern us), subscriber SensorData (best effort, like the camera).
+The cloud is published in the OPTICAL frame of the camera (frame_id/stamp of the depth message passed through); the TF
+transform into ``octomap_frame`` is done by the updater itself.  QoS: publisher RELIABLE (matches both reliable and
+best-effort subscribers -- so the QoS of the MoveIt updater does not concern us), subscriber SensorData (best effort,
+like the camera).
 
 Invocation (service clearpath-custom-octomap-feed, see installer)::
 
@@ -54,10 +49,9 @@ def depth_to_cloud(
 ) -> np.ndarray:
     """Depth image -> (N, 3) float32 points in the OPTICAL camera frame.
 
-    ROS optical convention (REP 103): x right, y down, z forward --
-    ``x = (u-cx)/fx * z``, ``y = (v-cy)/fy * z``.  ``depth`` in metres (float)
-    or millimetres (uint16, converted).  Invalid pixels and those outside
-    ``[min_depth, max_depth]`` are dropped.
+    ROS optical convention (REP 103): x right, y down, z forward -- ``x = (u-cx)/fx * z``, ``y = (v-cy)/fy * z``.
+    ``depth`` in metres (float) or millimetres (uint16, converted).  Invalid pixels and those outside ``[min_depth,
+    max_depth]`` are dropped.
     """
     if depth.dtype == np.uint16:
         depth = depth.astype(np.float32) / 1000.0
@@ -126,23 +120,19 @@ def main(argv=None) -> int:
         def __init__(self) -> None:
             super().__init__("octomap_feed")
             ns = self.declare_parameter("camera_ns", "/a200_0553/sensors/camera_0").value
-            # Driver-registered aligned depth (robot.yaml align_depth.enable):
-            # in the realsense2_camera driver this is '.../image', NOT
-            # '.../image_raw' (contract profile camera.depth).
+            # Driver-registered aligned depth (robot.yaml align_depth.enable): in the realsense2_camera driver this is
+            # '.../image', NOT '.../image_raw' (contract profile camera.depth).
             self.depth_topic = self.declare_parameter("depth_topic", f"{ns}/aligned_depth_to_color/image").value
             self.info_topic = self.declare_parameter("info_topic", f"{ns}/aligned_depth_to_color/camera_info").value
             self.cloud_topic = self.declare_parameter("cloud_topic", f"{ns}/octomap_points").value
             self.rate_hz = float(self.declare_parameter("rate_hz", 5.0).value)
             self.stride = int(self.declare_parameter("stride", 2).value)
-            # Near clip 0.35 m = wrist self-exclusion: the RG6 fingers
-            # (~0.15-0.25 m in front of the camera) and the CARRIED payload
-            # (hangs below the TCP, < ~0.3 m) are ALWAYS inside this band --
-            # otherwise their voxels collide with the attached object itself
-            # (measured on the robot 2026-07-29: transport after the grasp
-            # unplannable, "<octomap> vs 'Robot attached'"; the attached-body
-            # masking of the occupancy monitor did not take effect).  Nearby
-            # REAL obstacles are covered by the object box layer (workstation
-            # side, min_depth 0.15 there).
+            # Near clip 0.35 m = wrist self-exclusion: the RG6 fingers (~0.15-0.25 m in front of the camera) and the
+            # CARRIED payload (hangs below the TCP, < ~0.3 m) are ALWAYS inside this band -- otherwise their voxels
+            # collide with the attached object itself (measured on the robot 2026-07-29: transport after the grasp
+            # unplannable, "<octomap> vs 'Robot attached'"; the attached-body masking of the occupancy monitor did not
+            # take effect).  Nearby REAL obstacles are covered by the object box layer (workstation side, min_depth 0.15
+            # there).
             self.min_depth = float(self.declare_parameter("min_depth", 0.35).value)
             self.max_depth = float(self.declare_parameter("max_depth", 2.5).value)
 
@@ -152,8 +142,7 @@ def main(argv=None) -> int:
 
             self.create_subscription(Image, self.depth_topic, self._on_depth, qos_profile_sensor_data)
             self.create_subscription(CameraInfo, self.info_topic, self._on_info, qos_profile_sensor_data)
-            # RELIABLE matches reliable AND best-effort subscribers; KEEP_LAST 2
-            # keeps memory small.
+            # RELIABLE matches reliable AND best-effort subscribers; KEEP_LAST 2 keeps memory small.
             self._pub = self.create_publisher(
                 PointCloud2, self.cloud_topic, QoSProfile(depth=2, reliability=ReliabilityPolicy.RELIABLE)
             )
@@ -214,10 +203,9 @@ def main(argv=None) -> int:
     except (KeyboardInterrupt, ExternalShutdownException):
         pass  # normal stop (Ctrl+C / systemd)
     except Exception:
-        # SIGTERM shutdown race (systemd stop): rclpy's signal handler
-        # invalidates the context while spin is still building a wait set ->
-        # RCLError "context is not valid".  That is a normal stop -- only with
-        # a still-valid context is it a real error.
+        # SIGTERM shutdown race (systemd stop): rclpy's signal handler invalidates the context while spin is still
+        # building a wait set -> RCLError "context is not valid".  That is a normal stop -- only with a still-valid
+        # context is it a real error.
         if rclpy.ok():
             raise
     finally:
