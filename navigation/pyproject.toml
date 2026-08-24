@@ -2,12 +2,12 @@
 name = "husky-navigation"
 version = "0.1.0"
 description = "Navigation layer of the a200-0553: RoboSense RS16 sensor path and Nav2"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = ["pyyaml>=6.0"]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/husky_navigation"]
+[tool.setuptools.packages.find]
+where = ["src"]

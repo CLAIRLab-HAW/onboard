@@ -3,6 +3,16 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/),
 Versionierung nach [SemVer](https://semver.org/).
 
+## 2026-08-24 (Build backend aligns to the workspace norm)
+
+- **Switched from `hatchling` to `setuptools.build_meta`.** Matches the
+  `apps/_template` build config (`[tool.setuptools.packages.find] where =
+  ["src"]`); the `hatchling` instance was unlisted drift against the workspace
+  norm (CLAUDE.md, "Ein neues Paket anlegen").
+- **`requires-python` lowered from `>=3.11` to `>=3.10`.** The workspace floor
+  is `>=3.10` (the venv is 3.11); `>=3.11` was drift without a recorded reason.
+- No behaviour change; 35 tests still green.
+
 ## 2026-08-24 (README in English)
 
 - **The README is now fully in English.** Per CLAUDE.md, `README.md` and
