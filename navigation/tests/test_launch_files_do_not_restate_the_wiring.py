@@ -1,13 +1,10 @@
 """Launch-Dateien duerfen die Verdrahtung nicht ein zweites Mal formulieren.
 
-Auf dem Mac ist launch_ros nicht installiert -- eine Launch-Datei laesst sich
-hier also nicht importieren und ihr Inhalt nicht pruefen.  Was pruefbar
-bleibt, ist die Herkunft: steht ein Topicname als Zeichenkette IN der
-Launch-Datei, ist er dort ein zweites Mal formuliert und kann von der
-geprueften Fassung wegdriften, ohne dass ein Test es merkt.
+Auf dem Mac ist launch_ros nicht installiert -- eine Launch-Datei laesst sich hier also nicht importieren und ihr Inhalt
+nicht pruefen.  Was pruefbar bleibt, ist die Herkunft: steht ein Topicname als Zeichenkette IN der Launch-Datei, ist er
+dort ein zweites Mal formuliert und kann von der geprueften Fassung wegdriften, ohne dass ein Test es merkt.
 
-Dieselbe Lehre wie bei scripts/guard und scripts/mock -- ein Kommentar
-"bei Aenderungen mitziehen" ist kein Mechanismus.
+Dieselbe Lehre wie bei scripts/guard und scripts/mock -- ein Kommentar "bei Aenderungen mitziehen" ist kein Mechanismus.
 """
 
 from pathlib import Path

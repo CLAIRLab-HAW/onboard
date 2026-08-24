@@ -1,8 +1,7 @@
 """Sensorpfad des RS16: Treiber + Ableitung des 2D-Scans.
 
-REIN LESEND.  Dieser Launch kommandiert nichts und darf deshalb auch am
-Graphen des echten Roboters laufen -- gesperrt wird navigation.launch.py,
-weil dessen controller_server auf cmd_vel schreibt.
+REIN LESEND.  Dieser Launch kommandiert nichts und darf deshalb auch am Graphen des echten Roboters laufen -- gesperrt
+wird navigation.launch.py, weil dessen controller_server auf cmd_vel schreibt.
 
 Aufruf im Container:
     ros2 launch /opt/spact/husky-navigation/launch/lidar.launch.py \
@@ -10,8 +9,8 @@ Aufruf im Container:
     ros2 launch /opt/spact/husky-navigation/launch/lidar.launch.py
                                                    # Geraet (kein pcap-Arg)
 
-Alle Namen kommen aus husky_navigation.wiring -- hier steht keiner ein
-zweites Mal (tests/test_launch_files_do_not_restate_the_wiring.py).
+Alle Namen kommen aus husky_navigation.wiring -- hier steht keiner ein zweites Mal
+(tests/test_launch_files_do_not_restate_the_wiring.py).
 """
 
 from launch import LaunchDescription
@@ -24,9 +23,8 @@ from husky_navigation import rslidar_config, wiring
 
 def _setup(context, *args, **kwargs):
     pcap = LaunchConfiguration("pcap").perform(context)
-    # rslidar_sdk kennt keine Uebersteuerung einzelner Schluessel -- es liest
-    # genau eine Datei.  Die aufgeloeste Fassung entsteht deshalb hier, aus
-    # DERSELBEN Vorlage, die auch der Roboter benutzt.
+    # rslidar_sdk kennt keine Uebersteuerung einzelner Schluessel -- es liest genau eine Datei.  Die aufgeloeste Fassung
+    # entsteht deshalb hier, aus DERSELBEN Vorlage, die auch der Roboter benutzt.
     resolved = rslidar_config.write_resolved("/tmp/rslidar_rs16_resolved.yaml", pcap_path=pcap or None)
 
     return [

@@ -1,11 +1,9 @@
 """Topic- und Frame-Namen sind Vertraege, keine Schreibweisen.
 
-Der Graph dieses Roboters ist durchgaengig namespaced; tf2 broadcastet aber
-auf die ABSOLUTEN Namen /tf und /tf_static, wo der Node-Namespace nicht
-greift.  Fehlt der Remap, publiziert ein Knoten global, waehrend alle anderen
-auf /a200_0553/tf lauschen -- und es gibt keine Fehlermeldung, nur eine leere
-TF-Kette.  Genau das ist im Mock schon einmal passiert (scripts/mock, Kommentar
-am robot_state_publisher).
+Der Graph dieses Roboters ist durchgaengig namespaced; tf2 broadcastet aber auf die ABSOLUTEN Namen /tf und /tf_static,
+wo der Node-Namespace nicht greift.  Fehlt der Remap, publiziert ein Knoten global, waehrend alle anderen auf
+/a200_0553/tf lauschen -- und es gibt keine Fehlermeldung, nur eine leere TF-Kette.  Genau das ist im Mock schon einmal
+passiert (scripts/mock, Kommentar am robot_state_publisher).
 
 Braucht weder ROS noch Docker.
 """

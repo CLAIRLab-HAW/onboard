@@ -1,9 +1,8 @@
 """Nav2 faehrt im Mock -- gegen eine Karte, OHNE Lokalisierung.
 
-Der Testname sagt es ausdruecklich: in diesem Stand traegt allein die
-Radodometrie, der Roboter driftet gegen die Karte, und die Costmap hat keine
-Hindernisse.  Wer diesen Test spaeter fuer einen Lokalisierungsnachweis
-haelt, liest ihn falsch -- den liefert erst der Sensorpfad.
+Der Testname sagt es ausdruecklich: in diesem Stand traegt allein die Radodometrie, der Roboter driftet gegen die Karte,
+und die Costmap hat keine Hindernisse.  Wer diesen Test spaeter fuer einen Lokalisierungsnachweis haelt, liest ihn
+falsch -- den liefert erst der Sensorpfad.
 
 Braucht einen laufenden Container mit `mock platform:=true` und `nav`.
 """
@@ -42,10 +41,9 @@ def container():
 def test_the_navigate_to_pose_action_is_offered(container):
     """Mit Wiederholung: die Discovery des ros2-Daemons ist asynchron.
 
-    Ein einzelnes `ros2 action list` direkt nach dem Start liefert eine leere
-    Liste -- nicht weil die Action fehlt, sondern weil der Daemon seinen
-    Graphen noch nicht hat.  Ein Test, der daran scheitert, misst die
-    Anlaufzeit des Daemons und nicht Nav2.
+    Ein einzelnes `ros2 action list` direkt nach dem Start liefert eine leere Liste -- nicht weil die Action fehlt,
+    sondern weil der Daemon seinen Graphen noch nicht hat.  Ein Test, der daran scheitert, misst die Anlaufzeit des
+    Daemons und nicht Nav2.
     """
     out = _exec(
         "source ros-env; "
@@ -88,8 +86,8 @@ def test_the_map_to_base_link_transform_exists(container):
 def test_navigates_without_localization(container, exclusive_base):
     """Ein Ziel 1 m entfernt -- und die Odometrie sagt, ob er dort ankam.
 
-    Bewusst NICHT: 'RViz sieht gut aus'.  Ein laufender Prozess ist kein
-    Beleg, und eine Pose kann aus jedem Blickwinkel plausibel wirken.
+    Bewusst NICHT: 'RViz sieht gut aus'.  Ein laufender Prozess ist kein Beleg, und eine Pose kann aus jedem Blickwinkel
+    plausibel wirken.
     """
     script = r"""
 source ros-env
@@ -129,15 +127,12 @@ python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after
 def test_navigates_to_a_goal_it_has_to_turn_around_for(container, exclusive_base):
     """Ein Ziel, das eine grosse Richtungsaenderung verlangt.
 
-    Der Nachbartest faehrt bewusst immer ZUR Kartenmitte hin -- also
-    praktisch geradeaus.  Genau deshalb hat er am 2026-08-22 nicht gemerkt,
-    dass der Husky bei einer Wende haengenblieb: in derselben Runde lief ein
-    Ziel geradeaus in 12 s durch, waehrend das Ziel (-2|2) aus (1,93|1,78)
-    nach 51 s ganze 0,06 m gefahren war und dann ABORTED meldete.
+    Der Nachbartest faehrt bewusst immer ZUR Kartenmitte hin -- also praktisch geradeaus.  Genau deshalb hat er am
+    2026-08-22 nicht gemerkt, dass der Husky bei einer Wende haengenblieb: in derselben Runde lief ein Ziel geradeaus in
+    12 s durch, waehrend das Ziel (-2|2) aus (1,93|1,78) nach 51 s ganze 0,06 m gefahren war und dann ABORTED meldete.
 
-    Dieser Test dreht den Roboter vorher ABSICHTLICH vom Ziel weg und prueft,
-    ob er trotzdem ankommt.  Er faellt aus, wenn der RotationShimController
-    fehlt oder der Antrieb die Drehung nicht ausfuehrt.
+    Dieser Test dreht den Roboter vorher ABSICHTLICH vom Ziel weg und prueft, ob er trotzdem ankommt.  Er faellt aus,
+    wenn der RotationShimController fehlt oder der Antrieb die Drehung nicht ausfuehrt.
     """
     script = r"""
 source ros-env
@@ -227,12 +222,10 @@ print(json.dumps({
 def test_the_controller_actually_receives_odometry(container):
     """Ein eingestelltes Topic ist noch keine Datenquelle.
 
-    In ROS 2 taucht ein Topic in `topic list` schon auf, wenn es nur
-    ABONNIERT wird.  Am 2026-08-22 stand der controller_server auf dem
-    Default "odom", war dort der einzige Teilnehmer -- Publisher count: 0 --
-    und bekam nie eine Geschwindigkeit.  Der statische Parametertest haette
-    das nicht gefunden, ein falscher Topicname sieht dort aus wie ein
-    richtiger.  Deshalb hier: gibt es einen Publisher, und kommen Daten an?
+    In ROS 2 taucht ein Topic in `topic list` schon auf, wenn es nur ABONNIERT wird.  Am 2026-08-22 stand der
+    controller_server auf dem Default "odom", war dort der einzige Teilnehmer -- Publisher count: 0 -- und bekam nie
+    eine Geschwindigkeit.  Der statische Parametertest haette das nicht gefunden, ein falscher Topicname sieht dort aus
+    wie ein richtiger.  Deshalb hier: gibt es einen Publisher, und kommen Daten an?
     """
     topic = _exec(
         "source ros-env; timeout 15 ros2 param get "
@@ -260,24 +253,20 @@ def test_the_controller_actually_receives_odometry(container):
 def test_the_ground_frame_matches_the_wheel_geometry(container):
     """base_footprint muss dort liegen, wo die Raeder den Boden beruehren.
 
-    Die Probe verbindet zwei Quellen, die nichts voneinander wissen: das
-    URDF (Radachse, base_footprint) und control.yaml (wheel_radius, mit dem
-    der DiffDriveController die Odometrie rechnet).  Passen sie nicht
-    zusammen, ist entweder die Darstellung falsch oder -- schlimmer -- die
-    Odometrie, und Letzteres faellt an nichts auf.  Wer z. B. auf
-    Outdoor-Raeder wechselt und nur eine der beiden Stellen nachzieht,
-    bekommt hier einen Fehlschlag statt eines stillen Fahrfehlers.
+    Die Probe verbindet zwei Quellen, die nichts voneinander wissen: das URDF (Radachse, base_footprint) und
+    control.yaml (wheel_radius, mit dem der DiffDriveController die Odometrie rechnet).  Passen sie nicht zusammen, ist
+    entweder die Darstellung falsch oder -- schlimmer -- die Odometrie, und Letzteres faellt an nichts auf.  Wer z. B.
+    auf Outdoor-Raeder wechselt und nur eine der beiden Stellen nachzieht, bekommt hier einen Fehlschlag statt eines
+    stillen Fahrfehlers.
 
-    Am 2026-08-22 gemessen: Radachse +0,03282 ueber base_link, Radradius
-    0,1651, base_footprint bei -0,13228 -- exakt die Differenz.
+    Am 2026-08-22 gemessen: Radachse +0,03282 ueber base_link, Radradius 0,1651, base_footprint bei -0,13228 -- exakt
+    die Differenz.
 
-    NICHT geprueft wird, ob base_footprint auf der odom-Ebene liegt: der EKF
-    laeuft mit `base_link_frame: base_link` und `two_d_mode: True`, pinnt
-    also base_link auf z=0.  Der ganze Roboter steht dadurch 13,2 cm unter
-    der Bodenebene der Karte, was in RViz und Foxglove sichtbar ist und wie
-    ein Fehler aussieht.  Es ist Clearpaths Konvention aus der generierten
-    localization.yaml, ueber robot.yaml nicht einstellbar, und fuer Nav2
-    folgenlos -- dort zaehlen nur x, y und yaw.
+    NICHT geprueft wird, ob base_footprint auf der odom-Ebene liegt: der EKF laeuft mit `base_link_frame: base_link` und
+    `two_d_mode: True`, pinnt also base_link auf z=0.  Der ganze Roboter steht dadurch 13,2 cm unter der Bodenebene der
+    Karte, was in RViz und Foxglove sichtbar ist und wie ein Fehler aussieht.  Es ist Clearpaths Konvention aus der
+    generierten localization.yaml, ueber robot.yaml nicht einstellbar, und fuer Nav2 folgenlos -- dort zaehlen nur x, y
+    und yaw.
     """
 
     def _z(parent: str, child: str) -> float:

@@ -1,9 +1,8 @@
 """Die Basis muss sich im Mock wirklich bewegen -- nicht nur Raeder drehen.
 
-Der teure Irrtum ist hier NICHT "es faehrt nicht", sondern "die Raeder drehen
-sich in RViz und die Odometrie meldet Stillstand".  Das sieht nach einem
-Nav2-Fehler aus und ist ein URDF-Fehler (fehlendes calculate_dynamics).
-Deshalb prueft dieser Test die ODOMETRIE, nicht die Radgelenke.
+Der teure Irrtum ist hier NICHT "es faehrt nicht", sondern "die Raeder drehen sich in RViz und die Odometrie meldet
+Stillstand".  Das sieht nach einem Nav2-Fehler aus und ist ein URDF-Fehler (fehlendes calculate_dynamics). Deshalb
+prueft dieser Test die ODOMETRIE, nicht die Radgelenke.
 
 Braucht einen laufenden Container mit `mock platform:=true`.
 """
@@ -118,10 +117,9 @@ python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after
 def test_the_odom_to_base_link_transform_exists(container):
     """Die TF-Remaps sind hier kein Detail, sondern der ganze Test.
 
-    tf2 broadcastet auf die ABSOLUTEN Namen /tf und /tf_static; der Graph
-    dieses Roboters haelt sie aber unter /a200_0553/tf.  Ein tf2_echo ohne
-    diese Remaps meldet 'Invalid frame ID "odom" ... frame does not exist' --
-    das sieht aus wie eine fehlende Transformation und ist ein Hoerfehler.
+    tf2 broadcastet auf die ABSOLUTEN Namen /tf und /tf_static; der Graph dieses Roboters haelt sie aber unter
+    /a200_0553/tf.  Ein tf2_echo ohne diese Remaps meldet 'Invalid frame ID "odom" ... frame does not exist' -- das
+    sieht aus wie eine fehlende Transformation und ist ein Hoerfehler.
     """
     out = _exec(
         "source ros-env; timeout 10 ros2 run tf2_ros tf2_echo "

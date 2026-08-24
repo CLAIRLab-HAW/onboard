@@ -1,12 +1,10 @@
 """Diese Suite muss im ROOT-Lauf mitkommen, nicht nur im Paketlauf.
 
-`norecursedirs` im Root-pyproject.toml schloss `robot` aus, solange dort keine
-Tests lagen.  Ein Test, der nur im Paketlauf liefe, schwiege genau dann, wenn
-jemand ihn braucht -- dieselbe Lehre, die `deploy` schon einmal gekostet hat.
+`norecursedirs` im Root-pyproject.toml schloss `robot` aus, solange dort keine Tests lagen.  Ein Test, der nur im
+Paketlauf liefe, schwiege genau dann, wenn jemand ihn braucht -- dieselbe Lehre, die `deploy` schon einmal gekostet hat.
 
-Der Marker `nav_e2e` muss registriert UND im Default abgewaehlt sein: er
-braucht einen laufenden Container mit fahrender Basis, das ist keine
-Vorbedingung, die ein `uv run pytest` am Root stillschweigend annehmen darf.
+Der Marker `nav_e2e` muss registriert UND im Default abgewaehlt sein: er braucht einen laufenden Container mit fahrender
+Basis, das ist keine Vorbedingung, die ein `uv run pytest` am Root stillschweigend annehmen darf.
 
 Dieser Test braucht weder ROS noch Docker -- er liest Text.
 """

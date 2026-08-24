@@ -1,10 +1,8 @@
 """Nav2-Parameter, die still danebengehen, wenn sie falsch sind.
 
-Der cmd_vel-Typ ist der klassische Fall: twist_mux (use_stamped: True), der
-DiffDriveController (use_stamped_vel: True) und das robot-contract-Profil
-(cmd_vel_stamped: true) stehen alle auf TwistStamped; Nav2s Jazzy-Default ist
-Twist.  Beim falschen Typ bindet die Subscription NICHT -- und niemand meldet
-einen Fehler, der Roboter steht einfach.
+Der cmd_vel-Typ ist der klassische Fall: twist_mux (use_stamped: True), der DiffDriveController (use_stamped_vel: True)
+und das robot-contract-Profil (cmd_vel_stamped: true) stehen alle auf TwistStamped; Nav2s Jazzy-Default ist Twist.  Beim
+falschen Typ bindet die Subscription NICHT -- und niemand meldet einen Fehler, der Roboter steht einfach.
 
 Braucht weder ROS noch Docker.
 """
@@ -35,20 +33,17 @@ def test_every_node_lives_in_the_robot_namespace(params):
     )
 
 
-# Jeder Nav2-Knoten, der selbst auf cmd_vel schreibt.  Der Parameter gilt PRO
-# KNOTEN -- ihn nur beim controller_server zu setzen sieht richtig aus und
-# laesst die Recovery-Verhalten trotzdem ins Leere schreiben.  Kommt spaeter
-# ein velocity_smoother oder docking_server dazu, gehoert er in diese Liste.
+# Jeder Nav2-Knoten, der selbst auf cmd_vel schreibt.  Der Parameter gilt PRO KNOTEN -- ihn nur beim controller_server
+# zu setzen sieht richtig aus und laesst die Recovery-Verhalten trotzdem ins Leere schreiben.  Kommt spaeter ein
+# velocity_smoother oder docking_server dazu, gehoert er in diese Liste.
 CMD_VEL_PUBLISHERS = ("controller_server", "behavior_server")
 
-# Dieselbe Falle ein zweites Mal: `odom_topic` gilt ebenfalls pro Knoten.  Am
-# 2026-08-22 stand er im bt_navigator richtig und im controller_server auf dem
-# Nav2-Default "odom" -- ein Topic, auf das niemand publiziert.
+# Dieselbe Falle ein zweites Mal: `odom_topic` gilt ebenfalls pro Knoten.  Am 2026-08-22 stand er im bt_navigator
+# richtig und im controller_server auf dem Nav2-Default "odom" -- ein Topic, auf das niemand publiziert.
 ODOM_CONSUMERS = ("controller_server", "bt_navigator")
 
-# Die EKF-Quelle, nicht die rohe des Radcontrollers: der EKF liefert auch die
-# TF odom -> base_link, also kommen Pose und Geschwindigkeit von derselben
-# Stelle.
+# Die EKF-Quelle, nicht die rohe des Radcontrollers: der EKF liefert auch die TF odom -> base_link, also kommen Pose und
+# Geschwindigkeit von derselben Stelle.
 EXPECTED_ODOM_TOPIC = "platform/odom/filtered"
 
 
@@ -56,10 +51,9 @@ EXPECTED_ODOM_TOPIC = "platform/odom/filtered"
 def test_every_odom_consumer_reads_the_ekf(params, node):
     """Der Default "odom" zeigt auf ein Topic ohne Publisher.
 
-    Das scheitert lautlos: `speed` bleibt 0, und jeder Regler, der die
-    Ist-Geschwindigkeit braucht, regelt blind.  Gemessen hat sich das als
-    RotationShim gezeigt, der statt 0,8 rad/s nur 0,05 kommandierte -- einen
-    einzigen Beschleunigungsschritt, immer wieder von null.
+    Das scheitert lautlos: `speed` bleibt 0, und jeder Regler, der die Ist-Geschwindigkeit braucht, regelt blind.
+    Gemessen hat sich das als RotationShim gezeigt, der statt 0,8 rad/s nur 0,05 kommandierte -- einen einzigen
+    Beschleunigungsschritt, immer wieder von null.
     """
     assert _node(params, node)["odom_topic"] == EXPECTED_ODOM_TOPIC, (
         f"{node} liest ein anderes Odometrie-Topic. Der Nav2-Default 'odom' "
@@ -72,11 +66,9 @@ def test_every_odom_consumer_reads_the_ekf(params, node):
 def test_every_cmd_vel_publisher_is_stamped(params, node):
     """Am 2026-08-22 war genau das falsch, und nichts hat es gemeldet.
 
-    /a200_0553/cmd_vel trug beide Typen: controller_server TwistStamped,
-    behavior_server dreimal Twist (einer je Verhalten).  Aufgefallen ist es
-    an einer Foxglove-Warnung, nicht an dieser Suite -- ohne Lidar hat die
-    Costmap keine Hindernisse, also loest im Mock nie ein Recovery aus, und
-    der tote Pfad wurde nie befahren.
+    /a200_0553/cmd_vel trug beide Typen: controller_server TwistStamped, behavior_server dreimal Twist (einer je
+    Verhalten).  Aufgefallen ist es an einer Foxglove-Warnung, nicht an dieser Suite -- ohne Lidar hat die Costmap keine
+    Hindernisse, also loest im Mock nie ein Recovery aus, und der tote Pfad wurde nie befahren.
     """
     assert _node(params, node)["enable_stamped_cmd_vel"] is True, (
         f"{node} publiziert geometry_msgs/Twist, twist_mux abonniert aber nur "

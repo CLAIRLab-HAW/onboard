@@ -1,8 +1,7 @@
 """Der Sensorpfad: echter Treiber, echte Pakete, abgeleiteter Scan.
 
-Ueberspringt sich mit benannter Ursache, solange die RS16-Aufnahme fehlt
-(R-Punkt c).  Ein Test, der ohne Aufnahme gruen wuerde, waere schlimmer als
-keiner: er meldete eine Kette als gefahren, die nie Pakete gesehen hat.
+Ueberspringt sich mit benannter Ursache, solange die RS16-Aufnahme fehlt (R-Punkt c).  Ein Test, der ohne Aufnahme gruen
+wuerde, waere schlimmer als keiner: er meldete eine Kette als gefahren, die nie Pakete gesehen hat.
 """
 
 import subprocess
@@ -47,8 +46,7 @@ def replay():
 def test_the_driver_reads_from_the_recording(replay):
     """Verifiziert die msg_source-Zuordnung AM LAUFENDEN KNOTEN.
 
-    Die Werte 1/2/3 stehen in der Doku von RoboSense; hier steht, was der
-    Treiber tatsaechlich tut.
+    Die Werte 1/2/3 stehen in der Doku von RoboSense; hier steht, was der Treiber tatsaechlich tut.
     """
     log = _exec("cat /tmp/lidar.log")
     assert "Receive Packets From : Pcap" in log, f"Der Treiber liest nicht aus der Aufnahme. Log:\n{log[-2000:]}"

@@ -1,10 +1,8 @@
 """Die eine Stelle, an der Mock und Roboter sich unterscheiden duerfen.
 
-rslidar_sdk nimmt EINE yaml-Datei ueber den ROS-Parameter `config_path` und
-kennt keine Uebersteuerung einzelner Schluessel.  Wer Mock und Live trotzdem
-aus einer Quelle fahren will, muss die Datei also rendern statt sie zu
-duplizieren -- zwei gepflegte yaml-Dateien waeren die Driftquelle, die dieses
-Vorhaben gerade vermeiden will.
+rslidar_sdk nimmt EINE yaml-Datei ueber den ROS-Parameter `config_path` und kennt keine Uebersteuerung einzelner
+Schluessel.  Wer Mock und Live trotzdem aus einer Quelle fahren will, muss die Datei also rendern statt sie zu
+duplizieren -- zwei gepflegte yaml-Dateien waeren die Driftquelle, die dieses Vorhaben gerade vermeiden will.
 
 ROS-frei und damit auf dem Mac testbar.
 """
@@ -33,9 +31,8 @@ TEMPLATE_PATH = Path(__file__).resolve().parents[2] / "config" / "rslidar_rs16.y
 def render(template: dict, *, pcap_path: str | None = None) -> dict:
     """Setzt die Paketquelle in eine geladene Vorlage.
 
-    ``pcap_path=None`` -> das Geraet.  Sonst -> die Aufnahme.
-    Die Vorlage wird veraendert und zurueckgegeben (der Aufrufer uebergibt
-    ohnehin ein frisch geladenes Dict).
+    ``pcap_path=None`` -> das Geraet.  Sonst -> die Aufnahme. Die Vorlage wird veraendert und zurueckgegeben (der
+    Aufrufer uebergibt ohnehin ein frisch geladenes Dict).
     """
     if "common" not in template:
         raise ValueError(

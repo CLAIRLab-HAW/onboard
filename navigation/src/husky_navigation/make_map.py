@@ -1,11 +1,10 @@
 """Erzeugt die synthetische Karte, gegen die der Mock zuerst faehrt.
 
-Eine von Hand gemalte pgm waere ein binaeres Artefakt ohne nachvollziehbare
-Herkunft -- man saehe ihr nicht an, wie gross der Raum ist und wo die Wand
-steht.  Ein Generator sagt es.
+Eine von Hand gemalte pgm waere ein binaeres Artefakt ohne nachvollziehbare Herkunft -- man saehe ihr nicht an, wie
+gross der Raum ist und wo die Wand steht.  Ein Generator sagt es.
 
-Diese Karte ersetzt KEINE Kartierung.  Sie ist das Geruest, an dem Planer und
-Controller gemessen werden, solange es noch keine RS16-Aufnahme gibt.
+Diese Karte ersetzt KEINE Kartierung.  Sie ist das Geruest, an dem Planer und Controller gemessen werden, solange es
+noch keine RS16-Aufnahme gibt.
 
 ROS-frei.
 """

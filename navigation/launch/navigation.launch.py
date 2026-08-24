@@ -4,9 +4,8 @@ localization:=none    static_transform_publisher liefert map -> odom
 localization:=amcl    AMCL gegen die gespeicherte Karte (braucht Scans)
 localization:=slam    slam_toolbox kartiert und liefert map -> odom selbst
 
-Der Default ist NONE, mit Absicht: solange der Sensorpfad keine Scans
-liefert, publiziert ein AMCL im Graphen GAR KEINE Transformation, die
-TF-Kette staende still, und man suchte den Fehler in den Costmaps.
+Der Default ist NONE, mit Absicht: solange der Sensorpfad keine Scans liefert, publiziert ein AMCL im Graphen GAR KEINE
+Transformation, die TF-Kette staende still, und man suchte den Fehler in den Costmaps.
 
 Alle Topic- und Framenamen kommen aus husky_navigation.wiring.
 """
@@ -65,8 +64,8 @@ def _setup(context, *args, **kwargs):
             executable="controller_server",
             name="controller_server",
             parameters=[PARAMS],
-            # controller_server publiziert per Default auf cmd_vel im
-            # eigenen Namespace -- das IST der twist_mux-Eingang "external".
+            # controller_server publiziert per Default auf cmd_vel im eigenen Namespace -- das IST der twist_mux-Eingang
+            # "external".
             **common
         ),
         Node(package="nav2_planner", executable="planner_server", name="planner_server", parameters=[PARAMS], **common),
@@ -98,9 +97,8 @@ def _setup(context, *args, **kwargs):
             )
         )
     else:
-        # Identitaet map -> odom. Der Roboter driftet damit gegen die Karte,
-        # weil nur die Radodometrie ihn traegt -- das ist der bewusste Stand,
-        # solange es keine Scans gibt.
+        # Identitaet map -> odom. Der Roboter driftet damit gegen die Karte, weil nur die Radodometrie ihn traegt -- das
+        # ist der bewusste Stand, solange es keine Scans gibt.
         nodes.append(
             Node(
                 package="tf2_ros",
@@ -123,9 +121,8 @@ def _setup(context, *args, **kwargs):
                         {
                             "autostart": True,
                             "node_names": managed,
-                            # Greift NACH dem Hochlauf: faellt ein Knoten spaeter weg,
-                            # versucht der Manager ihn wieder einzubinden, statt den
-                            # ganzen Stack abzuraeumen.
+                            # Greift NACH dem Hochlauf: faellt ein Knoten spaeter weg, versucht der Manager ihn wieder
+                            # einzubinden, statt den ganzen Stack abzuraeumen.
                             "attempt_respawn_reconnection": True,
                             "bond_timeout": 10.0,
                         }

@@ -1,10 +1,9 @@
 """Mock und Roboter fahren DENSELBEN Treiber -- das ist der ganze Punkt.
 
-Der Greifer hat 2026-08-19 vorgefuehrt, was passiert, wenn Mock und Real
-auseinanderlaufen: der Container lieferte dem Twin gar kein Fingergelenk, und
-zwar still, weil es fuer den Greifer keinen E2E-Test gab.  Hier wird die
-Nicht-Abweichung deshalb zur Testbedingung: alles ausser der Paketquelle muss
-in beiden Faellen Byte fuer Byte gleich sein.
+Der Greifer hat 2026-08-19 vorgefuehrt, was passiert, wenn Mock und Real auseinanderlaufen: der Container lieferte dem
+Twin gar kein Fingergelenk, und zwar still, weil es fuer den Greifer keinen E2E-Test gab.  Hier wird die
+Nicht-Abweichung deshalb zur Testbedingung: alles ausser der Paketquelle muss in beiden Faellen Byte fuer Byte gleich
+sein.
 
 Braucht weder ROS noch Docker.
 """
