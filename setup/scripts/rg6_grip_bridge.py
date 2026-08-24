@@ -114,18 +114,14 @@ class Rg6Client:
     work in metres, the endpoint in millimetres.
     """
 
-    def __init__(
-        self, url: str = DEFAULT_URL, tool_index: int = 0, timeout_s: float = 3.0
-    ) -> None:
+    def __init__(self, url: str = DEFAULT_URL, tool_index: int = 0, timeout_s: float = 3.0) -> None:
         self._url = url
         self._tool = int(tool_index)
         # Hard timeout: without it a dead endpoint holds the worker thread
         # indefinitely, and with it the joint_states publisher.
         transport = xmlrpc.client.Transport()
         transport.timeout = float(timeout_s)
-        self._proxy = xmlrpc.client.ServerProxy(
-            url, transport=transport, allow_none=True
-        )
+        self._proxy = xmlrpc.client.ServerProxy(url, transport=transport, allow_none=True)
         # ServerProxy is NOT thread safe: proxy and transport share ONE HTTP
         # connection.  Two threads reach for it here -- the grip worker and the
         # state poller of the finger joint -- and without this lock their
@@ -144,10 +140,7 @@ class Rg6Client:
         # 0 mm or 60 N would otherwise go onto the wire as an int.
         rc = self._call("rg_grip", self._tool, width_mm + 0.0, force + 0.0)
         if int(rc) != 0:
-            raise Rg6Error(
-                f"rg_grip({width_mm:.1f} mm, {force:.1f} N) "
-                f"answered {rc!r} instead of 0"
-            )
+            raise Rg6Error(f"rg_grip({width_mm:.1f} mm, {force:.1f} N) " f"answered {rc!r} instead of 0")
 
     def stop(self) -> None:
         self._call("rg_stop", self._tool)
@@ -166,18 +159,13 @@ class Rg6Client:
             with self._lock:
                 return getattr(self._proxy, method)(*args)
         except xmlrpc.client.Fault as exc:
-            raise Rg6Error(
-                f"{method}: Fault {exc.faultCode} " f"{exc.faultString}"
-            ) from exc
+            raise Rg6Error(f"{method}: Fault {exc.faultCode} " f"{exc.faultString}") from exc
         except OSError as exc:
             raise Rg6Error(f"{method}: {self._url} not reachable " f"({exc})") from exc
 
 
 def await_settled(
-    client,
-    start_timeout_s: float = 1.0,
-    motion_timeout_s: float = 10.0,
-    poll_s: float = 0.05,
+    client, start_timeout_s: float = 1.0, motion_timeout_s: float = 10.0, poll_s: float = 0.05
 ) -> Rg6State:
     """Wait until the hand stands still, and THEN read the state.
 
@@ -269,13 +257,7 @@ COMMAND_GRIP = "GRIP"
 COMMAND_STOP = "STOP"
 
 
-def goal_to_grip(
-    position_rad: float,
-    max_effort_n: float,
-    linkage,
-    default_force_n: float,
-    force_range_n,
-) -> tuple:
+def goal_to_grip(position_rad: float, max_effort_n: float, linkage, default_force_n: float, force_range_n) -> tuple:
     """``control_msgs/GripperCommand`` goal -> ``(width in m, force in N)``.
 
     MoveIt commands the gripper as a JOINT VALUE, not as a width -- the
@@ -288,16 +270,12 @@ def goal_to_grip(
     """
     lo, hi = float(force_range_n[0]), float(force_range_n[1])
     force = (
-        float(default_force_n)
-        if max_effort_n is None or max_effort_n <= 0.0
-        else min(max(float(max_effort_n), lo), hi)
+        float(default_force_n) if max_effort_n is None or max_effort_n <= 0.0 else min(max(float(max_effort_n), lo), hi)
     )
     return float(linkage.width_from_angle(float(position_rad))), force
 
 
-def goal_result(
-    state, target_width_m: float, force_n: float, linkage, tolerance_m: float
-) -> dict:
+def goal_result(state, target_width_m: float, force_n: float, linkage, tolerance_m: float) -> dict:
     """Result fields for GripperCommand, from the MEASURED state.
 
     ``stalled`` is ``grip_detected``:  with it the RG6 reports that it reached
@@ -317,8 +295,7 @@ def goal_result(
         "position": float(linkage.angle_from_width(state.width_m)),
         "effort": float(force_n),
         "stalled": bool(state.grip_detected),
-        "reached_goal": abs(state.width_m - float(target_width_m))
-        <= float(tolerance_m),
+        "reached_goal": abs(state.width_m - float(target_width_m)) <= float(tolerance_m),
     }
 
 
@@ -358,13 +335,7 @@ def _spawn_fake_urcap():
     from xmlrpc.server import SimpleXMLRPCServer
 
     log = []
-    state = {
-        "width_mm": 103.26,
-        "busy": False,
-        "grip": False,
-        "target_mm": 103.26,
-        "phases": [],
-    }
+    state = {"width_mm": 103.26, "busy": False, "grip": False, "target_mm": 103.26, "phases": []}
 
     def rg_grip(tool, width, force):
         if not isinstance(width, float) or not isinstance(force, float):
@@ -457,12 +428,8 @@ def selftest() -> int:
         #     MoveIt never needs the gripper on the controller_manager -- it
         #     needs this action, and that runs in an ordinary executor, not in
         #     the 8 ms cycle of the CB3.
-        kin = FingerKinematics(
-            str(pathlib.Path(__file__).with_name("rg6_finger_kinematics.json"))
-        )
-        width, force = goal_to_grip(
-            kin.angle_from_width(0.100), 55.0, kin, 40.0, (25.0, 120.0)
-        )
+        kin = FingerKinematics(str(pathlib.Path(__file__).with_name("rg6_finger_kinematics.json")))
+        width, force = goal_to_grip(kin.angle_from_width(0.100), 55.0, kin, 40.0, (25.0, 120.0))
         assert abs(width - 0.100) < 2e-4, width  # table resolution
         assert force == 55.0, force
         # An empty max_effort means "take what fits" -- not "zero force".
@@ -470,31 +437,16 @@ def selftest() -> int:
         # ... and an oversized request is clamped, not passed through.
         assert goal_to_grip(0.0, 999.0, kin, 40.0, (25.0, 120.0))[1] == 120.0
 
-        st_closed = Rg6State(
-            width_m=0.0605,
-            busy=False,
-            grip_detected=True,
-            status=0,
-            safety_failed=False,
-        )
+        st_closed = Rg6State(width_m=0.0605, busy=False, grip_detected=True, status=0, safety_failed=False)
         res = goal_result(st_closed, 0.060, 40.0, kin, tolerance_m=0.008)
         assert res["reached_goal"] is True and res["stalled"] is True, res
         assert res["effort"] == 40.0, res
         # Far off is far off, even when the gripper stands still.
-        assert (
-            goal_result(st_closed, 0.100, 40.0, kin, tolerance_m=0.008)["reached_goal"]
-            is False
-        )
+        assert goal_result(st_closed, 0.100, 40.0, kin, tolerance_m=0.008)["reached_goal"] is False
 
         # 5b. The status message carries the DEVICE STATE, not the command --
         #     that is exactly what the manipulator diagnostics judges.
-        st = Rg6State(
-            width_m=0.1032,
-            busy=False,
-            grip_detected=True,
-            status=0,
-            safety_failed=False,
-        )
+        st = Rg6State(width_m=0.1032, busy=False, grip_detected=True, status=0, safety_failed=False)
         status = status_payload(st, COMMAND_GRIP)
         assert status["width_m"] == st.width_m, status
         assert status["grip_detected"] is True, status
@@ -509,42 +461,20 @@ def selftest() -> int:
         #     values are the ones read on the a200-0553 on 2026-08-24, with the
         #     arm at POWER_OFF.
         assert st.readable, "a real measurement must pass"
-        dead = Rg6State(
-            width_m=-0.999, busy=True, grip_detected=True, status=-1, safety_failed=True
-        )
+        dead = Rg6State(width_m=-0.999, busy=True, grip_detected=True, status=-1, safety_failed=True)
         assert not dead.readable, "-999 mm / status -1 is not a measurement"
         # Without the guard this would become a FULLY CLOSED gripper -- the
         # clamp does not extrapolate, it snaps to the stop.
         assert abs(kin.angle_from_width(dead.width_m) - kin.q_max) < 1e-9
         # Both halves of the check bite on their own: an error status alone
         # is enough, and so is a width beyond the nominal range.
-        assert not Rg6State(
-            width_m=0.060,
-            busy=False,
-            grip_detected=False,
-            status=-1,
-            safety_failed=False,
-        ).readable
-        assert not Rg6State(
-            width_m=0.400,
-            busy=False,
-            grip_detected=False,
-            status=0,
-            safety_failed=False,
-        ).readable
+        assert not Rg6State(width_m=0.060, busy=False, grip_detected=False, status=-1, safety_failed=False).readable
+        assert not Rg6State(width_m=0.400, busy=False, grip_detected=False, status=0, safety_failed=False).readable
         # The nominal limits themselves are still valid -- the device reports
         # up to 5 mm above the jaw measurement (R19), which must not count as
         # dead.
-        assert Rg6State(
-            width_m=0.160,
-            busy=False,
-            grip_detected=False,
-            status=0,
-            safety_failed=False,
-        ).readable
-        assert Rg6State(
-            width_m=0.0, busy=False, grip_detected=False, status=0, safety_failed=False
-        ).readable
+        assert Rg6State(width_m=0.160, busy=False, grip_detected=False, status=0, safety_failed=False).readable
+        assert Rg6State(width_m=0.0, busy=False, grip_detected=False, status=0, safety_failed=False).readable
 
         # 6. Width -> finger joint comes from the GENERATED table, not from a
         #    formula and not from robot_contract (R19; the robot must not need
@@ -633,18 +563,12 @@ def run(argv) -> int:
     def _p(name):
         return node.get_parameter(name).value
 
-    client = Rg6Client(
-        _p("endpoint_url"), int(_p("tool_index")), float(_p("timeout_s"))
-    )
+    client = Rg6Client(_p("endpoint_url"), int(_p("tool_index")), float(_p("timeout_s")))
 
-    kin_file = _p("kinematics_file") or str(
-        pathlib.Path(__file__).with_name("rg6_finger_kinematics.json")
-    )
+    kin_file = _p("kinematics_file") or str(pathlib.Path(__file__).with_name("rg6_finger_kinematics.json"))
     linkage = FingerKinematics(kin_file)
     log.info(
-        f"linkage table: {kin_file} "
-        f"({linkage.max_width_m * 1000:.1f} mm open, "
-        f"q up to {linkage.q_max:.5f} rad)"
+        f"linkage table: {kin_file} " f"({linkage.max_width_m * 1000:.1f} mm open, " f"q up to {linkage.q_max:.5f} rad)"
     )
 
     # -- finger joint ------------------------------------------------------
@@ -658,9 +582,7 @@ def run(argv) -> int:
     node.declare_parameter("joint_state_rate_hz", 5.0)
     manip_ns = str(_p("manipulators_ns")).rstrip("/")
     finger_joint = str(_p("driver_joint"))
-    joints = node.create_publisher(
-        JointState, f"{manip_ns}/endeffectors/joint_states", 10
-    )
+    joints = node.create_publisher(JointState, f"{manip_ns}/endeffectors/joint_states", 10)
     # The same poll carries the state for the manipulator diagnostics.  It
     # reads it here -- <ns>/rg6/state has no publisher.
     states = node.create_publisher(String, f"{manip_ns}/rg6/bridge_state", 10)
@@ -697,9 +619,7 @@ def run(argv) -> int:
             # diagnostics needs to report the outage.  Were it silent too, the
             # diagnostics would only see ageing and could not tell "bridge
             # dead" from "gripper unpowered".
-            states.publish(
-                String(data=json.dumps(status_payload(state, last_command[0])))
-            )
+            states.publish(String(data=json.dumps(status_payload(state, last_command[0]))))
             if not state.readable:
                 time.sleep(period)
                 continue
@@ -738,11 +658,7 @@ def run(argv) -> int:
     def on_action(goal_handle):
         cmd = goal_handle.request.command
         width_m, force_n = goal_to_grip(
-            cmd.position,
-            cmd.max_effort,
-            linkage,
-            _p("default_force_n"),
-            _p("force_range_n"),
+            cmd.position, cmd.max_effort, linkage, _p("default_force_n"), _p("force_range_n")
         )
         result = GripperCommand.Result()
         if not inflight.acquire(blocking=False):
@@ -764,9 +680,7 @@ def run(argv) -> int:
             return result
         finally:
             inflight.release()
-        fields = goal_result(
-            state, width_m, force_n, linkage, float(_p("goal_tolerance_m"))
-        )
+        fields = goal_result(state, width_m, force_n, linkage, float(_p("goal_tolerance_m")))
         result.position = fields["position"]
         result.effort = fields["effort"]
         result.stalled = fields["stalled"]
@@ -779,16 +693,8 @@ def run(argv) -> int:
         goal_handle.succeed()
         return result
 
-    action_name = str(
-        _p("action_name") or f"{manip_ns}/rg6_gripper_controller/gripper_cmd"
-    )
-    ActionServer(
-        node,
-        GripperCommand,
-        action_name,
-        on_action,
-        callback_group=ReentrantCallbackGroup(),
-    )
+    action_name = str(_p("action_name") or f"{manip_ns}/rg6_gripper_controller/gripper_cmd")
+    ActionServer(node, GripperCommand, action_name, on_action, callback_group=ReentrantCallbackGroup())
 
     log.info(f"rg6_grip_bridge ready: {client.url} <- {action_name}")
     # MultiThreaded because on_action blocks until the hand stands still

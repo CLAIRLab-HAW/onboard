@@ -174,18 +174,12 @@ def arm_mode_level(robot_mode, safety_mode):
     necessarily mean the arm is broken.
     """
     if robot_mode is None and safety_mode is None:
-        return Verdict(
-            STALE,
-            "no robot_mode/safety_mode received - is the "
-            "io_and_status_controller running?",
-        )
+        return Verdict(STALE, "no robot_mode/safety_mode received - is the " "io_and_status_controller running?")
 
     rm, sm = robot_mode_name(robot_mode), safety_mode_name(safety_mode)
 
     if safety_mode in SAFETY_ESTOP:
-        return Verdict(
-            ERROR, f"emergency stop active ({sm}) - releasable only physically"
-        )
+        return Verdict(ERROR, f"emergency stop active ({sm}) - releasable only physically")
     if safety_mode in SAFETY_ERROR:
         return Verdict(ERROR, f"safety stop: {sm} (robot_mode {rm})")
     if robot_mode is not None and robot_mode < 3:
@@ -226,19 +220,11 @@ def arm_control_level(program_running, joint_state_age, timeout, arm_off=False):
             "restart clearpath-manipulators)",
         )
     if joint_state_age > timeout:
-        return Verdict(
-            ERROR,
-            f"joint_state stream silent for {joint_state_age:.1f}s "
-            "- motion link dead",
-        )
+        return Verdict(ERROR, f"joint_state stream silent for {joint_state_age:.1f}s " "- motion link dead")
     if program_running is False:
-        return Verdict(
-            WARN, "external control not running (arm not commandable from ROS)"
-        )
+        return Verdict(WARN, "external control not running (arm not commandable from ROS)")
     if program_running is None:
-        return Verdict(
-            WARN, "external control status unknown (robot_program_running missing)"
-        )
+        return Verdict(WARN, "external control status unknown (robot_program_running missing)")
     return Verdict(OK, "external control active, joint_state stream running")
 
 
@@ -253,10 +239,7 @@ def arm_joints_level(joint_count, joint_state_age, timeout, arm_off=False):
     if not joint_count or joint_state_age is None or joint_state_age > timeout:
         return Verdict(STALE, "no current joint values")
     if arm_off:
-        return inactive(
-            f"arm switched off - {joint_count} joints, "
-            "values are the last encoder positions"
-        )
+        return inactive(f"arm switched off - {joint_count} joints, " "values are the last encoder positions")
     return Verdict(OK, f"{joint_count} joints")
 
 
@@ -285,13 +268,9 @@ def arm_controllers_level(controllers, required, arm_off=False):
     if stopped:
         return Verdict(ERROR, "controllers not active: " + ", ".join(sorted(stopped)))
 
-    unconfigured = sorted(
-        n for n, s in controllers.items() if s not in ("active", "inactive")
-    )
+    unconfigured = sorted(n for n, s in controllers.items() if s not in ("active", "inactive"))
     if unconfigured:
-        return Verdict(
-            WARN, "controllers in unexpected state: " + ", ".join(unconfigured)
-        )
+        return Verdict(WARN, "controllers in unexpected state: " + ", ".join(unconfigured))
 
     active = sorted(n for n, s in controllers.items() if s == "active")
     summary = f"{len(active)}/{len(controllers)} controllers active"
@@ -366,9 +345,7 @@ def gripper_signal_valid(width_raw, force_raw, dead_threshold):
     return width_raw >= dead_threshold or force_raw >= dead_threshold
 
 
-def gripper_level(
-    state_age, timeout, signal_valid, robot_mode, width_raw, dead_threshold
-):
+def gripper_level(state_age, timeout, signal_valid, robot_mode, width_raw, dead_threshold):
     """Evaluation of the RG6 state -> Verdict.
 
     The RG6 hangs off the UR tool connector: without a powered arm it cannot
@@ -383,22 +360,17 @@ def gripper_level(
         # (it prefers reporting nothing over an old value).  A status that is
         # too old is therefore exactly the signal for "endpoint gone".
         return Verdict(
-            ERROR,
-            f"rg6/bridge_state silent for {state_age:.1f}s - "
-            "rg6-grip-bridge dead or URCap endpoint gone?",
+            ERROR, f"rg6/bridge_state silent for {state_age:.1f}s - " "rg6-grip-bridge dead or URCap endpoint gone?"
         )
 
     if not signal_valid:
         raw = "n/a" if width_raw is None else f"{width_raw:.2f} V"
         if arm_is_off(robot_mode):
-            return inactive(
-                "arm switched off - gripper without supply " f"(tool signal {raw})"
-            )
+            return inactive("arm switched off - gripper without supply " f"(tool signal {raw})")
         if arm_is_powered(robot_mode) is False:
             return Verdict(
                 WARN,
-                f"arm not powered ({robot_mode_name(robot_mode)}) "
-                f"- gripper without supply (tool signal {raw})",
+                f"arm not powered ({robot_mode_name(robot_mode)}) " f"- gripper without supply (tool signal {raw})",
             )
         # Arm powered, still no signal: the 24 V tool supply is not present.
         # Switching it on is the business of the OnRobot URCap -- the ROS route
@@ -641,55 +613,33 @@ def main(argv=None) -> int:
         def __init__(self) -> None:
             super().__init__("manipulator_diagnostics")
 
-            ns = self.declare_parameter(
-                "manipulator_ns", "/a200_0553/manipulators"
-            ).value.rstrip("/")
-            self.diagnostics_topic = self.declare_parameter(
-                "diagnostics_topic", "/a200_0553/diagnostics"
-            ).value
+            ns = self.declare_parameter("manipulator_ns", "/a200_0553/manipulators").value.rstrip("/")
+            self.diagnostics_topic = self.declare_parameter("diagnostics_topic", "/a200_0553/diagnostics").value
             self.rate_hz = float(self.declare_parameter("rate_hz", 1.0).value)
             self.arm_prefix = self.declare_parameter("arm_prefix", "arm_0_").value
             self.robot_ip = self.declare_parameter("robot_ip", "192.168.131.40").value
             # The joint_state stream runs at 125 Hz; 2 s of tolerance covers a
             # zenoh hiccup without masking a real breakdown.
-            self.js_timeout = float(
-                self.declare_parameter("joint_state_timeout", 2.0).value
-            )
-            self.gripper_timeout = float(
-                self.declare_parameter("gripper_timeout", 2.0).value
-            )
+            self.js_timeout = float(self.declare_parameter("joint_state_timeout", 2.0).value)
+            self.gripper_timeout = float(self.declare_parameter("gripper_timeout", 2.0).value)
             self.stroke_m = float(self.declare_parameter("stroke_m", 0.160).value)
             # Below this voltage the RG6 delivers no valid tool signal
             # (measured 2026-07-29: powered AI2 10.00 V, unpowered ~0.056 V).
-            self.dead_input_threshold = float(
-                self.declare_parameter("dead_input_threshold", 0.2).value
-            )
+            self.dead_input_threshold = float(self.declare_parameter("dead_input_threshold", 0.2).value)
             # Noise of the joint velocity on a STANDING arm: powered exactly
             # 0.0000, unpowered up to 0.055 rad/s measured.  The threshold only
             # covers the powered case -- unpowered, "moving" is suppressed
             # anyway (the status is 'out of service' then).
-            self.motion_eps = float(
-                self.declare_parameter("motion_eps_rad_s", 0.02).value
-            )
+            self.motion_eps = float(self.declare_parameter("motion_eps_rad_s", 0.02).value)
             self.required_controllers = list(
                 self.declare_parameter(
                     "required_controllers",
-                    [
-                        "joint_state_broadcaster",
-                        "arm_0_joint_trajectory_controller",
-                        "io_and_status_controller",
-                    ],
+                    ["joint_state_broadcaster", "arm_0_joint_trajectory_controller", "io_and_status_controller"],
                 ).value
             )
-            self.controller_poll_s = float(
-                self.declare_parameter("controller_poll_period", 5.0).value
-            )
-            self.arm_hardware_id = self.declare_parameter(
-                "arm_hardware_id", f"UR5 CB3 @ {self.robot_ip}"
-            ).value
-            self.gripper_hardware_id = self.declare_parameter(
-                "gripper_hardware_id", "OnRobot RG6 @ UR Tool-I/O"
-            ).value
+            self.controller_poll_s = float(self.declare_parameter("controller_poll_period", 5.0).value)
+            self.arm_hardware_id = self.declare_parameter("arm_hardware_id", f"UR5 CB3 @ {self.robot_ip}").value
+            self.gripper_hardware_id = self.declare_parameter("gripper_hardware_id", "OnRobot RG6 @ UR Tool-I/O").value
 
             # ---- state ---------------------------------------------------
             self._robot_mode = None
@@ -707,54 +657,33 @@ def main(argv=None) -> int:
             # ---- Subscriptions -------------------------------------------
             if RobotMode is not None:
                 self.create_subscription(
-                    RobotMode,
-                    f"{ns}/io_and_status_controller/robot_mode",
-                    self._on_robot_mode,
-                    LATCHED,
+                    RobotMode, f"{ns}/io_and_status_controller/robot_mode", self._on_robot_mode, LATCHED
                 )
                 self.create_subscription(
-                    SafetyMode,
-                    f"{ns}/io_and_status_controller/safety_mode",
-                    self._on_safety_mode,
-                    LATCHED,
+                    SafetyMode, f"{ns}/io_and_status_controller/safety_mode", self._on_safety_mode, LATCHED
                 )
             self.create_subscription(
-                Bool,
-                f"{ns}/io_and_status_controller/robot_program_running",
-                self._on_program_running,
-                LATCHED,
+                Bool, f"{ns}/io_and_status_controller/robot_program_running", self._on_program_running, LATCHED
             )
-            self.create_subscription(
-                JointState, f"{ns}/joint_states", self._on_joint_states, 10
-            )
-            self.create_subscription(
-                String, f"{ns}/rg6/bridge_state", self._on_gripper, 10
-            )
+            self.create_subscription(JointState, f"{ns}/joint_states", self._on_joint_states, 10)
+            self.create_subscription(String, f"{ns}/rg6/bridge_state", self._on_gripper, 10)
             if ToolDataMsg is not None:
                 self.create_subscription(
-                    ToolDataMsg,
-                    f"{ns}/io_and_status_controller/tool_data",
-                    self._on_tool_data,
-                    10,
+                    ToolDataMsg, f"{ns}/io_and_status_controller/tool_data", self._on_tool_data, 10
                 )
 
             # ---- controller_manager --------------------------------------
             self._cm_client = None
             if ListControllers is not None:
-                self._cm_client = self.create_client(
-                    ListControllers, f"{ns}/controller_manager/list_controllers"
-                )
+                self._cm_client = self.create_client(ListControllers, f"{ns}/controller_manager/list_controllers")
                 self.create_timer(self.controller_poll_s, self._poll_controllers)
 
             # ---- output --------------------------------------------------
-            self._pub = self.create_publisher(
-                DiagnosticArray, self.diagnostics_topic, 10
-            )
+            self._pub = self.create_publisher(DiagnosticArray, self.diagnostics_topic, 10)
             self.create_timer(1.0 / max(self.rate_hz, 0.1), self._tick)
 
             self.get_logger().info(
-                f"manipulator_diagnostics: {ns} -> {self.diagnostics_topic} "
-                f"@ {self.rate_hz:.1f} Hz"
+                f"manipulator_diagnostics: {ns} -> {self.diagnostics_topic} " f"@ {self.rate_hz:.1f} Hz"
             )
             for missing, what in (
                 (UR_MSGS_ERROR, "ur_dashboard_msgs"),
@@ -808,10 +737,7 @@ def main(argv=None) -> int:
             """
             state = parse_bridge_state(msg.data)
             if state is None:
-                self.get_logger().warn(
-                    f"unreadable rg6/bridge_state: {msg.data[:120]!r}",
-                    throttle_duration_sec=10.0,
-                )
+                self.get_logger().warn(f"unreadable rg6/bridge_state: {msg.data[:120]!r}", throttle_duration_sec=10.0)
                 return
             self._gripper = state
             self._gripper_time = time.monotonic()
@@ -833,10 +759,7 @@ def main(argv=None) -> int:
             try:
                 result = future.result()
             except Exception as exc:  # defensive: never let the service callback die
-                self.get_logger().warning(
-                    f"list_controllers failed: {exc}",
-                    throttle_duration_sec=30.0,
-                )
+                self.get_logger().warning(f"list_controllers failed: {exc}", throttle_duration_sec=30.0)
                 self._controllers = None
                 return
             self._controllers = {c.name: c.state for c in result.controller}
@@ -878,10 +801,7 @@ def main(argv=None) -> int:
         def _arm_mode_status(self):
             if RobotMode is None:
                 return self._status(
-                    "Arm Mode",
-                    Verdict(ERROR, f"ur_dashboard_msgs missing ({UR_MSGS_ERROR})"),
-                    self.arm_hardware_id,
-                    {},
+                    "Arm Mode", Verdict(ERROR, f"ur_dashboard_msgs missing ({UR_MSGS_ERROR})"), self.arm_hardware_id, {}
                 )
             verdict = arm_mode_level(self._robot_mode, self._safety_mode)
             powered = arm_is_powered(self._robot_mode)
@@ -895,52 +815,37 @@ def main(argv=None) -> int:
                     "safety_mode": safety_mode_name(self._safety_mode),
                     "safety_mode_id": self._safety_mode,
                     # Derived for the UI: co-decides the gripper display.
-                    "arm_powered": (
-                        "unknown" if powered is None else str(powered).lower()
-                    ),
+                    "arm_powered": ("unknown" if powered is None else str(powered).lower()),
                     "robot_ip": self.robot_ip,
                 },
             )
 
         def _arm_control_status(self):
             age = self._joint_state_age()
-            verdict = arm_control_level(
-                self._program_running, age, self.js_timeout, arm_off=self._arm_off()
-            )
+            verdict = arm_control_level(self._program_running, age, self.js_timeout, arm_off=self._arm_off())
             return self._status(
                 "Arm Control",
                 verdict,
                 self.arm_hardware_id,
                 {
-                    "external_control": {
-                        True: "running",
-                        False: "stopped",
-                        None: "unknown",
-                    }[self._program_running],
+                    "external_control": {True: "running", False: "stopped", None: "unknown"}[self._program_running],
                     "joint_state_rate_hz": f"{self._joint_state_rate():.1f}",
                     "joint_state_age_s": "never" if age is None else f"{age:.2f}",
                     "joint_state_timeout_s": f"{self.js_timeout:.1f}",
-                    "motion_interface": (
-                        "live" if age is not None and age <= self.js_timeout else "dead"
-                    ),
+                    "motion_interface": ("live" if age is not None and age <= self.js_timeout else "dead"),
                 },
             )
 
         def _arm_joints_status(self):
             age = self._joint_state_age()
             arm_off = self._arm_off()
-            verdict = arm_joints_level(
-                len(self._joints), age, self.js_timeout, arm_off=arm_off
-            )
+            verdict = arm_joints_level(len(self._joints), age, self.js_timeout, arm_off=arm_off)
             if verdict.level == STALE:
                 return self._status(
                     "Arm Joints",
                     verdict,
                     self.arm_hardware_id,
-                    {
-                        "joints": "",
-                        "joint_state_age_s": "never" if age is None else f"{age:.2f}",
-                    },
+                    {"joints": "", "joint_state_age_s": "never" if age is None else f"{age:.2f}"},
                 )
 
             values = {"joints": ", ".join(self._joints)}
@@ -958,37 +863,26 @@ def main(argv=None) -> int:
             values["moving"] = "unknown" if arm_off else str(moving).lower()
             values["rate_hz"] = f"{self._joint_state_rate():.1f}"
             if not arm_off:
-                verdict = Verdict(
-                    verdict.level,
-                    f"{verdict.message}, " + ("moving" if moving else "at rest"),
-                )
+                verdict = Verdict(verdict.level, f"{verdict.message}, " + ("moving" if moving else "at rest"))
             return self._status("Arm Joints", verdict, self.arm_hardware_id, values)
 
         def _arm_controllers_status(self):
             if ListControllers is None:
                 return self._status(
                     "Arm Controllers",
-                    Verdict(
-                        ERROR, f"controller_manager_msgs missing ({CM_MSGS_ERROR})"
-                    ),
+                    Verdict(ERROR, f"controller_manager_msgs missing ({CM_MSGS_ERROR})"),
                     self.arm_hardware_id,
                     {},
                 )
-            verdict = arm_controllers_level(
-                self._controllers, self.required_controllers, arm_off=self._arm_off()
-            )
+            verdict = arm_controllers_level(self._controllers, self.required_controllers, arm_off=self._arm_off())
             values = {"required": ", ".join(self.required_controllers)}
             if self._controllers:
                 values.update(self._controllers)
                 active = [
-                    n
-                    for n, s in self._controllers.items()
-                    if s == "active" and n not in self.required_controllers
+                    n for n, s in self._controllers.items() if s == "active" and n not in self.required_controllers
                 ]
                 values["active_optional"] = ", ".join(sorted(active)) or "-"
-            return self._status(
-                "Arm Controllers", verdict, self.arm_hardware_id, values
-            )
+            return self._status("Arm Controllers", verdict, self.arm_hardware_id, values)
 
         def _gripper_status(self):
             """Two sources, deliberately kept apart.
@@ -1010,38 +904,26 @@ def main(argv=None) -> int:
             # Base validity exclusively on the analog signal: it is the only
             # HARDWARE feedback about the tool supply.
             valid = gripper_signal_valid(width_raw, force_raw, dead)
-            verdict = gripper_level(
-                age, self.gripper_timeout, valid, self._robot_mode, width_raw, dead
-            )
+            verdict = gripper_level(age, self.gripper_timeout, valid, self._robot_mode, width_raw, dead)
             if state is None:
                 return self._status(
                     "Gripper",
                     verdict,
                     self.gripper_hardware_id,
-                    {
-                        "state_age_s": "never",
-                        "width_raw_v": (
-                            unknown if width_raw is None else f"{width_raw:.3f}"
-                        ),
-                    },
+                    {"state_age_s": "never", "width_raw_v": (unknown if width_raw is None else f"{width_raw:.3f}")},
                 )
 
             width = state["width_m"] if valid else None
             if verdict.level == OK and not verdict.inactive:
                 verdict = Verdict(
-                    verdict.level,
-                    gripper_summary(
-                        width, state["grip_detected"], state["busy"], self.stroke_m
-                    ),
+                    verdict.level, gripper_summary(width, state["grip_detected"], state["busy"], self.stroke_m)
                 )
             last = state["last_command"]
             values = {
                 "width_m": unknown if width is None else f"{width:.4f}",
                 "width_mm": unknown if width is None else f"{width * 1000.0:.1f}",
                 "width_percent": (
-                    unknown
-                    if width is None or self.stroke_m <= 0.0
-                    else f"{100.0 * width / self.stroke_m:.0f}"
+                    unknown if width is None or self.stroke_m <= 0.0 else f"{100.0 * width / self.stroke_m:.0f}"
                 ),
                 "stroke_mm": f"{self.stroke_m * 1000.0:.0f}",
                 # Always show the raw values: they are the diagnosis itself.
@@ -1053,35 +935,17 @@ def main(argv=None) -> int:
                 "dead_input_threshold_v": f"{dead:.2f}",
                 # Without tool voltage the device reports nothing trustworthy either.
                 "grip_detected": (
-                    unknown
-                    if not valid or state["grip_detected"] is None
-                    else str(state["grip_detected"]).lower()
+                    unknown if not valid or state["grip_detected"] is None else str(state["grip_detected"]).lower()
                 ),
-                "busy": (
-                    unknown
-                    if not valid or state["busy"] is None
-                    else str(state["busy"]).lower()
-                ),
+                "busy": (unknown if not valid or state["busy"] is None else str(state["busy"]).lower()),
                 # Device status, straight from the endpoint (rg_get_status /
                 # rg_get_safety_failed).
-                "device_status": (
-                    unknown if state["status"] is None else str(state["status"])
-                ),
-                "safety_failed": (
-                    unknown
-                    if state["safety_failed"] is None
-                    else str(state["safety_failed"]).lower()
-                ),
-                "last_command": (
-                    unknown if last is None else GRIPPER_COMMANDS.get(last, str(last))
-                ),
+                "device_status": (unknown if state["status"] is None else str(state["status"])),
+                "safety_failed": (unknown if state["safety_failed"] is None else str(state["safety_failed"]).lower()),
+                "last_command": (unknown if last is None else GRIPPER_COMMANDS.get(last, str(last))),
                 # REAL hardware feedback: the measured voltage, not a commanded
                 # setpoint.
-                "tool_output_voltage_v": (
-                    unknown
-                    if tool is None
-                    else f"{float(tool.tool_output_voltage):.0f}"
-                ),
+                "tool_output_voltage_v": (unknown if tool is None else f"{float(tool.tool_output_voltage):.0f}"),
                 "state_age_s": f"{age:.2f}",
             }
             return self._status("Gripper", verdict, self.gripper_hardware_id, values)

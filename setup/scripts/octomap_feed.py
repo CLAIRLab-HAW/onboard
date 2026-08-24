@@ -50,11 +50,7 @@ import numpy as np
 
 
 def depth_to_cloud(
-    depth: np.ndarray,
-    K: np.ndarray,
-    stride: int = 2,
-    min_depth: float = 0.15,
-    max_depth: float = 2.5,
+    depth: np.ndarray, K: np.ndarray, stride: int = 2, min_depth: float = 0.15, max_depth: float = 2.5
 ) -> np.ndarray:
     """Depth image -> (N, 3) float32 points in the OPTICAL camera frame.
 
@@ -79,9 +75,7 @@ def depth_to_cloud(
     cx, cy = float(K[0, 2]), float(K[1, 2])
     if fx <= 0.0 or fy <= 0.0:
         return np.empty((0, 3), dtype=np.float32)
-    return np.stack([(us - cx) / fx * z, (vs - cy) / fy * z, z], axis=1).astype(
-        np.float32
-    )
+    return np.stack([(us - cx) / fx * z, (vs - cy) / fy * z, z], axis=1).astype(np.float32)
 
 
 def selftest() -> int:
@@ -106,10 +100,7 @@ def selftest() -> int:
     pts_mm = depth_to_cloud(mm, K, stride=2)
     assert len(pts_mm) == len(pts), "mm/uint16 path"
     assert np.allclose(pts_mm[:, 2], pts[:, 2], atol=1e-3), "mm scaling"
-    print(
-        "octomap_feed selftest: OK "
-        f"({len(pts)} points, z {pts[:, 2].min():.2f}..{pts[:, 2].max():.2f} m)"
-    )
+    print("octomap_feed selftest: OK " f"({len(pts)} points, z {pts[:, 2].min():.2f}..{pts[:, 2].max():.2f} m)")
     return 0
 
 
@@ -134,21 +125,13 @@ def main(argv=None) -> int:
     class OctomapFeed(Node):
         def __init__(self) -> None:
             super().__init__("octomap_feed")
-            ns = self.declare_parameter(
-                "camera_ns", "/a200_0553/sensors/camera_0"
-            ).value
+            ns = self.declare_parameter("camera_ns", "/a200_0553/sensors/camera_0").value
             # Driver-registered aligned depth (robot.yaml align_depth.enable):
             # in the realsense2_camera driver this is '.../image', NOT
             # '.../image_raw' (contract profile camera.depth).
-            self.depth_topic = self.declare_parameter(
-                "depth_topic", f"{ns}/aligned_depth_to_color/image"
-            ).value
-            self.info_topic = self.declare_parameter(
-                "info_topic", f"{ns}/aligned_depth_to_color/camera_info"
-            ).value
-            self.cloud_topic = self.declare_parameter(
-                "cloud_topic", f"{ns}/octomap_points"
-            ).value
+            self.depth_topic = self.declare_parameter("depth_topic", f"{ns}/aligned_depth_to_color/image").value
+            self.info_topic = self.declare_parameter("info_topic", f"{ns}/aligned_depth_to_color/camera_info").value
+            self.cloud_topic = self.declare_parameter("cloud_topic", f"{ns}/octomap_points").value
             self.rate_hz = float(self.declare_parameter("rate_hz", 5.0).value)
             self.stride = int(self.declare_parameter("stride", 2).value)
             # Near clip 0.35 m = wrist self-exclusion: the RG6 fingers
@@ -167,18 +150,12 @@ def main(argv=None) -> int:
             self._K = None
             self._published_stamp = None
 
-            self.create_subscription(
-                Image, self.depth_topic, self._on_depth, qos_profile_sensor_data
-            )
-            self.create_subscription(
-                CameraInfo, self.info_topic, self._on_info, qos_profile_sensor_data
-            )
+            self.create_subscription(Image, self.depth_topic, self._on_depth, qos_profile_sensor_data)
+            self.create_subscription(CameraInfo, self.info_topic, self._on_info, qos_profile_sensor_data)
             # RELIABLE matches reliable AND best-effort subscribers; KEEP_LAST 2
             # keeps memory small.
             self._pub = self.create_publisher(
-                PointCloud2,
-                self.cloud_topic,
-                QoSProfile(depth=2, reliability=ReliabilityPolicy.RELIABLE),
+                PointCloud2, self.cloud_topic, QoSProfile(depth=2, reliability=ReliabilityPolicy.RELIABLE)
             )
             self.create_timer(1.0 / max(self.rate_hz, 0.1), self._tick)
             self.get_logger().info(
@@ -207,8 +184,7 @@ def main(argv=None) -> int:
                 depth = np.frombuffer(msg.data, dtype=np.float32)
             else:
                 self.get_logger().warning(
-                    f"unknown depth encoding {msg.encoding!r} -- frame dropped",
-                    throttle_duration_sec=10.0,
+                    f"unknown depth encoding {msg.encoding!r} -- frame dropped", throttle_duration_sec=10.0
                 )
                 return
             try:
@@ -221,8 +197,7 @@ def main(argv=None) -> int:
             cloud.height = 1
             cloud.width = len(pts)
             cloud.fields = [
-                PointField(name=n, offset=4 * i, datatype=PointField.FLOAT32, count=1)
-                for i, n in enumerate("xyz")
+                PointField(name=n, offset=4 * i, datatype=PointField.FLOAT32, count=1) for i, n in enumerate("xyz")
             ]
             cloud.is_bigendian = False
             cloud.point_step = 12

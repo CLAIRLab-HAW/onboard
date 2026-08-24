@@ -70,11 +70,7 @@ def main() -> int:
         help="settle time per point in seconds (default: %(default)s)",
     )
     ap.add_argument(
-        "--force",
-        type=float,
-        default=FORCE_N,
-        metavar="N",
-        help="grip force in newton, 25..120 (default: %(default)s)",
+        "--force", type=float, default=FORCE_N, metavar="N", help="grip force in newton, 25..120 (default: %(default)s)"
     )
     ap.add_argument(
         "--both",
@@ -128,19 +124,12 @@ def main() -> int:
             }
         )
         print(
-            f"# {width_mm:6.1f} mm -> {st.width_m * 1000:6.2f} mm "
-            f"(busy={st.busy}, grip={st.grip_detected})",
+            f"# {width_mm:6.1f} mm -> {st.width_m * 1000:6.2f} mm " f"(busy={st.busy}, grip={st.grip_detected})",
             file=sys.stderr,
         )
 
     json.dump(
-        {
-            "widths_mm": widths,
-            "settle_s": settle_s,
-            "force_n": force_n,
-            "both_directions": args.both,
-            "rows": rows,
-        },
+        {"widths_mm": widths, "settle_s": settle_s, "force_n": force_n, "both_directions": args.both, "rows": rows},
         sys.stdout,
         indent=1,
     )
