@@ -3,6 +3,11 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/),
 Versionierung nach [SemVer](https://semver.org/).
 
+## 2026-08-25 (the base lock moves to robot_contract)
+
+- **`exclusive_base` now takes the shared lock from `robot_contract.base_testing`.** A conftest is directory-scoped, so the lock defined here serialised this package and nothing in `apps/robot-mcp`, which drives the same base. The fixture stays as the local name; the rendezvous is shared.
+- **`filelock` is no longer imported undeclared.** It arrives through `robot-contract[testing]` in the new dev group -- test-only, so nothing extra is installed onboard.
+
 ## 2026-08-24 (.gitignore normalised to the workspace base)
 
 - **`.gitignore` now uses the workspace's lean 8-line base** (`__pycache__/`, `*.py[cod]`, `*.egg-info/`, `build/`, `dist/`, `.venv/`, `.pytest_cache/`, `.DS_Store`). ROS extras: `install/`, `log/`, `*.pcd`, `COLCON_IGNORE`, `AMENT_IGNORE`.

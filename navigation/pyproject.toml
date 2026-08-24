@@ -13,6 +13,15 @@ authors = [
 requires-python = ">=3.10"
 dependencies = ["pyyaml>=6.0"]
 
+# Test-only, hence a group and not `dependencies`: this package runs onboard the robot, where neither the
+# contract nor a lock file is wanted.  `robot-contract[testing]` brings `filelock` along -- until 2026-08-24
+# the conftest imported it without anyone declaring it anywhere, which worked by transitive accident.
+[dependency-groups]
+dev = ["robot-contract[testing]"]
+
+[tool.uv.sources]
+robot-contract = { workspace = true }
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
