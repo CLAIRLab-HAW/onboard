@@ -5,6 +5,10 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
+## 2026-08-24 (.gitignore normalised to the workspace base)
+
+- **`.gitignore` now uses the workspace's lean 8-line base** (`__pycache__/`, `*.py[cod]`, `*.egg-info/`, `build/`, `dist/`, `.venv/`, `.pytest_cache/`, `.DS_Store`). No package-specific extras.
+
 ## 2026-08-24 (README in English)
 
 - **The README is now fully in English.** Per CLAUDE.md, `README.md` and
