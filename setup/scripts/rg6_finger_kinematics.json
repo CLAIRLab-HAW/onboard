@@ -1,11 +1,11 @@
 {
  "kommentar": [
-  "Gelenkwinkel rg6_finger_joint [rad] -> lichte Weite zwischen den",
-  "Padflaechen [m], gemessen zwischen den beiden flex_finger-Meshes.",
-  "ERZEUGT, nicht gepflegt: tools/derive_finger_kinematics.py aus dem",
-  "generierten URDF.  Nach jeder Aenderung am Greifermodell neu erzeugen.",
-  "Die Obergrenze ist der Nulldurchgang der Weite; darueber fahren die",
-  "Finger im Modell durcheinander hindurch und die Weite waechst wieder."
+  "Joint angle rg6_finger_joint [rad] -> clear width between the pad",
+  "surfaces [m], measured between the two flex_finger meshes.",
+  "GENERATED, not maintained: tools/derive_finger_kinematics.py from the",
+  "generated URDF.  Regenerate after every change to the gripper model.",
+  "The upper limit is the zero crossing of the width; above it the fingers",
+  "drive through one another in the model and the width grows again."
  ],
  "joint": "rg6_finger_joint",
  "joint_limits_rad": [

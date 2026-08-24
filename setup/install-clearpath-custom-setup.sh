@@ -1335,8 +1335,8 @@ After=clearpath-manipulators.service
 
 [Service]
 Type=oneshot
-# Läuft als root (Default) -> darf systemctl restart. Die ROS-Prüfung im Wrapper
-# wechselt selbst per 'sudo -u' auf ${REAL_USER}.
+# Runs as root (the default) -> may systemctl restart. The ROS check in the
+# wrapper switches to ${REAL_USER} itself via 'sudo -u'.
 ExecStart=${WD_WRAPPER} ${WD_ROBOT_IP} ${WD_PROGRAM_TOPIC} ${REAL_USER} ${USER_HOME}
 # The recovery blocks on the systemctl restart plus dashboard calls and polls.
 # With the SIGINT stop drop-in (WD_MANIP_DROPIN) the driver stops in ~1-3s;
