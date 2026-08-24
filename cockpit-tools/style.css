@@ -1,89 +1,192 @@
 /* Eigenes, knappes CSS statt PatternFly: dieses Paket wird nicht gebaut,
    sondern so, wie es hier liegt, nach /usr/local/share/cockpit kopiert. Es
-   soll neben Cockpit nicht auffallen, aber auch keine Bibliothek mitziehen. */
+   soll neben Cockpit nicht auffallen, aber auch keine Bibliothek mitziehen.
 
+   "Nicht auffallen" heisst konkret: neben cockpit-ros2-diagnostics stehen
+   koennen, das echtes PatternFly 6 mitbringt. Die Zahlen unten sind deshalb
+   keine Schaetzungen, sondern am 2026-08-24 an dessen gebautem index.css
+   gemessene PF-6-Werte -- der PF-Tokenname steht jeweils daneben, damit man
+   sie spaeter nachziehen kann.
+
+   Alle Masse in rem. PF 6 tut dasselbe; die Wurzelgroesse gehoert dem
+   Browser des Betrachters, und ein festes px hier waere genau die Abweichung,
+   die man neben der Nachbarseite sieht. (Zur Umrechnung: die Notizen in
+   CLAUDE.md rechnen mit 12px Wurzel, dort ist 1.5rem = 18px.) */
+
+/* --- Farben ------------------------------------------------------------ */
+
+/* Hell ist der Normalfall und steht deshalb auf :root. Dunkel haengt NICHT
+   an `prefers-color-scheme`, sondern an der Klasse, die theme.js setzt --
+   Cockpits Wahl schlaegt die des Betriebssystems, und nur so bleibt diese
+   Seite hell, wenn die Shell hell ist. */
 :root {
-    --bg: #fff;
-    --fg: #151515;
-    --muted: #6a6e73;
-    --line: #d2d2d2;
-    --card: #fff;
-    --accent: #0066cc;
-    --accent-fg: #fff;
-    --btn: #f0f0f0;
-    --warn: #795600;
-    --err: #a30000;
+    --bg-page: #f2f2f2;      /* background--color--secondary--default */
+    --bg-panel: #ffffff;     /* background--color--primary--default   */
+    --fg: #151515;           /* text--color--regular                  */
+    --muted: #4d4d4d;        /* text--color--subtle                   */
+    --line: #c7c7c7;         /* border--color--default                */
+    --accent: #0066cc;       /* color--brand--default                 */
+    --accent-fg: #ffffff;    /* text--color--on-brand--default        */
+    --link: #0066cc;         /* text--color--link--default            */
+    --btn: #f2f2f2;          /* background--color--secondary--default */
+    --warn: #dca614;         /* text--color--status--warning--default */
+    --err: #b1380b;          /* text--color--status--danger--default  */
 
-    --green: #3e8635;
-    --grey: #b8bbbe;
-    --yellow: #f0ab00;
-    --red: #c9190b;
+    --green: #3d7317;        /* color--status--success--default       */
+    --grey: #e0e0e0;         /* color--nonstatus--gray--default       */
+    --yellow: #dca614;       /* icon--color--status--warning--default */
+    --red: #b1380b;          /* icon--color--status--danger--default  */
+
+    /* Abstaende sind bei PF rem und wachsen mit der Schrift mit. Die 1.5rem
+       sind `spacer--inset--page-chrome` und bestimmen zugleich den Abstand
+       der Wanne zum Rand und ihre Innenpolsterung. */
+    --sp-xs: 0.25rem;        /* spacer--xs  */
+    --sp-sm: 0.5rem;         /* spacer--sm  */
+    --sp-md: 1rem;           /* spacer--md  */
+    --sp-lg: 1.5rem;         /* spacer--lg  */
+
+    /* Radien sind bei PF dagegen ABSOLUT, und das ist kein Versehen: eine
+       Ecke ist eine Ecke, egal wie gross die Schrift steht. Ein `1rem` hier
+       war am 2026-08-24 in einem Browser mit 12px-Wurzel eine 12px-Ecke
+       neben der 16px-Ecke der Nachbarseite -- also wieder derselbe Bruch,
+       nur kleiner. */
+    --radius-box: 16px;      /* border--radius--medium */
+    --radius-small: 6px;     /* border--radius--small  */
+    --radius-pill: 999px;    /* border--radius--pill   */
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #1b1d21;
-        --fg: #e0e0e0;
-        --muted: #a3a3a3;
-        --line: #3c3f42;
-        --card: #212427;
-        --btn: #3c3f42;
-        --warn: #f0ab00;
-        --err: #fe5142;
-        --grey: #6a6e73;
-    }
+.pf-v6-theme-dark {
+    --bg-page: #151515;
+    --bg-panel: #292929;
+    --fg: #ffffff;
+    --muted: #c7c7c7;
+    --line: #a3a3a3;
+    --accent: #92c5f9;
+    --accent-fg: #151515;
+    --link: #b9dafc;
+    --btn: #383838;          /* background--color--control--default */
+    --warn: #ffcc17;
+    --err: #f89b78;
+
+    --green: #87bb62;
+    --grey: #4d4d4d;
+    --yellow: #ffcc17;
+    --red: #f0561d;
 }
 
 * { box-sizing: border-box }
 
+/* --- Wurzel ------------------------------------------------------------ */
+
+/* Der Aufbau ist der von PFs `.pf-v6-c-page`: der Seitengrund fuellt den
+   Rahmen, und darauf sitzt EINE helle Wanne mit runden Ecken, die oben
+   anliegt und nur so hoch wird wie ihr Inhalt. `align-content: start` ist
+   das Gegenstueck zu PFs `align-self: start` an der Wanne. */
+html {
+    block-size: 100%;
+    background: var(--bg-page);
+}
+
 body {
+    /* Eine Zeile, und zwar `1fr` statt `auto`: die Wanne unten haengt mit
+       ihrer Hoehenschranke an einem Prozentwert, und der braucht eine feste
+       Bezugshoehe. Mit `auto` bemisst sich die Zeile am Inhalt, der
+       Prozentwert an der Zeile -- Chrome loeste das am 2026-08-24 auf, indem
+       es die Wanne 18px zu kurz machte und ihr eine Bildlaufleiste gab,
+       obwohl alles hineinpasste. */
+    display: grid;
+    grid-template-rows: 1fr;
+    block-size: 100%;
     margin: 0;
     padding: 0;
-    background: var(--bg);
+    overflow: hidden;
+    background: var(--bg-page);
     color: var(--fg);
-    font-family: "RedHatText", "Open Sans", Helvetica, Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
+    /* Die Familien sind PFs Stapel; die Red-Hat-Schriften liefert Cockpit
+       selbst aus, deshalb greifen sie hier ohne eigenes @font-face. */
+    font-family: "Red Hat Text", "RedHatText", Helvetica, Arial, sans-serif;
+    font-size: 0.875rem;     /* font--size--body--default */
+    line-height: 1.5;        /* font--line-height--body   */
 }
 
-main {
-    max-width: 46rem;
-    padding: 1.5rem 1rem 3rem;
+/*
+ * Die Wanne.
+ *
+ * Gemessen an cockpit-ros2-diagnostics: Grund `primary`, Radius
+ * `border--radius--medium`, links und rechts `spacer--inset--page-chrome`
+ * Abstand, oben buendig, unten dieselbe Luft wie seitlich -- daher die
+ * Hoehenschranke statt eines Randes, sonst schoebe der Rand die Wanne nach
+ * unten, statt ihr Ende hochzuziehen.
+ *
+ * PF kommt auf dieselbe Innenpolsterung ueber einen 4px-Rand IN der Farbe des
+ * Grundes plus 14px Polsterung der Section. Nachgebaut wird das Ergebnis,
+ * nicht der Umweg: 1.5rem seitlich, oben 1rem.
+ *
+ * Sie scrollt selbst (`overflow-y`), damit die runden Ecken auch bei langem
+ * Inhalt am Rahmenrand stehenbleiben -- so wie nebenan.
+ */
+.page {
+    align-self: start;
+    max-block-size: calc(100% - var(--sp-lg));
+    overflow-x: hidden;
+    overflow-y: auto;
+    margin-inline: var(--sp-lg);
+    padding: var(--sp-md) var(--sp-lg) var(--sp-lg);
+    background: var(--bg-panel);
+    border-radius: var(--radius-box);
 }
 
+/* Cockpits Groesse fuer eine blanke <h1> (`page.scss`: 4xl, Normalgewicht). */
 h1 {
-    font-size: 1.5rem;
-    font-weight: 500;
-    margin: 0 0 1rem;
+    font-size: 2.25rem;
+    font-weight: 400;
+    margin: 0 0 var(--sp-md);
 }
 
+/* Kein blankes h2 im Cockpit-Massstab (das waere 3xl), sondern PFs
+   Kartentitel: `font--size--heading--xs` mit Ueberschriftengewicht. */
 h2 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 500;
     margin: 0;
 }
 
 code {
-    font-family: "RedHatMono", "Courier New", monospace;
+    font-family: "Red Hat Mono", "RedHatMono", "Courier New", Courier, monospace;
     font-size: 0.92em;
     background: rgb(127 127 127 / 12%);
-    border-radius: 3px;
+    border-radius: var(--radius-small);
     padding: 0.05em 0.3em;
 }
 
+/* --- Karten ------------------------------------------------------------ */
+
+/* PFs Karte: derselbe Grund wie die Wanne, ein Haarstrich als Kante, Radius
+   und Polsterung wie dort. Ein kleinerer Radius faellt in einer Wanne mit
+   1rem Ecken sofort auf -- das war der zweite Teil des Befunds. */
 .card {
-    background: var(--card);
+    background: var(--bg-panel);
     border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 1rem 1.25rem 1.25rem;
-    margin-bottom: 1rem;
+    border-radius: var(--radius-box);
+    padding: var(--sp-lg);
+    margin-bottom: var(--sp-md);
 }
 
-.card-head { margin-bottom: 0.75rem }
+.card-head { margin-bottom: var(--sp-md) }
 
 .sub {
     color: var(--muted);
-    margin: 0.25rem 0 0;
+    margin: var(--sp-xs) 0 0;
+}
+
+/* Fliesstext bleibt lesbar, auch wenn die Wanne 1600px breit ist. Nur der
+   Prosa auferlegt, nicht der Karte: eine Bedienzeile darf mitwachsen.
+   `.detail` gehoert dazu -- dort steht im Fall "nicht angelegt" der laengste
+   Satz der Seite, und der lief ueber die volle Breite. */
+.sub,
+.detail,
+.hints {
+    max-inline-size: 46rem;
 }
 
 /* --- Statuszeile ------------------------------------------------------- */
@@ -91,7 +194,7 @@ code {
 .status-row {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: var(--sp-sm);
     flex-wrap: wrap;
 }
 
@@ -104,8 +207,8 @@ code {
 
 .ball {
     display: inline-block;
-    width: 14px;
-    height: 14px;
+    width: 0.875rem;
+    height: 0.875rem;
     border-radius: 50%;
     background: var(--grey);
     flex: 0 0 auto;
@@ -135,7 +238,7 @@ code {
 }
 
 .detail {
-    margin: 0.75rem 0 0;
+    margin: var(--sp-md) 0 0;
     color: var(--muted);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -145,11 +248,14 @@ code {
 
 /* --- Knoepfe ----------------------------------------------------------- */
 
+/* PF-6-Knoepfe sind Pillen (`border--radius--pill`), mit
+   `spacer--control--vertical` / `spacer--action--horizontal` als Polsterung.
+   Eckige Knoepfe in einer runden Wanne waren derselbe Bruch wie die Karten. */
 .btn {
     font: inherit;
-    padding: 0.35rem 1rem;
+    padding: var(--sp-sm) var(--sp-md);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: var(--radius-pill);
     background: var(--btn);
     color: var(--fg);
     cursor: pointer;
@@ -181,13 +287,13 @@ code {
 .vnc-row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--sp-md);
     flex-wrap: wrap;
-    margin-bottom: 0.75rem;
+    margin-bottom: var(--sp-md);
 }
 
 .vnc-url {
-    color: var(--accent);
+    color: var(--link);
     text-decoration: none;
 }
 
@@ -197,11 +303,11 @@ code {
 
 .hints {
     margin: 0;
-    padding-left: 1.1rem;
+    padding-left: var(--sp-md);
     color: var(--muted);
 }
 
-.hints li { margin-bottom: 0.4rem }
+.hints li { margin-bottom: var(--sp-sm) }
 .hints .warn { color: var(--warn) }
 
 .offscreen {

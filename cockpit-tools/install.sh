@@ -21,7 +21,7 @@ SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Nur diese Dateien gehoeren ins Paket. package.json und test/ sind
 # Werkzeug fuer den Arbeitsplatz (node --test) und haben auf dem Roboter
 # nichts verloren.
-FILES=(manifest.json index.html index.js status.js style.css)
+FILES=(manifest.json index.html index.js status.js style.css theme.js)
 
 if [ "${1:-}" = "--uninstall" ]; then
     rm -rf "$DEST"

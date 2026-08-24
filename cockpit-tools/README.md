@@ -133,6 +133,24 @@ Die Seite lässt sich ohne Roboter ansehen, indem man ein `cockpit.js`-Attrappe
 danebenlegt (siehe `test/preview/`) und das Verzeichnis mit einem beliebigen
 statischen Server ausliefert.
 
+### Das Aussehen
+
+Kein PatternFly im Paket, aber PatternFly-6-Werte: `style.css` baut das
+Wurzel-Layout von [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md)
+nach — heller Seitengrund, darauf eine Wanne mit runden Ecken und 1,5rem
+Abstand nach links, rechts und unten. Farben, Abstände, Radien und Größen
+stehen als Token in `:root` und tragen den PF-Namen als Kommentar; wer sie
+nachziehen will, misst sie am gebauten `dist/index.css` des Nachbarpakets.
+Zwei Fallen dabei: Abstände sind bei PF **rem**, Radien **absolute px** — und
+ein `1rem` als Radius ist in einem Browser mit 12px-Wurzel eine 12px-Ecke
+neben der 16px-Ecke nebenan.
+
+Das dunkle Thema kommt von Cockpit, nicht vom Betriebssystem: `theme.js` liest
+`shell:style` und setzt `pf-v6-theme-dark` am `<html>`, so wie Cockpits
+eigenes `cockpit-dark-theme` in den gebauten Paketen. Ein reines
+`@media (prefers-color-scheme: dark)` wäre falsch, sobald Shell und System
+verschiedener Meinung sind.
+
 ## Sicherheitshinweis
 
 Der VNC-Port hat inzwischen ein Passwort (`VNC_PASSWORD`, Vorgabe `husky`);

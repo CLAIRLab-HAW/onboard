@@ -1,6 +1,6 @@
 {
     "name": "cockpit-robot-tools",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Cockpit-Seite fuer wiederkehrende Handgriffe am Roboter (Offboard-Lite-Container, VNC)",
     "type": "module",
     "private": true,
