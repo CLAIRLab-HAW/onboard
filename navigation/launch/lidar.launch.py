@@ -1,15 +1,15 @@
-"""Sensorpfad des RS16: Treiber + Ableitung des 2D-Scans.
+"""Sensor path of the RS16: driver + derivation of the 2D scan.
 
-REIN LESEND.  Dieser Launch kommandiert nichts und darf deshalb auch am Graphen des echten Roboters laufen -- gesperrt
-wird navigation.launch.py, weil dessen controller_server auf cmd_vel schreibt.
+READ-ONLY.  This launch commands nothing and may therefore also run on the graph of the real robot -- what is barred is
+navigation.launch.py, because its controller_server writes to cmd_vel.
 
-Aufruf im Container:
+Invocation inside the container:
     ros2 launch /opt/spact/husky-navigation/launch/lidar.launch.py \
-        pcap:=/data/recordings/rs16_labor.pcap     # Mock
+        pcap:=/data/recordings/rs16_labor.pcap     # mock
     ros2 launch /opt/spact/husky-navigation/launch/lidar.launch.py
-                                                   # Geraet (kein pcap-Arg)
+                                                   # device (no pcap arg)
 
-Alle Namen kommen aus husky_navigation.wiring -- hier steht keiner ein zweites Mal
+Every name comes from husky_navigation.wiring -- none of them is stated a second time here
 (tests/test_launch_files_do_not_restate_the_wiring.py).
 """
 
@@ -23,8 +23,8 @@ from husky_navigation import rslidar_config, wiring
 
 def _setup(context, *args, **kwargs):
     pcap = LaunchConfiguration("pcap").perform(context)
-    # rslidar_sdk kennt keine Uebersteuerung einzelner Schluessel -- es liest genau eine Datei.  Die aufgeloeste Fassung
-    # entsteht deshalb hier, aus DERSELBEN Vorlage, die auch der Roboter benutzt.
+    # rslidar_sdk knows no way to override individual keys -- it reads exactly one file.  The resolved version is
+    # therefore produced here, from the SAME template the robot uses as well.
     resolved = rslidar_config.write_resolved("/tmp/rslidar_rs16_resolved.yaml", pcap_path=pcap or None)
 
     return [

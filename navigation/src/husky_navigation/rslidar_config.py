@@ -1,10 +1,10 @@
-"""Die eine Stelle, an der Mock und Roboter sich unterscheiden duerfen.
+"""The one place where mock and robot are allowed to differ.
 
-rslidar_sdk nimmt EINE yaml-Datei ueber den ROS-Parameter `config_path` und kennt keine Uebersteuerung einzelner
-Schluessel.  Wer Mock und Live trotzdem aus einer Quelle fahren will, muss die Datei also rendern statt sie zu
-duplizieren -- zwei gepflegte yaml-Dateien waeren die Driftquelle, die dieses Vorhaben gerade vermeiden will.
+rslidar_sdk takes ONE yaml file via the ROS parameter ``config_path`` and knows no way to override individual keys.
+Whoever wants to drive mock and live from a single source anyway therefore has to render the file instead of
+duplicating it -- two maintained yaml files would be exactly the drift source this undertaking sets out to avoid.
 
-ROS-frei und damit auf dem Mac testbar.
+ROS-free and therefore testable on the Mac.
 """
 
 from __future__ import annotations
@@ -13,26 +13,26 @@ from pathlib import Path
 
 import yaml
 
-#: Werte von common.msg_source.  Die Reihenfolge der Protokollzeilen im
-#: Binary lautet "Online LiDAR", "ROS", "Pcap" -- also 1, 2, 3.  Verifiziert
-#: wird das an der Startzeile des laufenden Knotens, nicht hier.
+#: Values of common.msg_source.  The order of the log lines in the binary is
+#: "Online LiDAR", "ROS", "Pcap" -- so 1, 2, 3.  That is verified against the
+#: start-up line of the running node, not here.
 MSG_SOURCE_ONLINE = 1
 MSG_SOURCE_ROS = 2
 MSG_SOURCE_PCAP = 3
 
-#: Wie oft die Aufnahme im Verhaeltnis zur Echtzeit abgespielt wird.
-#: 1 = Echtzeit.  Schneller waere fuer Nav2 wertlos: die Costmap rechnet in
-#: Sekunden, nicht in Frames.
+#: How fast the recording is played back relative to real time.
+#: 1 = real time.  Faster would be worthless for Nav2: the costmap reckons in
+#: seconds, not in frames.
 PCAP_RATE = 1
 
 TEMPLATE_PATH = Path(__file__).resolve().parents[2] / "config" / "rslidar_rs16.yaml"
 
 
 def render(template: dict, *, pcap_path: str | None = None) -> dict:
-    """Setzt die Paketquelle in eine geladene Vorlage.
+    """Sets the packet source in a loaded template.
 
-    ``pcap_path=None`` -> das Geraet.  Sonst -> die Aufnahme. Die Vorlage wird veraendert und zurueckgegeben (der
-    Aufrufer uebergibt ohnehin ein frisch geladenes Dict).
+    ``pcap_path=None`` -> the device.  Otherwise -> the recording.  The template is modified and returned (the caller
+    hands over a freshly loaded dict anyway).
     """
     if "common" not in template:
         raise ValueError(
@@ -60,7 +60,7 @@ def render(template: dict, *, pcap_path: str | None = None) -> dict:
 
 
 def write_resolved(out_path: str | Path, *, pcap_path: str | None = None) -> Path:
-    """Rendert die Vorlage und schreibt sie -- der Pfad geht an `config_path`."""
+    """Renders the template and writes it -- the path goes to ``config_path``."""
     template = yaml.safe_load(TEMPLATE_PATH.read_text(encoding="utf-8"))
     resolved = render(template, pcap_path=pcap_path)
     out = Path(out_path)

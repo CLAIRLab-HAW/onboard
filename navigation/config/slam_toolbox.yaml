@@ -1,7 +1,7 @@
-# slam_toolbox (online_async) fuer den a200-0553.
+# slam_toolbox (online_async) for the a200-0553.
 #
-# Zum KARTIEREN, nicht zum Fahren: `nav localization:=slam`.  Danach die
-# Karte sichern und im Normalbetrieb mit localization:=amcl dagegen fahren:
+# For MAPPING, not for driving: `nav localization:=slam`.  Afterwards save
+# the map and in normal operation drive against it with localization:=amcl:
 #   ros2 run nav2_map_server map_saver_cli -f /opt/spact/husky-navigation/maps/labor
 a200_0553:
   slam_toolbox:
@@ -19,8 +19,8 @@ a200_0553:
       scan_topic: /a200_0553/sensors/lidar3d_0/scan
       mode: mapping
 
-      # Der RS16 dreht mit 10 Hz; oefter als alle 0,2 s zu verarbeiten
-      # bringt nichts ausser Last.
+      # The RS16 spins at 10 Hz; processing more often than every 0,2 s
+      # brings nothing but load.
       transform_publish_period: 0.02
       map_update_interval: 2.0
       resolution: 0.05
@@ -30,8 +30,8 @@ a200_0553:
       tf_buffer_duration: 30.0
       stack_size_to_use: 40000000
 
-      # Der Husky ist gross und traege -- kleinere Schwellen erzeugten
-      # Scan-Matches im Stand, die die Karte verschmieren.
+      # The Husky is large and sluggish -- smaller thresholds produced scan
+      # matches while standing still, which smear the map.
       minimum_travel_distance: 0.3
       minimum_travel_heading: 0.3
       scan_buffer_size: 10

@@ -1,28 +1,28 @@
-"""Erzeugt die synthetische Karte, gegen die der Mock zuerst faehrt.
+"""Generates the synthetic map the mock drives against first.
 
-Eine von Hand gemalte pgm waere ein binaeres Artefakt ohne nachvollziehbare Herkunft -- man saehe ihr nicht an, wie
-gross der Raum ist und wo die Wand steht.  Ein Generator sagt es.
+A hand-painted pgm would be a binary artefact of untraceable origin -- one could not tell from it how large the room is
+and where the wall stands.  A generator says so.
 
-Diese Karte ersetzt KEINE Kartierung.  Sie ist das Geruest, an dem Planer und Controller gemessen werden, solange es
-noch keine RS16-Aufnahme gibt.
+This map replaces NO mapping run.  It is the scaffold against which planner and controller are measured as long as
+there is no RS16 recording yet.
 
-ROS-frei.
+ROS-free.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-FREE = 254  # weiss  -> befahrbar
-OCCUPIED = 0  # schwarz -> Wand
+FREE = 254  # white -> drivable
+OCCUPIED = 0  # black -> wall
 
 
 def write_empty_room(
     out_stem: str | Path, *, width_m: float = 10.0, height_m: float = 10.0, resolution: float = 0.05
 ) -> tuple[Path, Path]:
-    """Schreibt <stem>.pgm und <stem>.yaml: freier Raum mit Wand ringsum.
+    """Writes <stem>.pgm and <stem>.yaml: free space with a wall all around.
 
-    Rueckgabe: (pgm_path, yaml_path).
+    :returns: ``(pgm_path, yaml_path)``.
     """
     stem = Path(out_stem)
     cols = int(round(width_m / resolution))

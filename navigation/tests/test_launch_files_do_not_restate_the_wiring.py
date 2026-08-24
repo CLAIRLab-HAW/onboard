@@ -1,10 +1,11 @@
-"""Launch-Dateien duerfen die Verdrahtung nicht ein zweites Mal formulieren.
+"""Launch files must not state the wiring a second time.
 
-Auf dem Mac ist launch_ros nicht installiert -- eine Launch-Datei laesst sich hier also nicht importieren und ihr Inhalt
-nicht pruefen.  Was pruefbar bleibt, ist die Herkunft: steht ein Topicname als Zeichenkette IN der Launch-Datei, ist er
-dort ein zweites Mal formuliert und kann von der geprueften Fassung wegdriften, ohne dass ein Test es merkt.
+On the Mac launch_ros is not installed -- a launch file cannot be imported here and its content cannot be checked.
+What remains checkable is provenance: if a topic name stands as a string literal IN the launch file, it is stated there
+a second time and can drift away from the checked version without any test noticing.
 
-Dieselbe Lehre wie bei scripts/guard und scripts/mock -- ein Kommentar "bei Aenderungen mitziehen" ist kein Mechanismus.
+The same lesson as with scripts/guard and scripts/mock -- a comment saying "keep in sync when changing" is not a
+mechanism.
 """
 
 from pathlib import Path
@@ -13,7 +14,7 @@ import pytest
 
 LAUNCH_DIR = Path(__file__).resolve().parents[1] / "launch"
 
-#: Werte, die genau einmal dastehen duerfen: in husky_navigation.wiring.
+#: Values that may stand in exactly one place: in husky_navigation.wiring.
 WIRED_LITERALS = ("/a200_0553/sensors/lidar3d_0/points", "/a200_0553/sensors/lidar3d_0/scan", "lidar3d_0_laser")
 
 

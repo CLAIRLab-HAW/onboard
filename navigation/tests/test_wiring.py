@@ -1,11 +1,11 @@
-"""Topic- und Frame-Namen sind Vertraege, keine Schreibweisen.
+"""Topic and frame names are contracts, not spellings.
 
-Der Graph dieses Roboters ist durchgaengig namespaced; tf2 broadcastet aber auf die ABSOLUTEN Namen /tf und /tf_static,
-wo der Node-Namespace nicht greift.  Fehlt der Remap, publiziert ein Knoten global, waehrend alle anderen auf
-/a200_0553/tf lauschen -- und es gibt keine Fehlermeldung, nur eine leere TF-Kette.  Genau das ist im Mock schon einmal
-passiert (scripts/mock, Kommentar am robot_state_publisher).
+The graph of this robot is namespaced throughout; tf2 however broadcasts on the ABSOLUTE names /tf and /tf_static,
+where the node namespace does not take effect.  If the remap is missing, a node publishes globally while all the others
+listen on /a200_0553/tf -- and there is no error message, only an empty TF chain.  Exactly that has happened in the
+mock once already (scripts/mock, comment at the robot_state_publisher).
 
-Braucht weder ROS noch Docker.
+Needs neither ROS nor Docker.
 """
 
 from husky_navigation import wiring
@@ -20,7 +20,7 @@ def test_the_scan_topic_sits_beside_the_points_topic():
 
 
 def test_the_driver_template_publishes_on_the_wired_points_topic():
-    """Treibervorlage und Verdrahtung duerfen nicht auseinanderlaufen."""
+    """Driver template and wiring must not diverge."""
     import yaml
     from husky_navigation import rslidar_config as rc
 
@@ -47,8 +47,8 @@ def test_the_scan_is_projected_into_the_base_frame():
 
 
 def test_the_scan_band_brackets_the_driving_plane():
-    """Ein Band, das die Fahrebene nicht enthaelt, liefert lauter inf --
-    und das sieht aus wie ein kaputter Treiber."""
+    """A band that does not contain the driving plane delivers nothing but
+    inf -- and that looks like a broken driver."""
     params = wiring.pointcloud_to_laserscan_params()
     assert params["min_height"] < 0.0 < params["max_height"]
 

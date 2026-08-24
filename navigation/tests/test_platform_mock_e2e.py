@@ -1,10 +1,10 @@
-"""Die Basis muss sich im Mock wirklich bewegen -- nicht nur Raeder drehen.
+"""The base has to really move in the mock -- not just turn wheels.
 
-Der teure Irrtum ist hier NICHT "es faehrt nicht", sondern "die Raeder drehen sich in RViz und die Odometrie meldet
-Stillstand".  Das sieht nach einem Nav2-Fehler aus und ist ein URDF-Fehler (fehlendes calculate_dynamics). Deshalb
-prueft dieser Test die ODOMETRIE, nicht die Radgelenke.
+The expensive misjudgement here is NOT "it does not drive" but "the wheels turn in RViz and the odometry reports
+standstill".  That looks like a Nav2 fault and is a URDF fault (missing calculate_dynamics). This test therefore checks
+the ODOMETRY, not the wheel joints.
 
-Braucht einen laufenden Container mit `mock platform:=true`.
+Needs a running container with ``mock platform:=true``.
 """
 
 import json
@@ -50,8 +50,8 @@ def test_the_platform_controller_is_active(container):
 
 
 def test_only_the_platform_hardware_is_claimed_by_the_platform_manager(container):
-    """Das Risiko aus Spec Paragraph 3.4: ein controller_manager laedt ALLE
-    ros2_control-Bloecke des URDF, das er bekommt."""
+    """The risk from spec paragraph 3.4: a controller_manager loads ALL
+    ros2_control blocks of the URDF it is given."""
     out = _exec("source ros-env; ros2 control list_hardware_components " "-c /a200_0553/controller_manager 2>/dev/null")
     assert "a200_hardware" in out
     assert "arm_0" not in out, (
@@ -63,7 +63,7 @@ def test_only_the_platform_hardware_is_claimed_by_the_platform_manager(container
 
 
 def test_driving_forward_moves_the_odometry(container, exclusive_base):
-    """Der Kern: cmd_vel rein, Wegstrecke raus."""
+    """The core: cmd_vel in, distance travelled out."""
     script = r"""
 source ros-env
 # head -1: `--once` haengt eine "---"-Zeile an, an der float() scheitert.
@@ -115,11 +115,11 @@ python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after
 
 
 def test_the_odom_to_base_link_transform_exists(container):
-    """Die TF-Remaps sind hier kein Detail, sondern der ganze Test.
+    """The TF remaps are no detail here, they are the whole test.
 
-    tf2 broadcastet auf die ABSOLUTEN Namen /tf und /tf_static; der Graph dieses Roboters haelt sie aber unter
-    /a200_0553/tf.  Ein tf2_echo ohne diese Remaps meldet 'Invalid frame ID "odom" ... frame does not exist' -- das
-    sieht aus wie eine fehlende Transformation und ist ein Hoerfehler.
+    tf2 broadcasts on the ABSOLUTE names /tf and /tf_static; the graph of this robot however keeps them under
+    /a200_0553/tf.  A tf2_echo without these remaps reports 'Invalid frame ID "odom" ... frame does not exist' -- that
+    looks like a missing transform and is a mishearing.
     """
     out = _exec(
         "source ros-env; timeout 10 ros2 run tf2_ros tf2_echo "

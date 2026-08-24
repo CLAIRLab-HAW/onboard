@@ -1,71 +1,72 @@
-"""Topic- und Frame-Namen der Navigationsschicht -- die einzige Quelle.
+"""Topic and frame names of the navigation layer -- the single source.
 
-ROS-frei.  Die Launch-Dateien in ../../launch/ importieren von hier; ein Test haelt fest, dass sie die Werte nicht ein
-zweites Mal formulieren.
+ROS-free.  The launch files in ../../launch/ import from here; a test holds them to not stating the values a second
+time.
 """
 
 from __future__ import annotations
 
-#: Namespace des a200-0553.  Der ganze Graph haengt daran.
+#: Namespace of the a200-0553.  The whole graph hangs off it.
 NAMESPACE = "a200_0553"
 
-#: Der Frame, den robot.yaml fuer den lidar3d-Eintrag erzeugt und den der
-#: Treiber in jede PointCloud2 schreibt.  Weichen die beiden voneinander ab,
-#: findet tf2 die Wolke nicht und meldet es nicht.
+#: The frame robot.yaml generates for the lidar3d entry and that the driver
+#: writes into every PointCloud2.  If the two diverge, tf2 does not find the
+#: cloud and does not report it.
 LIDAR_FRAME = "lidar3d_0_laser"
 
-#: Wurzel-Link des URDF (robot-contract-Profil: frames.base_link).
+#: Root link of the URDF (robot-contract profile: frames.base_link).
 BASE_FRAME = "base_link"
 
-#: tf2 broadcastet auf die ABSOLUTEN Namen; der Node-Namespace greift dort
-#: nicht.  Ohne diese Remaps publiziert ein Knoten global, waehrend der Rest
-#: des Graphen auf /a200_0553/tf lauscht -- eine leere TF-Kette ohne Fehler.
+#: tf2 broadcasts on the ABSOLUTE names; the node namespace does not take
+#: effect there.  Without these remaps a node publishes globally while the
+#: rest of the graph listens on /a200_0553/tf -- an empty TF chain without an
+#: error.
 TF_REMAPS = [("/tf", "tf"), ("/tf_static", "tf_static")]
 
 
 def points_topic() -> str:
-    """Rohe Punktwolke des RS16 (sensor_msgs/PointCloud2)."""
+    """Raw point cloud of the RS16 (sensor_msgs/PointCloud2)."""
     return f"/{NAMESPACE}/sensors/lidar3d_0/points"
 
 
 def scan_topic() -> str:
-    """Aus der Wolke abgeleiteter 2D-Scan (sensor_msgs/LaserScan).
+    """2D scan derived from the cloud (sensor_msgs/LaserScan).
 
-    AMCL und slam_toolbox lesen AUSSCHLIESSLICH LaserScan -- eine PointCloud2 koennen beide nicht verarbeiten.  Dieser
-    Knoten ist deshalb kein Komfort, sondern Voraussetzung.
+    AMCL and slam_toolbox read LaserScan EXCLUSIVELY -- neither of them can process a PointCloud2.  This node is
+    therefore not a convenience but a precondition.
     """
     return f"/{NAMESPACE}/sensors/lidar3d_0/scan"
 
 
 def cmd_vel_topic() -> str:
-    """Nav2s Fahrbefehl.
+    """Nav2's drive command.
 
-    Das ist der Eingang 'external' des twist_mux (Prioritaet 1, die niedrigste) -- Joystick, RC und interaktiver Marker
-    uebersteuern Nav2 also jederzeit.  Typ ist geometry_msgs/TwistStamped, nicht Twist.
+    This is the twist_mux input ``external`` (priority 1, the lowest) -- joystick, RC and interactive marker therefore
+    override Nav2 at any time.  The type is geometry_msgs/TwistStamped, not Twist.
     """
     return f"/{NAMESPACE}/cmd_vel"
 
 
 def pointcloud_to_laserscan_params() -> dict:
-    """Parameter des pointcloud_to_laserscan-Knotens.
+    """Parameters of the pointcloud_to_laserscan node.
 
-    Das Hoehenband ist RELATIV ZU base_link (target_frame) und muss die Fahrebene enthalten -- ein Band ueber oder unter
-    ihr liefert lauter `inf` und sieht wie ein kaputter Treiber aus.
+    The height band is RELATIVE TO base_link (target_frame) and has to contain the driving plane -- a band above or
+    below it delivers nothing but ``inf`` and looks like a broken driver.
     """
     return {
         "target_frame": BASE_FRAME,
         "transform_tolerance": 0.05,
-        # Band um die Fahrebene: alles zwischen 10 cm unter und 50 cm ueber base_link.  base_link liegt 13,228 cm ueber
-        # dem Boden (das URDF setzt base_footprint mit z=-0.13228 darunter), das Band beginnt also knapp ueber dem
-        # Boden.
+        # Band around the driving plane: everything between 10 cm below and 50 cm above base_link.  base_link sits
+        # 13,228 cm above the ground (the URDF puts base_footprint at z=-0.13228 underneath it), so the band starts
+        # just above the ground.
         "min_height": -0.10,
         "max_height": 0.50,
         "angle_min": -3.141592653589793,
         "angle_max": 3.141592653589793,
-        "angle_increment": 0.0087,  # 0,5 Grad -> 720 Strahlen
-        "scan_time": 0.1,  # RS16 dreht mit 10 Hz
-        # Unter 20 cm sieht der Sensor sein eigenes Gehaeuse; diese Punkte wuerden in der Costmap zu einem Hindernisring
-        # um den Roboter.
+        "angle_increment": 0.0087,  # 0,5 degrees -> 720 rays
+        "scan_time": 0.1,  # the RS16 spins at 10 Hz
+        # Below 20 cm the sensor sees its own housing; in the costmap those points would become a ring of obstacles
+        # around the robot.
         "range_min": 0.2,
         "range_max": 100.0,
         "use_inf": True,

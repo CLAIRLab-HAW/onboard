@@ -1,12 +1,12 @@
-"""Diese Suite muss im ROOT-Lauf mitkommen, nicht nur im Paketlauf.
+"""This suite has to come along in the ROOT run, not only in the package run.
 
-`norecursedirs` im Root-pyproject.toml schloss `robot` aus, solange dort keine Tests lagen.  Ein Test, der nur im
-Paketlauf liefe, schwiege genau dann, wenn jemand ihn braucht -- dieselbe Lehre, die `deploy` schon einmal gekostet hat.
+``norecursedirs`` in the root pyproject.toml excluded ``robot`` as long as no tests lived there.  A test that ran only
+in the package run would fall silent exactly when someone needs it -- the same lesson ``deploy`` has cost once already.
 
-Der Marker `nav_e2e` muss registriert UND im Default abgewaehlt sein: er braucht einen laufenden Container mit fahrender
-Basis, das ist keine Vorbedingung, die ein `uv run pytest` am Root stillschweigend annehmen darf.
+The marker ``nav_e2e`` has to be registered AND deselected by default: it needs a running container with a driving
+base, and that is not a precondition a ``uv run pytest`` at the root may silently assume.
 
-Dieser Test braucht weder ROS noch Docker -- er liest Text.
+This test needs neither ROS nor Docker -- it reads text.
 """
 
 import tomllib

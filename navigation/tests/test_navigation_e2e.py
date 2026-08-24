@@ -1,10 +1,10 @@
-"""Nav2 faehrt im Mock -- gegen eine Karte, OHNE Lokalisierung.
+"""Nav2 drives in the mock -- against a map, WITHOUT localization.
 
-Der Testname sagt es ausdruecklich: in diesem Stand traegt allein die Radodometrie, der Roboter driftet gegen die Karte,
-und die Costmap hat keine Hindernisse.  Wer diesen Test spaeter fuer einen Lokalisierungsnachweis haelt, liest ihn
-falsch -- den liefert erst der Sensorpfad.
+The test name says it outright: in this state the wheel odometry alone carries the robot, it drifts against the map,
+and the costmap has no obstacles.  Whoever later takes this test for proof of localization reads it wrong -- that only
+the sensor path delivers.
 
-Braucht einen laufenden Container mit `mock platform:=true` und `nav`.
+Needs a running container with ``mock platform:=true`` and ``nav``.
 """
 
 import json
@@ -39,11 +39,11 @@ def container():
 
 
 def test_the_navigate_to_pose_action_is_offered(container):
-    """Mit Wiederholung: die Discovery des ros2-Daemons ist asynchron.
+    """With retries: the ros2 daemon's discovery is asynchronous.
 
-    Ein einzelnes `ros2 action list` direkt nach dem Start liefert eine leere Liste -- nicht weil die Action fehlt,
-    sondern weil der Daemon seinen Graphen noch nicht hat.  Ein Test, der daran scheitert, misst die Anlaufzeit des
-    Daemons und nicht Nav2.
+    A single ``ros2 action list`` right after the start returns an empty list -- not because the action is missing but
+    because the daemon does not have its graph yet.  A test that fails on that measures the daemon's start-up time and
+    not Nav2.
     """
     out = _exec(
         "source ros-env; "
@@ -68,8 +68,9 @@ def test_the_map_is_published(container):
 
 
 def test_the_map_to_base_link_transform_exists(container):
-    """Mit den namespaced TF-Remaps -- ohne sie meldet tf2_echo 'frame does
-    not exist' und man sucht eine Transformation, die laengst da ist."""
+    """With the namespaced TF remaps -- without them tf2_echo reports
+    'frame does not exist' and one hunts a transform that is long since
+    there."""
     out = _exec(
         "source ros-env; timeout 10 ros2 run tf2_ros tf2_echo "
         "map base_link --ros-args "
@@ -84,10 +85,10 @@ def test_the_map_to_base_link_transform_exists(container):
 
 
 def test_navigates_without_localization(container, exclusive_base):
-    """Ein Ziel 1 m entfernt -- und die Odometrie sagt, ob er dort ankam.
+    """A goal 1 m away -- and the odometry says whether it got there.
 
-    Bewusst NICHT: 'RViz sieht gut aus'.  Ein laufender Prozess ist kein Beleg, und eine Pose kann aus jedem Blickwinkel
-    plausibel wirken.
+    Deliberately NOT: 'RViz looks good'.  A running process is no proof, and a pose can look plausible from every
+    viewing angle.
     """
     script = r"""
 source ros-env
@@ -125,14 +126,15 @@ python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after
 
 
 def test_navigates_to_a_goal_it_has_to_turn_around_for(container, exclusive_base):
-    """Ein Ziel, das eine grosse Richtungsaenderung verlangt.
+    """A goal that demands a large change of direction.
 
-    Der Nachbartest faehrt bewusst immer ZUR Kartenmitte hin -- also praktisch geradeaus.  Genau deshalb hat er am
-    2026-08-22 nicht gemerkt, dass der Husky bei einer Wende haengenblieb: in derselben Runde lief ein Ziel geradeaus in
-    12 s durch, waehrend das Ziel (-2|2) aus (1,93|1,78) nach 51 s ganze 0,06 m gefahren war und dann ABORTED meldete.
+    The neighbouring test deliberately always drives TOWARDS the centre of the map -- that is, practically straight
+    ahead.  Exactly for that reason it did not notice on 2026-08-22 that the Husky got stuck on a turn: in the same
+    round a goal straight ahead went through in 12 s, while the goal (-2|2) from (1,93|1,78) had travelled all of
+    0,06 m after 51 s and then reported ABORTED.
 
-    Dieser Test dreht den Roboter vorher ABSICHTLICH vom Ziel weg und prueft, ob er trotzdem ankommt.  Er faellt aus,
-    wenn der RotationShimController fehlt oder der Antrieb die Drehung nicht ausfuehrt.
+    This test turns the robot away from the goal ON PURPOSE beforehand and checks whether it arrives anyway.  It fails
+    if the RotationShimController is missing or the drive does not execute the turn.
     """
     script = r"""
 source ros-env
@@ -220,12 +222,12 @@ print(json.dumps({
 
 
 def test_the_controller_actually_receives_odometry(container):
-    """Ein eingestelltes Topic ist noch keine Datenquelle.
+    """A configured topic is not yet a data source.
 
-    In ROS 2 taucht ein Topic in `topic list` schon auf, wenn es nur ABONNIERT wird.  Am 2026-08-22 stand der
-    controller_server auf dem Default "odom", war dort der einzige Teilnehmer -- Publisher count: 0 -- und bekam nie
-    eine Geschwindigkeit.  Der statische Parametertest haette das nicht gefunden, ein falscher Topicname sieht dort aus
-    wie ein richtiger.  Deshalb hier: gibt es einen Publisher, und kommen Daten an?
+    In ROS 2 a topic already shows up in ``topic list`` when it is merely SUBSCRIBED to.  On 2026-08-22 the
+    controller_server was on the default "odom", was the only participant there -- Publisher count: 0 -- and never got
+    a velocity.  The static parameter test would not have found that; a wrong topic name looks just like a right one
+    there.  Hence here: is there a publisher, and does data arrive?
     """
     topic = _exec(
         "source ros-env; timeout 15 ros2 param get "
@@ -251,22 +253,21 @@ def test_the_controller_actually_receives_odometry(container):
 
 
 def test_the_ground_frame_matches_the_wheel_geometry(container):
-    """base_footprint muss dort liegen, wo die Raeder den Boden beruehren.
+    """base_footprint has to sit where the wheels touch the ground.
 
-    Die Probe verbindet zwei Quellen, die nichts voneinander wissen: das URDF (Radachse, base_footprint) und
-    control.yaml (wheel_radius, mit dem der DiffDriveController die Odometrie rechnet).  Passen sie nicht zusammen, ist
-    entweder die Darstellung falsch oder -- schlimmer -- die Odometrie, und Letzteres faellt an nichts auf.  Wer z. B.
-    auf Outdoor-Raeder wechselt und nur eine der beiden Stellen nachzieht, bekommt hier einen Fehlschlag statt eines
-    stillen Fahrfehlers.
+    The probe joins two sources that know nothing of each other: the URDF (wheel axle, base_footprint) and control.yaml
+    (wheel_radius, with which the DiffDriveController computes the odometry).  If they do not match, either the
+    rendering is wrong or -- worse -- the odometry, and the latter shows up nowhere.  Whoever switches to outdoor
+    wheels, say, and updates only one of the two places gets a failure here instead of a silent driving error.
 
-    Am 2026-08-22 gemessen: Radachse +0,03282 ueber base_link, Radradius 0,1651, base_footprint bei -0,13228 -- exakt
-    die Differenz.
+    Measured on 2026-08-22: wheel axle +0,03282 above base_link, wheel radius 0,1651, base_footprint at -0,13228 --
+    exactly the difference.
 
-    NICHT geprueft wird, ob base_footprint auf der odom-Ebene liegt: der EKF laeuft mit `base_link_frame: base_link` und
-    `two_d_mode: True`, pinnt also base_link auf z=0.  Der ganze Roboter steht dadurch 13,2 cm unter der Bodenebene der
-    Karte, was in RViz und Foxglove sichtbar ist und wie ein Fehler aussieht.  Es ist Clearpaths Konvention aus der
-    generierten localization.yaml, ueber robot.yaml nicht einstellbar, und fuer Nav2 folgenlos -- dort zaehlen nur x, y
-    und yaw.
+    What is NOT checked is whether base_footprint lies on the odom plane: the EKF runs with
+    ``base_link_frame: base_link`` and ``two_d_mode: True``, so it pins base_link to z=0.  The whole robot therefore
+    stands 13,2 cm below the ground plane of the map, which is visible in RViz and Foxglove and looks like a fault.  It
+    is Clearpath's convention out of the generated localization.yaml, not settable via robot.yaml, and inconsequential
+    for Nav2 -- only x, y and yaw count there.
     """
 
     def _z(parent: str, child: str) -> float:

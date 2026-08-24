@@ -1,13 +1,13 @@
-# Nav2-Parameter des a200-0553.
+# Nav2 parameters of the a200-0553.
 #
-# ALLES steht unter dem Namespace a200_0553 -- Parameter ausserhalb greifen
-# nicht, die Knoten starten mit ihren Defaults, und niemand sagt es.
+# EVERYTHING sits under the namespace a200_0553 -- parameters outside it do
+# not take effect, the nodes start with their defaults, and nobody says so.
 #
-# Fuer Zahlen, die aus der Hardware kommen, ist /clearpath/platform/config/
-# control.yaml die Quelle: max_velocity 1.0 (linear wie angular),
-# max_acceleration 1.0.  Nav2 bleibt bewusst darunter -- ein Roboter, der
-# schneller befiehlt als der Radcontroller zulaesst, plant Bahnen, die
-# stillschweigend beschnitten werden.
+# For numbers that come from the hardware, /clearpath/platform/config/
+# control.yaml is the source: max_velocity 1.0 (linear as well as angular),
+# max_acceleration 1.0.  Nav2 deliberately stays below that -- a robot that
+# commands faster than the wheel controller allows plans trajectories that
+# get silently trimmed.
 a200_0553:
   bt_navigator:
     ros__parameters:
@@ -15,64 +15,63 @@ a200_0553:
       robot_base_frame: base_link
       odom_topic: platform/odom/filtered
       bt_loop_duration: 10
-      # MILLISEKUNDEN, nicht Sekunden -- 20 ist der Nav2-Default und hier zu
-      # knapp.  Es ist die Frist, in der ein Action-Server den Eingang eines
-      # Goals bestaetigen muss; verstreicht sie, bricht der Baum ab, obwohl
-      # mit der Fahrt nichts verkehrt ist.
+      # MILLISECONDS, not seconds -- 20 is the Nav2 default and too tight
+      # here.  It is the deadline within which an action server has to
+      # acknowledge the arrival of a goal; if it elapses, the tree aborts
+      # although there is nothing wrong with the drive.
       #
-      # Am 2026-08-22 im Mock beobachtet, und die Zeitstempel sagen alles:
+      # Observed in the mock on 2026-08-22, and the timestamps say it all:
       #   ...038.494  Received a goal, begin computing control effort.
       #   ...052.863  WARN  Timed out while waiting for action server to
       #                     acknowledge goal request for follow_path
       #   ...052.865  ERROR Goal failed
-      #   ...053.145  INFO  Reached the goal!      <- 0,28 s SPAETER
-      # Der Husky stand also am Ziel, nachdem der Baum ihn aufgegeben hatte.
-      # Das Ergebnis meldet ABORTED bei einer Endabweichung von 0,226 m --
-      # innerhalb der 0,25er Toleranz.  Wer nur den Status liest, sucht den
-      # Fehler beim Regler.
+      #   ...053.145  INFO  Reached the goal!      <- 0,28 s LATER
+      # So the Husky stood at the goal after the tree had given up on it.
+      # The result reports ABORTED at a final deviation of 0,226 m -- inside
+      # the 0,25 tolerance.  Whoever reads only the status looks for the
+      # fault in the controller.
       #
-      # Es ist ein Rennen und tritt sporadisch auf: im Container laufen gut
-      # drei Dutzend Knoten, und unter Last braucht die Bestaetigung laenger
-      # als 20 ms.  200 ms sind immer noch weit unter jeder Frist, die einem
-      # Menschen auffiele, und lassen dem Server Luft.
+      # It is a race and occurs sporadically: a good three dozen nodes run in
+      # the container, and under load the acknowledgement takes longer than
+      # 20 ms.  200 ms is still far below any deadline a human would notice,
+      # and gives the server room.
       default_server_timeout: 200
 
   controller_server:
     ros__parameters:
       controller_frequency: 20.0
-      # Gilt PRO KNOTEN, genau wie enable_stamped_cmd_vel -- und genau wie
-      # dort war er hier vergessen, waehrend er im bt_navigator richtig
-      # stand.  Der Nav2-Default ist "odom"; im Namespace loest das zu
-      # /a200_0553/odom auf, und darauf publiziert NIEMAND.
+      # Applies PER NODE, exactly like enable_stamped_cmd_vel -- and exactly
+      # as there, it was forgotten here while it stood correctly in the
+      # bt_navigator.  The Nav2 default is "odom"; inside the namespace that
+      # resolves to /a200_0553/odom, and NOBODY publishes on it.
       #
-      # Das laeuft ohne eine einzige Fehlermeldung ins Leere: der
-      # controller_server bekommt seine Ist-Geschwindigkeit nie, `speed`
-      # bleibt konstant 0, und jeder Regler, der darauf aufbaut, regelt
-      # blind.  Am 2026-08-22 gemessen, und das Bild war eindeutig: der
-      # RotationShimController beschleunigte in JEDEM Zyklus aufs Neue von
-      # null aus und kam ueber einen einzigen Schritt nicht hinaus --
-      # kommandiert wurden 0,05 rad/s statt der eingestellten 0,8
-      # (max_angular_accel 1,0 x 0,05 s Zykluszeit = 0,05).  Der Husky drehte
-      # sich also mit 2,9 Grad/s; eine 180-Grad-Wende haette 63 s gedauert.
-      # Nach 10 s schlug der Fortschrittswaechter zu, brach ab, der Baum
-      # plante neu -- und das Karussell begann von vorn.
+      # This runs into the void without a single error message: the
+      # controller_server never gets its actual velocity, `speed` stays
+      # constantly 0, and every controller built on it controls blind.
+      # Measured on 2026-08-22, and the picture was unambiguous: the
+      # RotationShimController accelerated from zero anew in EVERY cycle and
+      # never got past a single step -- 0,05 rad/s was commanded instead of
+      # the configured 0,8 (max_angular_accel 1,0 x 0,05 s cycle time =
+      # 0,05).  So the Husky turned at 2,9 degrees/s; a 180 degree turn would
+      # have taken 63 s.  After 10 s the progress checker struck, aborted,
+      # the tree replanned -- and the merry-go-round started over.
       #
-      # Aufgefallen ist es an einer Beobachtung am Bildschirm ("er dreht
-      # sich, aber sehr langsam"), nicht an einer Fehlermeldung.  Deshalb
-      # prueft `test_the_controller_actually_receives_odometry` seitdem, dass
-      # auf dem eingestellten Topic auch wirklich jemand PUBLIZIERT -- die
-      # blosse Existenz eines Topics beweist in ROS 2 gar nichts, ein
-      # Abonnent allein laesst es in `topic list` erscheinen.
+      # It was noticed through an observation on the screen ("it turns, but
+      # very slowly"), not through an error message.  That is why
+      # `test_the_controller_actually_receives_odometry` has since checked
+      # that somebody really does PUBLISH on the configured topic -- in ROS 2
+      # the mere existence of a topic proves nothing at all, a subscriber
+      # alone makes it appear in `topic list`.
       #
-      # platform/odom/filtered ist die EKF-Quelle.  Sie und nicht die rohe
-      # platform/odom, weil der EKF auch die TF odom -> base_link liefert:
-      # so kommen Pose und Geschwindigkeit aus derselben Quelle.
+      # platform/odom/filtered is the EKF source.  That one and not the raw
+      # platform/odom, because the EKF also supplies the TF odom -> base_link:
+      # this way pose and velocity come from the same source.
       odom_topic: platform/odom/filtered
       # twist_mux (use_stamped: True), DiffDriveController (use_stamped_vel:
-      # True) und das robot-contract-Profil (cmd_vel_stamped: true) stehen
-      # alle auf TwistStamped.  Nav2s Jazzy-Default ist Twist -- beim
-      # falschen Typ bindet die Subscription NICHT, und der Roboter steht
-      # ohne Fehlermeldung.
+      # True) and the robot-contract profile (cmd_vel_stamped: true) are all
+      # on TwistStamped.  Nav2's Jazzy default is Twist -- with the wrong
+      # type the subscription does NOT bind, and the robot stands still
+      # without an error message.
       enable_stamped_cmd_vel: true
       min_x_velocity_threshold: 0.001
       min_theta_velocity_threshold: 0.001
@@ -87,71 +86,72 @@ a200_0553:
       goal_checker:
         plugin: "nav2_controller::SimpleGoalChecker"
         xy_goal_tolerance: 0.25
-        # Die Zielorientierung wird ABSICHTLICH nicht erzwungen (3.15 > pi
-        # deckt jeden Winkel ab).  Zwei Gruende, beide gemessen:
+        # The goal orientation is DELIBERATELY not enforced (3.15 > pi covers
+        # every angle).  Two reasons, both measured:
         #
-        # 1. RegulatedPurePursuit ist ein reiner POSITIONSfolger und dreht am
-        #    Ziel nicht nach -- der Regler kennt dafuer nicht einmal einen
-        #    Parameter (am 2026-08-22 am laufenden controller_server
-        #    abgefragt: es gibt `use_rotate_to_heading` und
-        #    `rotate_to_heading_min_angle` fuer die Pfadverfolgung, keinen
-        #    einzigen fuer die Zielpose).  Mit einer engen Toleranz stand der
-        #    Husky auf der Zielposition, 155 Grad verdreht, und kam nie
-        #    hinein: gemessen Ziel-Yaw 0, End-Yaw -2,709 rad bei einer
-        #    Positionsabweichung von nur 0,237 m.  Das Goal lief bis zum
-        #    Timeout, und der Fortschrittswaechter loeste im 10-Sekunden-Takt
-        #    Recoveries aus, die den Roboter zufaellig weiterdrehten, bis es
-        #    zufaellig passte -- 12 Recoveries und 121 s fuer 2 m.
+        # 1. RegulatedPurePursuit is a pure POSITION follower and does not
+        #    turn into place at the goal -- the controller does not even have
+        #    a parameter for it (queried on the running controller_server on
+        #    2026-08-22: there is `use_rotate_to_heading` and
+        #    `rotate_to_heading_min_angle` for path following, not a single
+        #    one for the goal pose).  With a tight tolerance the Husky stood
+        #    on the goal position, twisted by 155 degrees, and never got
+        #    inside it: measured goal yaw 0, final yaw -2,709 rad at a
+        #    position deviation of only 0,237 m.  The goal ran until the
+        #    timeout, and the progress checker triggered recoveries every 10
+        #    seconds that turned the robot on at random until it happened to
+        #    fit -- 12 recoveries and 121 s for 2 m.
         #
-        # 2. Selbst wenn der Regler es koennte, waere die Zahl in diesem Stand
-        #    nicht belastbar: solange R34 offen ist, gibt es keine Scans, die
-        #    Lokalisierung steht allein auf Radodometrie, und der
-        #    Skid-Steer-Faktor ist am echten Roboter ungemessen (R37).  Eine
-        #    14-Grad-Endtoleranz nach mehreren Metern Fahrt vorzugeben hiesse,
-        #    eine Genauigkeit zu behaupten, die die Sensorik nicht hergibt.
+        # 2. Even if the controller could do it, the number would not be
+        #    dependable in this state: as long as R34 is open there are no
+        #    scans, localization rests on wheel odometry alone, and the
+        #    skid-steer factor is unmeasured on the real robot (R37).
+        #    Prescribing a 14 degree final tolerance after several metres of
+        #    driving would mean claiming an accuracy the sensors do not
+        #    deliver.
         #
-        # Braucht ein Greifvorgang spaeter eine ausgerichtete Endpose, gehoert
-        # sie als eigener Schritt MIT Sensorbezug dazu -- nicht als Toleranz
-        # auf einer Odometrie, die driftet.
+        # If a grasping operation later needs an aligned final pose, that
+        # belongs in as a step of its own WITH a sensor reference -- not as a
+        # tolerance on an odometry that drifts.
         yaw_goal_tolerance: 3.15
         stateful: true
       FollowPath:
-        # Der Shim dreht den Husky VOR dem Losfahren auf die Pfadrichtung ein
-        # und uebergibt dann an RPP.  Genau das kann ein Skid-Steer gut, und
-        # genau das fehlte: bei einem Ziel, das eine grosse Richtungsaenderung
-        # verlangte, kam der Roboter nicht weg -- am 2026-08-22 gemessen, Ziel
-        # (-2|2) aus (1,93|1,78): nach 51 s ganze 0,06 m gefahren, dann
-        # ABORTED.  Ein Ziel geradeaus lief in derselben Runde in 12 s durch.
+        # The shim turns the Husky onto the path direction BEFORE driving off
+        # and then hands over to RPP.  That is exactly what a skid-steer is
+        # good at, and exactly what was missing: with a goal that demanded a
+        # large change of direction the robot did not get away -- measured on
+        # 2026-08-22, goal (-2|2) from (1,93|1,78): all of 0,06 m travelled
+        # after 51 s, then ABORTED.  A goal straight ahead went through in
+        # 12 s in the same round.
         #
-        # Der Shim ist ein Wrapper: `primary_controller` uebernimmt, sobald
-        # der Winkel unter `angular_dist_threshold` liegt, und liest seine
-        # Parameter aus DIESEM Block -- die RPP-Zeilen darunter bleiben
-        # deshalb unveraendert stehen, wo sie sind.
+        # The shim is a wrapper: `primary_controller` takes over as soon as
+        # the angle falls below `angular_dist_threshold`, and reads its
+        # parameters from THIS block -- the RPP lines underneath therefore
+        # stay unchanged where they are.
         plugin: "nav2_rotation_shim_controller::RotationShimController"
         primary_controller: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
         angular_dist_threshold: 0.785
         forward_sampling_distance: 0.5
-        # 0.8 rad/s, NICHT der Nav2-Default 1.8: der
-        # platform_velocity_controller klemmt angular.z bei 1.0, und
-        # max_acceleration ebenfalls bei 1.0 (s. /clearpath/platform/config/
-        # control.yaml).  Ein Shim, der mehr kommandiert, als der Antrieb
-        # ausfuehren kann, laesst den Roboter hinter seinem eigenen Sollwert
-        # herlaufen -- und der Fortschrittswaechter sieht davon nur, dass
-        # nichts vorangeht.
+        # 0.8 rad/s, NOT the Nav2 default 1.8: the
+        # platform_velocity_controller clamps angular.z at 1.0, and
+        # max_acceleration likewise at 1.0 (see /clearpath/platform/config/
+        # control.yaml).  A shim that commands more than the drive can
+        # execute leaves the robot trailing its own setpoint -- and all the
+        # progress checker sees of that is that nothing is moving.
         rotate_to_heading_angular_vel: 0.8
         max_angular_accel: 1.0
         simulate_ahead_time: 1.0
-        # --- ab hier der primary_controller (RPP), unveraendert ---
+        # --- from here on the primary_controller (RPP), unchanged ---
         desired_linear_vel: 0.4
-        max_vel_x: 0.5              # Radcontroller klemmt bei 1.0
-        max_vel_theta: 0.8          # Radcontroller klemmt bei 1.0
+        max_vel_x: 0.5              # the wheel controller clamps at 1.0
+        max_vel_theta: 0.8          # the wheel controller clamps at 1.0
         lookahead_dist: 0.6
         min_lookahead_dist: 0.3
         max_lookahead_dist: 0.9
         use_velocity_scaled_lookahead_dist: true
-        # Der Husky ist ein Skid-Steer (vier angetriebene Raeder, keine
-        # Lenkung) und kann auf der Stelle drehen -- ohne diesen Schalter
-        # faehrt er Bogen, wo er sich drehen koennte.
+        # The Husky is a skid-steer (four driven wheels, no steering) and can
+        # turn on the spot -- without this switch it drives arcs where it
+        # could turn.
         use_rotate_to_heading: true
         transform_tolerance: 0.2
 
@@ -166,11 +166,11 @@ a200_0553:
         width: 6
         height: 6
         resolution: 0.05
-        # Der Husky misst 0,99 x 0,67 m.  0,60 m umschliesst ihn samt Arm in
-        # Fahrstellung -- ein kleinerer Radius liesse Nav2 Pfade planen, in
-        # die der Roboter nicht passt.  R15 (Sensorbuegel und Frontstossfaenger
-        # fehlen im Kollisionsmodell) ist ein zusaetzlicher Grund, hier nicht
-        # knapp zu rechnen.
+        # The Husky measures 0,99 x 0,67 m.  0,60 m encloses it including the
+        # arm in driving posture -- a smaller radius would let Nav2 plan paths
+        # the robot does not fit through.  R15 (sensor bracket and front
+        # bumper are missing from the collision model) is an additional reason
+        # not to reckon tightly here.
         robot_radius: 0.60
         plugins: ["obstacle_layer", "inflation_layer"]
         obstacle_layer:
@@ -240,18 +240,19 @@ a200_0553:
       local_frame: odom
       global_frame: map
       robot_base_frame: base_link
-      # Gilt PRO KNOTEN -- ihn nur beim controller_server zu setzen genuegt
-      # nicht.  Ohne ihn publizieren spin und backup geometry_msgs/Twist,
-      # waehrend twist_mux ausschliesslich TwistStamped abonniert: die
-      # Recovery-Kommandos kommen dann NIE an der Basis an, und der Roboter
-      # bleibt in der Sackgasse stehen, statt sich freizufahren.
+      # Applies PER NODE -- setting it only on the controller_server is not
+      # enough.  Without it spin and backup publish geometry_msgs/Twist while
+      # twist_mux subscribes exclusively to TwistStamped: the recovery
+      # commands then NEVER arrive at the base, and the robot stays stuck in
+      # the dead end instead of freeing itself.
       #
-      # Am 2026-08-22 im Mock gemessen -- /a200_0553/cmd_vel trug beide Typen:
-      # controller_server -> TwistStamped, behavior_server -> Twist (3 Publisher,
-      # einer je Verhalten).  Kein Test hatte das gefunden: ohne Lidar hat die
-      # Costmap keine Hindernisse, also loest nie ein Recovery aus.  Gemeldet
-      # hat es Foxglove ("Multiple channels advertise the same topic ... but
-      # the schema ... do not match") -- die Warnung war echt, kein Anzeigefehler.
+      # Measured in the mock on 2026-08-22 -- /a200_0553/cmd_vel carried both
+      # types: controller_server -> TwistStamped, behavior_server -> Twist
+      # (3 publishers, one per behaviour).  No test had found it: without a
+      # lidar the costmap has no obstacles, so a recovery never triggers.
+      # Foxglove reported it ("Multiple channels advertise the same topic ...
+      # but the schema ... do not match") -- the warning was real, not a
+      # display glitch.
       enable_stamped_cmd_vel: true
       behavior_plugins: ["spin", "backup", "wait"]
       spin:
@@ -270,10 +271,10 @@ a200_0553:
 
   amcl:
     ros__parameters:
-      # AMCL laeuft erst mit, wenn der Sensorpfad Scans liefert (Task 9).
-      # Bis dahin uebernimmt ein static_transform_publisher die Kante
-      # map -> odom: ein AMCL ohne Scans publiziert GAR KEINE Transformation,
-      # und die TF-Kette staende still.
+      # AMCL only comes along once the sensor path delivers scans (task 9).
+      # Until then a static_transform_publisher takes over the edge
+      # map -> odom: an AMCL without scans publishes NO transform at all, and
+      # the TF chain would stand still.
       base_frame_id: base_link
       odom_frame_id: odom
       global_frame_id: map

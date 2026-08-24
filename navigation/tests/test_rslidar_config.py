@@ -1,11 +1,11 @@
-"""Mock und Roboter fahren DENSELBEN Treiber -- das ist der ganze Punkt.
+"""Mock and robot drive the SAME driver -- that is the whole point.
 
-Der Greifer hat 2026-08-19 vorgefuehrt, was passiert, wenn Mock und Real auseinanderlaufen: der Container lieferte dem
-Twin gar kein Fingergelenk, und zwar still, weil es fuer den Greifer keinen E2E-Test gab.  Hier wird die
-Nicht-Abweichung deshalb zur Testbedingung: alles ausser der Paketquelle muss in beiden Faellen Byte fuer Byte gleich
-sein.
+On 2026-08-19 the gripper demonstrated what happens when mock and real diverge: the container delivered no finger
+joint at all to the twin, and it did so silently, because there was no E2E test for the gripper.  Here the
+non-divergence therefore becomes the test condition: everything except the packet source has to be byte for byte the
+same in both cases.
 
-Braucht weder ROS noch Docker.
+Needs neither ROS nor Docker.
 """
 
 import copy
@@ -41,7 +41,7 @@ def test_online_carries_no_pcap_path(template):
 
 
 def test_only_the_packet_source_differs(template):
-    """Der Kern: alles ausser der Quelle ist in Mock und Live identisch."""
+    """The core: everything except the source is identical in mock and live."""
     online = rc.render(copy.deepcopy(template))
     pcap = rc.render(copy.deepcopy(template), pcap_path="/data/x.pcap")
 
@@ -60,8 +60,8 @@ def test_the_device_stays_an_rs16_on_both_paths(template):
 
 
 def test_the_frame_stays_canonical_on_both_paths(template):
-    """lidar3d_0_laser ist der Name, den robot.yaml erzeugt -- weicht der
-    Treiber davon ab, findet tf2 die Punktwolke nicht und niemand sagt es."""
+    """lidar3d_0_laser is the name robot.yaml generates -- if the driver
+    deviates from it, tf2 does not find the point cloud and nobody says so."""
     for out in (rc.render(copy.deepcopy(template)), rc.render(copy.deepcopy(template), pcap_path="/data/x.pcap")):
         assert out["lidar"][0]["ros"]["ros_frame_id"] == "lidar3d_0_laser"
 

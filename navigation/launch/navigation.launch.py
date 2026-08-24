@@ -1,13 +1,13 @@
-"""Nav2 fuer den a200-0553.
+"""Nav2 for the a200-0553.
 
-localization:=none    static_transform_publisher liefert map -> odom
-localization:=amcl    AMCL gegen die gespeicherte Karte (braucht Scans)
-localization:=slam    slam_toolbox kartiert und liefert map -> odom selbst
+localization:=none    static_transform_publisher supplies map -> odom
+localization:=amcl    AMCL against the stored map (needs scans)
+localization:=slam    slam_toolbox maps and supplies map -> odom itself
 
-Der Default ist NONE, mit Absicht: solange der Sensorpfad keine Scans liefert, publiziert ein AMCL im Graphen GAR KEINE
-Transformation, die TF-Kette staende still, und man suchte den Fehler in den Costmaps.
+The default is NONE, deliberately: as long as the sensor path delivers no scans, an AMCL in the graph publishes NO
+transform at all, the TF chain would stand still, and one would look for the fault in the costmaps.
 
-Alle Topic- und Framenamen kommen aus husky_navigation.wiring.
+All topic and frame names come from husky_navigation.wiring.
 """
 
 import os
@@ -23,26 +23,26 @@ _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PARAMS = os.path.join(_HERE, "config", "nav2_params.yaml")
 MAPS = os.path.join(_HERE, "maps")
 
-#: Die Knoten, die der Lifecycle-Manager hochfahren muss -- in dieser
-#: Reihenfolge: erst die Karte, dann die Costmaps, dann, was auf ihnen plant.
+#: The nodes the lifecycle manager has to bring up -- in this order: first
+#: the map, then the costmaps, then whatever plans on them.
 _CORE_NODES = ["map_server", "controller_server", "planner_server", "behavior_server", "bt_navigator"]
 
-#: Vorlauf, bevor der Lifecycle-Manager zu konfigurieren beginnt.
+#: Lead time before the lifecycle manager starts configuring.
 #:
-#: Am 2026-08-22 gemessen: startet er sofort, scheitert der Hochlauf
-#: gelegentlich mit
+#: Measured on 2026-08-22: if it starts immediately, the bring-up
+#: occasionally fails with
 #:   map_server.rclcpp  failed to send response to .../change_state (timeout)
-#: und bleibt dann stehen -- map_server 'inactive', alle anderen
-#: 'unconfigured', keine navigate_to_pose-Action.  Ein zweiter Anlauf kommt
-#: durch.  Es ist also ein Rennen, kein Defekt: der Mock zieht kurz zuvor gut
-#: zwei Dutzend Knoten hoch, und der DDS-Graph ist noch in Bewegung, wenn der
-#: Manager seine erste Service-Antwort erwartet.
+#: and then stalls -- map_server ``inactive``, everything else
+#: ``unconfigured``, no navigate_to_pose action.  A second attempt gets
+#: through.  So it is a race, not a defect: shortly before, the mock brings
+#: up a good two dozen nodes, and the DDS graph is still in motion when the
+#: manager expects its first service response.
 #:
-#: nav2_lifecycle_manager hat in Jazzy KEINEN Parameter fuer dieses Timeout
-#: (`ros2 param list` kennt nur bond_timeout, bond_respawn_max_duration und
-#: attempt_respawn_reconnection -- die greifen erst NACH dem Hochlauf).  Also
-#: laesst man den Graphen sich setzen.  Ein Stack, der nur manchmal
-#: hochkommt, ist schlimmer als einer, der acht Sekunden laenger braucht.
+#: In Jazzy, nav2_lifecycle_manager has NO parameter for this timeout
+#: (``ros2 param list`` knows only bond_timeout, bond_respawn_max_duration
+#: and attempt_respawn_reconnection -- those take effect only AFTER
+#: bring-up).  So one lets the graph settle.  A stack that only sometimes
+#: comes up is worse than one that takes eight seconds longer.
 _LIFECYCLE_SETTLE_S = 8.0
 
 
@@ -64,7 +64,7 @@ def _setup(context, *args, **kwargs):
             executable="controller_server",
             name="controller_server",
             parameters=[PARAMS],
-            # controller_server publiziert per Default auf cmd_vel im eigenen Namespace -- das IST der twist_mux-Eingang
+            # By default controller_server publishes on cmd_vel in its own namespace -- that IS the twist_mux input
             # "external".
             **common
         ),
@@ -97,8 +97,8 @@ def _setup(context, *args, **kwargs):
             )
         )
     else:
-        # Identitaet map -> odom. Der Roboter driftet damit gegen die Karte, weil nur die Radodometrie ihn traegt -- das
-        # ist der bewusste Stand, solange es keine Scans gibt.
+        # Identity map -> odom. The robot therefore drifts against the map, because only the wheel odometry carries it
+        # -- that is the deliberate state as long as there are no scans.
         nodes.append(
             Node(
                 package="tf2_ros",
@@ -121,8 +121,8 @@ def _setup(context, *args, **kwargs):
                         {
                             "autostart": True,
                             "node_names": managed,
-                            # Greift NACH dem Hochlauf: faellt ein Knoten spaeter weg, versucht der Manager ihn wieder
-                            # einzubinden, statt den ganzen Stack abzuraeumen.
+                            # Takes effect AFTER bring-up: if a node drops out later, the manager tries to bring it
+                            # back in instead of tearing the whole stack down.
                             "attempt_respawn_reconnection": True,
                             "bond_timeout": 10.0,
                         }

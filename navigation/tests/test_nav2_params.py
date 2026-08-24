@@ -1,10 +1,10 @@
-"""Nav2-Parameter, die still danebengehen, wenn sie falsch sind.
+"""Nav2 parameters that go silently wrong when they are set wrong.
 
-Der cmd_vel-Typ ist der klassische Fall: twist_mux (use_stamped: True), der DiffDriveController (use_stamped_vel: True)
-und das robot-contract-Profil (cmd_vel_stamped: true) stehen alle auf TwistStamped; Nav2s Jazzy-Default ist Twist.  Beim
-falschen Typ bindet die Subscription NICHT -- und niemand meldet einen Fehler, der Roboter steht einfach.
+The cmd_vel type is the classic case: twist_mux (use_stamped: True), the DiffDriveController (use_stamped_vel: True)
+and the robot-contract profile (cmd_vel_stamped: true) are all on TwistStamped; Nav2's Jazzy default is Twist.  With
+the wrong type the subscription does NOT bind -- and nobody reports an error, the robot simply stands still.
 
-Braucht weder ROS noch Docker.
+Needs neither ROS nor Docker.
 """
 
 from pathlib import Path
@@ -33,27 +33,27 @@ def test_every_node_lives_in_the_robot_namespace(params):
     )
 
 
-# Jeder Nav2-Knoten, der selbst auf cmd_vel schreibt.  Der Parameter gilt PRO KNOTEN -- ihn nur beim controller_server
-# zu setzen sieht richtig aus und laesst die Recovery-Verhalten trotzdem ins Leere schreiben.  Kommt spaeter ein
-# velocity_smoother oder docking_server dazu, gehoert er in diese Liste.
+# Every Nav2 node that writes to cmd_vel itself.  The parameter applies PER NODE -- setting it only on the
+# controller_server looks right and still lets the recovery behaviours write into the void.  If a velocity_smoother or
+# docking_server is added later, it belongs in this list.
 CMD_VEL_PUBLISHERS = ("controller_server", "behavior_server")
 
-# Dieselbe Falle ein zweites Mal: `odom_topic` gilt ebenfalls pro Knoten.  Am 2026-08-22 stand er im bt_navigator
-# richtig und im controller_server auf dem Nav2-Default "odom" -- ein Topic, auf das niemand publiziert.
+# The same trap a second time: ``odom_topic`` likewise applies per node.  On 2026-08-22 it was right in the
+# bt_navigator and on the Nav2 default "odom" in the controller_server -- a topic nobody publishes to.
 ODOM_CONSUMERS = ("controller_server", "bt_navigator")
 
-# Die EKF-Quelle, nicht die rohe des Radcontrollers: der EKF liefert auch die TF odom -> base_link, also kommen Pose und
-# Geschwindigkeit von derselben Stelle.
+# The EKF source, not the raw one from the wheel controller: the EKF also supplies the TF odom -> base_link, so pose
+# and velocity come from the same place.
 EXPECTED_ODOM_TOPIC = "platform/odom/filtered"
 
 
 @pytest.mark.parametrize("node", ODOM_CONSUMERS)
 def test_every_odom_consumer_reads_the_ekf(params, node):
-    """Der Default "odom" zeigt auf ein Topic ohne Publisher.
+    """The default "odom" points at a topic without a publisher.
 
-    Das scheitert lautlos: `speed` bleibt 0, und jeder Regler, der die Ist-Geschwindigkeit braucht, regelt blind.
-    Gemessen hat sich das als RotationShim gezeigt, der statt 0,8 rad/s nur 0,05 kommandierte -- einen einzigen
-    Beschleunigungsschritt, immer wieder von null.
+    That fails silently: ``speed`` stays 0, and every controller that needs the actual velocity controls blind.  In
+    the measurement it showed up as a RotationShim that commanded only 0,05 rad/s instead of 0,8 -- a single
+    acceleration step, over and over from zero.
     """
     assert _node(params, node)["odom_topic"] == EXPECTED_ODOM_TOPIC, (
         f"{node} liest ein anderes Odometrie-Topic. Der Nav2-Default 'odom' "
@@ -64,11 +64,11 @@ def test_every_odom_consumer_reads_the_ekf(params, node):
 
 @pytest.mark.parametrize("node", CMD_VEL_PUBLISHERS)
 def test_every_cmd_vel_publisher_is_stamped(params, node):
-    """Am 2026-08-22 war genau das falsch, und nichts hat es gemeldet.
+    """On 2026-08-22 exactly this was wrong, and nothing reported it.
 
-    /a200_0553/cmd_vel trug beide Typen: controller_server TwistStamped, behavior_server dreimal Twist (einer je
-    Verhalten).  Aufgefallen ist es an einer Foxglove-Warnung, nicht an dieser Suite -- ohne Lidar hat die Costmap keine
-    Hindernisse, also loest im Mock nie ein Recovery aus, und der tote Pfad wurde nie befahren.
+    /a200_0553/cmd_vel carried both types: controller_server TwistStamped, behavior_server three times Twist (one per
+    behaviour).  It was noticed through a Foxglove warning, not through this suite -- without a lidar the costmap has
+    no obstacles, so in the mock a recovery never triggers, and the dead path was never travelled.
     """
     assert _node(params, node)["enable_stamped_cmd_vel"] is True, (
         f"{node} publiziert geometry_msgs/Twist, twist_mux abonniert aber nur "
@@ -84,8 +84,8 @@ def test_both_costmaps_use_the_derived_scan(params):
 
 
 def test_the_robot_radius_covers_the_husky(params):
-    """Der Husky ist 0,99 m lang und 0,67 m breit -- ein zu kleiner Radius
-    laesst Nav2 Pfade planen, in die der Roboter nicht passt."""
+    """The Husky is 0,99 m long and 0,67 m wide -- too small a radius lets
+    Nav2 plan paths the robot does not fit through."""
     for name in ("local_costmap", "global_costmap"):
         costmap = params[wiring.NAMESPACE][name][name]["ros__parameters"]
         assert costmap["robot_radius"] >= 0.55
@@ -101,9 +101,9 @@ def test_the_costmaps_are_anchored_in_the_documented_frames(params):
 
 
 def test_the_velocity_limits_do_not_exceed_the_controller(params):
-    """platform_velocity_controller klemmt bei 1,0 m/s und 1,0 rad/s --
-    Nav2 darf nicht mehr befehlen, sonst plant es Bahnen, die der
-    Radcontroller stillschweigend beschneidet."""
+    """platform_velocity_controller clamps at 1,0 m/s and 1,0 rad/s -- Nav2
+    must not command more, otherwise it plans trajectories the wheel
+    controller silently trims."""
     ctrl = _node(params, "controller_server")["FollowPath"]
     assert ctrl["max_vel_x"] <= 1.0
     assert ctrl["max_vel_theta"] <= 1.0
