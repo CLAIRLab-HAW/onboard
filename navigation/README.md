@@ -1,82 +1,81 @@
 # husky-navigation
 
-Navigationsschicht des Husky **a200-0553**: der Sensorpfad des RoboSense
-RS-LiDAR-16 und Nav2. Läuft im husky-offboard-Container gegen die
-Mock-Plattform **und** onboard am echten Roboter — dieselbe Konfiguration,
-derselbe Treiber.
+Navigation layer of the Husky **a200-0553**: the sensor path of the RoboSense
+RS-LiDAR-16, and Nav2. Runs in the husky-offboard container against the mock
+platform **and** onboard on the real robot — same configuration, same driver.
 
 ## Features
 
-- **Ein Treiber für beide Seiten.** `rslidar_sdk` (apt, `ros-jazzy-rslidar-sdk`)
-  liest im Mock eine PCAP-Aufnahme und am Roboter das Gerät. Unterschied:
-  `common.msg_source`.
-- **Nav2** mit umschaltbarer Lokalisierung: `slam_toolbox` zum Kartieren,
-  AMCL zum Fahren gegen eine gespeicherte Karte.
-- **ROS-freier Kern.** Die Entscheidungen liegen in `src/husky_navigation/`
-  und sind ohne ROS testbar; die Launch-Dateien importieren sie.
+- **One driver for both sides.** `rslidar_sdk` (apt, `ros-jazzy-rslidar-sdk`)
+  reads a PCAP recording in the mock and the device on the robot. The
+  difference: `common.msg_source`.
+- **Nav2** with switchable localization: `slam_toolbox` for mapping, AMCL for
+  driving against a stored map.
+- **ROS-free core.** The decisions live in `src/husky_navigation/` and are
+  testable without ROS; the launch files import them.
 
-## Stand
+## Status
 
-**Nav2 fährt im Container-Mock gegen eine synthetische Karte.** Belegt, nicht
-behauptet: ein `NavigateToPose` über 1 m endet mit `SUCCEEDED`, und die
-EKF-Odometrie vorher/nachher bestätigt die Strecke.
+**Nav2 drives in the container mock against a synthetic map.** Evidenced, not
+claimed: a `NavigateToPose` over 1 m ends with `SUCCEEDED`, and the EKF
+odometry before and after confirms the distance.
 
-**Der Sensorpfad ist gebaut und konfiguriert, aber ungefahren.** Es fehlt die
-RS16-Aufnahme (R-Punkt in `ROBOTER-TODO.md`); die zugehörigen Tests
-überspringen sich mit benannter Ursache. Bis dahin gilt:
+**The sensor path is built and configured, but never driven.** What is
+missing is the RS16 recording (an R item in `ROBOTER-TODO.md`); the
+corresponding tests skip themselves with a named cause. Until then:
 
-- `map→odom` liefert ein `static_transform_publisher` (Identität), nicht AMCL.
-  Ein AMCL ohne Scans publiziert *gar keine* Transformation.
-- Die Lokalisierung trägt allein die Radodometrie — der Roboter driftet gegen
-  die Karte.
-- Die Costmap hat **keine** Hindernisse.
+- `map→odom` comes from a `static_transform_publisher` (identity), not from
+  AMCL. An AMCL without scans publishes *no* transform at all.
+- Localization rests on wheel odometry alone — the robot drifts against the
+  map.
+- The costmap has **no** obstacles.
 
-Der Satz lautet also nicht „Nav2 läuft", sondern: *Nav2 fährt im Mock gegen
-eine Karte; die Sensorkette wartet auf eine Aufnahme.*
+So the sentence is not "Nav2 runs", but: *Nav2 drives in the mock against a
+map; the sensor chain is waiting for a recording.*
 
-## Frames — der Roboter steckt im Boden, und das ist keiner
+## Frames — the robot sits in the floor, and that is not one
 
-In RViz und Foxglove steht der Husky sichtbar **13,2 cm unter** der
-Bodenebene der Karte. Das sieht nach einem kaputten URDF aus und ist keins:
+In RViz and Foxglove the Husky visibly stands **13.2 cm below** the map's
+ground plane. That looks like a broken URDF and is not one:
 
 ```
-base_link → base_footprint    z = −0,13228     (URDF)
-Radachse  → base_link         z = +0,03282     (URDF)
-Radradius                         0,1651       (control.yaml)
-                              0,03282 − 0,1651 = −0,13228   ✓ exakt
-odom      → base_link         z =  0,000       (EKF)
-map       → base_footprint    z = −0,132       ← daher
+base_link → base_footprint    z = −0.13228     (URDF)
+wheel axle → base_link        z = +0.03282     (URDF)
+wheel radius                      0.1651       (control.yaml)
+                              0.03282 − 0.1651 = −0.13228   ✓ exact
+odom      → base_link         z =  0.000       (EKF)
+map       → base_footprint    z = −0.132       ← hence
 ```
 
-`base_footprint` ist also **korrekt** definiert — genau dort, wo die Räder
-den Boden berühren. Der Versatz entsteht eine Ebene höher: der EKF läuft mit
-`base_link_frame: base_link` und `two_d_mode: True` und pinnt damit
-`base_link` auf z = 0 der Odometrie-Ebene, obwohl base_link im URDF 13,2 cm
-über dem Boden sitzt.
+So `base_footprint` is defined **correctly** — exactly where the wheels touch
+the ground. The offset arises one level up: the EKF runs with
+`base_link_frame: base_link` and `two_d_mode: True` and thereby pins
+`base_link` to z = 0 of the odometry plane, although in the URDF base_link
+sits 13.2 cm above the ground.
 
-Das ist Clearpaths Konvention aus der generierten `localization.yaml`. Über
-`robot.yaml` ist sie nicht einstellbar (dort steht nur `enable_ekf: true`),
-und die generierte Datei zu patchen wäre genau die Driftquelle, die der
-Workspace vermeidet. **Für Nav2 ist es folgenlos** — dort zählen x, y und
+That is Clearpath's convention from the generated `localization.yaml`. It is
+not settable via `robot.yaml` (which only carries `enable_ekf: true`), and
+patching the generated file would be exactly the drift source this workspace
+avoids. **For Nav2 it has no consequence** — what counts there is x, y and
 yaw.
 
-Zwei Stellen, an denen es doch zählt:
+Two places where it does count after all:
 
-- **Höhenbänder rechnen ab `base_link`, nicht ab dem Boden.**
-  `pointcloud_to_laserscan` filtert mit `min_height: -0.10`; das sind 3,2 cm
-  über dem Boden, nicht 10 cm darunter. Steht in
-  `husky_navigation.wiring` mit dieser Rechnung dabei.
-- **Eine Bodenebene als Kollisionsobjekt bei `map` z = 0 läge 13,2 cm zu
-  hoch** — mitten im Roboter. Wer für den Arm eine einzieht, setzt sie auf
-  `base_footprint`.
+- **Height bands are measured from `base_link`, not from the ground.**
+  `pointcloud_to_laserscan` filters with `min_height: -0.10`; that is 3.2 cm
+  above the ground, not 10 cm below it. It is written down in
+  `husky_navigation.wiring` together with this calculation.
+- **A ground plane as a collision object at `map` z = 0 would sit 13.2 cm too
+  high** — in the middle of the robot. Anyone adding one for the arm puts it
+  on `base_footprint`.
 
-`test_the_ground_frame_matches_the_wheel_geometry` nagelt die URDF-Seite
-fest: Es prüft, dass `base_footprint` zur Radachse **und** zum
-`wheel_radius` aus `control.yaml` passt. Beide Quellen wissen nichts
-voneinander; laufen sie auseinander (etwa beim Wechsel auf Outdoor-Räder),
-ist nicht nur die Darstellung falsch, sondern auch die Odometrie — und das
-meldet niemand. Ob der Radius zur *realen* Drehung passt, kann der Mock
-prinzipiell nicht prüfen: siehe R37.
+`test_the_ground_frame_matches_the_wheel_geometry` nails down the URDF side:
+it checks that `base_footprint` matches the wheel axle **and** the
+`wheel_radius` from `control.yaml`. Neither source knows about the other; if
+they diverge (when switching to outdoor wheels, say), not only the rendering
+is wrong but the odometry too — and nobody reports that. Whether the radius
+matches the *real* rotation is something the mock cannot check in principle:
+see R37.
 
 ## Tech Stack
 
@@ -85,29 +84,29 @@ ROS 2 Jazzy · `rslidar_sdk` · `nav2` · `slam_toolbox` ·
 
 ## Installation
 
-Teil des clearpath-uv-Workspace (`uv sync` am Root). Ins Offboard-Image kommt
-das Repo über `additional_contexts` beim `docker compose build`.
+Part of the clearpath uv workspace (`uv sync` at the root). The repo gets into
+the offboard image via `additional_contexts` during `docker compose build`.
 
 ## Usage
 
-Siehe `deploy/husky-offboard/scripts/nav` im Container.
+See `deploy/husky-offboard/scripts/nav` in the container.
 
 ## Running Tests
 
 ```bash
-uv run pytest robot/husky-navigation          # ohne ROS, ohne Container
-uv run pytest -m nav_e2e                      # braucht laufenden Container
+uv run pytest robot/husky-navigation          # without ROS, without container
+uv run pytest -m nav_e2e                      # needs a running container
 ```
 
 ## Related
 
-- [Design-Spec](../../docs/superpowers/specs/2026-08-22-nav2-rs16-design.md)
-- [robot-contract-Profil](../../contract/robot-contract/src/robot_contract/profiles/a200_0553.yaml)
+- [Design spec](../../docs/superpowers/specs/2026-08-22-nav2-rs16-design.md)
+- [robot-contract profile](../../contract/robot-contract/src/robot_contract/profiles/a200_0553.yaml)
 
 ## Versioning
 
-[SemVer](https://semver.org/), Historie im [CHANGELOG](CHANGELOG.md).
+[SemVer](https://semver.org/), history in the [CHANGELOG](CHANGELOG.md).
 
 ## License
 
-Siehe Workspace.
+See the workspace.

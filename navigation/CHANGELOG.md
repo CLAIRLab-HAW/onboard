@@ -3,6 +3,13 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/),
 Versionierung nach [SemVer](https://semver.org/).
 
+## 2026-08-24 (README in English)
+
+- **The README is now fully in English.** Per CLAUDE.md, `README.md` and
+  `CHANGELOG.md` are English everywhere; a README is current state, so it was
+  translated in one piece rather than paragraph by paragraph.
+- Prose only, no behaviour change.
+
 ## [Unreleased]
 
 ### Hinzugefuegt
