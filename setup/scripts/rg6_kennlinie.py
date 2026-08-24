@@ -41,6 +41,7 @@ Fuer den Vergleich mit alten Laeufen kommt AI2 weiterhin aus
 mit ``manipulators/`` im Pfad.  Der Pfad ohne dieses Segment liefert stumm
 gar nichts, und das sieht wie ein totes Topic aus.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -69,14 +70,27 @@ FORCE_N = 40.0
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--settle", type=float, default=SETTLE_S, metavar="S",
-                    help="Ruhezeit je Stuetzstelle in Sekunden (Vorgabe: %(default)s)")
-    ap.add_argument("--force", type=float, default=FORCE_N, metavar="N",
-                    help="Greifkraft in Newton, 25..120 (Vorgabe: %(default)s)")
-    ap.add_argument("--both", action="store_true",
-                    help="nach dem absteigenden Weg denselben aufsteigend fahren "
-                         "-- beantwortet, ob der gemeldete Wert von der "
-                         "Fahrtrichtung abhaengt")
+    ap.add_argument(
+        "--settle",
+        type=float,
+        default=SETTLE_S,
+        metavar="S",
+        help="Ruhezeit je Stuetzstelle in Sekunden (Vorgabe: %(default)s)",
+    )
+    ap.add_argument(
+        "--force",
+        type=float,
+        default=FORCE_N,
+        metavar="N",
+        help="Greifkraft in Newton, 25..120 (Vorgabe: %(default)s)",
+    )
+    ap.add_argument(
+        "--both",
+        action="store_true",
+        help="nach dem absteigenden Weg denselben aufsteigend fahren "
+        "-- beantwortet, ob der gemeldete Wert von der "
+        "Fahrtrichtung abhaengt",
+    )
     args = ap.parse_args()
 
     settle_s, force_n = args.settle, args.force
@@ -104,29 +118,42 @@ def main() -> int:
         except Rg6Error as exc:
             rows.append({"commanded_mm": width_mm, "error": str(exc)})
             continue
-        rows.append({
-            "commanded_mm": width_mm,
-            # Wanduhr des Zustandslesens -- haelt die Zeile an einen
-            # Zeitpunkt, gegen den sich eine parallel mitgeschriebene Spur
-            # (frueher AI2) legen laesst.
-            "t_read": time.time(),
-            "device_width_mm": st.width_m * 1000.0,
-            "busy": st.busy,
-            "grip_detected": st.grip_detected,
-            "status": st.status,
-            "safety_failed": st.safety_failed,
-            # Bleibt als Feld stehen, damit sich alte Durchlaeufe (in denen
-            # AI2 die Weitenquelle war) Zeile fuer Zeile gegen neue halten
-            # lassen.  Nachzutragen ist es nicht mehr -- die Weite kommt vom
-            # Geraet, s. Kopf.
-            "analog_input2_v": None,
-        })
-        print(f"# {width_mm:6.1f} mm -> {st.width_m * 1000:6.2f} mm "
-              f"(busy={st.busy}, grip={st.grip_detected})", file=sys.stderr)
+        rows.append(
+            {
+                "commanded_mm": width_mm,
+                # Wanduhr des Zustandslesens -- haelt die Zeile an einen
+                # Zeitpunkt, gegen den sich eine parallel mitgeschriebene Spur
+                # (frueher AI2) legen laesst.
+                "t_read": time.time(),
+                "device_width_mm": st.width_m * 1000.0,
+                "busy": st.busy,
+                "grip_detected": st.grip_detected,
+                "status": st.status,
+                "safety_failed": st.safety_failed,
+                # Bleibt als Feld stehen, damit sich alte Durchlaeufe (in denen
+                # AI2 die Weitenquelle war) Zeile fuer Zeile gegen neue halten
+                # lassen.  Nachzutragen ist es nicht mehr -- die Weite kommt vom
+                # Geraet, s. Kopf.
+                "analog_input2_v": None,
+            }
+        )
+        print(
+            f"# {width_mm:6.1f} mm -> {st.width_m * 1000:6.2f} mm "
+            f"(busy={st.busy}, grip={st.grip_detected})",
+            file=sys.stderr,
+        )
 
-    json.dump({"widths_mm": widths, "settle_s": settle_s,
-               "force_n": force_n, "both_directions": args.both,
-               "rows": rows}, sys.stdout, indent=1)
+    json.dump(
+        {
+            "widths_mm": widths,
+            "settle_s": settle_s,
+            "force_n": force_n,
+            "both_directions": args.both,
+            "rows": rows,
+        },
+        sys.stdout,
+        indent=1,
+    )
     sys.stdout.write("\n")
     return 0
 

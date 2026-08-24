@@ -34,6 +34,7 @@ Aufruf (Service clearpath-custom-octomap-feed, s. Installer):
 Selbsttest ohne ROS (nur numpy -- laeuft auch auf der Workstation):
     python3 octomap_feed.py --selftest
 """
+
 from __future__ import annotations
 
 import sys
@@ -75,9 +76,9 @@ def depth_to_cloud(
     cx, cy = float(K[0, 2]), float(K[1, 2])
     if fx <= 0.0 or fy <= 0.0:
         return np.empty((0, 3), dtype=np.float32)
-    return np.stack(
-        [(us - cx) / fx * z, (vs - cy) / fy * z, z], axis=1
-    ).astype(np.float32)
+    return np.stack([(us - cx) / fx * z, (vs - cy) / fy * z, z], axis=1).astype(
+        np.float32
+    )
 
 
 def selftest() -> int:
@@ -102,8 +103,10 @@ def selftest() -> int:
     pts_mm = depth_to_cloud(mm, K, stride=2)
     assert len(pts_mm) == len(pts), "mm/uint16-Pfad"
     assert np.allclose(pts_mm[:, 2], pts[:, 2], atol=1e-3), "mm-Skalierung"
-    print("octomap_feed selftest: OK "
-          f"({len(pts)} Punkte, z {pts[:, 2].min():.2f}..{pts[:, 2].max():.2f} m)")
+    print(
+        "octomap_feed selftest: OK "
+        f"({len(pts)} Punkte, z {pts[:, 2].min():.2f}..{pts[:, 2].max():.2f} m)"
+    )
     return 0
 
 
@@ -169,7 +172,8 @@ def main(argv=None) -> int:
             # RELIABLE matcht reliable- UND best-effort-Subscriber; KEEP_LAST 2
             # haelt den Speicher klein.
             self._pub = self.create_publisher(
-                PointCloud2, self.cloud_topic,
+                PointCloud2,
+                self.cloud_topic,
                 QoSProfile(depth=2, reliability=ReliabilityPolicy.RELIABLE),
             )
             self.create_timer(1.0 / max(self.rate_hz, 0.1), self._tick)
@@ -207,9 +211,7 @@ def main(argv=None) -> int:
                 depth = depth.reshape(msg.height, msg.width)
             except ValueError:
                 return
-            pts = depth_to_cloud(
-                depth, K, self.stride, self.min_depth, self.max_depth
-            )
+            pts = depth_to_cloud(depth, K, self.stride, self.min_depth, self.max_depth)
             cloud = PointCloud2()
             cloud.header = msg.header  # Frame + Stamp der Kamera durchreichen
             cloud.height = 1

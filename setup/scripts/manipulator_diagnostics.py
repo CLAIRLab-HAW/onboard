@@ -48,6 +48,7 @@ Aufruf (Service clearpath-custom-manipulator-diagnostics, s. Installer):
 Selbsttest ohne ROS (reine Bewertungslogik -- laeuft auch auf der Workstation):
     python3 manipulator_diagnostics.py --selftest
 """
+
 from __future__ import annotations
 
 import math
@@ -170,8 +171,11 @@ def arm_mode_level(robot_mode, safety_mode):
     Arm ist deswegen nicht zwangslaeufig kaputt.
     """
     if robot_mode is None and safety_mode is None:
-        return Verdict(STALE, "kein robot_mode/safety_mode empfangen - laeuft der "
-                              "io_and_status_controller?")
+        return Verdict(
+            STALE,
+            "kein robot_mode/safety_mode empfangen - laeuft der "
+            "io_and_status_controller?",
+        )
 
     rm, sm = robot_mode_name(robot_mode), safety_mode_name(safety_mode)
 
@@ -210,18 +214,30 @@ def arm_control_level(program_running, joint_state_age, timeout, arm_off=False):
     bewusst ebenfalls nichts an.
     """
     if arm_off:
-        return inactive("Arm ausgeschaltet - ExternalControl erwartungsgemaess gestoppt")
+        return inactive(
+            "Arm ausgeschaltet - ExternalControl erwartungsgemaess gestoppt"
+        )
     if joint_state_age is None:
-        return Verdict(ERROR, "kein joint_state-Strom vom Arm - Hardware-Interface "
-                              "nicht aktiviert (Arm spaet eingeschaltet? "
-                              "clearpath-manipulators neu starten)")
+        return Verdict(
+            ERROR,
+            "kein joint_state-Strom vom Arm - Hardware-Interface "
+            "nicht aktiviert (Arm spaet eingeschaltet? "
+            "clearpath-manipulators neu starten)",
+        )
     if joint_state_age > timeout:
-        return Verdict(ERROR, f"joint_state-Strom seit {joint_state_age:.1f}s "
-                              "abgerissen - Motion-Link tot")
+        return Verdict(
+            ERROR,
+            f"joint_state-Strom seit {joint_state_age:.1f}s "
+            "abgerissen - Motion-Link tot",
+        )
     if program_running is False:
-        return Verdict(WARN, "ExternalControl laeuft nicht (Arm nicht ROS-kommandierbar)")
+        return Verdict(
+            WARN, "ExternalControl laeuft nicht (Arm nicht ROS-kommandierbar)"
+        )
     if program_running is None:
-        return Verdict(WARN, "ExternalControl-Status unbekannt (robot_program_running fehlt)")
+        return Verdict(
+            WARN, "ExternalControl-Status unbekannt (robot_program_running fehlt)"
+        )
     return Verdict(OK, "ExternalControl aktiv, joint_state-Strom laeuft")
 
 
@@ -236,8 +252,10 @@ def arm_joints_level(joint_count, joint_state_age, timeout, arm_off=False):
     if not joint_count or joint_state_age is None or joint_state_age > timeout:
         return Verdict(STALE, "keine aktuellen Gelenkwerte")
     if arm_off:
-        return inactive(f"Arm ausgeschaltet - {joint_count} Gelenke, "
-                        "Werte sind die letzten Encoder-Positionen")
+        return inactive(
+            f"Arm ausgeschaltet - {joint_count} Gelenke, "
+            "Werte sind die letzten Encoder-Positionen"
+        )
     return Verdict(OK, f"{joint_count} Gelenke")
 
 
@@ -266,11 +284,13 @@ def arm_controllers_level(controllers, required, arm_off=False):
     if stopped:
         return Verdict(ERROR, "Controller nicht aktiv: " + ", ".join(sorted(stopped)))
 
-    unconfigured = sorted(n for n, s in controllers.items()
-                          if s not in ("active", "inactive"))
+    unconfigured = sorted(
+        n for n, s in controllers.items() if s not in ("active", "inactive")
+    )
     if unconfigured:
-        return Verdict(WARN, "Controller in unerwartetem Zustand: "
-                             + ", ".join(unconfigured))
+        return Verdict(
+            WARN, "Controller in unerwartetem Zustand: " + ", ".join(unconfigured)
+        )
 
     active = sorted(n for n, s in controllers.items() if s == "active")
     summary = f"{len(active)}/{len(controllers)} Controller aktiv"
@@ -326,7 +346,7 @@ def parse_bridge_state(data):
         else:
             out[name] = value if isinstance(value, want) else None
     if out["width_m"] is None and raw.get("width_m") is not None:
-        return None                 # eine Weite, die keine Zahl ist: unbrauchbar
+        return None  # eine Weite, die keine Zahl ist: unbrauchbar
     return out
 
 
@@ -349,8 +369,9 @@ def gripper_signal_valid(width_raw, force_raw, dead_threshold):
     return width_raw >= dead_threshold or force_raw >= dead_threshold
 
 
-def gripper_level(state_age, timeout, signal_valid, robot_mode, width_raw,
-                  dead_threshold):
+def gripper_level(
+    state_age, timeout, signal_valid, robot_mode, width_raw, dead_threshold
+):
     """Bewertung des RG6-Zustands -> Verdict.
 
     Der RG6 haengt am UR-Tool-Anschluss: ohne bestromten Arm kann er gar keine
@@ -364,24 +385,34 @@ def gripper_level(state_age, timeout, signal_valid, robot_mode, width_raw,
         # Die Bruecke SCHWEIGT, wenn der XML-RPC-Endpoint nicht antwortet
         # (sie meldet lieber nichts als einen alten Wert).  Ein zu altes
         # Status ist deshalb genau das Signal fuer "Endpoint weg".
-        return Verdict(ERROR, f"rg6/bridge_state seit {state_age:.1f}s stumm - "
-                              "rg6-grip-bridge tot oder URCap-Endpoint weg?")
+        return Verdict(
+            ERROR,
+            f"rg6/bridge_state seit {state_age:.1f}s stumm - "
+            "rg6-grip-bridge tot oder URCap-Endpoint weg?",
+        )
 
     if not signal_valid:
         raw = "n/a" if width_raw is None else f"{width_raw:.2f} V"
         if arm_is_off(robot_mode):
-            return inactive("Arm ausgeschaltet - Greifer ohne Versorgung "
-                            f"(Tool-Signal {raw})")
+            return inactive(
+                "Arm ausgeschaltet - Greifer ohne Versorgung " f"(Tool-Signal {raw})"
+            )
         if arm_is_powered(robot_mode) is False:
-            return Verdict(WARN, f"Arm nicht bestromt ({robot_mode_name(robot_mode)}) "
-                                 f"- Greifer ohne Versorgung (Tool-Signal {raw})")
+            return Verdict(
+                WARN,
+                f"Arm nicht bestromt ({robot_mode_name(robot_mode)}) "
+                f"- Greifer ohne Versorgung (Tool-Signal {raw})",
+            )
         # Arm bestromt, trotzdem kein Signal: die 24-V-Tool-Versorgung liegt
         # nicht an.  Sie zu setzen ist Sache der OnRobot-URCap -- der ROS-Weg
         # dorthin ginge ueber Tool-DO, und das belegt die URCap selbst.  Kein
         # ROS-Service kann das hier reparieren; nachzusehen ist am Panel.
-        return Verdict(WARN, f"kein gueltiges Tool-Signal ({raw} < "
-                             f"{dead_threshold:.2f} V) - Tool stromlos: "
-                             "laeuft das URCap-Programm auf dem Panel?")
+        return Verdict(
+            WARN,
+            f"kein gueltiges Tool-Signal ({raw} < "
+            f"{dead_threshold:.2f} V) - Tool stromlos: "
+            "laeuft das URCap-Programm auf dem Panel?",
+        )
     return Verdict(OK, "betriebsbereit")
 
 
@@ -450,9 +481,11 @@ def selftest() -> int:
 
     # --- Arm Controllers --------------------------------------------------
     req = ["joint_state_broadcaster", "arm_0_joint_trajectory_controller"]
-    all_ok = {"joint_state_broadcaster": "active",
-              "arm_0_joint_trajectory_controller": "active",
-              "freedrive_mode_controller": "inactive"}
+    all_ok = {
+        "joint_state_broadcaster": "active",
+        "arm_0_joint_trajectory_controller": "active",
+        "freedrive_mode_controller": "inactive",
+    }
     assert arm_controllers_level(all_ok, req).level == OK, "geparkte Modi sind normal"
     missing = dict(all_ok)
     del missing["joint_state_broadcaster"]
@@ -479,7 +512,8 @@ def selftest() -> int:
     # Der Greiferzustand kommt als JSON von rg6_grip_bridge.
     good = parse_bridge_state(
         '{"width_m": 0.1032, "busy": false, "grip_detected": true,'
-        ' "status": 0, "safety_failed": false, "last_command": "GRIP"}')
+        ' "status": 0, "safety_failed": false, "last_command": "GRIP"}'
+    )
     assert good["width_m"] == 0.1032 and good["grip_detected"] is True, good
     # Kaputte oder fremde Nutzlast darf den Node NICHT umbringen -- sie ist
     # dasselbe wie "kein Status": lieber grau/rot melden als abstuerzen.
@@ -498,7 +532,9 @@ def selftest() -> int:
     assert never.level == ERROR and "bridge" in never.message, never.message
     # DER Fall aus dem Bugreport: Arm POWER_OFF, Greifer ohne Versorgung.
     dead_off = gripper_level(0.05, 2.0, False, 3, 0.0, DEAD)
-    assert dead_off.inactive and dead_off.level == OK, "Arm aus -> Greifer grau, nicht OK"
+    assert (
+        dead_off.inactive and dead_off.level == OK
+    ), "Arm aus -> Greifer grau, nicht OK"
     assert "ausgeschaltet" in dead_off.message
     # Arm bestromt, Greifer trotzdem ohne Signal -> echte Warnung mit Rezept.
     dead_on = gripper_level(0.05, 2.0, False, 7, 0.056, DEAD)
@@ -522,8 +558,10 @@ def selftest() -> int:
     assert arm_is_powered(None) is None
     assert arm_is_off(3) and not arm_is_off(7)
 
-    print("manipulator_diagnostics selftest: OK "
-          f"({len(ROBOT_MODE_NAMES)} robot_modes, {len(SAFETY_MODE_NAMES)} safety_modes)")
+    print(
+        "manipulator_diagnostics selftest: OK "
+        f"({len(ROBOT_MODE_NAMES)} robot_modes, {len(SAFETY_MODE_NAMES)} safety_modes)"
+    )
     return 0
 
 
@@ -542,8 +580,7 @@ def main(argv=None) -> int:
     import rclpy
     from rclpy.executors import ExternalShutdownException
     from rclpy.node import Node
-    from rclpy.qos import (DurabilityPolicy, HistoryPolicy, QoSProfile,
-                           ReliabilityPolicy)
+    from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
     from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
     from sensor_msgs.msg import JointState
@@ -554,6 +591,7 @@ def main(argv=None) -> int:
     # einem Roboter ohne RG6-Workspace startbar.
     try:
         from ur_dashboard_msgs.msg import RobotMode, SafetyMode
+
         UR_MSGS_ERROR = None
     except ImportError as exc:  # pragma: no cover - haengt an der Installation
         RobotMode = SafetyMode = None
@@ -565,6 +603,7 @@ def main(argv=None) -> int:
     # Bootpfad, und der Zustand kommt als JSON von rg6_grip_bridge.
     try:
         from ur_msgs.msg import ToolDataMsg
+
         TOOL_MSGS_ERROR = None
     except ImportError as exc:  # pragma: no cover
         ToolDataMsg = None
@@ -572,6 +611,7 @@ def main(argv=None) -> int:
 
     try:
         from controller_manager_msgs.srv import ListControllers
+
         CM_MSGS_ERROR = None
     except ImportError as exc:  # pragma: no cover
         ListControllers = None
@@ -606,97 +646,131 @@ def main(argv=None) -> int:
             super().__init__("manipulator_diagnostics")
 
             ns = self.declare_parameter(
-                "manipulator_ns", "/a200_0553/manipulators").value.rstrip("/")
+                "manipulator_ns", "/a200_0553/manipulators"
+            ).value.rstrip("/")
             self.diagnostics_topic = self.declare_parameter(
-                "diagnostics_topic", "/a200_0553/diagnostics").value
+                "diagnostics_topic", "/a200_0553/diagnostics"
+            ).value
             self.rate_hz = float(self.declare_parameter("rate_hz", 1.0).value)
             self.arm_prefix = self.declare_parameter("arm_prefix", "arm_0_").value
             self.robot_ip = self.declare_parameter("robot_ip", "192.168.131.40").value
             # Der joint_state-Strom laeuft mit 125 Hz; 2 s Toleranz deckt einen
             # Zenoh-Hickser ab, ohne den echten Abriss zu verschleiern.
             self.js_timeout = float(
-                self.declare_parameter("joint_state_timeout", 2.0).value)
+                self.declare_parameter("joint_state_timeout", 2.0).value
+            )
             self.gripper_timeout = float(
-                self.declare_parameter("gripper_timeout", 2.0).value)
+                self.declare_parameter("gripper_timeout", 2.0).value
+            )
             self.stroke_m = float(self.declare_parameter("stroke_m", 0.160).value)
             # Uebernommen aus dem stillgelegten rg6_control (gleichnamiger
             # Parameter): unterhalb dieser Spannung liefert der RG6 kein
             # gueltiges Tool-Signal.
             self.dead_input_threshold = float(
-                self.declare_parameter("dead_input_threshold", 0.2).value)
+                self.declare_parameter("dead_input_threshold", 0.2).value
+            )
             # Rauschen der Gelenkgeschwindigkeit am STILLSTEHENDEN Arm: bestromt
             # exakt 0.0000, unbestromt bis 0.055 rad/s gemessen. Die Schwelle
             # deckt nur den bestromten Fall ab -- unbestromt wird "in Bewegung"
             # ohnehin unterdrueckt (Status ist dann 'ausser Betrieb').
             self.motion_eps = float(
-                self.declare_parameter("motion_eps_rad_s", 0.02).value)
-            self.required_controllers = list(self.declare_parameter(
-                "required_controllers",
-                ["joint_state_broadcaster",
-                 "arm_0_joint_trajectory_controller",
-                 "io_and_status_controller"]).value)
+                self.declare_parameter("motion_eps_rad_s", 0.02).value
+            )
+            self.required_controllers = list(
+                self.declare_parameter(
+                    "required_controllers",
+                    [
+                        "joint_state_broadcaster",
+                        "arm_0_joint_trajectory_controller",
+                        "io_and_status_controller",
+                    ],
+                ).value
+            )
             self.controller_poll_s = float(
-                self.declare_parameter("controller_poll_period", 5.0).value)
+                self.declare_parameter("controller_poll_period", 5.0).value
+            )
             self.arm_hardware_id = self.declare_parameter(
-                "arm_hardware_id", f"UR5 CB3 @ {self.robot_ip}").value
+                "arm_hardware_id", f"UR5 CB3 @ {self.robot_ip}"
+            ).value
             self.gripper_hardware_id = self.declare_parameter(
-                "gripper_hardware_id", "OnRobot RG6 @ UR Tool-I/O").value
+                "gripper_hardware_id", "OnRobot RG6 @ UR Tool-I/O"
+            ).value
 
             # ---- Zustand -------------------------------------------------
             self._robot_mode = None
             self._safety_mode = None
             self._program_running = None
-            self._js_stamps = deque(maxlen=64)   # monotone Empfangszeiten (Arm)
-            self._joints = {}                    # kurzname -> (pos, vel, eff)
-            self._gripper = None                 # letzter Bruecken-Zustand (dict)
+            self._js_stamps = deque(maxlen=64)  # monotone Empfangszeiten (Arm)
+            self._joints = {}  # kurzname -> (pos, vel, eff)
+            self._gripper = None  # letzter Bruecken-Zustand (dict)
             self._gripper_time = None
-            self._tool = None                    # letzte ToolDataMsg (AI2/AI3)
-            self._controllers = None             # {name: state} | None
+            self._tool = None  # letzte ToolDataMsg (AI2/AI3)
+            self._controllers = None  # {name: state} | None
             self._controllers_time = None
             self._cm_future = None
 
             # ---- Subscriptions -------------------------------------------
             if RobotMode is not None:
                 self.create_subscription(
-                    RobotMode, f"{ns}/io_and_status_controller/robot_mode",
-                    self._on_robot_mode, LATCHED)
+                    RobotMode,
+                    f"{ns}/io_and_status_controller/robot_mode",
+                    self._on_robot_mode,
+                    LATCHED,
+                )
                 self.create_subscription(
-                    SafetyMode, f"{ns}/io_and_status_controller/safety_mode",
-                    self._on_safety_mode, LATCHED)
+                    SafetyMode,
+                    f"{ns}/io_and_status_controller/safety_mode",
+                    self._on_safety_mode,
+                    LATCHED,
+                )
             self.create_subscription(
-                Bool, f"{ns}/io_and_status_controller/robot_program_running",
-                self._on_program_running, LATCHED)
+                Bool,
+                f"{ns}/io_and_status_controller/robot_program_running",
+                self._on_program_running,
+                LATCHED,
+            )
             self.create_subscription(
-                JointState, f"{ns}/joint_states", self._on_joint_states, 10)
+                JointState, f"{ns}/joint_states", self._on_joint_states, 10
+            )
             self.create_subscription(
-                String, f"{ns}/rg6/bridge_state", self._on_gripper, 10)
+                String, f"{ns}/rg6/bridge_state", self._on_gripper, 10
+            )
             if ToolDataMsg is not None:
                 self.create_subscription(
-                    ToolDataMsg, f"{ns}/io_and_status_controller/tool_data",
-                    self._on_tool_data, 10)
+                    ToolDataMsg,
+                    f"{ns}/io_and_status_controller/tool_data",
+                    self._on_tool_data,
+                    10,
+                )
 
             # ---- controller_manager --------------------------------------
             self._cm_client = None
             if ListControllers is not None:
                 self._cm_client = self.create_client(
-                    ListControllers, f"{ns}/controller_manager/list_controllers")
+                    ListControllers, f"{ns}/controller_manager/list_controllers"
+                )
                 self.create_timer(self.controller_poll_s, self._poll_controllers)
 
             # ---- Ausgang -------------------------------------------------
             self._pub = self.create_publisher(
-                DiagnosticArray, self.diagnostics_topic, 10)
+                DiagnosticArray, self.diagnostics_topic, 10
+            )
             self.create_timer(1.0 / max(self.rate_hz, 0.1), self._tick)
 
             self.get_logger().info(
                 f"manipulator_diagnostics: {ns} -> {self.diagnostics_topic} "
-                f"@ {self.rate_hz:.1f} Hz")
-            for missing, what in ((UR_MSGS_ERROR, "ur_dashboard_msgs"),
-                                  (TOOL_MSGS_ERROR, "ur_msgs"),
-                                  (CM_MSGS_ERROR, "controller_manager_msgs")):
+                f"@ {self.rate_hz:.1f} Hz"
+            )
+            for missing, what in (
+                (UR_MSGS_ERROR, "ur_dashboard_msgs"),
+                (TOOL_MSGS_ERROR, "ur_msgs"),
+                (CM_MSGS_ERROR, "controller_manager_msgs"),
+            ):
                 if missing:
                     self.get_logger().error(
                         f"{what} nicht importierbar ({missing}) - der zugehoerige "
-                        "Status meldet das als Fehler. Workspace gesourct?")
+                        "Status meldet das als Fehler. Workspace gesourct?"
+                    )
 
         # ---- Callbacks ---------------------------------------------------
         def _on_robot_mode(self, msg) -> None:
@@ -722,7 +796,7 @@ def main(argv=None) -> int:
                 if not name.startswith(self.arm_prefix):
                     continue
                 found = True
-                self._joints[name[len(self.arm_prefix):]] = (
+                self._joints[name[len(self.arm_prefix) :]] = (
                     msg.position[i] if i < len(msg.position) else float("nan"),
                     msg.velocity[i] if i < len(msg.velocity) else float("nan"),
                     msg.effort[i] if i < len(msg.effort) else float("nan"),
@@ -741,7 +815,8 @@ def main(argv=None) -> int:
             if state is None:
                 self.get_logger().warn(
                     f"unlesbarer rg6/bridge_state: {msg.data[:120]!r}",
-                    throttle_duration_sec=10.0)
+                    throttle_duration_sec=10.0,
+                )
                 return
             self._gripper = state
             self._gripper_time = time.monotonic()
@@ -765,7 +840,8 @@ def main(argv=None) -> int:
             except Exception as exc:  # defensiv: Service-Callback nie sterben lassen
                 self.get_logger().warning(
                     f"list_controllers fehlgeschlagen: {exc}",
-                    throttle_duration_sec=30.0)
+                    throttle_duration_sec=30.0,
+                )
                 self._controllers = None
                 return
             self._controllers = {c.name: c.state for c in result.controller}
@@ -809,43 +885,68 @@ def main(argv=None) -> int:
                 return self._status(
                     "Arm Mode",
                     Verdict(ERROR, f"ur_dashboard_msgs fehlt ({UR_MSGS_ERROR})"),
-                    self.arm_hardware_id, {})
+                    self.arm_hardware_id,
+                    {},
+                )
             verdict = arm_mode_level(self._robot_mode, self._safety_mode)
             powered = arm_is_powered(self._robot_mode)
-            return self._status("Arm Mode", verdict, self.arm_hardware_id, {
-                "robot_mode": robot_mode_name(self._robot_mode),
-                "robot_mode_id": self._robot_mode,
-                "safety_mode": safety_mode_name(self._safety_mode),
-                "safety_mode_id": self._safety_mode,
-                # Ableitung fuers UI: entscheidet mit ueber die Greifer-Anzeige.
-                "arm_powered": "unknown" if powered is None else str(powered).lower(),
-                "robot_ip": self.robot_ip,
-            })
+            return self._status(
+                "Arm Mode",
+                verdict,
+                self.arm_hardware_id,
+                {
+                    "robot_mode": robot_mode_name(self._robot_mode),
+                    "robot_mode_id": self._robot_mode,
+                    "safety_mode": safety_mode_name(self._safety_mode),
+                    "safety_mode_id": self._safety_mode,
+                    # Ableitung fuers UI: entscheidet mit ueber die Greifer-Anzeige.
+                    "arm_powered": (
+                        "unknown" if powered is None else str(powered).lower()
+                    ),
+                    "robot_ip": self.robot_ip,
+                },
+            )
 
         def _arm_control_status(self):
             age = self._joint_state_age()
             verdict = arm_control_level(
-                self._program_running, age, self.js_timeout, arm_off=self._arm_off())
-            return self._status("Arm Control", verdict, self.arm_hardware_id, {
-                "external_control": {True: "running", False: "stopped",
-                                     None: "unknown"}[self._program_running],
-                "joint_state_rate_hz": f"{self._joint_state_rate():.1f}",
-                "joint_state_age_s": "never" if age is None else f"{age:.2f}",
-                "joint_state_timeout_s": f"{self.js_timeout:.1f}",
-                "motion_interface": ("live" if age is not None
-                                     and age <= self.js_timeout else "dead"),
-            })
+                self._program_running, age, self.js_timeout, arm_off=self._arm_off()
+            )
+            return self._status(
+                "Arm Control",
+                verdict,
+                self.arm_hardware_id,
+                {
+                    "external_control": {
+                        True: "running",
+                        False: "stopped",
+                        None: "unknown",
+                    }[self._program_running],
+                    "joint_state_rate_hz": f"{self._joint_state_rate():.1f}",
+                    "joint_state_age_s": "never" if age is None else f"{age:.2f}",
+                    "joint_state_timeout_s": f"{self.js_timeout:.1f}",
+                    "motion_interface": (
+                        "live" if age is not None and age <= self.js_timeout else "dead"
+                    ),
+                },
+            )
 
         def _arm_joints_status(self):
             age = self._joint_state_age()
             arm_off = self._arm_off()
             verdict = arm_joints_level(
-                len(self._joints), age, self.js_timeout, arm_off=arm_off)
+                len(self._joints), age, self.js_timeout, arm_off=arm_off
+            )
             if verdict.level == STALE:
                 return self._status(
-                    "Arm Joints", verdict, self.arm_hardware_id,
-                    {"joints": "", "joint_state_age_s": "never" if age is None
-                     else f"{age:.2f}"})
+                    "Arm Joints",
+                    verdict,
+                    self.arm_hardware_id,
+                    {
+                        "joints": "",
+                        "joint_state_age_s": "never" if age is None else f"{age:.2f}",
+                    },
+                )
 
             values = {"joints": ", ".join(self._joints)}
             moving = False
@@ -862,8 +963,10 @@ def main(argv=None) -> int:
             values["moving"] = "unknown" if arm_off else str(moving).lower()
             values["rate_hz"] = f"{self._joint_state_rate():.1f}"
             if not arm_off:
-                verdict = Verdict(verdict.level, f"{verdict.message}, "
-                                  + ("in Bewegung" if moving else "in Ruhe"))
+                verdict = Verdict(
+                    verdict.level,
+                    f"{verdict.message}, " + ("in Bewegung" if moving else "in Ruhe"),
+                )
             return self._status("Arm Joints", verdict, self.arm_hardware_id, values)
 
         def _arm_controllers_status(self):
@@ -871,17 +974,24 @@ def main(argv=None) -> int:
                 return self._status(
                     "Arm Controllers",
                     Verdict(ERROR, f"controller_manager_msgs fehlt ({CM_MSGS_ERROR})"),
-                    self.arm_hardware_id, {})
+                    self.arm_hardware_id,
+                    {},
+                )
             verdict = arm_controllers_level(
-                self._controllers, self.required_controllers, arm_off=self._arm_off())
+                self._controllers, self.required_controllers, arm_off=self._arm_off()
+            )
             values = {"required": ", ".join(self.required_controllers)}
             if self._controllers:
                 values.update(self._controllers)
-                active = [n for n, s in self._controllers.items()
-                          if s == "active" and n not in self.required_controllers]
+                active = [
+                    n
+                    for n, s in self._controllers.items()
+                    if s == "active" and n not in self.required_controllers
+                ]
                 values["active_optional"] = ", ".join(sorted(active)) or "-"
-            return self._status("Arm Controllers", verdict,
-                                self.arm_hardware_id, values)
+            return self._status(
+                "Arm Controllers", verdict, self.arm_hardware_id, values
+            )
 
         def _gripper_status(self):
             """Zwei Quellen, absichtlich getrennt gehalten.
@@ -903,24 +1013,39 @@ def main(argv=None) -> int:
             # Gueltigkeit ausschliesslich am Analogsignal festmachen: es ist
             # das einzige HARDWARE-Feedback ueber die Tool-Versorgung.
             valid = gripper_signal_valid(width_raw, force_raw, dead)
-            verdict = gripper_level(age, self.gripper_timeout, valid,
-                                    self._robot_mode, width_raw, dead)
+            verdict = gripper_level(
+                age, self.gripper_timeout, valid, self._robot_mode, width_raw, dead
+            )
             if state is None:
-                return self._status("Gripper", verdict, self.gripper_hardware_id,
-                                    {"state_age_s": "never",
-                                     "width_raw_v": (unknown if width_raw is None
-                                                     else f"{width_raw:.3f}")})
+                return self._status(
+                    "Gripper",
+                    verdict,
+                    self.gripper_hardware_id,
+                    {
+                        "state_age_s": "never",
+                        "width_raw_v": (
+                            unknown if width_raw is None else f"{width_raw:.3f}"
+                        ),
+                    },
+                )
 
             width = state["width_m"] if valid else None
             if verdict.level == OK and not verdict.inactive:
-                verdict = Verdict(verdict.level, gripper_summary(
-                    width, state["grip_detected"], state["busy"], self.stroke_m))
+                verdict = Verdict(
+                    verdict.level,
+                    gripper_summary(
+                        width, state["grip_detected"], state["busy"], self.stroke_m
+                    ),
+                )
             last = state["last_command"]
             values = {
                 "width_m": unknown if width is None else f"{width:.4f}",
                 "width_mm": unknown if width is None else f"{width * 1000.0:.1f}",
-                "width_percent": (unknown if width is None or self.stroke_m <= 0.0
-                                  else f"{100.0 * width / self.stroke_m:.0f}"),
+                "width_percent": (
+                    unknown
+                    if width is None or self.stroke_m <= 0.0
+                    else f"{100.0 * width / self.stroke_m:.0f}"
+                ),
                 "stroke_mm": f"{self.stroke_m * 1000.0:.0f}",
                 # Rohwerte immer zeigen: sie sind die Diagnose selbst.  Sie
                 # stammen NICHT aus derselben Quelle wie die Weite -- deshalb
@@ -930,21 +1055,36 @@ def main(argv=None) -> int:
                 "signal_valid": str(valid).lower(),
                 "dead_input_threshold_v": f"{dead:.2f}",
                 # Ohne Tool-Spannung meldet auch das Geraet nichts Belastbares.
-                "grip_detected": (unknown if not valid or state["grip_detected"] is None
-                                  else str(state["grip_detected"]).lower()),
-                "busy": (unknown if not valid or state["busy"] is None
-                         else str(state["busy"]).lower()),
+                "grip_detected": (
+                    unknown
+                    if not valid or state["grip_detected"] is None
+                    else str(state["grip_detected"]).lower()
+                ),
+                "busy": (
+                    unknown
+                    if not valid or state["busy"] is None
+                    else str(state["busy"]).lower()
+                ),
                 # Geraetestatus, direkt vom Endpoint (rg_get_status /
                 # rg_get_safety_failed) -- das gab es ueber den Tool-DO-Pfad nie.
-                "device_status": unknown if state["status"] is None else str(state["status"]),
-                "safety_failed": (unknown if state["safety_failed"] is None
-                                  else str(state["safety_failed"]).lower()),
-                "last_command": (unknown if last is None
-                                 else GRIPPER_COMMANDS.get(last, str(last))),
+                "device_status": (
+                    unknown if state["status"] is None else str(state["status"])
+                ),
+                "safety_failed": (
+                    unknown
+                    if state["safety_failed"] is None
+                    else str(state["safety_failed"]).lower()
+                ),
+                "last_command": (
+                    unknown if last is None else GRIPPER_COMMANDS.get(last, str(last))
+                ),
                 # ECHTES Hardware-Feedback: die gemessene Spannung, kein
                 # kommandierter Sollwert.
-                "tool_output_voltage_v": (unknown if tool is None
-                                          else f"{float(tool.tool_output_voltage):.0f}"),
+                "tool_output_voltage_v": (
+                    unknown
+                    if tool is None
+                    else f"{float(tool.tool_output_voltage):.0f}"
+                ),
                 "state_age_s": f"{age:.2f}",
             }
             return self._status("Gripper", verdict, self.gripper_hardware_id, values)
