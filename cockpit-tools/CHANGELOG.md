@@ -3,6 +3,18 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## 2026-08-25 (CI added)
+
+- **`.github/workflows/ci.yml` added** -- `node --check` over every `.js`/`.mjs` file, `bash -n` over the
+  two shell scripts and the package's own `npm test`, on push to `main` and on every pull request.
+- **No install step and nothing fetched from npm.** `package.json` declares no dependencies, so a bare
+  checkout runs the suite complete: 43 passed, 0 failed (2026-08-25 measured). Node 22 is the LTS line;
+  the tests use nothing beyond `node:test` and `node:assert/strict`.
+- **`node --check` is the counterpart of the ruff hard-error gate** the Python repos of this workspace
+  run -- syntax errors only, no linter config to keep in step.
+- **The shell check loops over the files.** `bash -n a b` checks only `a` and passes the rest to the
+  script as its arguments.
+
 ## 2026-08-24 (README in English, skeleton aligned)
 
 - **The README is now fully in English.** Per CLAUDE.md, `README.md` and
