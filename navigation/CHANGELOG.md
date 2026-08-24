@@ -3,6 +3,17 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/),
 Versionierung nach [SemVer](https://semver.org/).
 
+## 2026-08-24 (pytest config block, canonical form)
+
+- **`[tool.pytest.ini_options]` added** with `pythonpath=["src"]`,
+  `testpaths=["tests"]`, `addopts="-p no:cov"`, and the `nav_e2e` marker
+  registered. The suite had been running off the root config and the editable
+  install alone, and `nav_e2e` was an unregistered marker (PytestUnknownMark
+  warning); the package now carries its own config like every other package
+  (CLAUDE.md, "Ein neues Paket anlegen").
+- No behaviour change; 35 passed, 16 skipped (the `nav_e2e` driving tests skip
+  cleanly without a running base) from within the package.
+
 ## 2026-08-24 (Build backend aligns to the workspace norm)
 
 - **Switched from `hatchling` to `setuptools.build_meta`.** Matches the
