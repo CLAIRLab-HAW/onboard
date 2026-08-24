@@ -27,10 +27,7 @@ def test_the_driver_template_publishes_on_the_wired_points_topic():
     from husky_navigation import rslidar_config as rc
 
     template = yaml.safe_load(rc.TEMPLATE_PATH.read_text(encoding="utf-8"))
-    assert (
-        template["lidar"][0]["ros"]["ros_send_point_cloud_topic"]
-        == wiring.points_topic()
-    )
+    assert template["lidar"][0]["ros"]["ros_send_point_cloud_topic"] == wiring.points_topic()
 
 
 def test_the_driver_template_uses_the_wired_frame():

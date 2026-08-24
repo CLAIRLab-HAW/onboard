@@ -44,8 +44,7 @@ def render(template: dict, *, pcap_path: str | None = None) -> dict:
         )
     if not template.get("lidar"):
         raise ValueError(
-            "Vorlage ohne 'lidar'-Abschnitt -- ohne ihn kennt der Treiber "
-            "weder Geraetetyp noch Zielframe."
+            "Vorlage ohne 'lidar'-Abschnitt -- ohne ihn kennt der Treiber " "weder Geraetetyp noch Zielframe."
         )
 
     driver = template["lidar"][0].setdefault("driver", {})

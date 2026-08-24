@@ -20,10 +20,7 @@ CONTAINER = "husky-offboard-offboard-1"
 
 def _exec(script: str, timeout: int = 180) -> str:
     proc = subprocess.run(
-        ["docker", "exec", CONTAINER, "bash", "-lc", script],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
+        ["docker", "exec", CONTAINER, "bash", "-lc", script], capture_output=True, text=True, timeout=timeout
     )
     return proc.stdout
 
@@ -31,23 +28,14 @@ def _exec(script: str, timeout: int = 180) -> str:
 @pytest.fixture(scope="module")
 def container():
     probe = subprocess.run(
-        [
-            "docker",
-            "inspect",
-            CONTAINER,
-            "--format",
-            "{{range .Config.Env}}{{println .}}{{end}}",
-        ],
+        ["docker", "inspect", CONTAINER, "--format", "{{range .Config.Env}}{{println .}}{{end}}"],
         capture_output=True,
         text=True,
     )
     if probe.returncode != 0:
         pytest.skip(f"Container {CONTAINER} laeuft nicht.")
     if "TARGET=mock" not in probe.stdout:
-        pytest.skip(
-            "Container steht NICHT auf TARGET=mock -- dieser Test "
-            "faehrt den Roboter."
-        )
+        pytest.skip("Container steht NICHT auf TARGET=mock -- dieser Test " "faehrt den Roboter.")
     return CONTAINER
 
 
@@ -76,8 +64,7 @@ def test_the_navigate_to_pose_action_is_offered(container):
 
 def test_the_map_is_published(container):
     out = _exec(
-        "source ros-env; timeout 10 ros2 topic echo /a200_0553/map "
-        "--once --field info.resolution 2>/dev/null"
+        "source ros-env; timeout 10 ros2 topic echo /a200_0553/map " "--once --field info.resolution 2>/dev/null"
     )
     assert out.strip(), "map_server publiziert keine Karte."
 
@@ -233,8 +220,7 @@ print(json.dumps({
         f"Erfolg ohne Bewegung ist kein Erfolg."
     )
     assert result["remaining"] < 0.35, (
-        f"Angekommen ist er nicht: {result['remaining']:.3f} m zum Ziel "
-        f"(xy_goal_tolerance ist 0,25)."
+        f"Angekommen ist er nicht: {result['remaining']:.3f} m zum Ziel " f"(xy_goal_tolerance ist 0,25)."
     )
 
 
@@ -256,10 +242,7 @@ def test_the_controller_actually_receives_odometry(container):
     assert topic, "odom_topic ist am laufenden controller_server nicht lesbar."
 
     full = topic if topic.startswith("/") else f"/a200_0553/{topic}"
-    info = _exec(
-        f"source ros-env; timeout 20 ros2 topic info -v {full} "
-        "2>/dev/null | grep 'Publisher count'"
-    )
+    info = _exec(f"source ros-env; timeout 20 ros2 topic info -v {full} " "2>/dev/null | grep 'Publisher count'")
     assert "Publisher count: 0" not in info, (
         f"Auf {full} publiziert NIEMAND -- der controller_server bekommt "
         f"seine Ist-Geschwindigkeit nie, `speed` bleibt 0, und der Regler "
@@ -311,10 +294,7 @@ def test_the_ground_frame_matches_the_wheel_geometry(container):
     axle_z = _z("base_link", "front_left_wheel_link")
 
     radius = float(
-        _exec(
-            "grep -m1 'wheel_radius:' /clearpath/platform/config/control.yaml "
-            "| tr -d ' ' | cut -d: -f2"
-        ).strip()
+        _exec("grep -m1 'wheel_radius:' /clearpath/platform/config/control.yaml " "| tr -d ' ' | cut -d: -f2").strip()
     )
 
     expected = axle_z - radius

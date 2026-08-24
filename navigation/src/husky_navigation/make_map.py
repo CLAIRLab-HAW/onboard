@@ -19,11 +19,7 @@ OCCUPIED = 0  # schwarz -> Wand
 
 
 def write_empty_room(
-    out_stem: str | Path,
-    *,
-    width_m: float = 10.0,
-    height_m: float = 10.0,
-    resolution: float = 0.05,
+    out_stem: str | Path, *, width_m: float = 10.0, height_m: float = 10.0, resolution: float = 0.05
 ) -> tuple[Path, Path]:
     """Schreibt <stem>.pgm und <stem>.yaml: freier Raum mit Wand ringsum.
 
@@ -38,17 +34,12 @@ def write_empty_room(
         if r == 0 or r == rows - 1:
             rowbytes.append(bytes([OCCUPIED] * cols))
         else:
-            rowbytes.append(
-                bytes([OCCUPIED]) + bytes([FREE] * (cols - 2)) + bytes([OCCUPIED])
-            )
+            rowbytes.append(bytes([OCCUPIED]) + bytes([FREE] * (cols - 2)) + bytes([OCCUPIED]))
 
     pgm = stem.with_suffix(".pgm")
     pgm.parent.mkdir(parents=True, exist_ok=True)
     with pgm.open("wb") as fh:
-        fh.write(
-            f"P5\n# erzeugt von husky_navigation.make_map\n"
-            f"{cols} {rows}\n255\n".encode("ascii")
-        )
+        fh.write(f"P5\n# erzeugt von husky_navigation.make_map\n" f"{cols} {rows}\n255\n".encode("ascii"))
         for row in rowbytes:
             fh.write(row)
 

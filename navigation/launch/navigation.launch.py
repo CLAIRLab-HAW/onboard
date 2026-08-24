@@ -26,13 +26,7 @@ MAPS = os.path.join(_HERE, "maps")
 
 #: Die Knoten, die der Lifecycle-Manager hochfahren muss -- in dieser
 #: Reihenfolge: erst die Karte, dann die Costmaps, dann, was auf ihnen plant.
-_CORE_NODES = [
-    "map_server",
-    "controller_server",
-    "planner_server",
-    "behavior_server",
-    "bt_navigator",
-]
+_CORE_NODES = ["map_server", "controller_server", "planner_server", "behavior_server", "bt_navigator"]
 
 #: Vorlauf, bevor der Lifecycle-Manager zu konfigurieren beginnt.
 #:
@@ -57,9 +51,7 @@ def _setup(context, *args, **kwargs):
     localization = LaunchConfiguration("localization").perform(context)
     map_file = LaunchConfiguration("map").perform(context)
 
-    common = dict(
-        namespace=wiring.NAMESPACE, output="screen", remappings=wiring.TF_REMAPS
-    )
+    common = dict(namespace=wiring.NAMESPACE, output="screen", remappings=wiring.TF_REMAPS)
     nodes = [
         Node(
             package="nav2_map_server",
@@ -77,13 +69,7 @@ def _setup(context, *args, **kwargs):
             # eigenen Namespace -- das IST der twist_mux-Eingang "external".
             **common
         ),
-        Node(
-            package="nav2_planner",
-            executable="planner_server",
-            name="planner_server",
-            parameters=[PARAMS],
-            **common
-        ),
+        Node(package="nav2_planner", executable="planner_server", name="planner_server", parameters=[PARAMS], **common),
         Node(
             package="nav2_behaviors",
             executable="behavior_server",
@@ -92,26 +78,14 @@ def _setup(context, *args, **kwargs):
             **common
         ),
         Node(
-            package="nav2_bt_navigator",
-            executable="bt_navigator",
-            name="bt_navigator",
-            parameters=[PARAMS],
-            **common
+            package="nav2_bt_navigator", executable="bt_navigator", name="bt_navigator", parameters=[PARAMS], **common
         ),
     ]
 
     managed = list(_CORE_NODES)
 
     if localization == "amcl":
-        nodes.append(
-            Node(
-                package="nav2_amcl",
-                executable="amcl",
-                name="amcl",
-                parameters=[PARAMS],
-                **common
-            )
-        )
+        nodes.append(Node(package="nav2_amcl", executable="amcl", name="amcl", parameters=[PARAMS], **common))
         managed.insert(1, "amcl")
     elif localization == "slam":
         nodes.append(
@@ -168,9 +142,7 @@ def _setup(context, *args, **kwargs):
 def generate_launch_description():
     return LaunchDescription(
         [
-            DeclareLaunchArgument(
-                "localization", default_value="none", choices=["none", "amcl", "slam"]
-            ),
+            DeclareLaunchArgument("localization", default_value="none", choices=["none", "amcl", "slam"]),
             DeclareLaunchArgument("map", default_value="leerer_raum.yaml"),
             OpaqueFunction(function=_setup),
         ]

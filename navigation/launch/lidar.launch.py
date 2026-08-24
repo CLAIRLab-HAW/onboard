@@ -27,10 +27,7 @@ def _setup(context, *args, **kwargs):
     # rslidar_sdk kennt keine Uebersteuerung einzelner Schluessel -- es liest
     # genau eine Datei.  Die aufgeloeste Fassung entsteht deshalb hier, aus
     # DERSELBEN Vorlage, die auch der Roboter benutzt.
-    resolved = rslidar_config.write_resolved(
-        "/tmp/rslidar_rs16_resolved.yaml",
-        pcap_path=pcap or None,
-    )
+    resolved = rslidar_config.write_resolved("/tmp/rslidar_rs16_resolved.yaml", pcap_path=pcap or None)
 
     return [
         Node(
@@ -48,11 +45,7 @@ def _setup(context, *args, **kwargs):
             name="pointcloud_to_laserscan",
             namespace=wiring.NAMESPACE,
             parameters=[wiring.pointcloud_to_laserscan_params()],
-            remappings=[
-                ("cloud_in", wiring.points_topic()),
-                ("scan", wiring.scan_topic()),
-                *wiring.TF_REMAPS,
-            ],
+            remappings=[("cloud_in", wiring.points_topic()), ("scan", wiring.scan_topic()), *wiring.TF_REMAPS],
             output="screen",
         ),
     ]
@@ -62,9 +55,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "pcap",
-                default_value="",
-                description="Pfad einer RS16-Aufnahme. Leer = echtes Geraet.",
+                "pcap", default_value="", description="Pfad einer RS16-Aufnahme. Leer = echtes Geraet."
             ),
             OpaqueFunction(function=_setup),
         ]

@@ -20,10 +20,7 @@ CONTAINER = "husky-offboard-offboard-1"
 
 def _exec(script: str, timeout: int = 90) -> str:
     proc = subprocess.run(
-        ["docker", "exec", CONTAINER, "bash", "-lc", script],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
+        ["docker", "exec", CONTAINER, "bash", "-lc", script], capture_output=True, text=True, timeout=timeout
     )
     return proc.stdout
 
@@ -31,13 +28,7 @@ def _exec(script: str, timeout: int = 90) -> str:
 @pytest.fixture(scope="module")
 def container():
     probe = subprocess.run(
-        [
-            "docker",
-            "inspect",
-            CONTAINER,
-            "--format",
-            "{{range .Config.Env}}{{println .}}{{end}}",
-        ],
+        ["docker", "inspect", CONTAINER, "--format", "{{range .Config.Env}}{{println .}}{{end}}"],
         capture_output=True,
         text=True,
     )
@@ -52,10 +43,7 @@ def container():
 
 
 def test_the_platform_controller_is_active(container):
-    out = _exec(
-        "source ros-env; ros2 control list_controllers "
-        "-c /a200_0553/controller_manager 2>/dev/null"
-    )
+    out = _exec("source ros-env; ros2 control list_controllers " "-c /a200_0553/controller_manager 2>/dev/null")
     assert "platform_velocity_controller" in out, (
         "Der Radcontroller ist nicht geladen -- `mock platform:=true` " "gestartet?"
     )
@@ -65,10 +53,7 @@ def test_the_platform_controller_is_active(container):
 def test_only_the_platform_hardware_is_claimed_by_the_platform_manager(container):
     """Das Risiko aus Spec Paragraph 3.4: ein controller_manager laedt ALLE
     ros2_control-Bloecke des URDF, das er bekommt."""
-    out = _exec(
-        "source ros-env; ros2 control list_hardware_components "
-        "-c /a200_0553/controller_manager 2>/dev/null"
-    )
+    out = _exec("source ros-env; ros2 control list_hardware_components " "-c /a200_0553/controller_manager 2>/dev/null")
     assert "a200_hardware" in out
     assert "arm_0" not in out, (
         "Der Plattform-Manager beansprucht auch die Arm-Hardware -- dann "

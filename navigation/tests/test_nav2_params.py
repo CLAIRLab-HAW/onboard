@@ -100,12 +100,8 @@ def test_the_robot_radius_covers_the_husky(params):
 
 
 def test_the_costmaps_are_anchored_in_the_documented_frames(params):
-    local = params[wiring.NAMESPACE]["local_costmap"]["local_costmap"][
-        "ros__parameters"
-    ]
-    glob = params[wiring.NAMESPACE]["global_costmap"]["global_costmap"][
-        "ros__parameters"
-    ]
+    local = params[wiring.NAMESPACE]["local_costmap"]["local_costmap"]["ros__parameters"]
+    glob = params[wiring.NAMESPACE]["global_costmap"]["global_costmap"]["ros__parameters"]
     assert local["global_frame"] == "odom"
     assert glob["global_frame"] == "map"
     assert local["robot_base_frame"] == wiring.BASE_FRAME

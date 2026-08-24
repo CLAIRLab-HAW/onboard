@@ -33,8 +33,7 @@ def test_the_root_run_descends_into_robot():
 def test_the_nav_e2e_marker_is_registered():
     markers = _config()["tool"]["pytest"]["ini_options"]["markers"]
     assert any(m.startswith("nav_e2e:") for m in markers), (
-        "Marker 'nav_e2e' ist nicht registriert -- pytest warnt dann bei "
-        "jedem Lauf ueber einen unbekannten Marker."
+        "Marker 'nav_e2e' ist nicht registriert -- pytest warnt dann bei " "jedem Lauf ueber einen unbekannten Marker."
     )
 
 
