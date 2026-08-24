@@ -1,251 +1,246 @@
 # Husky
 
-Das Custom-Setup des Clearpath a200-0553: ein Installer, der die Boot-Services,
-udev-Regeln, das Netz und den OnRobot-RG6 einrichtet, dazu die Knoten, die
-Clearpath selbst nicht mitbringt. `robot.yaml` ist dabei die einzige Quelle der
-Wahrheit — `/etc/clearpath/robot.yaml` ist ein Symlink auf den Repo-Klon.
+The custom setup of the Clearpath a200-0553: an installer that sets up the boot
+services, udev rules, the network and the OnRobot RG6, plus the nodes Clearpath
+does not ship itself. `robot.yaml` is the single source of truth in all of this
+— `/etc/clearpath/robot.yaml` is a symlink to the repo clone.
 
 ## Features
 
-- **`robot.yaml` ist die Single Source of Truth** —
-  `/etc/clearpath/robot.yaml` ist ein Symlink auf den Repo-Klon, ein
-  `git pull` wirkt also binnen Sekunden statt erst beim nächsten Boot.
-- **8 Services + 1 Timer**, alle mit dem Präfix `clearpath-custom-*`.
-- **Ein Watchdog für spätes Einschalten des Arms** und für eine Motion-Link,
-  die gestorben ist, während ExternalControl weiter „läuft" meldete.
-- **`rg6_grip_bridge`** — der Knoten, der den RG6 tatsächlich fährt, per
-  XML-RPC gegen die OnRobot-URCap.
-- **Manipulator-Diagnose in Cockpit**: Arm-Mode, Control, Gelenke, Controller
-  und Greifer als `diagnostic_msgs`, mit einem ausdrücklichen Zustand
-  *außer Betrieb* statt erfundener Zahlen.
-- **Ein Boot-Patcher mit drei Schritten** — alles, was `robot.yaml`
-  ausdrücken kann, ist dorthin gewandert.
+- **`robot.yaml` is the single source of truth** — `/etc/clearpath/robot.yaml`
+  is a symlink to the repo clone, so a `git pull` takes effect within seconds
+  instead of only at the next boot.
+- **8 services + 1 timer**, all with the prefix `clearpath-custom-*`.
+- **A watchdog for a late arm power-up** and for a motion link that died while
+  ExternalControl kept reporting it was "running".
+- **`rg6_grip_bridge`** — the node that actually drives the RG6, via XML-RPC
+  against the OnRobot URCap.
+- **Manipulator diagnostics in Cockpit**: arm mode, control, joints,
+  controllers and gripper as `diagnostic_msgs`, with an explicit state
+  *out of service* instead of invented numbers.
+- **A boot patcher with three steps** — everything `robot.yaml` can express has
+  moved there.
 
 ## Tech Stack
 
-Ubuntu + ROS 2 Jazzy auf dem Clearpath a200-0553, systemd, `rclpy`,
-`ur_robot_driver`, Zenoh (`rmw_zenoh_cpp`). Bash-Installer, kein
-Konfigurationsmanagement.
+Ubuntu + ROS 2 Jazzy on the Clearpath a200-0553, systemd, `rclpy`,
+`ur_robot_driver`, Zenoh (`rmw_zenoh_cpp`). A bash installer, no configuration
+management.
 
 ## Installation
 
-Nach der Installation des Clearpath-Software-Stacks
-([Clearpath Installation](https://docs.clearpathrobotics.com/docs/ros/installation/robot))
-im eigenen Nutzerverzeichnis:
+After installing the Clearpath software stack
+([Clearpath installation](https://docs.clearpathrobotics.com/docs/ros/installation/robot))
+in your own user directory:
 
 ```bash
 wget -c https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/install-clearpath-custom-setup.sh
 bash -e install-clearpath-custom-setup.sh
 ```
 
-Der Installer ist interaktiv und fragt vor jedem optionalen Teil (`[y/N]`,
-oder `-y`, um alles zu bejahen). `--verify` prüft rein lesend, ob die
-ausgerollten Kopien noch dem Checkout entsprechen, und ändert nichts.
+The installer is interactive and asks before every optional part (`[y/N]`, or
+`-y` to say yes to everything). `--verify` checks read-only whether the
+deployed copies still match the checkout, and changes nothing.
 
-Alle Units, die der Installer anlegt, tragen das Präfix `clearpath-custom-*`
+All units the installer creates carry the prefix `clearpath-custom-*`
 (`clearpath-custom-rg6-grip-bridge`, `clearpath-custom-joint-states`,
 `clearpath-custom-ur-dashboard`, `clearpath-custom-ur-state-manager`,
 `clearpath-custom-manipulator-diagnostics`, `clearpath-custom-octomap-feed`,
-`clearpath-custom-manipulators-watchdog.service`/`.timer` und
-`clearpath-custom-setup`). Die Arm-Controller sind kein eigener Service,
-sondern Teil von `ur_state_manager.launch.py` (Argument
-`load_arm_controllers`). Drop-ins auf Clearpath-eigenen Units
-(`clearpath-manipulators.service.d/override.conf`) behalten nach
-systemd-Konvention den Namen ihrer Ziel-Unit.
+`clearpath-custom-manipulators-watchdog.service`/`.timer` and
+`clearpath-custom-setup`). The arm controllers are not a service of their own
+but part of `ur_state_manager.launch.py` (argument `load_arm_controllers`).
+Drop-ins on Clearpath's own units
+(`clearpath-manipulators.service.d/override.conf`) keep the name of their
+target unit, by systemd convention.
 
 ## Usage
 
-Was die installierten Units tun, je ein Abschnitt.
+What the installed units do, one section each.
 
-### `clearpath-custom-manipulators-watchdog.timer` (spätes Einschalten)
+### `clearpath-custom-manipulators-watchdog.timer` (late power-up)
 
-Der Watchdog deckt zwei Fälle ab, die aus einem ROS-Knoten heraus nicht zu
-beheben sind — beide brauchen die tote Treiber-Verbindung für ihre eigenen
-Eingaben und können den Treiber-Prozess, von dem sie abhängen, nicht neu
-starten. Der Installer bietet deshalb einen kleinen **systemd-Timer** an:
+The watchdog covers two cases that cannot be fixed from within a ROS node —
+both need the dead driver connection for their own inputs and cannot restart
+the driver process they depend on. The installer therefore offers a small
+**systemd timer**:
 
-**(a) Später eingeschalteter Arm.** Wird der UR5 erst **lange nach** dem Boot
-des ROS-Stacks bestromt, ist die einmalige ros2_control-Hardware-Aktivierung
-des `ur_robot_driver` schon gegen den damals stromlosen Arm gescheitert — und
-ros2_control wiederholt sie **nicht**. Der Treiber steht mit einer toten
-Hardware-Komponente da, das Panel bleibt auf **„Stopped"**.
+**(a) Arm powered up late.** If the UR5 is powered **long after** the ROS stack
+boots, the one-off ros2_control hardware activation of the `ur_robot_driver`
+has already failed against the then-unpowered arm — and ros2_control does
+**not** repeat it. The driver is left with a dead hardware component, and the
+panel stays on **"Stopped"**.
 
-**(b) Hängender Reconnect nach einem `clearpath-robot.service`-Restart bei
-schon bestromtem Arm.** Die alte `ExternalControl`-Instanz hält das
-Reverse-Socket; die Hardware-Aktivierung des neuen Treibers scheitert an der
-Socket-Kollision → `joint_state_broadcaster` bleibt inaktiv → RViz und
-MoveIt fallen auf die URDF-Default-Pose zurück, der Arm liegt **flach**.
+**(b) A hanging reconnect after a `clearpath-robot.service` restart with the
+arm already powered.** The old `ExternalControl` instance holds the reverse
+socket; the new driver's hardware activation fails on the socket collision →
+`joint_state_broadcaster` stays inactive → RViz and MoveIt fall back to the
+URDF default pose and the arm lies **flat**.
 
-Das Health-Signal ist **der `joint_state_broadcaster`-Strom**
-(`/a200_0553/manipulators/joint_states`): er publiziert echte Arm-Gelenke
-**nur**, wenn das ros2_control-Hardware-Interface aktiviert ist.
-`robot_program_running` allein ist **kein** gültiges Health-Signal — das ist
-der controller-seitige ExternalControl-Status (über Dashboard/RTDE gelesen)
-und bleibt `true`, auch wenn die PC-seitige Motion-Link tot ist. Genau das ist
-Fall (b).
+The health signal is **the `joint_state_broadcaster` stream**
+(`/a200_0553/manipulators/joint_states`): it publishes real arm joints **only**
+when the ros2_control hardware interface is activated.
+`robot_program_running` alone is **not** a valid health signal — that is the
+controller-side ExternalControl status (read via dashboard/RTDE) and stays
+`true` even when the PC-side motion link is dead. That is exactly case (b).
 
-Alle 10 s (ab `OnBootSec=90`) prüft er: **Arm pingbar** (`192.168.131.40`),
-**aber JSC-Strom stumm** → ist der Arm **nicht** `POWER_OFF`, läuft
-`systemctl restart clearpath-manipulators.service` **einmal** (mit Cooldown,
-Zustand in `/run`, damit es nicht schleifen kann) und danach ein Neustart von
-`ExternalControl` (`resend_robot_program`). Er bestromt den Arm **nicht**
-(kein `power_on`/`brake_release`) — Bestromen ist eine Bedienerentscheidung
-und schützt Wartung und Feierabend; steht der Arm auf `POWER_OFF`, läuft
-keine Recovery, damit kein Treiber-Neustart gegen einen stromlosen Arm
-schleift.
-Sobald der Bediener bestromt, verbindet der Watchdog die Motion-Link beim
-nächsten Takt. Protective- und Safety-Stops (`safety_mode != NORMAL`) werden
-**nicht** automatisch aufgehoben — der `resend` entfällt, das Freigeben
-bleibt manuell.
+Every 10 s (from `OnBootSec=90`) it checks: **arm pingable**
+(`192.168.131.40`), **but JSC stream silent** → if the arm is **not**
+`POWER_OFF`, `systemctl restart clearpath-manipulators.service` runs **once**
+(with a cooldown, state in `/run`, so it cannot loop) and after that a restart
+of `ExternalControl` (`resend_robot_program`). It does **not** power the arm
+(no `power_on`/`brake_release`) — powering up is an operator decision, and this
+protects maintenance and end of day; if the arm is on `POWER_OFF` no recovery
+runs, so that no driver restart loops against an unpowered arm.
+As soon as the operator powers up, the watchdog connects the motion link on the
+next tick. Protective and safety stops (`safety_mode != NORMAL`) are **not**
+cleared automatically — the `resend` is skipped and releasing stays manual.
 
-Ein großzügiges Grace-Fenster (`JS_TIMEOUT`, 25 s) verhindert Fehlalarme
-während der rund 15 s, die der JSC nach einem Neustart braucht; auf einem
-gesunden Boot (JSC streamt) und bei ausgeschaltetem Arm (nicht pingbar) bleibt
-der Watchdog still. Der **Greifer** ist davon nicht berührt: er hängt an der
-OnRobot-URCap, und kein ROS-Service kann seinen Tool-Anschluss bestromen —
-siehe den Greifer-Abschnitt weiter unten. Logs:
-`journalctl -t manipulators-watchdog -b`; Zeitplan:
+A generous grace window (`JS_TIMEOUT`, 25 s) prevents false alarms during the
+roughly 15 s the JSC needs after a restart; on a healthy boot (JSC streaming)
+and with the arm switched off (not pingable) the watchdog stays silent. The
+**gripper** is untouched by this: it hangs off the OnRobot URCap, and no ROS
+service can power its tool connector — see the gripper section further down.
+Logs: `journalctl -t manipulators-watchdog -b`; schedule:
 `systemctl list-timers clearpath-custom-manipulators-watchdog.timer`.
 
-### `clearpath-manipulators.service.d/override.conf` (sauberer Stopp)
+### `clearpath-manipulators.service.d/override.conf` (clean stop)
 
-Ein Drop-in, das `clearpath-manipulators.service` mit `KillSignal=SIGINT`
-statt des voreingestellten `SIGTERM` stoppen lässt. `ros2_control_node`,
-`move_group` und `robot_state_pub` sind ROS-Knoten und behandeln `SIGINT` als
-Graceful Shutdown (Reverse- und Dashboard-Sockets in rund 1–3 s geschlossen);
-unter `SIGTERM` ignoriert der alte `ros2_control_node` das Signal und hängt
-bis zu 90 s als Zombie herum, der das Reverse-Socket weiter hält — genau das
-verursacht die Socket-Kollision in Fall (b) oben. Das Drop-in layert über der
-Clearpath-eigenen Unit und überlebt Paket-Updates.
+A drop-in that makes `clearpath-manipulators.service` stop with
+`KillSignal=SIGINT` instead of the default `SIGTERM`. `ros2_control_node`,
+`move_group` and `robot_state_pub` are ROS nodes and treat `SIGINT` as a
+graceful shutdown (reverse and dashboard sockets closed within about 1–3 s);
+under `SIGTERM` the old `ros2_control_node` ignores the signal and hangs around
+as a zombie for up to 90 s, still holding the reverse socket — which is exactly
+what causes the socket collision in case (b) above. The drop-in layers over
+Clearpath's own unit and survives package updates.
 
 ### `clearpath-custom-manipulator-diagnostics.service` (UR5 + RG6 in Cockpit)
 
-Cockpit zeigt über die Erweiterung
-[`cockpit-ros2-diagnostics`](https://github.com/clearpathrobotics/cockpit-ros2-diagnostics)
-den Inhalt von `<ns>/diagnostics_agg`. **Der Manipulator fehlt dort komplett** —
-und zwar an drei Stellen gleichzeitig:
+Through the extension
+[`cockpit-ros2-diagnostics`](https://github.com/clearpathrobotics/cockpit-ros2-diagnostics),
+Cockpit shows the content of `<ns>/diagnostics_agg`. **The manipulator is
+missing there entirely** — and in three places at once:
 
-* `clearpath_generator_common` erzeugt Analyzer nur für Platform (Power, E-Stop,
-  Drive) und Sensoren; Arm/Greifer kommen im Generator gar nicht vor.
-* Der `controller_manager` des Arms publiziert seine Diagnose in den
-  *manipulators*-Namespace (`/a200_0553/manipulators/diagnostics`) — nicht auf
-  `/a200_0553/diagnostics`, das der Aggregator abonniert.
-* `ur_robot_driver` liefert seinen Zustand als `ur_dashboard_msgs`, der Greifer als
-  flaches JSON auf `rg6/bridge_state` — beides nicht als `diagnostic_msgs`.
+* `clearpath_generator_common` creates analyzers only for platform (power,
+  e-stop, drive) and sensors; arm and gripper do not appear in the generator at
+  all.
+* The arm's `controller_manager` publishes its diagnostics into the
+  *manipulators* namespace (`/a200_0553/manipulators/diagnostics`) — not on
+  `/a200_0553/diagnostics`, which is what the aggregator subscribes to.
+* `ur_robot_driver` delivers its state as `ur_dashboard_msgs`, the gripper as
+  flat JSON on `rg6/bridge_state` — neither of them as `diagnostic_msgs`.
 
-Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
+Three building blocks close the gap, all from the installer (optional steps):
 
-1. **`manipulator-diagnostics`** (`scripts/manipulator_diagnostics.py`,
-   root-eigene Kopie unter `/usr/local/bin`): publiziert mit 1 Hz fünf Status auf
-   `/a200_0553/diagnostics`. Ein `onrobot-rg6`-Overlay braucht der Wrapper nicht —
-   der Greiferzustand kommt als JSON, nicht als `rg6_msgs`-Typ:
+1. **`manipulator-diagnostics`** (`scripts/manipulator_diagnostics.py`, a
+   root-owned copy under `/usr/local/bin`): publishes five statuses at 1 Hz on
+   `/a200_0553/diagnostics`. The wrapper needs no `onrobot-rg6` overlay — the
+   gripper state arrives as JSON, not as an `rg6_msgs` type:
 
-   | Status | Inhalt |
+   | Status | Content |
    |---|---|
-   | `Arm Mode` | `robot_mode` + `safety_mode` (latched Topics des `io_and_status_controller`) |
-   | `Arm Control` | **der belastbare Gesundheitsindikator**: läuft der joint\_state-Strom? |
-   | `Arm Joints` | Gelenkwinkel (rad + °), Geschwindigkeit, Effort, Rate |
-   | `Arm Controllers` | `controller_manager/list_controllers` — welcher Kommando-Controller ist aktiv |
-   | `Gripper` | RG6: Weite (m/mm/%), Kraftsignal, `grip_detected`, `busy`, Tool-Power, letzter Befehl |
+   | `Arm Mode` | `robot_mode` + `safety_mode` (latched topics of the `io_and_status_controller`) |
+   | `Arm Control` | **the dependable health indicator**: is the joint\_state stream running? |
+   | `Arm Joints` | joint angles (rad + °), velocity, effort, rate |
+   | `Arm Controllers` | `controller_manager/list_controllers` — which command controller is active |
+   | `Gripper` | RG6: width (m/mm/%), force signal, `grip_detected`, `busy`, tool power, last command |
 
-   `Arm Control` bewertet bewusst den **joint\_state-Strom**, nicht
-   `robot_program_running`: letzteres bleibt `true`, während die PC-seitige
-   Motion-Link tot ist — genau der Fall (b) des Watchdogs oben. Selbsttest ohne
+   `Arm Control` deliberately judges the **joint\_state stream**, not
+   `robot_program_running`: the latter stays `true` while the PC-side motion
+   link is dead — exactly case (b) of the watchdog above. Self-test without
    ROS: `python3 /usr/local/bin/manipulator-diagnostics --selftest`.
 
-   **Der Armzustand entscheidet über den Greifer.** Der RG6 hängt
-   am UR-Tool-Anschluss — ohne bestromten Arm kann er gar keine Versorgung
-   haben. Der Zustand, den `rg6_grip_bridge` auf `rg6/bridge_state` meldet,
-   taugt als Nachweis dafür *nicht*: die Brücke fragt den XML-RPC-Endpoint in
-   der Control-Box, und der antwortet auch dann, wenn am Tool-Anschluss nichts
-   anliegt — er weiß, was er zuletzt kommandiert hat, nicht was die Hardware
-   tut.
+   **The arm state decides about the gripper.** The RG6 hangs off the UR tool
+   connector — without a powered arm it cannot have any supply at all. The
+   state `rg6_grip_bridge` reports on `rg6/bridge_state` is *not* suitable as
+   evidence for that: the bridge asks the XML-RPC endpoint in the control box,
+   and that answers even when nothing is present at the tool connector — it
+   knows what it last commanded, not what the hardware is doing.
 
-   Maßgeblich ist deshalb weiterhin die **Tool-Spannung**: Analogsignal unter
-   `dead_input_threshold` (0,2 V) = kein gültiges Tool-Signal. Gemessen am
-   a200-0553: bestromt AI2 10,00 V / AI3 1,33 V, stromlos beide ~0,056 V. Als
-   *Weitenquelle* taugt AI2 nicht (bis zu 17 mm falsch geeicht) — die Frage,
-   die es beantwortet, ist allein „liegt am Tool-Anschluss Versorgung an".
-   Ist das Signal ungültig, meldet der Status je nach Ursache
+   What counts is therefore still the **tool voltage**: an analog signal below
+   `dead_input_threshold` (0.2 V) = no valid tool signal. Measured on the
+   a200-0553: powered AI2 10.00 V / AI3 1.33 V, unpowered both ~0.056 V. As a
+   *width source* AI2 is unusable (miscalibrated by up to 17 mm) — the question
+   it answers is solely "is there supply at the tool connector". If the signal
+   is invalid, the status reports, depending on the cause,
 
-   | Lage | Meldung |
+   | Situation | Message |
    |---|---|
-   | Arm `POWER_OFF` | **außer Betrieb** (grau): `arm switched off - gripper without supply` |
-   | Arm bestromt, kein Signal | **WARNUNG**: `tool unpowered: is the URCap program running on the pendant?` |
-   | Arm sonst unbestromt (z. B. `BOOTING`) | **WARNUNG**: `arm not powered` |
+   | arm `POWER_OFF` | **out of service** (grey): `arm switched off - gripper without supply` |
+   | arm powered, no signal | **WARNING**: `tool unpowered: is the URCap program running on the pendant?` |
+   | arm otherwise unpowered (e.g. `BOOTING`) | **WARNING**: `arm not powered` |
 
-   und Weite/Prozent/`grip_detected`/`busy` stehen dann auf `unknown` statt
-   auf erfundenen Zahlen; die Rohspannungen bleiben sichtbar (sie *sind* die
-   Diagnose).
+   and width/percent/`grip_detected`/`busy` then read `unknown` instead of
+   invented numbers; the raw voltages stay visible (they *are* the diagnosis).
 
-   Dieselbe Logik gilt für den Arm selbst: `POWER_OFF` ist eine
-   Bedienerentscheidung (Wartung/Feierabend), kein Fehler — `Arm Mode`,
-   `Arm Control`, `Arm Joints` und der Gutfall von `Arm Controllers` melden
-   dann **außer Betrieb** statt gelb/rot. Der Watchdog verhält sich genauso
-   (bei `POWER_OFF` läuft keine Recovery). Ein echtes Problem schlägt das
-   weiterhin durch: ein Safety-Stopp bleibt auch am ausgeschalteten Arm ROT
-   (live verifiziert an einem `FAULT` nach Power-Cycle), ein fehlender
-   Controller ebenfalls. Am unbestromten Arm rauscht die
-   Gelenkgeschwindigkeit bis 0,055 rad/s (bestromt: exakt 0,0000) — `moving`
-   steht deshalb auf `unknown`, solange der Arm aus ist, und die Schwelle
-   liegt bei 0,02 rad/s (`motion_eps_rad_s`).
+   The same logic applies to the arm itself: `POWER_OFF` is an operator
+   decision (maintenance/end of day), not a fault — `Arm Mode`, `Arm Control`,
+   `Arm Joints` and the good case of `Arm Controllers` then report **out of
+   service** instead of yellow/red. The watchdog behaves the same way (no
+   recovery runs at `POWER_OFF`). A real problem still comes through: a safety
+   stop stays RED even on a switched-off arm (verified live on a `FAULT` after
+   a power cycle), and so does a missing controller. On an unpowered arm the
+   joint velocity noise reaches 0.055 rad/s (powered: exactly 0.0000) — which
+   is why `moving` reads `unknown` while the arm is off, and the threshold sits
+   at 0.02 rad/s (`motion_eps_rad_s`).
 
-   **Kodierung von „außer Betrieb":** `diagnostic_msgs` kennt nur
-   OK/WARN/ERROR/STALE. Ein eigener Byte-Wert würde die `max()`-Rollups des
-   Aggregators und jeden Fremdkonsumenten (`rqt_robot_monitor`, Capture)
-   verwirren. Der Status bleibt daher **OK** (es ist ja nichts kaputt) und
-   trägt zusätzlich den Wert `display=inactive`; nur Cockpit färbt daraus grau.
+   **How "out of service" is encoded:** `diagnostic_msgs` only knows
+   OK/WARN/ERROR/STALE. A custom byte value would confuse the aggregator's
+   `max()` rollups and every third-party consumer (`rqt_robot_monitor`,
+   capture). The status therefore stays **OK** (nothing is broken, after all)
+   and additionally carries the value `display=inactive`; only Cockpit turns
+   that grey.
 
-2. **`robot.yaml`** unter `platform.extras.ros_parameters.diagnostic_aggregator`:
-   eine AnalyzerGroup `Manipulator` mit den Untergruppen `Arm` und `Gripper`.
-   Der Clearpath-Generator merged sie in die erzeugte
-   `/etc/clearpath/platform/config/diagnostic_aggregator.yaml` und flacht die
-   Verschachtelung selbst auf die Punkt-Keys ab, die ROS erwartet; die 20
-   Upstream-`platform.analyzers.*` und die Sensor-Analyzer bleiben unangetastet.
-   Die Analyzer listen ihre Status als `expected`: stirbt der Node, bleiben sie
-   als **STALE** in der Anzeige stehen statt spurlos zu verschwinden.
+2. **`robot.yaml`** under `platform.extras.ros_parameters.diagnostic_aggregator`:
+   an AnalyzerGroup `Manipulator` with the subgroups `Arm` and `Gripper`. The
+   Clearpath generator merges them into the generated
+   `/etc/clearpath/platform/config/diagnostic_aggregator.yaml` and flattens the
+   nesting itself into the dotted keys ROS expects; the 20 upstream
+   `platform.analyzers.*` and the sensor analyzers stay untouched. The
+   analyzers list their statuses as `expected`: if the node dies, they remain
+   in the display as **STALE** instead of vanishing without a trace.
 
-   Der Block steht bedingungslos in `robot.yaml`, an keine Unit-Datei
-   gekoppelt. Ohne den Diagnose-Node zeigt Cockpit die Gruppe darum als STALE,
-   statt sie verschwinden zu lassen. Rückbau = Block aus `robot.yaml`
-   entfernen.
+   The block sits unconditionally in `robot.yaml`, coupled to no unit file.
+   Without the diagnostics node Cockpit therefore shows the group as STALE
+   rather than letting it disappear. To remove it = delete the block from
+   `robot.yaml`.
 
-3. **Cockpit-Plugin-Fork**
+3. **Cockpit plugin fork**
    ([`CLAIRLab-HAW/cockpit-ros2-diagnostics`](https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics),
-   lokal `robot/cockpit-ros2-diagnostics`): zusätzlich zum generischen Baum ein
-   **Manipulator-Panel** (Arm-Karte mit Mode-/Safety-/ExternalControl-/
-   Motion-Link-Badges, Gelenktabelle und Controller-Chips; Greifer-Karte mit
-   Öffnungs-Balken, `grip_detected`, Tool-Power, letztem Befehl). Das Panel
-   liest denselben `diagnostics_agg`-Strom, den die Erweiterung ohnehin
-   abonniert — keine zusätzliche Topic-Subscription, also gelten Pause,
-   History und Reconnect unverändert. Ohne Manipulator-Status im Baum rendert
-   es **gar nichts** (Roboter ohne Arm bleiben unverändert).
+   locally `robot/cockpit-ros2-diagnostics`): in addition to the generic tree, a
+   **manipulator panel** (arm card with mode/safety/ExternalControl/motion-link
+   badges, joint table and controller chips; gripper card with an opening bar,
+   `grip_detected`, tool power, last command). The panel reads the same
+   `diagnostics_agg` stream the extension subscribes to anyway — no extra topic
+   subscription, so pause, history and reconnect apply unchanged. Without a
+   manipulator status in the tree it renders **nothing at all** (robots without
+   an arm stay unchanged).
 
-   Der Fork ist außerdem **auf Deutsch übersetzt** (`po/de.po`; Cockpit lädt
-   `po.<lang>.js` passend zur Spracheinstellung, inklusive des Menüeintrags)
-   und stuft zwei Fremdmeldungen herunter, die den ganzen Roboter dauerhaft
-   rot färbten: `joy_node: Joystick Driver Status` „Joystick not open." →
-   **inaktiv** (kein Gamepad angesteckt ist der Normalzustand) und
-   `controller_manager: Hardware Components Activity` „High execution jitter"
-   → **Warnung** (systembedingt bei der seriellen 10-Hz-Anbindung der Basis).
-   Die Regeln stehen in `src/utils/severity.ts`, greifen nur bei passendem
-   Namen **und** passender Meldung, und das Detail-Panel zeigt weiterhin die
-   ursprünglich gemeldete Stufe samt Begründung. Sauberer wäre für den Jitter
-   `diagnostics.threshold.hardware_components.*` am `controller_manager` —
-   das schaltet die Meldung aber ganz ab, statt sie herabzustufen.
+   The fork is also **translated into German** (`po/de.po`; Cockpit loads
+   `po.<lang>.js` according to the language setting, the menu entry included)
+   and downgrades two third-party messages that used to colour the whole robot
+   permanently red: `joy_node: Joystick Driver Status` "Joystick not open." →
+   **inactive** (no gamepad plugged in is the normal state) and
+   `controller_manager: Hardware Components Activity` "High execution jitter"
+   → **warning** (inherent to the base's serial 10 Hz connection). The rules
+   live in `src/utils/severity.ts`, apply only on a matching name **and** a
+   matching message, and the detail panel still shows the originally reported
+   level along with the reason. For the jitter, the cleaner route would be
+   `diagnostics.threshold.hardware_components.*` on the `controller_manager` —
+   but that switches the message off entirely instead of downgrading it.
 
-   Installiert wird nach `/usr/local/share/cockpit/ros2-diagnostics`. Cockpit
-   sucht in der Reihenfolge `~/.local/share/cockpit`, `/etc/cockpit`,
-   `/usr/local/share/cockpit`, `/usr/share/cockpit` — der Fork **überdeckt**
-   damit das apt-Paket, ohne es zu ersetzen. Rückbau: Verzeichnis löschen, das
-   Original ist sofort wieder aktiv (kein apt nötig). Umgekehrt gilt: solange
-   der Fork liegt, sind apt-Updates von `cockpit-ros2-diagnostics` nicht
-   sichtbar — Fork bei Bedarf nachziehen.
+   Installation goes to `/usr/local/share/cockpit/ros2-diagnostics`. Cockpit
+   searches in the order `~/.local/share/cockpit`, `/etc/cockpit`,
+   `/usr/local/share/cockpit`, `/usr/share/cockpit` — so the fork **shadows**
+   the apt package without replacing it. To remove it: delete the directory and
+   the original is immediately active again (no apt needed). Conversely: as
+   long as the fork is in place, apt updates of `cockpit-ros2-diagnostics` are
+   not visible — bring the fork up to date when needed.
 
-   **Der Installer installiert kein nodejs.** Er nimmt ein vorgebautes `dist/`
-   aus dem Checkout; fehlt es und sind `npm`+`make` vorhanden, baut er auf dem
-   Roboter, sonst bricht er diesen Schritt mit Anleitung ab. Empfohlener Weg
-   (Roboter bleibt toolchain-frei):
+   **The installer installs no nodejs.** It takes a prebuilt `dist/` from the
+   checkout; if that is missing and `npm`+`make` are available, it builds on the
+   robot, otherwise it aborts this step with instructions. The recommended
+   route (the robot stays toolchain-free):
 
    ```bash
    git clone https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics.git
@@ -253,104 +248,106 @@ Drei Bausteine schließen die Lücke, alle vom Installer (optionale Schritte):
    rsync -a dist/ robot@<robot>:~/cockpit-ros2-diagnostics/dist/
    ```
 
-**Verifikation nach Install + Reboot (Checkliste):**
+**Verification after install + reboot (checklist):**
 
-1. `journalctl -u clearpath-custom-manipulator-diagnostics -b` → Startzeile mit
-   Namespace/Topic/Rate.
+1. `journalctl -u clearpath-custom-manipulator-diagnostics -b` → start line with
+   namespace/topic/rate.
 2. `grep -A2 "manipulator.type" /etc/clearpath/platform/config/diagnostic_aggregator.yaml`
-   → `diagnostic_aggregator/AnalyzerGroup` (der Generator hat den robot.yaml-Block
-   übernommen; im Journal des Patchers steht dazu nichts mehr).
-3. `ros2 topic echo /a200_0553/diagnostics_agg --once` → Einträge unter
-   `/Clearpath Diagnostics/Manipulator/Arm/…` und `…/Gripper`.
-4. Cockpit (`http://<robot>:9090` → ROS 2 Diagnostics): Karte **Manipulator**
-   mit Arm- und Greifer-Kachel.
-5. Funktionsprobe: Greifer öffnen/schließen → Balken + `grip_detected` folgen.
-6. Abschaltprobe (`ur_state_manager/power_off`): Manipulator-Kachel, Arm- und
-   Greifer-Kachel werden **grau/„Außer Betrieb"**, der Öffnungsbalken
-   verschwindet, `grip_detected`/`busy`/`moving` stehen auf `unknown`.
-   Danach `prepare` und das URCap-Programm am Panel starten → wieder alles grün.
-   (Die Tool-Versorgung setzt die OnRobot-URCap, nicht ROS: der Weg dorthin ging
-   über Tool-DO, und den belegt die URCap selbst. Kein ROS-Service kann das hier
-   reparieren; solange meldet der Status WARNUNG mit genau diesem Hinweis.)
-7. Rückbau-Probe: `systemctl disable --now
-   clearpath-custom-manipulator-diagnostics` → die Analyzer **bleiben** in der
-   generierten YAML und die Gruppe steht als **STALE** in `diagnostics_agg`;
-   das Panel rendert dann nichts mehr. Sollen auch die Analyzer weg, den Block
-   aus `robot.yaml` entfernen (wirkt über `clearpath-robot-check` sofort).
+   → `diagnostic_aggregator/AnalyzerGroup` (the generator has taken over the
+   robot.yaml block; the patcher's journal says nothing about it any more).
+3. `ros2 topic echo /a200_0553/diagnostics_agg --once` → entries under
+   `/Clearpath Diagnostics/Manipulator/Arm/…` and `…/Gripper`.
+4. Cockpit (`http://<robot>:9090` → ROS 2 Diagnostics): card **Manipulator**
+   with an arm and a gripper tile.
+5. Functional check: open/close the gripper → bar + `grip_detected` follow.
+6. Power-off check (`ur_state_manager/power_off`): manipulator tile, arm and
+   gripper tile turn **grey/"Außer Betrieb"**, the opening bar disappears,
+   `grip_detected`/`busy`/`moving` read `unknown`. Then `prepare` and start the
+   URCap program on the panel → everything green again.
+   (The tool supply is set by the OnRobot URCap, not by ROS: the route there
+   went via tool DO, and the URCap occupies that itself. No ROS service can
+   repair this here; until then the status reports WARNING with exactly that
+   hint.)
+7. Removal check: `systemctl disable --now
+   clearpath-custom-manipulator-diagnostics` → the analyzers **stay** in the
+   generated YAML and the group shows as **STALE** in `diagnostics_agg`; the
+   panel then renders nothing. If the analyzers should go too, remove the block
+   from `robot.yaml` (takes effect immediately via `clearpath-robot-check`).
 
-### `clearpath-custom-octomap-feed.service` (MoveIt-Octomap: dichte Hindernis-Schicht)
+### `clearpath-custom-octomap-feed.service` (MoveIt octomap: dense obstacle layer)
 
-Schritt 2 der HRL-Hindernis-Architektur (Schritt 1 = objekt-basierte Boxen vom
-Offboard-Client über `/twin/scene_update`): `move_group` pflegt über seinen
-**Occupancy Map Monitor** (`PointCloudOctomapUpdater`) einen probabilistischen
-Voxel-Octree aus der Wrist-D435 und weicht damit auch Hindernissen aus, die der
-Objekt-Tracker nicht (oder noch nicht) kennt. Raycasts räumen freigewordenen
-Raum automatisch — die „Frische“ ist damit sensor-getaktet statt heuristisch.
+Step 2 of the HRL obstacle architecture (step 1 = object-based boxes from the
+offboard client via `/twin/scene_update`): through its **occupancy map monitor**
+(`PointCloudOctomapUpdater`), `move_group` maintains a probabilistic voxel
+octree from the wrist D435 and thereby also avoids obstacles the object tracker
+does not know (or does not know yet). Raycasts clear space that has become free
+automatically — "freshness" is thus sensor-paced rather than heuristic.
 
-Zwei Bausteine, beide vom Installer (optionaler Schritt):
+Two building blocks, both from the installer (optional step):
 
-1. **`octomap-feed`** (`scripts/octomap_feed.py`, root-eigene Kopie unter
-   `/usr/local/bin`): drosselt das 30-fps-Depth der Kamera auf ~5 Hz, subsampled
-   (stride 2) und publiziert `…/sensors/camera_0/octomap_points`
-   (PointCloud2 im optischen Frame; QoS RELIABLE, matcht jeden Subscriber).
-   Selbsttest ohne ROS: `python3 /usr/local/bin/octomap-feed --selftest`.
-2. **Sensor-Parameter in `robot.yaml`**: unter
-   `manipulators.moveit.ros_parameters.move_group`
-   stehen `octomap_frame`, `octomap_resolution`, `sensors` und der
-   `wrist_depth_camera`-Block — der Clearpath-Generator schreibt sie selbst in
-   `/etc/clearpath/manipulators/config/moveit.yaml`. `octomap_frame` ist bewusst
-   `base_link` (odom ist auf diesem Roboter UTM-gestützt und springt),
+1. **`octomap-feed`** (`scripts/octomap_feed.py`, a root-owned copy under
+   `/usr/local/bin`): throttles the camera's 30 fps depth to ~5 Hz, subsamples
+   it (stride 2) and publishes `…/sensors/camera_0/octomap_points`
+   (PointCloud2 in the optical frame; QoS RELIABLE, matches any subscriber).
+   Self-test without ROS: `python3 /usr/local/bin/octomap-feed --selftest`.
+2. **Sensor parameters in `robot.yaml`**: under
+   `manipulators.moveit.ros_parameters.move_group` sit `octomap_frame`,
+   `octomap_resolution`, `sensors` and the `wrist_depth_camera` block — the
+   Clearpath generator writes them into
+   `/etc/clearpath/manipulators/config/moveit.yaml` itself. `octomap_frame` is
+   deliberately `base_link` (odom is UTM-backed on this robot and jumps),
    `octomap_resolution` 0.025, `max_range` 2.0.
-   **Achtung:** es gibt kein Gate „nur wenn `moveit_ros_perception` installiert
-   ist". Fehlt das Paket, quittiert `move_group` das mit einem
-   Plugin-Load-Fehler pro Boot. Auf a200-0553 ist es installiert.
+   **Careful:** there is no gate "only if `moveit_ros_perception` is
+   installed". If the package is missing, `move_group` acknowledges that with a
+   plugin load error per boot. On a200-0553 it is installed.
 
-**Zusammenspiel mit den Objekt-Collision-Objects:** MoveIts
-PlanningSceneMonitor maskiert bekannte World-Objects und attachte Bodies aus
-dem Octree (`excludeWorldObjectsFromOctree` / `excludeAttachedBodiesFromOctree`)
-— die von der Workstation gepushten Würfel, der Boden-Slab und die Hindernis-Boxen erzeugen
-also keine blockierenden Voxel; Griffe bleiben planbar. Der Roboter selbst wird
-vom Updater geometrisch selbst-gefiltert (`padding_offset` 0.03).
+**Interaction with the object collision objects:** MoveIt's PlanningSceneMonitor
+masks known world objects and attached bodies out of the octree
+(`excludeWorldObjectsFromOctree` / `excludeAttachedBodiesFromOctree`) — so the
+cubes pushed from the workstation, the floor slab and the obstacle boxes create
+no blocking voxels; grasps stay plannable. The robot itself is geometrically
+self-filtered by the updater (`padding_offset` 0.03).
 
-**Voraussetzung (bewusst NICHT vom Installer erledigt):** der
-`PointCloudOctomapUpdater` kommt aus **`ros-jazzy-moveit-ros-perception`**.
-Weil die Sensorparameter in `robot.yaml` stehen, gibt es kein
-Boot-Patcher-Gate: `move_group` lädt die Sensor-Blocke aus der
-generierten `moveit.yaml` **immer**, und fehlt das Paket, quittiert es das
-mit einem Plugin-Load-Fehler pro Boot (s.o.). Die Installation ist eine
-**Admin-Entscheidung im Wartungsfenster**
-(apt hat diesen Roboter schon einmal zerlegt — siehe Snapshot/Hold-Historie):
-vorher mit `apt-get install -s ros-jazzy-moveit-ros-perception` simulieren
-und nur fortfahren, wenn dabei **nichts** aktualisiert oder entfernt wird
-(der Kandidat `2.12.4-1noble.20260412.063337` stammt aus demselben Snapshot
-wie das installierte `moveit-core` — die Simulation sollte also nur das neue
-Paket zeigen).
+**Prerequisite (deliberately NOT handled by the installer):** the
+`PointCloudOctomapUpdater` comes from **`ros-jazzy-moveit-ros-perception`**.
+Because the sensor parameters sit in `robot.yaml`, there is no boot-patcher
+gate: `move_group` **always** loads the sensor blocks from the generated
+`moveit.yaml`, and if the package is missing it acknowledges that with a plugin
+load error per boot (see above). Installing it is an **admin decision for a
+maintenance window** (apt has taken this robot apart once already — see the
+snapshot/hold history): simulate it first with
+`apt-get install -s ros-jazzy-moveit-ros-perception` and only proceed if
+**nothing** is updated or removed in the process (the candidate
+`2.12.4-1noble.20260412.063337` comes from the same snapshot as the installed
+`moveit-core` — so the simulation should show only the new package).
 
-**Verifikation nach Install + Reboot (Checkliste):**
+**Verification after install + reboot (checklist):**
 
-1. `journalctl -u clearpath-custom-octomap-feed -b` → Startzeile mit Topic/Rate.
+1. `journalctl -u clearpath-custom-octomap-feed -b` → start line with
+   topic/rate.
 2. `ros2 topic hz /a200_0553/sensors/camera_0/octomap_points` → ~5 Hz.
 3. `grep -A10 wrist_depth_camera /etc/clearpath/manipulators/config/moveit.yaml`
-   → der Sensor-Block steht in der generierten Datei (kommt aus robot.yaml).
-4. move_group-Log: Zeile „Listening to '…/octomap_points' using message filter
-   with target frame 'base_link'“ (Monitor aktiv).
-5. RViz (offboard-lite): PlanningScene-Display → Octomap-Voxel sichtbar; Hand
-   vor die Kamera halten → Voxel erscheinen, wegnehmen → verschwinden (Raycast).
-6. Greif-Regression: Würfel-Collision-Objects dürfen KEINE Voxel tragen
-   (Maskierung); ein Descend auf einen Würfel muss weiterhin planen.
-7. CPU: `top` auf dem Onboard-PC — Feed + move_group-Insertion zusammen sollten
-   im einstelligen Prozentbereich bleiben; sonst `rate_hz`/`stride` senken
-   (ROS-Params der Unit) und `max_range` reduzieren.
+   → the sensor block is in the generated file (it comes from robot.yaml).
+4. move_group log: the line "Listening to '…/octomap_points' using message
+   filter with target frame 'base_link'" (monitor active).
+5. RViz (offboard-lite): PlanningScene display → octomap voxels visible; hold a
+   hand in front of the camera → voxels appear, take it away → they disappear
+   (raycast).
+6. Grasp regression: cube collision objects must carry NO voxels (masking); a
+   descent onto a cube must still plan.
+7. CPU: `top` on the onboard PC — feed + move_group insertion together should
+   stay in the single-digit percent range; otherwise lower `rate_hz`/`stride`
+   (ROS params of the unit) and reduce `max_range`.
 
-**Rollback:** `sudo systemctl disable --now clearpath-custom-octomap-feed` **und**
-den `move_group`-Block aus `robot.yaml` entfernen (sonst sucht der Updater weiter
-eine Wolke, die niemand publiziert). Die Änderung an robot.yaml wirkt sofort —
-`clearpath-robot-check` startet den Stack neu; die generierte Datei entsteht
-ohnehin bei jedem Boot neu, ein `.bak` liegt daneben.
+**Rollback:** `sudo systemctl disable --now clearpath-custom-octomap-feed`
+**and** remove the `move_group` block from `robot.yaml` (otherwise the updater
+keeps looking for a cloud nobody publishes). The change to robot.yaml takes
+effect immediately — `clearpath-robot-check` restarts the stack; the generated
+file is recreated on every boot anyway, and a `.bak` sits next to it.
 
 ## Running Tests
 
-Drei der Python-Knoten tragen einen ROS-freien Selbsttest:
+Three of the Python nodes carry a ROS-free self-test:
 
 ```bash
 python3 scripts/manipulator_diagnostics.py --selftest
@@ -358,25 +355,25 @@ python3 scripts/rg6_grip_bridge.py --selftest
 python3 scripts/octomap_feed.py --selftest
 ```
 
-Der Installer fährt denselben Selbsttest, bevor er eine Datei ausrollt, und
-verwirft eine Quelle, die sich nicht einmal übersetzen lässt.
-`bash install-clearpath-custom-setup.sh --verify` vergleicht rein lesend die
-ausgerollten Kopien mit dem Checkout.
+The installer runs the same self-test before deploying a file, and discards a
+source that does not even compile.
+`bash install-clearpath-custom-setup.sh --verify` compares the deployed copies
+with the checkout, read-only.
 
 ## Related
 
-- [onrobot-rg6](../onrobot-rg6/README.md) — Greifermodell, MoveIt-Patch,
-  Container-Mock
-- [ur-state-manager](../ur-state-manager/README.md) — Armzustand und
-  Controller-Modi
-- [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — das
-  Panel, das diese Diagnose darstellt
+- [onrobot-rg6](../onrobot-rg6/README.md) — gripper model, MoveIt patch,
+  container mock
+- [ur-state-manager](../ur-state-manager/README.md) — arm state and controller
+  modes
+- [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — the panel
+  that displays these diagnostics
 
 ## Versioning
 
-[Semantic Versioning](https://semver.org/) über die Datei `VERSION` und
+[Semantic Versioning](https://semver.org/) via the file `VERSION` and
 [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-Siehe Workspace-Wurzel.
+See the workspace root.

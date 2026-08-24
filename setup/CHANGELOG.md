@@ -5,6 +5,16 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
+## 2026-08-24 (README in English)
+
+- **The README is now fully in English.** Per CLAUDE.md, `README.md` and
+  `CHANGELOG.md` are English everywhere; a README is current state, so it was
+  translated in one piece rather than paragraph by paragraph.
+- **What Cockpit displays stays verbatim.** The power-off check still names the
+  tile text `Außer Betrieb`, because the plugin fork is translated into German
+  and that is what an operator sees on screen.
+- Prose only, no behaviour change — no unit, script or parameter was touched.
+
 ## 2026-08-24 (Prosa auf Englisch, Dateinamen nachgezogen)
 
 Reiner Prosa- und Namenslauf nach den Code-Stil-Regeln der Workspace-
