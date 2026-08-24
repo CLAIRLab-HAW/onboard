@@ -3,6 +3,12 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/),
 Versionierung nach [SemVer](https://semver.org/).
 
+## 2026-08-24 (Author metadata added)
+
+- **`authors = [{ name = "Hannes Philip Voss", email = "mail@hannesvoss.de" }]`
+  added** to `pyproject.toml`, the workspace-wide form. The package had no
+  `authors` block before. Metadata only, no behaviour change.
+
 ## 2026-08-24 (pytest config block, canonical form)
 
 - **`[tool.pytest.ini_options]` added** with `pythonpath=["src"]`,
