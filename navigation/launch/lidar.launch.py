@@ -13,6 +13,7 @@ Aufruf im Container:
 Alle Namen kommen aus husky_navigation.wiring -- hier steht keiner ein
 zweites Mal (tests/test_launch_files_do_not_restate_the_wiring.py).
 """
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
@@ -58,9 +59,13 @@ def _setup(context, *args, **kwargs):
 
 
 def generate_launch_description():
-    return LaunchDescription([
-        DeclareLaunchArgument(
-            "pcap", default_value="",
-            description="Pfad einer RS16-Aufnahme. Leer = echtes Geraet."),
-        OpaqueFunction(function=_setup),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "pcap",
+                default_value="",
+                description="Pfad einer RS16-Aufnahme. Leer = echtes Geraet.",
+            ),
+            OpaqueFunction(function=_setup),
+        ]
+    )

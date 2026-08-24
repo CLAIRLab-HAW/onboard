@@ -8,6 +8,7 @@ in beiden Faellen Byte fuer Byte gleich sein.
 
 Braucht weder ROS noch Docker.
 """
+
 import copy
 
 import pytest
@@ -36,7 +37,8 @@ def test_online_carries_no_pcap_path(template):
     out = rc.render(template)
     assert "pcap_path" not in out["lidar"][0]["driver"], (
         "Ein pcap_path in der Online-Konfiguration ist eine Falle: er sieht "
-        "harmlos aus und entscheidet nichts, bis jemand msg_source aendert.")
+        "harmlos aus und entscheidet nichts, bis jemand msg_source aendert."
+    )
 
 
 def test_only_the_packet_source_differs(template):
@@ -54,16 +56,20 @@ def test_only_the_packet_source_differs(template):
 
 
 def test_the_device_stays_an_rs16_on_both_paths(template):
-    for out in (rc.render(copy.deepcopy(template)),
-                rc.render(copy.deepcopy(template), pcap_path="/data/x.pcap")):
+    for out in (
+        rc.render(copy.deepcopy(template)),
+        rc.render(copy.deepcopy(template), pcap_path="/data/x.pcap"),
+    ):
         assert out["lidar"][0]["driver"]["lidar_type"] == "RS16"
 
 
 def test_the_frame_stays_canonical_on_both_paths(template):
     """lidar3d_0_laser ist der Name, den robot.yaml erzeugt -- weicht der
     Treiber davon ab, findet tf2 die Punktwolke nicht und niemand sagt es."""
-    for out in (rc.render(copy.deepcopy(template)),
-                rc.render(copy.deepcopy(template), pcap_path="/data/x.pcap")):
+    for out in (
+        rc.render(copy.deepcopy(template)),
+        rc.render(copy.deepcopy(template), pcap_path="/data/x.pcap"),
+    ):
         assert out["lidar"][0]["ros"]["ros_frame_id"] == "lidar3d_0_laser"
 
 
@@ -78,7 +84,8 @@ def test_a_template_without_common_section_is_refused():
 
 
 def test_write_resolved_produces_loadable_yaml(tmp_path):
-    out = rc.write_resolved(tmp_path / "resolved.yaml",
-                            pcap_path="/data/rs16_labor.pcap")
+    out = rc.write_resolved(
+        tmp_path / "resolved.yaml", pcap_path="/data/rs16_labor.pcap"
+    )
     loaded = yaml.safe_load(out.read_text(encoding="utf-8"))
     assert loaded["common"]["msg_source"] == rc.MSG_SOURCE_PCAP

@@ -8,6 +8,7 @@ Vorhaben gerade vermeiden will.
 
 ROS-frei und damit auf dem Mac testbar.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -39,11 +40,13 @@ def render(template: dict, *, pcap_path: str | None = None) -> dict:
     if "common" not in template:
         raise ValueError(
             "Vorlage ohne 'common'-Abschnitt -- rslidar_sdk findet dort "
-            "msg_source und wuerde ohne jede Meldung gar nichts empfangen.")
+            "msg_source und wuerde ohne jede Meldung gar nichts empfangen."
+        )
     if not template.get("lidar"):
         raise ValueError(
             "Vorlage ohne 'lidar'-Abschnitt -- ohne ihn kennt der Treiber "
-            "weder Geraetetyp noch Zielframe.")
+            "weder Geraetetyp noch Zielframe."
+        )
 
     driver = template["lidar"][0].setdefault("driver", {})
 

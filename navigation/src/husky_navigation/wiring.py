@@ -3,6 +3,7 @@
 ROS-frei.  Die Launch-Dateien in ../../launch/ importieren von hier; ein
 Test haelt fest, dass sie die Werte nicht ein zweites Mal formulieren.
 """
+
 from __future__ import annotations
 
 #: Namespace des a200-0553.  Der ganze Graph haengt daran.
@@ -65,8 +66,8 @@ def pointcloud_to_laserscan_params() -> dict:
         "max_height": 0.50,
         "angle_min": -3.141592653589793,
         "angle_max": 3.141592653589793,
-        "angle_increment": 0.0087,       # 0,5 Grad -> 720 Strahlen
-        "scan_time": 0.1,                # RS16 dreht mit 10 Hz
+        "angle_increment": 0.0087,  # 0,5 Grad -> 720 Strahlen
+        "scan_time": 0.1,  # RS16 dreht mit 10 Hz
         # Unter 20 cm sieht der Sensor sein eigenes Gehaeuse; diese Punkte
         # wuerden in der Costmap zu einem Hindernisring um den Roboter.
         "range_min": 0.2,

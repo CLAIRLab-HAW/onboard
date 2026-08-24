@@ -8,6 +8,7 @@ einen Fehler, der Roboter steht einfach.
 
 Braucht weder ROS noch Docker.
 """
+
 from pathlib import Path
 
 import pytest
@@ -30,7 +31,8 @@ def _node(params: dict, name: str) -> dict:
 def test_every_node_lives_in_the_robot_namespace(params):
     assert list(params) == [wiring.NAMESPACE], (
         "Nav2-Parameter ausserhalb des Namespace greifen nicht -- die Knoten "
-        "starten mit ihren Defaults und niemand sagt es.")
+        "starten mit ihren Defaults und niemand sagt es."
+    )
 
 
 # Jeder Nav2-Knoten, der selbst auf cmd_vel schreibt.  Der Parameter gilt PRO
@@ -62,8 +64,8 @@ def test_every_odom_consumer_reads_the_ekf(params, node):
     assert _node(params, node)["odom_topic"] == EXPECTED_ODOM_TOPIC, (
         f"{node} liest ein anderes Odometrie-Topic. Der Nav2-Default 'odom' "
         f"loest im Namespace zu /a200_0553/odom auf -- dort publiziert "
-        f"niemand, und es gibt dafuer keine Fehlermeldung.")
-
+        f"niemand, und es gibt dafuer keine Fehlermeldung."
+    )
 
 
 @pytest.mark.parametrize("node", CMD_VEL_PUBLISHERS)
@@ -79,7 +81,8 @@ def test_every_cmd_vel_publisher_is_stamped(params, node):
     assert _node(params, node)["enable_stamped_cmd_vel"] is True, (
         f"{node} publiziert geometry_msgs/Twist, twist_mux abonniert aber nur "
         "TwistStamped -- die Subscription bindet nicht, und der Roboter steht "
-        "still, ohne Fehlermeldung.")
+        "still, ohne Fehlermeldung."
+    )
 
 
 def test_both_costmaps_use_the_derived_scan(params):
@@ -97,8 +100,12 @@ def test_the_robot_radius_covers_the_husky(params):
 
 
 def test_the_costmaps_are_anchored_in_the_documented_frames(params):
-    local = params[wiring.NAMESPACE]["local_costmap"]["local_costmap"]["ros__parameters"]
-    glob = params[wiring.NAMESPACE]["global_costmap"]["global_costmap"]["ros__parameters"]
+    local = params[wiring.NAMESPACE]["local_costmap"]["local_costmap"][
+        "ros__parameters"
+    ]
+    glob = params[wiring.NAMESPACE]["global_costmap"]["global_costmap"][
+        "ros__parameters"
+    ]
     assert local["global_frame"] == "odom"
     assert glob["global_frame"] == "map"
     assert local["robot_base_frame"] == wiring.BASE_FRAME

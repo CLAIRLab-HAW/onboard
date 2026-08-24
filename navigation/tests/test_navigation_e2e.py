@@ -7,6 +7,7 @@ haelt, liest ihn falsch -- den liefert erst der Sensorpfad.
 
 Braucht einen laufenden Container mit `mock platform:=true` und `nav`.
 """
+
 import json
 import subprocess
 
@@ -20,21 +21,33 @@ CONTAINER = "husky-offboard-offboard-1"
 def _exec(script: str, timeout: int = 180) -> str:
     proc = subprocess.run(
         ["docker", "exec", CONTAINER, "bash", "-lc", script],
-        capture_output=True, text=True, timeout=timeout)
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
     return proc.stdout
 
 
 @pytest.fixture(scope="module")
 def container():
     probe = subprocess.run(
-        ["docker", "inspect", CONTAINER, "--format",
-         "{{range .Config.Env}}{{println .}}{{end}}"],
-        capture_output=True, text=True)
+        [
+            "docker",
+            "inspect",
+            CONTAINER,
+            "--format",
+            "{{range .Config.Env}}{{println .}}{{end}}",
+        ],
+        capture_output=True,
+        text=True,
+    )
     if probe.returncode != 0:
         pytest.skip(f"Container {CONTAINER} laeuft nicht.")
     if "TARGET=mock" not in probe.stdout:
-        pytest.skip("Container steht NICHT auf TARGET=mock -- dieser Test "
-                    "faehrt den Roboter.")
+        pytest.skip(
+            "Container steht NICHT auf TARGET=mock -- dieser Test "
+            "faehrt den Roboter."
+        )
     return CONTAINER
 
 
@@ -46,34 +59,43 @@ def test_the_navigate_to_pose_action_is_offered(container):
     Graphen noch nicht hat.  Ein Test, der daran scheitert, misst die
     Anlaufzeit des Daemons und nicht Nav2.
     """
-    out = _exec("source ros-env; "
-                "for i in $(seq 1 10); do "
-                "  L=$(timeout 20 ros2 action list 2>/dev/null); "
-                "  case \"$L\" in *navigate_to_pose*) echo \"$L\"; exit 0;; esac; "
-                "  sleep 3; "
-                "done; echo \"$L\"", timeout=260)
+    out = _exec(
+        "source ros-env; "
+        "for i in $(seq 1 10); do "
+        "  L=$(timeout 20 ros2 action list 2>/dev/null); "
+        '  case "$L" in *navigate_to_pose*) echo "$L"; exit 0;; esac; '
+        "  sleep 3; "
+        'done; echo "$L"',
+        timeout=260,
+    )
     assert "/a200_0553/navigate_to_pose" in out, (
         "bt_navigator bietet die Action nicht an -- ist der "
-        f"lifecycle_manager durchgekommen? /tmp/nav.log lesen. Gesehen:\n{out}")
+        f"lifecycle_manager durchgekommen? /tmp/nav.log lesen. Gesehen:\n{out}"
+    )
 
 
 def test_the_map_is_published(container):
-    out = _exec("source ros-env; timeout 10 ros2 topic echo /a200_0553/map "
-                "--once --field info.resolution 2>/dev/null")
+    out = _exec(
+        "source ros-env; timeout 10 ros2 topic echo /a200_0553/map "
+        "--once --field info.resolution 2>/dev/null"
+    )
     assert out.strip(), "map_server publiziert keine Karte."
 
 
 def test_the_map_to_base_link_transform_exists(container):
     """Mit den namespaced TF-Remaps -- ohne sie meldet tf2_echo 'frame does
     not exist' und man sucht eine Transformation, die laengst da ist."""
-    out = _exec("source ros-env; timeout 10 ros2 run tf2_ros tf2_echo "
-                "map base_link --ros-args "
-                "-r /tf:=/a200_0553/tf -r /tf_static:=/a200_0553/tf_static "
-                "2>&1 | head -20")
+    out = _exec(
+        "source ros-env; timeout 10 ros2 run tf2_ros tf2_echo "
+        "map base_link --ros-args "
+        "-r /tf:=/a200_0553/tf -r /tf_static:=/a200_0553/tf_static "
+        "2>&1 | head -20"
+    )
     assert "Translation" in out, (
         "Keine TF-Kette map -> base_link. In diesem Stand liefert map -> odom "
         f"der static_transform_publisher und odom -> base_link der EKF. "
-        f"Ausgabe:\n{out}")
+        f"Ausgabe:\n{out}"
+    )
 
 
 def test_navigates_without_localization(container, exclusive_base):
@@ -113,7 +135,8 @@ python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after
         f"Ziel war 1,0 m entfernt (zur Kartenmitte hin), gefahren wurden "
         f"{travelled:.3f} m "
         f"(vorher {result['before']:.3f}, nachher {result['after']:.3f}). "
-        f"/tmp/nav_goal.log im Container lesen.")
+        f"/tmp/nav_goal.log im Container lesen."
+    )
 
 
 def test_navigates_to_a_goal_it_has_to_turn_around_for(container, exclusive_base):
@@ -202,14 +225,17 @@ print(json.dumps({
         f"es fehlen {result['remaining']:.3f} m. Ohne den "
         f"RotationShimController bleibt der Husky bei grossen "
         f"Richtungsaenderungen stehen -- pruefe, ob FollowPath.plugin noch "
-        f"RotationShimController ist.")
+        f"RotationShimController ist."
+    )
     assert result["travelled"] > 0.8, (
         f"Nav2 meldet SUCCEEDED, aber die Odometrie sieht nur "
         f"{result['travelled']:.3f} m -- das Ziel lag 1,2 m entfernt. Ein "
-        f"Erfolg ohne Bewegung ist kein Erfolg.")
+        f"Erfolg ohne Bewegung ist kein Erfolg."
+    )
     assert result["remaining"] < 0.35, (
         f"Angekommen ist er nicht: {result['remaining']:.3f} m zum Ziel "
-        f"(xy_goal_tolerance ist 0,25).")
+        f"(xy_goal_tolerance ist 0,25)."
+    )
 
 
 def test_the_controller_actually_receives_odometry(container):
@@ -222,24 +248,30 @@ def test_the_controller_actually_receives_odometry(container):
     das nicht gefunden, ein falscher Topicname sieht dort aus wie ein
     richtiger.  Deshalb hier: gibt es einen Publisher, und kommen Daten an?
     """
-    topic = _exec("source ros-env; timeout 15 ros2 param get "
-                  "/a200_0553/controller_server odom_topic 2>/dev/null "
-                  "| tail -1 | sed 's/.*: //'").strip()
+    topic = _exec(
+        "source ros-env; timeout 15 ros2 param get "
+        "/a200_0553/controller_server odom_topic 2>/dev/null "
+        "| tail -1 | sed 's/.*: //'"
+    ).strip()
     assert topic, "odom_topic ist am laufenden controller_server nicht lesbar."
 
     full = topic if topic.startswith("/") else f"/a200_0553/{topic}"
-    info = _exec(f"source ros-env; timeout 20 ros2 topic info -v {full} "
-                 "2>/dev/null | grep 'Publisher count'")
+    info = _exec(
+        f"source ros-env; timeout 20 ros2 topic info -v {full} "
+        "2>/dev/null | grep 'Publisher count'"
+    )
     assert "Publisher count: 0" not in info, (
         f"Auf {full} publiziert NIEMAND -- der controller_server bekommt "
         f"seine Ist-Geschwindigkeit nie, `speed` bleibt 0, und der Regler "
         f"regelt blind. Sichtbar wird das als kriechende Drehung (0,05 rad/s "
-        f"statt 0,8), nicht als Fehlermeldung. Gesehen: {info.strip()!r}")
+        f"statt 0,8), nicht als Fehlermeldung. Gesehen: {info.strip()!r}"
+    )
 
-    sample = _exec(f"source ros-env; timeout 8 ros2 topic echo {full} --once "
-                   "--field twist.twist.angular.z 2>/dev/null | head -1")
-    assert sample.strip(), (
-        f"{full} hat einen Publisher, liefert aber keine Daten.")
+    sample = _exec(
+        f"source ros-env; timeout 8 ros2 topic echo {full} --once "
+        "--field twist.twist.angular.z 2>/dev/null | head -1"
+    )
+    assert sample.strip(), f"{full} hat einen Publisher, liefert aber keine Daten."
 
 
 def test_the_ground_frame_matches_the_wheel_geometry(container):
@@ -264,20 +296,26 @@ def test_the_ground_frame_matches_the_wheel_geometry(container):
     localization.yaml, ueber robot.yaml nicht einstellbar, und fuer Nav2
     folgenlos -- dort zaehlen nur x, y und yaw.
     """
+
     def _z(parent: str, child: str) -> float:
-        out = _exec(f"source ros-env; timeout 10 ros2 run tf2_ros tf2_echo "
-                    f"{parent} {child} --ros-args "
-                    "-r /tf:=/a200_0553/tf -r /tf_static:=/a200_0553/tf_static "
-                    "2>&1 | grep -m1 Translation")
+        out = _exec(
+            f"source ros-env; timeout 10 ros2 run tf2_ros tf2_echo "
+            f"{parent} {child} --ros-args "
+            "-r /tf:=/a200_0553/tf -r /tf_static:=/a200_0553/tf_static "
+            "2>&1 | grep -m1 Translation"
+        )
         assert "Translation" in out, f"Keine TF {parent} -> {child}: {out!r}"
         return float(out.split("[")[1].split("]")[0].split(",")[2])
 
     footprint_z = _z("base_link", "base_footprint")
     axle_z = _z("base_link", "front_left_wheel_link")
 
-    radius = float(_exec(
-        "grep -m1 'wheel_radius:' /clearpath/platform/config/control.yaml "
-        "| tr -d ' ' | cut -d: -f2").strip())
+    radius = float(
+        _exec(
+            "grep -m1 'wheel_radius:' /clearpath/platform/config/control.yaml "
+            "| tr -d ' ' | cut -d: -f2"
+        ).strip()
+    )
 
     expected = axle_z - radius
     assert abs(footprint_z - expected) < 0.005, (
@@ -285,4 +323,5 @@ def test_the_ground_frame_matches_the_wheel_geometry(container):
         f"den Boden aber bei {expected:.5f} (Achse {axle_z:.5f} minus "
         f"Radradius {radius} aus control.yaml). URDF und Radcontroller "
         f"rechnen mit verschiedenen Raedern -- dann ist auch die Odometrie "
-        f"um denselben Faktor falsch, und das meldet niemand.")
+        f"um denselben Faktor falsch, und das meldet niemand."
+    )

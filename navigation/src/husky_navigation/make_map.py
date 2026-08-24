@@ -9,17 +9,22 @@ Controller gemessen werden, solange es noch keine RS16-Aufnahme gibt.
 
 ROS-frei.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-FREE = 254        # weiss  -> befahrbar
-OCCUPIED = 0      # schwarz -> Wand
+FREE = 254  # weiss  -> befahrbar
+OCCUPIED = 0  # schwarz -> Wand
 
 
-def write_empty_room(out_stem: str | Path, *, width_m: float = 10.0,
-                     height_m: float = 10.0,
-                     resolution: float = 0.05) -> tuple[Path, Path]:
+def write_empty_room(
+    out_stem: str | Path,
+    *,
+    width_m: float = 10.0,
+    height_m: float = 10.0,
+    resolution: float = 0.05,
+) -> tuple[Path, Path]:
     """Schreibt <stem>.pgm und <stem>.yaml: freier Raum mit Wand ringsum.
 
     Rueckgabe: (pgm_path, yaml_path).
@@ -33,14 +38,17 @@ def write_empty_room(out_stem: str | Path, *, width_m: float = 10.0,
         if r == 0 or r == rows - 1:
             rowbytes.append(bytes([OCCUPIED] * cols))
         else:
-            rowbytes.append(bytes([OCCUPIED]) + bytes([FREE] * (cols - 2))
-                            + bytes([OCCUPIED]))
+            rowbytes.append(
+                bytes([OCCUPIED]) + bytes([FREE] * (cols - 2)) + bytes([OCCUPIED])
+            )
 
     pgm = stem.with_suffix(".pgm")
     pgm.parent.mkdir(parents=True, exist_ok=True)
     with pgm.open("wb") as fh:
-        fh.write(f"P5\n# erzeugt von husky_navigation.make_map\n"
-                 f"{cols} {rows}\n255\n".encode("ascii"))
+        fh.write(
+            f"P5\n# erzeugt von husky_navigation.make_map\n"
+            f"{cols} {rows}\n255\n".encode("ascii")
+        )
         for row in rowbytes:
             fh.write(row)
 
@@ -58,6 +66,7 @@ def write_empty_room(out_stem: str | Path, *, width_m: float = 10.0,
         f"negate: 0\n"
         f"occupied_thresh: 0.65\n"
         f"free_thresh: 0.25\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
 
     return pgm, yaml_path

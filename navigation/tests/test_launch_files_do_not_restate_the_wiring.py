@@ -9,6 +9,7 @@ geprueften Fassung wegdriften, ohne dass ein Test es merkt.
 Dieselbe Lehre wie bei scripts/guard und scripts/mock -- ein Kommentar
 "bei Aenderungen mitziehen" ist kein Mechanismus.
 """
+
 from pathlib import Path
 
 import pytest
@@ -23,21 +24,25 @@ WIRED_LITERALS = (
 )
 
 
-@pytest.mark.parametrize("launch_file", sorted(LAUNCH_DIR.glob("*.launch.py")),
-                         ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "launch_file", sorted(LAUNCH_DIR.glob("*.launch.py")), ids=lambda p: p.name
+)
 def test_the_launch_file_imports_the_wiring(launch_file):
     text = launch_file.read_text(encoding="utf-8")
     assert "husky_navigation" in text, (
         f"{launch_file.name} importiert husky_navigation nicht -- die "
-        f"Verdrahtung steht dort dann ein zweites Mal.")
+        f"Verdrahtung steht dort dann ein zweites Mal."
+    )
 
 
-@pytest.mark.parametrize("launch_file", sorted(LAUNCH_DIR.glob("*.launch.py")),
-                         ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "launch_file", sorted(LAUNCH_DIR.glob("*.launch.py")), ids=lambda p: p.name
+)
 def test_the_launch_file_restates_no_wired_literal(launch_file):
     text = launch_file.read_text(encoding="utf-8")
     restated = [lit for lit in WIRED_LITERALS if lit in text]
     assert not restated, (
         f"{launch_file.name} formuliert {restated} selbst. Diese Werte "
         f"gehoeren nach husky_navigation.wiring -- die Launch-Datei ruft sie "
-        f"ab, statt sie zu spiegeln.")
+        f"ab, statt sie zu spiegeln."
+    )
