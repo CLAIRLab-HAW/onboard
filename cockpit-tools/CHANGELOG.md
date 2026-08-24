@@ -3,6 +3,21 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## 2026-08-24 (README in English, skeleton aligned)
+
+- **The README is now fully in English.** Per CLAUDE.md, `README.md` and
+  `CHANGELOG.md` are English everywhere; a README is current state, so it was
+  translated in one piece rather than paragraph by paragraph.
+- **The README skeleton is aligned** to the workspace convention (`Features`,
+  `Tech Stack`, `Installation`, `Usage`, `Running Tests`, `Related`,
+  `Versioning`, `License`, with the package's own sections in between). This
+  repo was the one documented outlier; CLAUDE.md asked for it to be brought
+  into line the next time the file was touched.
+- **The menu label stays `Roboter-Werkzeuge`** — it is the string in
+  `manifest.json` that Cockpit shows, not prose. The internal link
+  `#entwickeln` became `#development` along with its heading.
+- Prose only, no behaviour change.
+
 ## [0.1.1] — 2026-08-24
 
 ### Geändert

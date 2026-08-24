@@ -1,175 +1,203 @@
 # cockpit-robot-tools
 
-Eine Cockpit-Seite für wiederkehrende Handgriffe am Roboter. Zurzeit enthält
-sie genau eine Karte: den **Offboard-Lite-Container** starten und stoppen, mit
-Statuskugel und der Adresse, unter der man dem Container per VNC zusieht.
+A Cockpit page for recurring manual tasks on the robot. Right now it holds
+exactly one card: starting and stopping the **offboard-lite container**, with a
+status dot and the address under which you can watch the container over VNC.
 
-Der Name ist absichtlich offen gehalten — weitere Karten (andere Container,
-andere Handgriffe) kommen hier dazu, ohne dass das Paket umgetauft werden muss.
+The name is deliberately kept open — further cards (other containers, other
+tasks) get added here without the package having to be renamed.
 
-![Die Seite in der Vorschau](screenshots/vorschau.jpg)
+![The page in preview](screenshots/vorschau.jpg)
 
-*(Cockpit → „Roboter-Werkzeuge"; hier in der Vorschau am Arbeitsplatz, siehe
-[Entwickeln](#entwickeln).)*
+*(Cockpit → "Roboter-Werkzeuge"; shown here in the workstation preview, see
+[Development](#development).)*
 
-## Was die Seite tut
+## Features
 
-**Statuskugel.** Alle drei Sekunden ein `docker ps -a`. Im Hintergrundtab wird
-nicht abgefragt — die erste Abfrage läuft aber immer, sonst stünde eine nie
-sichtbar gewesene Seite für immer auf „wird geprüft…".
+- **One card for the offboard-lite container** — start, stop, status dot, and
+  the VNC address to watch it.
+- **The container is looked up, not guessed** — by compose service or image,
+  so a different project directory does not break the page.
+- **It says why port 5900 is closed from outside**, distinguishing a dead
+  desktop from one that is merely unreachable.
+- **No build step** — plain vanilla JS against `cockpit.js`.
 
-Der Container wird **gesucht, nicht geraten**: compose bildet den Namen als
-`<projekt>-moveit-rviz-1`, und das Projekt heißt per Vorgabe wie das
-Verzeichnis — ein fest verdrahteter Name ist damit eine Wette auf den
-Ablageort. Erkannt wird am compose-Dienst (`moveit-rviz`) oder am Image
-(`*offboard-lite*`); der große `husky-offboard`-Container fällt dabei nicht
-mit hinein. Welcher Container bedient wird, steht in der Karte, und gibt es
-mehrere Treffer, nennt sie auch die übrigen.
+## Tech Stack
 
-| Kugel | Bedeutung |
+Vanilla JS against `cockpit.js` (Cockpit ≥ 266), PatternFly 6 values as CSS
+tokens; `node --test` for the state mapping. No node or npm on the robot.
+
+## What the page does
+
+**Status dot.** A `docker ps -a` every three seconds. In a background tab
+nothing is polled — but the first query always runs, otherwise a page that was
+never visible would sit on "checking…" forever.
+
+The container is **looked up, not guessed**: compose forms the name as
+`<project>-moveit-rviz-1`, and by default the project is named after the
+directory — so a hard-wired name is a bet on where the files happen to live.
+Detection goes by the compose service (`moveit-rviz`) or by the image
+(`*offboard-lite*`); the large `husky-offboard` container is not swept up in
+that. Which container is being operated is stated in the card, and if there
+are several matches it names the others too.
+
+| Dot | Meaning |
 |---|---|
-| grün | `running` — der Container läuft |
-| grau | `exited` / `created` / `paused` — **gestoppt, das ist der Normalfall** |
-| gelb, pulsierend | Start oder Stopp unterwegs, oder `restarting` |
-| grau, hohl | Der Container ist auf diesem Rechner gar nicht angelegt |
-| rot | Docker antwortet nicht, keine Rechte, oder Container `dead` |
+| green | `running` — the container is up |
+| grey | `exited` / `created` / `paused` — **stopped, which is the normal case** |
+| yellow, pulsing | start or stop under way, or `restarting` |
+| grey, hollow | the container does not exist on this machine at all |
+| red | Docker is not answering, no permissions, or container `dead` |
 
-Gestoppt ist bewusst **grau und nicht rot**: sonst leuchtete die Kugel die
-meiste Zeit alarmierend, obwohl nichts kaputt ist — und ein echter Fehler ginge
-darin unter.
+Stopped is deliberately **grey and not red**: otherwise the dot would glow
+alarmingly most of the time although nothing is broken — and a real error
+would drown in it.
 
-**Starten / Stoppen.** `docker start` bzw. `docker stop` auf den gefundenen
-Container. Die Seite legt **keinen** Container an und ruft **kein** `compose`
-auf; fehlt er, sagt sie das — ohne einen Pfad zu raten, den sie nicht geprüft
-hat.
-Der jeweils sinnlose Knopf ist ausgegraut (kein `start` auf einen laufenden
-Container, kein `stop` auf einen gestoppten).
+**Start / stop.** `docker start` and `docker stop` on the container that was
+found. The page creates **no** container and calls **no** `compose`; if it is
+missing, it says so — without guessing a path it has not checked.
+Whichever button makes no sense is greyed out (no `start` on a running
+container, no `stop` on a stopped one).
 
-**Warum 5900 von außen zu ist.** Läuft der Container, prüft die Seite einmal
-`docker inspect` und sagt, wenn der VNC-Port gar nicht nach außen lauschen
-kann. Zwei Ursachen erzeugen dasselbe Bild — 6080 offen, 5900 keine Antwort —
-und beide entstehen beim **Anlegen** des Containers, überleben also jedes
+**Why 5900 is closed from outside.** When the container runs, the page checks
+`docker inspect` once and reports if the VNC port cannot listen externally at
+all. Two causes produce the same picture — 6080 open, 5900 no answer — and
+both arise when the container is **created**, so they survive every
 `docker start`:
 
-| Befund | Was die Seite meldet |
+| Finding | What the page reports |
 |---|---|
-| im Container antwortet `127.0.0.1:5900` nicht | Der Desktop ist gar nicht hochgekommen — bei Images ohne den Lock-Fix vom 2026-08-20 nach **jedem** Stop+Start |
-| kein `VNC_PASSWORD` in der Umgebung | `x11vnc` läuft mit `-nopw` und bindet dann nur auf `127.0.0.1` |
-| `NetworkMode` ≠ `host` | Bridge-Netz, `5900` liegt nur auf dem Loopback des Roboters |
+| `127.0.0.1:5900` does not answer inside the container | The desktop never came up — on images without the lock fix of 2026-08-20 after **every** stop+start |
+| no `VNC_PASSWORD` in the environment | `x11vnc` runs with `-nopw` and then binds only to `127.0.0.1` |
+| `NetworkMode` ≠ `host` | bridge network, `5900` sits only on the robot's loopback |
 
-Die erste Zeile ist eine Messung **von innen** (`docker exec … bash -c 'exec
-3<>/dev/tcp/127.0.0.1/5900'`) und trennt einen toten Desktop von einem, der
-nur nach außen nicht erreichbar ist — von außen sehen beide identisch aus.
-Ein einzelnes „tot" gilt dabei nicht: nach `docker start` steht der Container
-sofort auf `running`, während Xvfb, fluxbox und x11vnc noch hochkommen, also
-muss der Befund dreimal in Folge auftreten (rund zehn Sekunden).
+The first row is a measurement **from the inside** (`docker exec … bash -c
+'exec 3<>/dev/tcp/127.0.0.1/5900'`) and separates a dead desktop from one that
+is merely unreachable from outside — from outside the two look identical. A
+single "dead" does not count: after `docker start` the container is
+immediately `running` while Xvfb, fluxbox and x11vnc are still coming up, so
+the finding has to occur three times in a row (about ten seconds).
 
-![Desktop nicht hochgekommen](screenshots/desktop-tot.jpg)
+![Desktop did not come up](screenshots/desktop-tot.jpg)
 
-Solange „kein `VNC_PASSWORD`" gilt, blendet die Seite den Hinweis aus, der
-Viewer frage nach einem Passwort — zwei widersprechende Sätze nebeneinander
-sind schlimmer als einer weniger.
+As long as "no `VNC_PASSWORD`" holds, the page hides the note that the viewer
+will ask for a password — two contradicting sentences side by side are worse
+than one sentence fewer.
 
-**VNC.** Die Adresse `vnc://<dieser-rechner>:5900` als Link und zum Kopieren,
-dazu die Hinweise, die man dort braucht: wie man sie am Mac öffnet, dass der
-Viewer nach dem `VNC_PASSWORD` des Containers fragt (Vorgabe `husky`, 8 Zeichen
-Protokollgrenze), dass **RViz mit dem Container hochkommt**
-(`RVIZ_AUTOSTART=1`) und im `xterm` mit `moveit-rviz` neu startbar ist — und
-dass *Execute* den echten Arm bewegt.
+**VNC.** The address `vnc://<this-machine>:5900` as a link and to copy, plus
+the hints you need there: how to open it on a Mac, that the viewer asks for
+the container's `VNC_PASSWORD` (default `husky`, 8 characters by protocol
+limit), that **RViz comes up with the container** (`RVIZ_AUTOSTART=1`) and can
+be restarted in the `xterm` with `moveit-rviz` — and that *Execute* moves the
+real arm.
 
-Der Rechnername kommt aus der Adresse, unter der Cockpit geöffnet wurde (über
-einen Cockpit-Sprungrechner aus `cockpit.transport.host`). Steht dort
-`localhost` oder `127.0.0.1` — Cockpit direkt auf dem Roboter oder durch einen
-SSH-Tunnel geöffnet —, wäre das als VNC-Ziel der falsche Rechner; dann greift
-der feste Rückfall `ROBOT_HOST` in `index.js`, zurzeit `10.42.42.159`. Ein
-anderes Netz (netbird) trägt man dort ein.
+The machine name comes from the address under which Cockpit was opened (via a
+Cockpit jump host from `cockpit.transport.host`). If that says `localhost` or
+`127.0.0.1` — Cockpit opened directly on the robot or through an SSH tunnel —
+it would be the wrong machine as a VNC target; the fixed fallback `ROBOT_HOST`
+in `index.js` then applies, currently `10.42.42.159`. A different network
+(netbird) is entered there.
 
-## Voraussetzungen auf dem Roboter
+## Prerequisites on the robot
 
-- **Der Container muss einmal angelegt worden sein**, im Verzeichnis des
-  Compose-Projekts:
+- **The container has to have been created once**, in the directory of the
+  compose project:
   ```bash
   docker compose -f docker-compose.yml -f docker-compose.robot.yml up -d
   ```
-  Der `-f docker-compose.robot.yml` gehört dazu (Host-Netz), und
-  `VNC_PASSWORD` muss gesetzt sein — sonst startet die Seite später einen
-  Container, an den kein Viewer herankommt. Wie er heißt, ist egal, die Seite
-  findet ihn. Danach genügt für alles Weitere diese Seite.
-- **Admin-Zugang in Cockpit.** Die Docker-Aufrufe laufen mit
-  `superuser: "require"`. Wer sich in Cockpit nicht als Administrator
-  freigeschaltet hat, sieht eine rote Kugel mit der Fehlermeldung.
-- **Docker im PATH.** Auf a200-0553 ist Docker das *snap*-Docker; die Seite
-  stellt deshalb `/snap/bin` vor den PATH, bevor sie `docker` aufruft.
+  The `-f docker-compose.robot.yml` is part of it (host network), and
+  `VNC_PASSWORD` has to be set — otherwise the page later starts a container no
+  viewer can reach. What it is called does not matter, the page finds it. After
+  that this page is enough for everything else.
+- **Admin access in Cockpit.** The Docker calls run with
+  `superuser: "require"`. Anyone who has not elevated to administrator in
+  Cockpit sees a red dot with the error message.
+- **Docker on the PATH.** On a200-0553 Docker is the *snap* Docker; the page
+  therefore puts `/snap/bin` in front of the PATH before calling `docker`.
 
 ## Installation
 
-Kein Build. Das Paket ist reines Vanilla-JS gegen `cockpit.js` und wird so,
-wie es hier liegt, kopiert — auf dem Roboter braucht es weder node noch npm.
+No build. The package is plain vanilla JS against `cockpit.js` and is copied
+exactly as it lies here — on the robot it needs neither node nor npm.
 
 ```bash
-# vom Arbeitsplatz aus:
+# from the workstation:
 rsync -a robot/cockpit-robot-tools/ robot@10.42.42.159:~/cockpit-robot-tools/
 ssh robot@10.42.42.159 'sudo ~/cockpit-robot-tools/install.sh'
 ```
 
-Ziel ist `/usr/local/share/cockpit/robot-tools` — dieselbe Ebene wie der
-[cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md)-Fork; die
-beiden Pakete stören einander nicht. Danach im Browser auf
-`http://<robot>:9090` neu laden, der Menüpunkt heißt **Roboter-Werkzeuge**.
+The target is `/usr/local/share/cockpit/robot-tools` — the same level as the
+[cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) fork; the two
+packages do not interfere with each other. Afterwards reload
+`http://<robot>:9090` in the browser; the menu entry is called
+**Roboter-Werkzeuge**.
 
-Rückbau: `sudo ~/cockpit-robot-tools/install.sh --uninstall`.
+Removal: `sudo ~/cockpit-robot-tools/install.sh --uninstall`.
 
-## Entwickeln
+## Usage
+
+Open Cockpit at `http://<robot>:9090`, elevate to administrator, and pick
+**Roboter-Werkzeuge** from the menu. The card starts and stops the container
+and shows the VNC address.
+
+## Development
 
 ```bash
-node --test test/*.test.mjs     # Zustandsabbildung (status.js)
+node --test test/*.test.mjs     # state mapping (status.js)
 ```
 
-`status.js` ist die einzige Datei mit Entscheidungslogik und deshalb die
-einzige mit Tests: welche Farbe, welcher Text, welcher Knopf aktiv. Der Rest
-von `index.js` ist DOM und `cockpit.spawn`.
+`status.js` is the only file with decision logic and therefore the only one
+with tests: which color, which text, which button enabled. The rest of
+`index.js` is DOM and `cockpit.spawn`.
 
-Die Seite lässt sich ohne Roboter ansehen, indem man ein `cockpit.js`-Attrappe
-danebenlegt (siehe `test/preview/`) und das Verzeichnis mit einem beliebigen
-statischen Server ausliefert.
+The page can be viewed without a robot by putting a `cockpit.js` stub next to
+it (see `test/preview/`) and serving the directory with any static server.
 
-### Das Aussehen
+### The look
 
-Kein PatternFly im Paket, aber PatternFly-6-Werte: `style.css` baut das
-Wurzel-Layout von [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md)
-nach — heller Seitengrund, darauf eine Wanne mit runden Ecken und 1,5rem
-Abstand nach links, rechts und unten. Farben, Abstände, Radien und Größen
-stehen als Token in `:root` und tragen den PF-Namen als Kommentar; wer sie
-nachziehen will, misst sie am gebauten `dist/index.css` des Nachbarpakets.
-Zwei Fallen dabei: Abstände sind bei PF **rem**, Radien **absolute px** — und
-ein `1rem` als Radius ist in einem Browser mit 12px-Wurzel eine 12px-Ecke
-neben der 16px-Ecke nebenan.
+No PatternFly in the package, but PatternFly 6 values: `style.css` rebuilds the
+root layout of
+[cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — light page
+background, on it a tub with rounded corners and 1.5rem of spacing to the left,
+right and bottom. Colors, spacings, radii and sizes sit as tokens in `:root`
+and carry the PF name as a comment; anyone wanting to bring them up to date
+measures them against the neighbouring package's built `dist/index.css`. Two
+traps in doing so: in PF, spacings are **rem** and radii **absolute px** — and
+a `1rem` used as a radius is a 12px corner in a browser with a 12px root, next
+to the 16px corner beside it.
 
-Das dunkle Thema kommt von Cockpit, nicht vom Betriebssystem: `theme.js` liest
-`shell:style` und setzt `pf-v6-theme-dark` am `<html>`, so wie Cockpits
-eigenes `cockpit-dark-theme` in den gebauten Paketen. Ein reines
-`@media (prefers-color-scheme: dark)` wäre falsch, sobald Shell und System
-verschiedener Meinung sind.
+The dark theme comes from Cockpit, not from the operating system: `theme.js`
+reads `shell:style` and sets `pf-v6-theme-dark` on the `<html>`, the same way
+Cockpit's own `cockpit-dark-theme` does in the built packages. A plain
+`@media (prefers-color-scheme: dark)` would be wrong as soon as shell and
+system disagree.
 
-## Sicherheitshinweis
+## Security note
 
-Der VNC-Port hat inzwischen ein Passwort (`VNC_PASSWORD`, Vorgabe `husky`);
-VNC-Passwörter sind protokollbedingt auf 8 Zeichen begrenzt, das ist eine Hürde
-und kein Schutz. Bei `network_mode: host` liegt Port 5900/6080 direkt auf der
-Roboter-IP, und aus dem Desktop heraus ist der echte Arm über MoveIt bedienbar.
-Diese Seite macht das Starten bequem — die Abwägung bleibt dieselbe
-(R3 in [ROBOTER-TODO.md](../../ROBOTER-TODO.md)): nur in einem
-vertrauenswürdigen Netz starten und danach wieder stoppen.
+The VNC port now has a password (`VNC_PASSWORD`, default `husky`); VNC
+passwords are limited to 8 characters by the protocol, which is a hurdle and
+not protection. With `network_mode: host`, ports 5900/6080 sit directly on the
+robot's IP, and from within the desktop the real arm can be operated through
+MoveIt. This page makes starting it convenient — the trade-off stays the same
+(R3 in [ROBOTER-TODO.md](../../ROBOTER-TODO.md)): only start it in a trusted
+network, and stop it again afterwards.
 
-## Verwandt
+## Running Tests
 
-- [husky-offboard-lite](../../deploy/husky-offboard-lite/README.md) — der Container, den diese Seite bedient
-- [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — das Diagnose-Plugin daneben
+```bash
+node --test test/*.test.mjs
+```
 
-## Versionierung
+## Related
 
-[Semantic Versioning](https://semver.org/) über `VERSION` und [CHANGELOG.md](CHANGELOG.md).
+- [husky-offboard-lite](../../deploy/husky-offboard-lite/README.md) — the container this page operates
+- [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — the diagnostics plugin next to it
 
-## Lizenz
+## Versioning
 
-Siehe Workspace-Wurzel.
+[Semantic Versioning](https://semver.org/) via `VERSION` and
+[CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+See the workspace root.
