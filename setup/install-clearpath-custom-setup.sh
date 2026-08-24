@@ -65,13 +65,9 @@ UNIT_PATH="/etc/systemd/system/${UNIT_NAME}"
 # und belegt tool_digital_output_mask, weshalb der ur_robot_driver auf einem
 # Input-Recipe OHNE die tool_digital_output*-Zeilen laeuft.  Kommandiert wird
 # der Greifer seitdem per XML-RPC an die URCap (rg6-grip-bridge, s.u.).
-# Die Namen bleiben hier stehen, weil der Installer die Unit ABRAEUMEN muss --
-# ein blosses Nicht-mehr-Schreiben laesst sie auf jedem bestehenden Roboter
-# stehen, und dort startet sie beim naechsten Boot in eine Endlosschleife
-# gegen einen Treiber, der nichts mehr bewirken kann.
-RG6_WRAPPER="${BIN_DIR}/rg6-bringup.sh"
-RG6_UNIT="clearpath-custom-rg6-bringup.service"
-RG6_UNIT_PATH="/etc/systemd/system/${RG6_UNIT}"
+# Der Installer raeumt die Unit nicht mehr weg: am 2026-08-24 am Roboter
+# nachgesehen -- weder /etc/systemd/system/clearpath-custom-rg6-bringup.service
+# noch ein Eintrag in list-unit-files, und rg6-bringup.sh ist ebenfalls fort.
 # RG6-Greifer-Bruecke: kommandiert den Greifer per XML-RPC an die OnRobot-URCap
 # (Block weiter unten).  Die NAMEN stehen hier oben, weil die Diagnose-Unit sie
 # in ihrem After= braucht und weiter oben geschrieben wird -- unter 'set -u'
@@ -138,14 +134,6 @@ USM_WRAPPER="${BIN_DIR}/ur-state-manager.sh"
 USM_UNIT="clearpath-custom-ur-state-manager.service"
 USM_UNIT_PATH="/etc/systemd/system/${USM_UNIT}"
 
-# arm-controllers: eine abgeschaffte Unit, die der Installer nur noch AUFRAEUMT.
-# Die Extra-Controller (--inactive) und der ur_controller_mode_manager kommen aus
-# ur_state_manager.launch.py (Argument load_arm_controllers, Default true):
-# gleiches Paket, gleicher Workspace, gleicher User, identischer Lifecycle -> kein
-# Grund fuer eine zweite Unit.
-ARM_CTRL_OLD_UNIT="clearpath-custom-arm-controllers.service"
-ARM_CTRL_OLD_WRAPPER="${BIN_DIR}/arm-controllers.sh"
-
 # joint-states (Phase 2): robot-weiter joint_state_aggregator (/a200_0553/joint_states)
 # + Relays der sauberen Arm-/Greifer-Quell-Topics zurueck auf den platform/joint_states-
 # Bus (fuer RSP + move_group). Nutzt den onrobot-rg6-Workspace (rg6_control
@@ -186,33 +174,12 @@ WD_MANIP_DROPIN="${WD_MANIP_DROPIN_DIR}/override.conf"
 SETUP_REPO_URL="https://github.com/CLAIRLab-HAW/husky-custom-setup.git"
 ROBOT_YAML_PATH="/etc/clearpath/robot.yaml"
 
-# Fruehere Custom-Unit-Namen (ohne clearpath-custom--Prefix) + der alte
-# Vorgaenger-Service: der Installer disable+rm sie, BEVOR er die neuen
-# clearpath-custom-*-Units schreibt+aktiviert (saubere Migration des Rename).
-OLD_UNIT="clearpath-set-update-rate.service"
-OLD_UNITS=(
-  "${OLD_UNIT}"
-  "rg6-bringup.service"
-  "ur-dashboard.service"
-  "ur-state-manager.service"
-  "arm-controllers.service"
-  "joint-states.service"
-  "manipulators-watchdog.service"
-  "manipulators-watchdog.timer"
-  "robot-yaml-update.service"
-)
-# STILLGELEGTE Units (nicht umbenannt, sondern abgeschafft): sie werden
-# genauso disable+stop+rm behandelt wie die alten Namen, stehen aber getrennt,
-# weil der Grund ein anderer ist -- hier ist die FUNKTION weg, nicht der Name.
-RETIRED_UNITS=(
-  "${RG6_UNIT}"
-)
-OLD_FILES=("${BIN_DIR}/set-update-rate.py" "${BIN_DIR}/wait-for-clearpath.sh"
-           "${RG6_WRAPPER}")
-# Verwaiste Drop-in-Verzeichnisse der alten Namen (Prefix-Rename -> Drop-in-Pfad
-# passt nicht mehr zur neuen Unit; Inhalt ist PartOf=clearpath-manipulators, das
-# die neue Unit ohnehin schon selbst traegt -> sicher zu entfernen).
-OLD_DIRS=("/etc/systemd/system/joint-states.service.d")
+# Der Installer traegt KEINE Aufraeum-Liste alter Unit-Namen mehr. Die
+# Migration auf das clearpath-custom-*-Prefix, die abgeschafften Units
+# (arm-controllers, robot-yaml-update, rg6-bringup) und ihre Wrapper sind auf
+# a200-0553 durch: am 2026-08-24 alle zwoelf Namen gegengeprueft -- keine
+# Unit-Datei, kein list-unit-files-Eintrag, kein Wrapper, kein Drop-in-Rest und
+# keine .bak-Leiche. Was wann abgeloest wurde, steht im CHANGELOG.
 # ---------------------------------------------------------------------------
 
 # --- Argumente -------------------------------------------------------------
@@ -385,49 +352,6 @@ if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
     echo "FEHLER: Bitte oben im Skript RG6_REPO_URL auf die Git-URL von onrobot-rg6 setzen."
     exit 1
 fi
-
-# --- Vorgaenger-/Alt-Namen abloesen (Migration auf clearpath-custom-*) ------
-# Alle alten Custom-Unit-Namen disable+stop+rm, bevor die neuen clearpath-custom-*
-# Units geschrieben+aktiviert werden. Fenster: alte Services kurz gestoppt ->
-# neue direkt danach aktiviert (Wartungszeitpunkt; Arm ggf. neu prepare).
-#
-# WICHTIG: nicht nur auf list-unit-files pruefen. Wurde die Unit-Datei bei einem
-# frueheren Lauf schon entfernt, der Prozess aber nicht gestoppt, laeuft die Unit
-# als "not-found aber active" weiter - und fehlt in list-unit-files. Solche
-# Zombies (Boot-Prozesse unter altem Namen, z.B. doppelter ur_state_manager mit
-# altem auto_recover) faengt nur der is-active-Check. 'systemctl stop' wirkt
-# auch auf not-found-Units (systemd fuehrt sie in-memory weiter); 'disable'
-# dagegen braucht die Unit-Datei -> getrennt und Fehler dort tolerieren.
-# Stop-Fehler NICHT verschlucken, sondern laut warnen (sonst laufen alte
-# Prozesse unbemerkt neben den neuen Units weiter).
-for u in "${OLD_UNITS[@]}" "${RETIRED_UNITS[@]}"; do
-    known=0
-    systemctl list-unit-files 2>/dev/null | grep -q "^${u}" && known=1
-    state="$(systemctl is-active "${u}" 2>/dev/null || true)"
-    if [ "$known" = "1" ] || [ "$state" = "active" ] || [ "$state" = "activating" ]; then
-        echo ">>> Entferne alte Unit ${u} (state=${state:-unbekannt})"
-        systemctl disable "${u}" 2>/dev/null || true
-        if ! systemctl stop "${u}" 2>/dev/null; then
-            echo "    WARN: 'systemctl stop ${u}' fehlgeschlagen - alte Prozesse"
-            echo "    laufen ggf. weiter (pruefen: systemctl status ${u})."
-        fi
-    fi
-    rm -f "/etc/systemd/system/${u}"
-done
-for f in "${OLD_FILES[@]}"; do
-    [ -e "$f" ] && { echo ">>> Entferne alte Datei $f"; rm -f "$f"; }
-done
-for d in "${OLD_DIRS[@]}"; do
-    [ -d "$d" ] && { echo ">>> Entferne verwaistes Verzeichnis $d"; rm -rf "$d"; }
-done
-# Stale Backup-Leichen der alten Namen raeumen: der Installer stapft keine
-# neuen mehr an, .bak.* aus frueheren Laeufen liegen aber noch auf Platte.
-rm -f /etc/systemd/system/manipulators-watchdog.service.bak.* \
-      /usr/local/bin/manipulators-watchdog.sh.bak.* 2>/dev/null || true
-# Handabschaltungen der rg6-bringup-Unit (2026-08-17 am Roboter angelegt, um
-# PartOf= auszukommentieren).  Sie ueberleben sonst jeden Installer-Lauf und
-# sehen beim naechsten Blick wie ein zweiter, echter Unit-Stand aus.
-rm -f "${RG6_UNIT_PATH}".bak* 2>/dev/null || true
 
 DO_BOOT=1
 if systemctl list-unit-files | grep -q "^${UNIT_NAME}" && [ -f "$PY_PATH" ]; then
@@ -996,7 +920,7 @@ if [ "$DO_RG6" -eq 1 ]; then
     # rg6_control = Simulations-Greifer, joint_state-Hilfsnodes, rg6_moveit_patch.
     #
     # Der Workspace wird WEITER gebaut, obwohl der rg6_control-TREIBER
-    # stillgelegt ist (s. RETIRED_UNITS oben): rg6_description traegt das
+    # stillgelegt ist (s. Kommentar am Kopf): rg6_description traegt das
     # Greifermodell im URDF, rg6_moveit_patch die SRDF-Anpassung, und
     # clearpath-custom-joint-states startet das Relay aus rg6_control.  Was
     # entfaellt, ist ausschliesslich der laufende Treiber-Knoten.
@@ -1161,16 +1085,12 @@ else
     echo ">>> ur-state-manager: uebersprungen."
 fi
 
-# --- arm-controllers Boot-Service (optional) -------------------------------
-# Laedt die Extra-Controller (ft/tcp_pose/speed_scaling aktiv; freedrive/forward/
-# passthrough --inactive) in den manipulators-CM und startet den Mode-Manager.
-# Braucht den gebauten ur-state-manager-Workspace (siehe oben).
-# --- arm-controllers: abgeloeste Unit entfernen ---------------------------
-if systemctl list-unit-files 2>/dev/null | grep -q "^${ARM_CTRL_OLD_UNIT}"; then
-    echo ">>> Entferne abgeloeste ${ARM_CTRL_OLD_UNIT} (jetzt Teil von ur-state-manager)"
-    systemctl disable --now "$ARM_CTRL_OLD_UNIT" 2>/dev/null || true
-    rm -f "/etc/systemd/system/${ARM_CTRL_OLD_UNIT}" "$ARM_CTRL_OLD_WRAPPER"
-fi
+# --- arm-controllers: kein eigener Service ---------------------------------
+# Die Extra-Controller (ft/tcp_pose/speed_scaling aktiv; freedrive/forward/
+# passthrough --inactive) und der ur_controller_mode_manager kommen aus
+# ur_state_manager.launch.py (Argument load_arm_controllers, Default true):
+# gleiches Paket, gleicher Workspace, gleicher User, identischer Lifecycle ->
+# kein Grund fuer eine zweite Unit.
 
 # --- manipulators-watchdog: Treiber-Reconnect bei spaetem Einschalten -------
 # Siehe Variablen-Kommentar oben. Behebt den Fall "Arm zu lange stromlos ->
@@ -1516,9 +1436,9 @@ Description=Robot-weite joint_states-Aggregation + Legacy-Bus-Relays (Phase 2)
 # Braucht die Quell-Topics: Raeder (clearpath-platform) + Arm (clearpath-
 # manipulators) + Greifer (${RG6_BRIDGE_UNIT}). Die Greiferquelle ist seit dem
 # URCap-Umstieg die Bruecke, nicht mehr rg6-bringup -- die Unit gibt es nicht
-# mehr, dieser Installer raeumt sie weg (RETIRED_UNITS). Ein After= auf einen
-# geloeschten Namen ordnet gegen nichts: systemd traegt ihn klaglos mit, und
-# die Reihenfolge, um die es hier geht, waere unbemerkt weg.
+# mehr. Ein After= auf einen geloeschten Namen ordnet gegen nichts: systemd
+# traegt ihn klaglos mit, und die Reihenfolge, um die es hier geht, waere
+# unbemerkt weg.
 # PartOf: der Relay/Aggregator (custom rg6_control-Nodes joint_state_relay/
 # joint_state_aggregator) resubscribed unter rmw_zenoh NICHT zuverlaessig, wenn
 # die Quelle nach einem Restart neu publisht -> ohne Mit-Restart fallen die
@@ -1551,8 +1471,9 @@ chmod 0644 "$JS_UNIT_PATH"
 # --- robot.yaml: versionierte Datei per Symlink (offizieller Clearpath-Weg) ---
 # Clearpath sieht vor, die robot.yaml versioniert zu halten und per SYMLINK nach
 # /etc/clearpath/robot.yaml zu legen (Customization-Package-Konzept). Gegenueber
-# einem Boot-Download (die abgeschaffte clearpath-custom-robot-yaml-update.service,
-# unten aufgeraeumt): keine Netzabhaengigkeit im Bootpfad, reproduzierbar, und
+# einem Boot-Download (die abgeschaffte Unit
+# clearpath-custom-robot-yaml-update.service): keine Netzabhaengigkeit im
+# Bootpfad, reproduzierbar, und
 # ein 'git pull' wirkt SOFORT statt erst beim naechsten Boot -- clearpath-robot-check
 # md5summt /etc/clearpath/robot.yaml im Sekundentakt und startet den Stack bei
 # Aenderung neu (md5sum folgt dem Symlink).
@@ -1584,13 +1505,6 @@ if [ -f "${SETUP_WS}/robot.yaml" ]; then
 else
     echo "    WARN: ${SETUP_WS}/robot.yaml fehlt - Symlink NICHT gesetzt, vorhandene Datei bleibt."
 fi
-# Alten Boot-Download-Service abloesen (falls von einer frueheren Installation da).
-if systemctl list-unit-files 2>/dev/null | grep -q "^clearpath-custom-robot-yaml-update"; then
-    echo ">>> Entferne abgeloesten clearpath-custom-robot-yaml-update.service"
-    systemctl disable --now clearpath-custom-robot-yaml-update.service 2>/dev/null || true
-    rm -f /etc/systemd/system/clearpath-custom-robot-yaml-update.service "${BIN_DIR}/robot-yaml-update.sh"
-fi
-
 # --- Octomap-Feed (optional): dichte Hindernis-Schicht fuer move_group -----
 # Schritt 2 der HRL-Hindernis-Architektur: move_group pflegt aus der Wrist-
 # D435 einen Octomap (Occupancy Map Monitor) und weicht damit auch Hindernissen
@@ -2007,7 +1921,6 @@ echo "  sudo systemctl restart clearpath-robot.service   # oder reboot"
 echo
 echo "Logs:"
 echo "  journalctl -t clearpath-custom-setup -b"
-echo "  journalctl -t robot-yaml-update -b"
 echo "  journalctl -u ${JS_UNIT} -b"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  journalctl -u ${UR_DASH_UNIT} -b"

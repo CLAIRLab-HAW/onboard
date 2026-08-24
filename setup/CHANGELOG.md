@@ -5,6 +5,40 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
+## 2026-08-24 (Aufraeum-Eintraege raus)
+
+- **Der Installer raeumt keine Alt-Units mehr weg.** Die Migration auf das
+  `clearpath-custom-*`-Prefix und die abgeschafften Units sind auf a200-0553
+  durch, also traegt das Skript die Listen nicht laenger mit. Entfallen sind
+  `OLD_UNITS` (neun unpraefigierte Namen: `clearpath-set-update-rate`,
+  `rg6-bringup`, `ur-dashboard`, `ur-state-manager`, `arm-controllers`,
+  `joint-states`, `manipulators-watchdog.service`/`.timer`,
+  `robot-yaml-update`), `RETIRED_UNITS` (`clearpath-custom-rg6-bringup`),
+  `OLD_FILES` (`set-update-rate.py`, `wait-for-clearpath.sh`,
+  `rg6-bringup.sh`), `OLD_DIRS` (`joint-states.service.d`), das Wegraeumen
+  der `.bak`-Leichen sowie die beiden Einzelbloecke fuer
+  `clearpath-custom-arm-controllers` und
+  `clearpath-custom-robot-yaml-update`. 88 Zeilen weniger.
+
+  Vorher am Roboter gegengeprueft (2026-08-24, rein lesend ueber SSH): alle
+  zwoelf Unit-Namen ohne Datei in `/etc/systemd/system`, ohne Eintrag in
+  `systemctl list-unit-files` und `is-active = inactive`; alle fuenf Wrapper
+  in `/usr/local/bin` fort; `/etc/systemd/system/joint-states.service.d`
+  fort; keine `manipulators-watchdog.*.bak.*` und keine
+  `clearpath-custom-rg6-bringup.service.bak*`. Was noch dort liegt, sind
+  Backups AKTUELLER Artefakte (`clearpath-custom-ur-dashboard.service.bak.a2`,
+  `clearpath-custom-setup.py.bak.a4`) -- die pflegt `prune_backups` weiter.
+
+  Damit faellt auch das Migrationsfenster weg: ein Installer-Lauf stoppt
+  keine Services mehr, bevor er die neuen schreibt. Wer eine Maschine mit
+  altem Stand nachziehen muss, nimmt die Liste aus diesem Eintrag oder einen
+  Checkout vor diesem Commit.
+
+- Kleinkram im selben Zug: die README beschrieb das Wegraeumen als laufendes
+  Verhalten, der Log-Hinweis `journalctl -t robot-yaml-update -b` zeigte auf
+  einen abgeschafften Dienst, und drei Kommentare verwiesen auf das nun
+  geloeschte `RETIRED_UNITS`.
+
 ## 2026-08-24 (Reste des Tool-DO-Greifers)
 
 - **Die Bruecke veroeffentlichte einen geschlossenen Greifer, wo sie gar
