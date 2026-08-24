@@ -3,6 +3,11 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/),
 Versionierung nach [SemVer](https://semver.org/).
 
+## 2026-08-24 (pyproject.toml normalised)
+
+- **`pyproject.toml` follows the workspace's canonical section order now** (`[build-system]`, `[project]`, `[project.optional-dependencies]`, `[project.scripts]`, `[project.urls]`, `[dependency-groups]`, `[tool.uv.sources]`, `[tool.setuptools.*]`, `[tool.pytest.*]`); the `[project]` keys follow PEP 621 order (`name`, `version`, `description`, `readme`, `requires-python`, `authors`, `dependencies`). Pure reordering -- every comment and value is unchanged.
+- **`readme = "README.md"` added** so the long description is packaged.
+
 ## 2026-08-24 (Author metadata added)
 
 - **`authors = [{ name = "Hannes Philip Voss", email = "mail@hannesvoss.de" }]`
