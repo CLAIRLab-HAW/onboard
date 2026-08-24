@@ -1,34 +1,31 @@
 #!/usr/bin/env python3
-"""rg6_kennlinie: Stuetzstellen fuer die AI2-Kennlinie messen (R19 Punkt 3).
+"""rg6_kennlinie: den Greiferweg Stuetzstelle fuer Stuetzstelle vermessen (R19 Punkt 2).
 
-Bis heute stehen ``in_closed = 0,56 V`` und ``in_open = 10,0 V`` in
-rg6_joint_state_broadcaster.cpp ausdruecklich als "grobe Schaetzung, bitte
-live nachjustieren" -- und es gab nie eine Referenz, gegen die man sie haette
-halten koennen.  Jetzt gibt es eine: ``rg_get_width`` kommt vom Geraet selbst,
-nicht aus einer zweiten Schaetzung.
+Die Frage, die hier noch offen ist:  das Modell setzt die offene Grenze auf
+159,0 mm, der Messschieber sagt ~151 mm.  Weicht die Weite ueber den GANZEN
+Weg gleichmaessig ab, sitzt der Fehler im Pad-Versatz (kPadOffsetM); erreicht
+die Hand die 159 mm gar nicht, ist die Kurbel-Totlage als offene Grenze zu
+weit gegriffen.  Beantwortbar nur mit einem Durchlauf ueber den ganzen Hub,
+und den faehrt dieses Skript.
 
-Am 2026-08-17 fiel schon an EINEM Punkt auf, wie weit die Schaetzung
-danebenliegt:
-
-    AI2 5,6696 V   ->   Geraet meldet 103,26 mm
-                        Kennlinie sagt  86,6 mm      = 16,6 mm Fehlbetrag
-
-Und sie ist nicht bloss verschoben, sondern krumm: mit dem zweiten bekannten
-Paar (0,6 V / ~1,3 mm) ergaebe die Gerade 20,11 mm/V und extrapolierte auf
-9,697 V zu 184 mm -- bei einem Anschlag, der real bei ~151 mm liegt.  Zwei
-Punkte genuegen hier also nicht, deshalb dieser Durchlauf.
-
-Er beantwortet nebenbei R19 Punkt 2:  weicht die Weite ueber den ganzen Weg
-GLEICHMAESSIG ab, sitzt der Fehler im Pad-Versatz (kPadOffsetM); erreicht die
-Hand die 159 mm gar nicht, ist die Kurbel-Totlage als offene Grenze zu weit
-gegriffen.
+WOFUER ES NICHT MEHR DA IST -- die AI2-Kennlinie (das urspruengliche R19
+Punkt 3).  Sie eichte ``in_closed``/``in_open`` in
+``rg6_joint_state_broadcaster.cpp``, und diesen Knoten gibt es nicht mehr:
+der RG6 haengt an der OnRobot-URCap, seine Weite kommt aus ``rg_get_width``.
+AI2 beantwortet seitdem nur noch "liegt am Tool-Anschluss Versorgung an" und
+ist als Weitenquelle ausdruecklich verworfen (bis zu 17 mm falsch geeicht).
+Das Feld ``analog_input2_v`` bleibt in der Ausgabe stehen, damit sich die
+ALTEN Durchlaeufe weiter gegen die neuen halten lassen -- es ist nicht mehr
+nachzutragen.
 
     !!! DIESES SKRIPT BEWEGT DEN GREIFER !!!
 
 Nur mit jemandem am Geraet fahren.  Der Arm steht dabei; bewegt wird
 ausschliesslich die Hand.  Am 2026-08-17 hat sich der Greifer schon einmal in
-``busy: true`` festgefahren -- die Erholung (set_tool_power aus, wieder an,
-dann open) braucht jemanden, der sieht, ob sie gegriffen hat.
+``busy: true`` festgefahren.  Die damalige Erholung (``set_tool_power`` aus,
+wieder an, dann open) gibt es NICHT mehr -- der Service kam aus rg6_control.
+Heute fuehrt der Weg ueber die URCap: ``rg_stop``, dann ein neues Kommando;
+hilft das nicht, das URCap-Programm am Teach-Panel neu starten.
 
     python3 rg6_kennlinie.py > /tmp/rg6-kennlinie.json
 
@@ -37,7 +34,7 @@ Ergebnis eines vollstaendigen Durchgangs vernichtet, der die Hardware schon
 bewegt hatte.  Eine Messung, die den Roboter anfasst, wiederholt man nicht,
 weil man die Ausgabe abgeschnitten hat.
 
-AI2 traegt der Aufrufer nach -- es kommt aus
+Fuer den Vergleich mit alten Laeufen kommt AI2 weiterhin aus
 
     /a200_0553/manipulators/io_and_status_controller/tool_data
 
@@ -59,9 +56,9 @@ WIDTHS_MM = [160.0, 151.0, 140.0, 120.0, 100.0, 80.0, 60.0, 40.0, 20.0, 0.0]
 #: Der RG6 braucht sichtbar Zeit bis zum Stillstand; zu frueh gelesen misst
 #: man die Fahrt, nicht den Anschlag.  2,5 s reichen dafuer NICHT: am
 #: 2026-08-19 kroch der gemeldete Wert danach noch rund 0,9 mm weiter und stand
-#: erst nach Minuten (dann auf 0,18 mm ruhig).  Wer die Kennlinie eichen will,
-#: nimmt --settle 30 oder mehr; 2,5 s bleibt die Vorgabe, damit ein schneller
-#: Funktionslauf nicht zehn Minuten dauert.
+#: erst nach Minuten (dann auf 0,18 mm ruhig).  Wer den offenen Anschlag
+#: ausmessen will, nimmt --settle 30 oder mehr; 2,5 s bleibt die Vorgabe,
+#: damit ein schneller Funktionslauf nicht zehn Minuten dauert.
 SETTLE_S = 2.5
 #: Klein genug, dass ein versehentlich eingelegtes Objekt nicht gequetscht
 #: wird -- gemessen werden soll der Weg, nicht die Kraft.  Das Handbuch
@@ -109,18 +106,19 @@ def main() -> int:
             continue
         rows.append({
             "commanded_mm": width_mm,
-            # Wanduhr des Zustandslesens.  Ohne sie laesst sich die Zeile
-            # NICHT mit der parallel mitgeschriebenen AI2-Spur verknuepfen --
-            # und ohne AI2 misst der Durchlauf nur sich selbst.
+            # Wanduhr des Zustandslesens -- haelt die Zeile an einen
+            # Zeitpunkt, gegen den sich eine parallel mitgeschriebene Spur
+            # (frueher AI2) legen laesst.
             "t_read": time.time(),
             "device_width_mm": st.width_m * 1000.0,
             "busy": st.busy,
             "grip_detected": st.grip_detected,
             "status": st.status,
             "safety_failed": st.safety_failed,
-            # Vom Aufrufer nachzutragen (s. Kopf) -- bewusst als Feld
-            # angelegt, damit die Zeile vollstaendig ist und niemand die
-            # Zuordnung spaeter raten muss.
+            # Bleibt als Feld stehen, damit sich alte Durchlaeufe (in denen
+            # AI2 die Weitenquelle war) Zeile fuer Zeile gegen neue halten
+            # lassen.  Nachzutragen ist es nicht mehr -- die Weite kommt vom
+            # Geraet, s. Kopf.
             "analog_input2_v": None,
         })
         print(f"# {width_mm:6.1f} mm -> {st.width_m * 1000:6.2f} mm "

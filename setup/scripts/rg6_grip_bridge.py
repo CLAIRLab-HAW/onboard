@@ -78,6 +78,34 @@ class Rg6State:
     status: int
     safety_failed: bool
 
+    @property
+    def readable(self) -> bool:
+        """Hat die URCap tatsaechlich GEMESSEN -- oder nur geantwortet?
+
+        Der Endpoint sitzt in der Control-Box und ist auch dann erreichbar,
+        wenn am Tool-Anschluss nichts anliegt.  Er wirft dann KEINEN Fault,
+        sondern antwortet mit seinem eigenen Kennzeichen fuer "keine Messung":
+
+            rg_get_width -> -999.0    rg_get_status -> -1
+            rg_get_busy  -> True      rg_get_safety_failed -> True
+
+        Am 2026-08-24 am a200-0553 direkt am Endpoint abgefragt, waehrend der
+        Arm auf POWER_OFF stand.  Ohne diese Pruefung geht -999 mm durch
+        ``angle_from_width`` (das die WEITE klemmt, statt zu extrapolieren)
+        und kommt als 1,25478 rad heraus -- ein VOLLSTAENDIG GESCHLOSSENER
+        Greifer, veroeffentlicht als Messwert.  Genau das war live zu sehen:
+        rg6_finger_joint = 1,25478 auf platform/joint_states, also in RSP,
+        TF und der Planungsszene von move_group, bei stromlosem Greifer.
+
+        Der stillgelegte rg6_control hatte dagegen eine Sperre -- die
+        Totschwelle auf AI2/AI3 (``dead_input_threshold``).  Sie ist mit ihm
+        weggefallen, ohne dass hier etwas an ihre Stelle getreten waere: die
+        Bruecke verlaesst sich darauf, dass ein toter Greifer eine EXCEPTION
+        wirft.  Er wirft keine.
+        """
+        lo_mm, hi_mm = WIDTH_RANGE_MM
+        return self.status >= 0 and lo_mm <= self.width_m * 1000.0 <= hi_mm
+
 
 def _clamp(value: float, lo: float, hi: float) -> float:
     return min(max(float(value), lo), hi)
@@ -452,6 +480,29 @@ def selftest() -> int:
         # fuer dieselbe Zahl, und die schlechtere.
         assert "width_raw" not in status and "force_raw" not in status, status
 
+        # 5c. Eine ANTWORT ist noch keine MESSUNG (Rg6State.readable).
+        #     Die Werte sind die am 2026-08-24 am a200-0553 gelesenen, mit
+        #     dem Arm auf POWER_OFF.
+        assert st.readable, "eine echte Messung muss durchgehen"
+        dead = Rg6State(width_m=-0.999, busy=True, grip_detected=True,
+                        status=-1, safety_failed=True)
+        assert not dead.readable, "-999 mm / status -1 ist keine Messung"
+        # Ohne die Sperre wuerde daraus ein VOLLSTAENDIG GESCHLOSSENER Greifer
+        # -- die Klemmung extrapoliert nicht, sie rastet am Anschlag ein.
+        assert abs(kin.angle_from_width(dead.width_m) - kin.q_max) < 1e-9
+        # Beide Haelften der Pruefung greifen fuer sich: ein Fehlerstatus
+        # allein reicht, und eine Weite jenseits des Nennbereichs auch.
+        assert not Rg6State(width_m=0.060, busy=False, grip_detected=False,
+                            status=-1, safety_failed=False).readable
+        assert not Rg6State(width_m=0.400, busy=False, grip_detected=False,
+                            status=0, safety_failed=False).readable
+        # Die Nenngrenzen selbst sind noch gueltig -- das Geraet meldet bis zu
+        # 5 mm ueber dem Backenmass (R19), das darf nicht als tot gelten.
+        assert Rg6State(width_m=0.160, busy=False, grip_detected=False,
+                        status=0, safety_failed=False).readable
+        assert Rg6State(width_m=0.0, busy=False, grip_detected=False,
+                        status=0, safety_failed=False).readable
+
         # 6. Weite -> Fingergelenk kommt aus der ERZEUGTEN Tabelle, nicht
         #    aus einer Formel und nicht aus robot_contract (R19; der Roboter
         #    soll den privaten Vertrag nicht brauchen).
@@ -588,13 +639,26 @@ def run(argv) -> int:
                 # letzten Statuses und meldet den Ausfall daraus.
                 time.sleep(period)
                 continue
+            # Dieselbe Regel, nur fuer den Fall, in dem der Endpoint ANTWORTET,
+            # ohne gemessen zu haben (state.readable, s. dort).  -999 mm laeuft
+            # sonst durch die Klemmung und wird zu einem geschlossenen Greifer
+            # -- eine Zahl, die move_group fuer bare Muenze nimmt.
+            #
+            # Der Zustandstopf geht WEITER raus, das Gelenk nicht: die
+            # Rohantwort (status -1, safety_failed) ist genau das, was die
+            # Manipulator-Diagnose braucht, um den Ausfall zu melden.  Waere
+            # auch er still, sae die Diagnose nur ein Altern und koennte
+            # "Bruecke tot" nicht von "Greifer stromlos" unterscheiden.
+            states.publish(String(
+                data=json.dumps(status_payload(state, last_command[0]))))
+            if not state.readable:
+                time.sleep(period)
+                continue
             msg = JointState()
             msg.header.stamp = node.get_clock().now().to_msg()
             msg.name = [finger_joint]
             msg.position = [float(linkage.angle_from_width(state.width_m))]
             joints.publish(msg)
-            states.publish(String(
-                data=json.dumps(status_payload(state, last_command[0]))))
             time.sleep(period)
 
     threading.Thread(target=_poll_joint, daemon=True).start()

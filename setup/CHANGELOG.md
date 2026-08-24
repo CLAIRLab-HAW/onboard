@@ -5,24 +5,54 @@ Was sich wann geändert hat. Der aktuelle Stand steht in der [README](README.md)
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
-## 2026-08-23 (Bezeichner auf Englisch)
+## 2026-08-24 (Reste des Tool-DO-Greifers)
 
-- **Die Bezeichner dieses Pakets sind englisch**, die Prosa bleibt deutsch —
-  dieselbe Konvention wie in `sdk/skill-tree` und wie CLAUDE.md sie vorgibt
-  ("Doku ist deutsch"). Umbenannt wurden Funktionen, Klassen, Konstanten,
-  Parameter und lokale Variablen; Docstrings und Kommentare NICHT.
-- **Was ein Programm AUSGIBT, bleibt deutsch**: Abschnittsmarken, JSON-Feld-
-  namen und Log-Meldungen sind der Bericht an den Menschen, nicht Code.
-- Umbenannt wurde mit einem `tokenize`-Werkzeug (nur NAME-Token), nicht per
-  Regex — deshalb ist kein Kommentar und kein String mitgewandert. Drei
-  Stellen, die `tokenize` NICHT sieht, wurden eigens nachgezogen:
-  f-String-Interpolationen (unter Python 3.11 ist ein f-String EIN Token),
-  die Parameternamen in `pytest.mark.parametrize` und Bezeichner, die
-  quelltextlesende Tests als String erwarten.
-- Gegengemessen: `uv run pytest` steht unveraendert bei 2465 passed,
-  3 skipped — derselbe Stand wie vor der Umbenennung.
+- **Die Bruecke veroeffentlichte einen geschlossenen Greifer, wo sie gar
+  nichts gemessen hatte.** Die URCap wirft keinen Fault, wenn am
+  Tool-Anschluss nichts anliegt -- sie ANTWORTET, mit ihrem eigenen
+  Kennzeichen fuer "keine Messung": `rg_get_width -> -999.0`,
+  `rg_get_status -> -1`. Das lief durch `angle_from_width`, das die Weite
+  KLEMMT statt zu extrapolieren, und kam als `1,25478 rad` heraus -- der
+  vollstaendig geschlossene Greifer. Am 2026-08-24 am a200-0553 gemessen,
+  Arm auf `POWER_OFF`: `rg6_finger_joint = 1,25478` mit 5 Hz auf
+  `manipulators/endeffectors/joint_states`, vom Relay weiter auf
+  `platform/joint_states` (in 8 s 34 Nachrichten) -- also in RSP, TF und der
+  Planungsszene von `move_group`, bei stromlosem Greifer.
+- Ursache ist eine mit `rg6_control` weggefallene Sperre: der alte Treiber
+  hatte die Totschwelle auf AI2/AI3 (`dead_input_threshold`), an ihre Stelle
+  trat nichts. Die Bruecke verliess sich darauf, dass ein toter Greifer eine
+  Exception wirft. Er wirft keine. `Rg6State.readable` prueft das jetzt
+  (Status + Nennbereich); ist die Antwort keine Messung, bleibt das GELENK
+  still -- der Zustandstopf geht weiter raus, damit die Manipulator-Diagnose
+  "Greifer stromlos" von "Bruecke tot" unterscheiden kann. Im Selbsttest
+  festgenagelt, mit den live gelesenen Werten.
+- **`clearpath-custom-joint-states.service` ordnete sich nach einer geloeschten
+  Unit.** `After=clearpath-custom-rg6-bringup.service` -- die raeumt derselbe
+  Installer 1100 Zeilen weiter oben weg. systemd traegt so einen Namen klaglos
+  mit (per `systemctl show` am Roboter bestaetigt), ordnet aber gegen nichts:
+  die Reihenfolge, die der Kommentarblock daneben ausfuehrlich begruendet, war
+  unbemerkt weg. Steht jetzt auf `clearpath-custom-rg6-grip-bridge.service`,
+  der heutigen Greiferquelle -- und zwar in `After=` UND `PartOf=`: die
+  Bruecke startet fuer sich allein neu, und genau dann resubscribed der Relay
+  unter rmw_zenoh nicht.
+- **`rg6_msgs` wird nicht mehr gebaut.** Das Paket trug `GripperState` und
+  `Grip` fuer den Tool-DO-Treiber. Kein Paket deklariert es mehr als
+  Abhaengigkeit, kein Knoten baut den Typ; am Roboter gegengeprueft:
+  `<ns>/rg6/state` existiert nicht mehr, nur `rg6/bridge_state`.
+  (Das Paket selbst liegt in `onrobot-rg6` und ist damit verwaist -- das zu
+  loeschen ist eine Entscheidung dort, nicht hier.)
+- `scripts/rg6_kennlinie.py` sagt jetzt, wofuer es noch da ist. Sein Kopf
+  begruendete sich mit der AI2-Kennlinie in `rg6_joint_state_broadcaster.cpp`
+  -- eine Datei, die es nicht mehr gibt -- und gab als Erholung aus einem
+  festgefahrenen Greifer `set_tool_power` an, einen Service aus `rg6_control`.
+  Offen ist an R19 nur noch der offene Anschlag (Modell 159 mm, Messschieber
+  ~151 mm), und dafuer braucht es AI2 nicht.
+- Kleinkram im selben Zug: die README zaehlte `clearpath-custom-rg6-bringup`
+  unter den Units auf, die der Installer ANLEGT (er loescht sie), und liess
+  die Bruecke weg; der Wrapper-Kommentar nannte `topic_tools`-Relays, obwohl
+  das Launch aus QoS-Gruenden ausdruecklich den eigenen `joint_state_relay`
+  nimmt.
 
-## [Unreleased]
 
 ### Der Timeout-Zweig in `shutdown.sh` war tot (ROBOTER-TODO R4)
 - **`call_trigger` konnte einen nicht erreichbaren Service nicht als solchen
@@ -100,6 +130,25 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   (Kameramodell im Foxglove-3D-Panel); `<collision>` ist eine Box-Primitive.
 
   Alles davon steht jetzt im Docstring der Funktion, samt „NICHT ENTFERNEN".
+
+## 2026-08-23 (Bezeichner auf Englisch)
+
+- **Die Bezeichner dieses Pakets sind englisch**, die Prosa bleibt deutsch —
+  dieselbe Konvention wie in `sdk/skill-tree` und wie CLAUDE.md sie vorgibt
+  ("Doku ist deutsch"). Umbenannt wurden Funktionen, Klassen, Konstanten,
+  Parameter und lokale Variablen; Docstrings und Kommentare NICHT.
+- **Was ein Programm AUSGIBT, bleibt deutsch**: Abschnittsmarken, JSON-Feld-
+  namen und Log-Meldungen sind der Bericht an den Menschen, nicht Code.
+- Umbenannt wurde mit einem `tokenize`-Werkzeug (nur NAME-Token), nicht per
+  Regex — deshalb ist kein Kommentar und kein String mitgewandert. Drei
+  Stellen, die `tokenize` NICHT sieht, wurden eigens nachgezogen:
+  f-String-Interpolationen (unter Python 3.11 ist ein f-String EIN Token),
+  die Parameternamen in `pytest.mark.parametrize` und Bezeichner, die
+  quelltextlesende Tests als String erwarten.
+- Gegengemessen: `uv run pytest` steht unveraendert bei 2465 passed,
+  3 skipped — derselbe Stand wie vor der Umbenennung.
+
+## [Unreleased]
 
 ## [0.2.0] - 2026-08-19
 

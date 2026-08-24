@@ -1000,8 +1000,14 @@ if [ "$DO_RG6" -eq 1 ]; then
     # Greifermodell im URDF, rg6_moveit_patch die SRDF-Anpassung, und
     # clearpath-custom-joint-states startet das Relay aus rg6_control.  Was
     # entfaellt, ist ausschliesslich der laufende Treiber-Knoten.
+    #
+    # rg6_msgs steht NICHT mehr dabei.  Das Paket trug GripperState und Grip
+    # fuer den Tool-DO-Treiber; seit die Bruecke ihren Zustand als flaches
+    # JSON auf rg6/bridge_state legt, deklariert es kein Paket mehr als
+    # Abhaengigkeit und kein Knoten baut den Typ.  Am 2026-08-24 am Roboter
+    # gegengeprueft: <ns>/rg6/state existiert nicht mehr, nur bridge_state.
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
-        "source /etc/clearpath/setup.bash && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_msgs rg6_control" \
+        "source /etc/clearpath/setup.bash && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_control" \
         || echo "    WARN: colcon build fehlgeschlagen - ohne rg6_description fehlt der Greifer im URDF, ohne rg6_control das joint-states-Relay."
 else
     echo ">>> onrobot-rg6: uebersprungen (vorhandener Stand bleibt)."
@@ -1484,12 +1490,16 @@ fi
 
 # --- joint-states Aggregation + Legacy-Bus-Relays (Phase 2) ----------------
 # Startet rg6_control/joint_states.launch.py: joint_state_aggregator
-# (-> /a200_0553/joint_states, vollstaendig, fuer rosbag/Foxglove) + zwei
-# topic_tools relays (manipulators/joint_states und manipulators/endeffectors/
-# joint_states -> platform/joint_states, damit RSP+move_group unveraendert laufen).
+# (-> /a200_0553/joint_states, vollstaendig, fuer rosbag/Foxglove) + den
+# EIGENEN joint_state_relay (manipulators/joint_states und manipulators/
+# endeffectors/joint_states -> platform/joint_states, damit RSP+move_group
+# unveraendert laufen).  Bewusst NICHT topic_tools: das publiziert best-effort,
+# move_group abonniert RELIABLE -> die Gelenke kaemen dort nie an
+# (Begruendung im Kopf von joint_state_relay.cpp).
 # Voraussetzung: Arm-JSB-Remap ist auf manipulators/joint_states umgestellt
 # (Patch move_arm_joint_states im clearpath-custom-setup.py) und der Greifer
-# publiziert auf manipulators/endeffectors/joint_states (rg6_bringup js_topic).
+# publiziert auf manipulators/endeffectors/joint_states -- das tut seit dem
+# URCap-Umstieg rg6_grip_bridge (5 Hz), nicht mehr rg6-bringup.
 echo ">>> Installiere ${JS_WRAPPER} + ${JS_UNIT}"
 cat > "$JS_WRAPPER" <<EOF
 #!/usr/bin/env bash
@@ -1503,24 +1513,29 @@ chmod 0755 "$JS_WRAPPER"
 cat > "$JS_UNIT_PATH" <<EOF
 [Unit]
 Description=Robot-weite joint_states-Aggregation + Legacy-Bus-Relays (Phase 2)
-# Braucht die Quell-Topics: Raeder (clearpath-platform) + Arm/Greifer
-# (clearpath-manipulators + rg6-bringup). After= rg6-bringup -> Start NACH neuem
-# rg6-Publisher. PartOf=clearpath-manipulators: der rg6-Joint-Relay/Aggregator
-# (custom rg6_control-Nodes joint_state_relay/joint_state_aggregator) resubscribed
-# unter rmw_zenoh NICHT zuverlaessig, wenn die rg6-JSC nach einem manipulators-/
-# rg6-bringup-Restart neu publisht -> ohne Mit-Restart fallen die rg6-Joints aus dem
-# TF-Feed und der Greifer-TF wird flach. Daher restartet joint-states mit der
-# clearpath-manipulators-Kaskade und baut die Subscriptions sauber wieder auf
-# (After=rg6-bringup sichert die Reihenfolge). Arm-Relay unbeeinflusst (Arm-JSC geht
-# direkt in manipulators/joint_states, nicht ueber joint-states).
-After=clearpath-platform.service clearpath-manipulators.service clearpath-custom-rg6-bringup.service
+# Braucht die Quell-Topics: Raeder (clearpath-platform) + Arm (clearpath-
+# manipulators) + Greifer (${RG6_BRIDGE_UNIT}). Die Greiferquelle ist seit dem
+# URCap-Umstieg die Bruecke, nicht mehr rg6-bringup -- die Unit gibt es nicht
+# mehr, dieser Installer raeumt sie weg (RETIRED_UNITS). Ein After= auf einen
+# geloeschten Namen ordnet gegen nichts: systemd traegt ihn klaglos mit, und
+# die Reihenfolge, um die es hier geht, waere unbemerkt weg.
+# PartOf: der Relay/Aggregator (custom rg6_control-Nodes joint_state_relay/
+# joint_state_aggregator) resubscribed unter rmw_zenoh NICHT zuverlaessig, wenn
+# die Quelle nach einem Restart neu publisht -> ohne Mit-Restart fallen die
+# rg6-Joints aus dem TF-Feed und der Greifer-TF wird flach. Deshalb haengt die
+# Unit auch an der Bruecke: ein blosser Bruecken-Restart ist genau der Fall.
+# Arm-Relay unbeeinflusst (Arm-JSC geht direkt in manipulators/joint_states).
+After=clearpath-platform.service clearpath-manipulators.service ${RG6_BRIDGE_UNIT}
 Wants=clearpath-platform.service
 # Mit-Neustart an BEIDE Wurzeln (robot + manipulators): PartOf propagiert
 # Stop/Restart nur eine Hop-Ebene und nur bei DIREKTEM Job. Stack-Restart via
 # 'systemctl restart clearpath-robot' startet clearpath-manipulators nur indirekt
 # -> ohne PartOf=clearpath-robot wuerden die rg6-Joint-Relays/Aggregatoren nicht
 # mit-restarten -> Greifer-TF wird flach. Stop clearpath-robot stoppt ihn mit.
-PartOf=clearpath-robot.service clearpath-manipulators.service
+# ${RG6_BRIDGE_UNIT} steht mit dabei, weil die Bruecke die Greiferquelle ist und
+# fuer sich allein neu startet (Restart=on-failure, oder von Hand) -- ohne
+# diesen Eintrag ueberlebt der Relay den Wechsel, resubscribed aber nicht.
+PartOf=clearpath-robot.service clearpath-manipulators.service ${RG6_BRIDGE_UNIT}
 
 [Service]
 User=${REAL_USER}
@@ -1629,8 +1644,8 @@ EOF
 Description=Octomap feed: Depth -> PointCloud2 fuer MoveIts Occupancy Map Monitor
 After=clearpath-sensors.service
 Wants=clearpath-sensors.service
-# Stack-Restart-Verhalten wie rg6-bringup: an beide Wurzeln haengen
-# (praktischer Stack-Restart laeuft ueber clearpath-robot).
+# Stack-Restart-Verhalten wie bei den uebrigen Custom-Units: an beide Wurzeln
+# haengen (praktischer Stack-Restart laeuft ueber clearpath-robot).
 PartOf=clearpath-robot.service clearpath-sensors.service
 
 [Service]
