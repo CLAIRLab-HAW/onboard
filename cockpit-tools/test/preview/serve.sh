@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Startet die Seite ohne Roboter: baut einen Baum, in dem die echte
-# index.html neben einer cockpit.js-Attrappe liegt, und liefert ihn aus.
+# Starts the page without a robot: builds a tree in which the real index.html
+# sits next to a cockpit.js stand-in, and serves it.
 #
 #   test/preview/serve.sh [PORT]
 #   -> http://localhost:8099/robot-tools/index.html?state=exited

@@ -1,26 +1,25 @@
 #!/usr/bin/env bash
-# Installiert die Cockpit-Seite "Roboter-Werkzeuge" nach
+# Installs the Cockpit page "Roboter-Werkzeuge" into
 # /usr/local/share/cockpit/robot-tools.
 #
-# Warum /usr/local und nicht /usr/share: Cockpit sucht in der Reihenfolge
+# Why /usr/local and not /usr/share: Cockpit searches in the order
 # ~/.local/share/cockpit, /etc/cockpit, /usr/local/share/cockpit,
-# /usr/share/cockpit. /usr/local gehoert uns, apt fasst es nicht an -- und der
-# Rueckbau ist ein rm -rf des Zielverzeichnisses, kein apt-Vorgang.
+# /usr/share/cockpit. /usr/local is ours, apt does not touch it -- and the
+# removal is an rm -rf of the target directory, not an apt operation.
 #
-#   sudo ./install.sh              # installieren/aktualisieren
-#   sudo ./install.sh --uninstall  # wieder entfernen
+#   sudo ./install.sh              # install/update
+#   sudo ./install.sh --uninstall  # remove again
 #
-# Danach genuegt ein Browser-Reload auf http://<robot>:9090 -- Cockpit liest
-# die Pakete bei jedem Seitenaufbau neu ein, kein Dienst-Neustart noetig.
+# Afterwards a browser reload on http://<robot>:9090 is enough -- Cockpit
+# re-reads the packages on every page load, no service restart needed.
 set -euo pipefail
 
 PREFIX="${PREFIX:-/usr/local}"
 DEST="${PREFIX}/share/cockpit/robot-tools"
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Nur diese Dateien gehoeren ins Paket. package.json und test/ sind
-# Werkzeug fuer den Arbeitsplatz (node --test) und haben auf dem Roboter
-# nichts verloren.
+# Only these files belong in the package. package.json and test/ are tooling
+# for the workstation (node --test) and have no business on the robot.
 FILES=(manifest.json index.html index.js status.js style.css theme.js)
 
 if [ "${1:-}" = "--uninstall" ]; then
@@ -38,12 +37,12 @@ if ! command -v cockpit-bridge >/dev/null 2>&1; then
     echo "      Cockpit-Installation sichtbar."
 fi
 
-# Altbestand weg, damit geloeschte Dateien nicht liegenbleiben.
+# Clear out the old contents, so that deleted files do not linger.
 rm -rf "$DEST"
 
-# Kein id-Test, sondern der Versuch selbst: so laesst sich das Skript auch
-# gegen ein PREFIX im eigenen Verzeichnis pruefen, und die Fehlermeldung
-# kommt von der Stelle, an der es wirklich klemmt.
+# No id test, but the attempt itself: this way the script can also be checked
+# against a PREFIX in one's own directory, and the error message comes from
+# the place where it really gets stuck.
 if ! install -d -m 0755 "$DEST" 2>/dev/null; then
     echo "FEHLER: ${DEST} laesst sich nicht anlegen -- mit sudo aufrufen" >&2
     echo "        (oder PREFIX=~/.local setzen, Cockpit sucht dort zuerst)." >&2
@@ -54,8 +53,8 @@ for f in "${FILES[@]}"; do
     install -m 0644 "${SRC}/${f}" "${DEST}/${f}"
 done
 
-# Nur als root: sonst gehoerte das Paket dem Aufrufer, was unter /usr/local
-# nicht sein soll.
+# Only as root: otherwise the package would belong to the caller, which is not
+# how it should be under /usr/local.
 [ "$(id -u)" -eq 0 ] && chown -R root:root "$DEST"
 
 echo "installiert: $DEST"
