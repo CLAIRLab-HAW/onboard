@@ -3,6 +3,13 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/),
 Versionierung nach [SemVer](https://semver.org/).
 
+## 2026-08-25 (Black formats this repo the same way from anywhere)
+
+- **`[tool.black]` now stands in this repo's `pyproject.toml`.** Black takes the first directory
+  containing a `.git` as its project root, so a run from inside this repo fell back to Black's own
+  88-column default while the workspace runs at 120. The pre-commit hook was unaffected -- it passes the
+  root config explicitly -- but an editor or a bare `black` was not.
+
 ## 2026-08-25 (the base lock moves to robot_contract)
 
 - **`exclusive_base` now takes the shared lock from `robot_contract.base_testing`.** A conftest is directory-scoped, so the lock defined here serialised this package and nothing in `apps/robot-mcp`, which drives the same base. The fixture stays as the local name; the rendezvous is shared.
