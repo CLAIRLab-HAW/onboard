@@ -3,6 +3,11 @@
 Format nach [Keep a Changelog](https://keepachangelog.com/),
 Versionierung nach [SemVer](https://semver.org/).
 
+## 2026-08-25 (the nav tests address the counterpart container)
+
+- **The three `nav_e2e` files point at `husky-offboard-mock-robot-1`.** `nav2_*`, `ekf_node` and the RS16 driver run
+  in the simulated robot, which is a service of its own now.
+
 ## 2026-08-25 (Black formats this repo the same way from anywhere)
 
 - **`[tool.black]` now stands in this repo's `pyproject.toml`.** Black takes the first directory

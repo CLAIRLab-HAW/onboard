@@ -11,7 +11,7 @@ import pytest
 
 pytestmark = pytest.mark.nav_e2e
 
-CONTAINER = "husky-offboard-offboard-1"
+CONTAINER = "husky-offboard-mock-robot-1"
 #: The mount from docker-compose.yml (../../data/recordings -> /data/recordings).
 PCAP_HOST = Path(__file__).resolve().parents[3] / "data" / "recordings" / "rs16_labor.pcap"
 PCAP_CONTAINER = "/data/recordings/rs16_labor.pcap"
