@@ -1,7 +1,7 @@
 # Changelog
 
-Format nach [Keep a Changelog](https://keepachangelog.com/),
-Versionierung nach [SemVer](https://semver.org/).
+Format after [Keep a Changelog](https://keepachangelog.com/),
+versioning after [SemVer](https://semver.org/).
 
 ## 2026-08-25 (the nav tests address the counterpart container)
 
