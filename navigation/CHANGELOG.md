@@ -3,6 +3,14 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-08-26 (the black section stops repeating the workspace rule)
+
+- **`[tool.black]` carries no copy of the workspace rule any more.** The section itself is unchanged --
+  `line-length = 120` and the same `force-exclude` -- but the rationale that stood verbatim in every sub-repo
+  is gone. Why the section has to exist is written down once: in the workspace `CLAUDE.md`, and in this file's
+  2026-08-25 entry *Black formats this repo the same way from anywhere*.
+- **`authors` is indented four spaces**, like every other array in the file.
+
 ## 2026-08-25 (the nav tests address the counterpart container)
 
 - **The three `nav_e2e` files point at `husky-offboard-mock-robot-1`.** `nav2_*`, `ekf_node` and the RS16 driver run
