@@ -87,7 +87,7 @@ def main() -> int:
             client.grip(width_mm / 1000.0, force_n)
         except Rg6Error as exc:
             rows.append({"commanded_mm": width_mm, "error": str(exc)})
-            print(f"# {width_mm:6.1f} mm -> ERROR {exc}", file=sys.stderr)
+            print(f"# {width_mm:6.1f} mm ─▶ ERROR {exc}", file=sys.stderr)
             continue
         # Wait for the travel to end (busy edges) FIRST, THEN settle: with a short --settle, half the settle time would
         # fall into the travel.
@@ -119,7 +119,7 @@ def main() -> int:
             }
         )
         print(
-            f"# {width_mm:6.1f} mm -> {st.width_m * 1000:6.2f} mm " f"(busy={st.busy}, grip={st.grip_detected})",
+            f"# {width_mm:6.1f} mm ─▶ {st.width_m * 1000:6.2f} mm " f"(busy={st.busy}, grip={st.grip_detected})",
             file=sys.stderr,
         )
 

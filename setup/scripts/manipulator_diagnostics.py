@@ -108,12 +108,12 @@ SAFETY_MODE_NAMES = {
     11: "UNDEFINED_SAFETY_MODE",
 }
 
-# Safety states that require intervention -> ERROR.
+# Safety states that require intervention ─▶ ERROR.
 SAFETY_ERROR = {3, 5, 6, 7, 8, 9}
-# Safety states that restrict operation -> WARN.
+# Safety states that restrict operation ─▶ WARN.
 SAFETY_WARN = {2, 4, 10, 11}
 
-# An e-stop can NOT be released by software -> its own plain-text message.
+# An e-stop can NOT be released by software ─▶ its own plain-text message.
 SAFETY_ESTOP = {6, 7}
 
 # What went to the gripper last.  The bridge sends the plain text directly (rg6_grip_bridge.COMMAND_*); the numeric
@@ -133,19 +133,19 @@ ARM_OFF_MODE = 3  # POWER_OFF
 
 
 def arm_is_powered(robot_mode):
-    """Can there be any voltage at the tool connector? -> True/False/None."""
+    """Can there be any voltage at the tool connector? ─▶ True/False/None."""
     if robot_mode is None:
         return None
     return robot_mode in ARM_POWERED_MODES
 
 
 def arm_is_off(robot_mode):
-    """Switched off on purpose (POWER_OFF)? -> bool."""
+    """Switched off on purpose (POWER_OFF)? ─▶ bool."""
     return robot_mode == ARM_OFF_MODE
 
 
 def robot_mode_name(mode):
-    """Int -> plain text, unknown values stay readable."""
+    """Int ─▶ plain text, unknown values stay readable."""
     if mode is None:
         return "UNKNOWN"
     return ROBOT_MODE_NAMES.get(mode, f"UNKNOWN({mode})")
@@ -158,7 +158,7 @@ def safety_mode_name(mode):
 
 
 def arm_mode_level(robot_mode, safety_mode):
-    """Evaluation of robot_mode/safety_mode -> Verdict.
+    """Evaluation of robot_mode/safety_mode ─▶ Verdict.
 
     Both topics are latched and only published on change -- a ``None`` therefore means "never received"
     (driver/controller absent), not "stale". Hence STALE instead of ERROR: the information is missing, which does not
@@ -182,7 +182,7 @@ def arm_mode_level(robot_mode, safety_mode):
     if robot_mode == 7:
         return Verdict(OK, f"{rm}, safety {sm}")
     if arm_is_off(robot_mode):
-        # Switched off on purpose -> grey, no warning (see ARM_OFF_MODE).
+        # Switched off on purpose ─▶ grey, no warning (see ARM_OFF_MODE).
         return inactive(f"arm switched off ({rm})")
     # BOOTING / POWER_ON / IDLE / BACKDRIVE / UPDATING_FIRMWARE: a transitional or special state in which the arm is not
     # ready to be driven from ROS.
@@ -190,7 +190,7 @@ def arm_mode_level(robot_mode, safety_mode):
 
 
 def arm_control_level(program_running, joint_state_age, timeout, arm_off=False):
-    """Evaluation of the motion link -> Verdict.
+    """Evaluation of the motion link ─▶ Verdict.
 
     ``joint_state_age`` is the age of the last joint_states message carrying arm joints (``None`` = never received one).
     That stream is the trustworthy signal: it only flows with an active ros2_control hardware interface, whereas
@@ -218,7 +218,7 @@ def arm_control_level(program_running, joint_state_age, timeout, arm_off=False):
 
 
 def arm_joints_level(joint_count, joint_state_age, timeout, arm_off=False):
-    """Evaluation of the joint values -> Verdict.
+    """Evaluation of the joint values ─▶ Verdict.
 
     With the arm switched off the POSITIONS stay valid (absolute encoders), but velocity and effort are only noise --
     measured up to 0.05 rad/s with the arm completely at rest.  Hence grey instead of green: the numbers are there, but
@@ -232,7 +232,7 @@ def arm_joints_level(joint_count, joint_state_age, timeout, arm_off=False):
 
 
 def arm_controllers_level(controllers, required, arm_off=False):
-    """Evaluation of list_controllers -> Verdict.
+    """Evaluation of list_controllers ─▶ Verdict.
 
     ``controllers``: ``{name: state}`` or ``None`` (service unreachable). ``required``: controllers that MUST be active
     (broadcasters plus the default command controller).  Inactive command controllers are explicitly normal -- the
@@ -278,7 +278,7 @@ BRIDGE_FIELDS = {
 
 
 def parse_bridge_state(data):
-    """JSON from ``<ns>/rg6/bridge_state`` -> dict, or None if unusable.
+    """JSON from ``<ns>/rg6/bridge_state`` ─▶ dict, or None if unusable.
 
     Why it is parsed at all:  ``rg6_grip_bridge`` reports the gripper state as JSON inside a ``std_msgs/String``, not as
     a typed message.  In exchange the string costs the type check a .msg gets for free, so that check lives here.
@@ -312,7 +312,7 @@ def parse_bridge_state(data):
 
 
 def gripper_signal_valid(width_raw, force_raw, dead_threshold):
-    """Does the RG6 deliver a valid tool signal at all? -> bool.
+    """Does the RG6 deliver a valid tool signal at all? ─▶ bool.
 
     The probe is the voltage against ``dead_input_threshold`` (0.2 V): with no 24 V tool supply present, AI2 (width) and
     AI3 (force) drop to ~0.05 V.
@@ -327,7 +327,7 @@ def gripper_signal_valid(width_raw, force_raw, dead_threshold):
 
 
 def gripper_level(state_age, timeout, signal_valid, robot_mode, width_raw, dead_threshold):
-    """Evaluation of the RG6 state -> Verdict.
+    """Evaluation of the RG6 state ─▶ Verdict.
 
     The RG6 hangs off the UR tool connector: without a powered arm it cannot have any supply at all.  That is then not a
     gripper fault but a consequence of the arm state -- hence grey (arm deliberately off) or WARN (arm in a state in
@@ -399,7 +399,7 @@ def selftest() -> int:
     assert "emergency stop" in arm_mode_level(7, 7).message, "e-stop needs plain text"
     # Safety beats robot_mode: a p-stop while RUNNING stays ERROR.
     assert arm_mode_level(5, 8).level == ERROR, "VIOLATION -> ERROR"
-    # POWER_OFF is an operator decision -> grey, not yellow.
+    # POWER_OFF is an operator decision ─▶ grey, not yellow.
     off = arm_mode_level(3, 1)
     assert off.inactive and off.level == OK, "POWER_OFF -> inactive (grey), not WARN"
     assert arm_mode_level(4, 1).level == WARN, "POWER_ON (transition) -> WARN"
@@ -479,7 +479,7 @@ def selftest() -> int:
     dead_off = gripper_level(0.05, 2.0, False, 3, 0.0, DEAD)
     assert dead_off.inactive and dead_off.level == OK, "arm off -> gripper grey, not OK"
     assert "switched off" in dead_off.message
-    # Arm powered, gripper still without signal -> a real warning with a recipe.
+    # Arm powered, gripper still without signal ─▶ a real warning with a recipe.
     dead_on = gripper_level(0.05, 2.0, False, 7, 0.056, DEAD)
     assert dead_on.level == WARN and not dead_on.inactive
     # The URCap sets the tool voltage, no ROS service does -- so the warning must point at the pendant and must not name
@@ -569,7 +569,7 @@ def main(argv=None) -> int:
     )
 
     def kv(values):
-        """dict -> KeyValue[]; everything as a string, as diagnostic_msgs wants."""
+        """dict ─▶ KeyValue[]; everything as a string, as diagnostic_msgs wants."""
         return [KeyValue(key=str(k), value=str(v)) for k, v in values.items()]
 
     # DiagnosticStatus.level is a 'byte' in the .msg -- rosidl_generator_py maps that onto a bytes object of length 1,
@@ -616,7 +616,7 @@ def main(argv=None) -> int:
             self._safety_mode = None
             self._program_running = None
             self._js_stamps = deque(maxlen=64)  # monotonic receive times (arm)
-            self._joints = {}  # short name -> (pos, vel, eff)
+            self._joints = {}  # short name ─▶ (pos, vel, eff)
             self._gripper = None  # last bridge state (dict)
             self._gripper_time = None
             self._tool = None  # last ToolDataMsg (AI2/AI3)
@@ -653,7 +653,7 @@ def main(argv=None) -> int:
             self.create_timer(1.0 / max(self.rate_hz, 0.1), self._tick)
 
             self.get_logger().info(
-                f"manipulator_diagnostics: {ns} -> {self.diagnostics_topic} " f"@ {self.rate_hz:.1f} Hz"
+                f"manipulator_diagnostics: {ns} ─▶ {self.diagnostics_topic} " f"@ {self.rate_hz:.1f} Hz"
             )
             for missing, what in (
                 (UR_MSGS_ERROR, "ur_dashboard_msgs"),
@@ -715,7 +715,7 @@ def main(argv=None) -> int:
         def _poll_controllers(self) -> None:
             """Query list_controllers asynchronously (never block in the timer)."""
             if self._cm_future is not None and not self._cm_future.done():
-                return  # the previous call still hangs -> the service is gone
+                return  # the previous call still hangs ─▶ the service is gone
             if not self._cm_client.service_is_ready():
                 self._controllers = None
                 return
@@ -747,7 +747,7 @@ def main(argv=None) -> int:
             return (len(self._js_stamps) - 1) / span if span > 0.0 else 0.0
 
         def _status(self, name, verdict, hardware_id, values):
-            """Verdict + values -> DiagnosticStatus.
+            """Verdict + values ─▶ DiagnosticStatus.
 
             'inactive' travels as a value (see DISPLAY_INACTIVE), not as an own level -- the level stays standard
             conformant.

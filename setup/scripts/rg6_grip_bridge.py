@@ -22,9 +22,9 @@ protocol.  That is ``plan_server`` in the offboard container, and it does so
 identically on ``mock`` and ``real`` -- one code path instead of two.  Here
 there are exclusively standard ROS interfaces::
 
-    control_msgs/GripperCommand  (action)   <- MoveIt and plan_server
-    sensor_msgs/JointState       (topic)    -> rg6_finger_joint
-    std_msgs/String              (topic)    -> rg6/bridge_state, own JSON
+    control_msgs/GripperCommand  (action)   ◀─ MoveIt and plan_server
+    sensor_msgs/JointState       (topic)    ─▶ rg6_finger_joint
+    std_msgs/String              (topic)    ─▶ rg6/bridge_state, own JSON
 
 So the robot does NOT need ``robot_contract``.  That package is private (not even clonable from the robot), and a
 dependency that prevents the deployment is no safeguard.  What is kept are names (ROS parameters) and the linkage
@@ -77,8 +77,8 @@ class Rg6State:
         nothing is powered at the tool connector.  It then throws NO fault but
         answers with its own marker for "no measurement"::
 
-            rg_get_width -> -999.0    rg_get_status -> -1
-            rg_get_busy  -> True      rg_get_safety_failed -> True
+            rg_get_width ─▶ -999.0    rg_get_status ─▶ -1
+            rg_get_busy  ─▶ True      rg_get_safety_failed ─▶ True
 
         Queried directly at the endpoint on the a200-0553 on 2026-08-24 while the arm stood at POWER_OFF.  Without this
         check, -999 mm passes through ``angle_from_width`` (which clamps the WIDTH instead of extrapolating) and comes
@@ -179,7 +179,7 @@ def await_settled(
 
 
 class FingerKinematics:
-    """Joint angle <-> grip width, from a generated table.
+    """Joint angle ◀─▶ grip width, from a generated table.
 
     Why a table and not an import:  this node runs on the ROBOT and must need nothing there that does not belong to the
     robot.  ``robot_contract`` is private, so importing it would make the bridge undeployable.
@@ -236,7 +236,7 @@ COMMAND_STOP = "STOP"
 
 
 def goal_to_grip(position_rad: float, max_effort_n: float, linkage, default_force_n: float, force_range_n) -> tuple:
-    """``control_msgs/GripperCommand`` goal -> ``(width in m, force in N)``.
+    """``control_msgs/GripperCommand`` goal ─▶ ``(width in m, force in N)``.
 
     MoveIt commands the gripper as a JOINT VALUE, not as a width -- the conversion uses the same linkage geometry the
     URDF carries.
@@ -313,7 +313,7 @@ def _spawn_fake_urcap():
         if not isinstance(width, float) or not isinstance(force, float):
             raise xmlrpc.client.Fault(-501, "expected double")
         log.append(("grip", tool, width, force))
-        # Modelled on the measurement from 2026-08-19 (65 -> 20 mm): after the command ``busy`` stays false for about
+        # Modelled on the measurement from 2026-08-19 (65 ─▶ 20 mm): after the command ``busy`` stays false for about
         # 0.4 s, THEN the hand moves for about 1.2 s, and only at the end does the new width stand. ``rg_grip`` itself
         # returns immediately -- it acknowledges the acceptance, not the result.
         state["target_mm"] = width
@@ -444,10 +444,10 @@ def selftest() -> int:
         assert Rg6State(width_m=0.160, busy=False, grip_detected=False, status=0, safety_failed=False).readable
         assert Rg6State(width_m=0.0, busy=False, grip_detected=False, status=0, safety_failed=False).readable
 
-        # 6. Width -> finger joint comes from the GENERATED table, not from a
+        # 6. Width ─▶ finger joint comes from the GENERATED table, not from a
         #    formula and not from robot_contract (R19; the robot must not need
         #    the private contract).
-        # Monotonic: wider open -> SMALLER joint value (0 = fully open).
+        # Monotonic: wider open ─▶ SMALLER joint value (0 = fully open).
         assert kin.angle_from_width(0.100) < kin.angle_from_width(0.045)
         # A round trip meets itself, within the table resolution. min_width_m instead of 0.0: the model only closes to
         # 0.4 mm, where the pads touch.  A round trip over 0.0 would test the clamp, not the interpolation.
@@ -557,7 +557,7 @@ def run(argv) -> int:
         hang on the executor -- 3 s every 200 ms with a dead endpoint, and the grip command would not get through in
         that same time.
 
-        The conversion width -> joint is done by the linkage geometry of the profile (R19), not by this node.
+        The conversion width ─▶ joint is done by the linkage geometry of the profile (R19), not by this node.
         """
         period = 1.0 / float(_p("joint_state_rate_hz"))
         while rclpy.ok():
@@ -644,7 +644,7 @@ def run(argv) -> int:
         result.stalled = fields["stalled"]
         result.reached_goal = fields["reached_goal"]
         log.info(
-            f"GripperCommand {width_m * 1000:.0f} mm @ {force_n:.0f} N -> "
+            f"GripperCommand {width_m * 1000:.0f} mm @ {force_n:.0f} N ─▶ "
             f"{state.width_m * 1000:.1f} mm "
             f"reached={result.reached_goal} stalled={result.stalled}"
         )
@@ -654,7 +654,7 @@ def run(argv) -> int:
     action_name = str(_p("action_name") or f"{manip_ns}/rg6_gripper_controller/gripper_cmd")
     ActionServer(node, GripperCommand, action_name, on_action, callback_group=ReentrantCallbackGroup())
 
-    log.info(f"rg6_grip_bridge ready: {client.url} <- {action_name}")
+    log.info(f"rg6_grip_bridge ready: {client.url} ◀─ {action_name}")
     # MultiThreaded because on_action blocks until the hand stands still (about 1.3 s).  Single threaded, that one call
     # would stall /twin/gripper_cmd and every further delivery for the same time.
     from rclpy.executors import MultiThreadedExecutor

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""octomap_feed: throttled depth->PointCloud2 source for MoveIt's octomap.
+"""octomap_feed: throttled depth─▶PointCloud2 source for MoveIt's octomap.
 
 Onboard counterpart to step 2 of the HRL obstacle architecture (the dense safety layer): through the occupancy map
 monitor (``PointCloudOctomapUpdater``, see clearpath-custom-setup.py patch step 5) move_group receives a point cloud
@@ -47,7 +47,7 @@ import numpy as np
 def depth_to_cloud(
     depth: np.ndarray, K: np.ndarray, stride: int = 2, min_depth: float = 0.15, max_depth: float = 2.5
 ) -> np.ndarray:
-    """Depth image -> (N, 3) float32 points in the OPTICAL camera frame.
+    """Depth image ─▶ (N, 3) float32 points in the OPTICAL camera frame.
 
     ROS optical convention (REP 103): x right, y down, z forward -- ``x = (u-cx)/fx * z``, ``y = (v-cy)/fy * z``.
     ``depth`` in metres (float) or millimetres (uint16, converted).  Invalid pixels and those outside ``[min_depth,
@@ -148,7 +148,7 @@ def main(argv=None) -> int:
             )
             self.create_timer(1.0 / max(self.rate_hz, 0.1), self._tick)
             self.get_logger().info(
-                f"octomap_feed: {self.depth_topic} -> {self.cloud_topic} "
+                f"octomap_feed: {self.depth_topic} ─▶ {self.cloud_topic} "
                 f"@ {self.rate_hz:.1f} Hz, stride {self.stride}, "
                 f"z {self.min_depth:.2f}..{self.max_depth:.2f} m"
             )
@@ -204,7 +204,7 @@ def main(argv=None) -> int:
         pass  # normal stop (Ctrl+C / systemd)
     except Exception:
         # SIGTERM shutdown race (systemd stop): rclpy's signal handler invalidates the context while spin is still
-        # building a wait set -> RCLError "context is not valid".  That is a normal stop -- only with a still-valid
+        # building a wait set ─▶ RCLError "context is not valid".  That is a normal stop -- only with a still-valid
         # context is it a real error.
         if rclpy.ok():
             raise

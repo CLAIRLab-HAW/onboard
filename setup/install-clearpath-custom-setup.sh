@@ -202,12 +202,12 @@ confirm() {
     [ "$ASSUME_YES" -eq 1 ] && return 0
     # Is /dev/tty really openable? (test the open, not just the permissions)
     if ! { true < /dev/tty; } 2>/dev/null; then
-        echo "    (no interactive console -> skipped; force it with -y)"
+        echo "    (no interactive console ─▶ skipped; force it with -y)"
         return 1
     fi
     printf '%s [y/N] ' "$1" > /dev/tty
     if ! read -r -t 60 _ans < /dev/tty; then
-        printf '\n    (no input/timeout -> skipped)\n' > /dev/tty
+        printf '\n    (no input/timeout ─▶ skipped)\n' > /dev/tty
         return 1
     fi
     case "$_ans" in [jJyY]*) return 0 ;; *) return 1 ;; esac
@@ -301,7 +301,7 @@ verify_deployments() {
             h_src="$(sha256sum "$src" | cut -d" " -f1)"
             if [ "$h_dst" = "$h_src" ]; then status="OK"; else status="DEVIATION"; rc=1; fi
         fi
-        printf "  %-16s %-46s <- %s\n" "$status" "$dst" "${src:-${rel} (not found)}"
+        printf "  %-16s %-46s ◀─ %s\n" "$status" "$dst" "${src:-${rel} (not found)}"
     done
 
     # rg6-moveit-patch comes from the onrobot-rg6 workspace, not from this repo
@@ -322,13 +322,13 @@ verify_deployments() {
     else
         status="DEVIATION"; rc=1
     fi
-    printf "  %-16s %-46s <- %s\n" "$status" "$RG6_MOVEIT_PATCH_BIN" \
+    printf "  %-16s %-46s ◀─ %s\n" "$status" "$RG6_MOVEIT_PATCH_BIN" \
            "${src:-onrobot-rg6 workspace (not built)}"
 
     if [ "$rc" -eq 0 ]; then
-        echo "  -> everything matches."
+        echo "  ─▶ everything matches."
     else
-        echo "  -> DEVIATIONS. An installer run brings the copies to the checkout state."
+        echo "  ─▶ DEVIATIONS. An installer run brings the copies to the checkout state."
     fi
     return "$rc"
 }
@@ -871,14 +871,14 @@ if [ "$DO_CALIB" -eq 1 ]; then
             cp -a "$UR_CALIB_FILE" "${UR_CALIB_FILE}.bak.$(date +%Y%m%d%H%M%S)"
             prune_backups "$UR_CALIB_FILE"
         fi
-        echo ">>> Calibrating the UR arm (${UR_ROBOT_IP}) -> ${UR_CALIB_FILE}"
-        echo "    Note: on 'Could not connect' the driver may occupy the interface ->"
+        echo ">>> Calibrating the UR arm (${UR_ROBOT_IP}) ─▶ ${UR_CALIB_FILE}"
+        echo "    Note: on 'Could not connect' the driver may occupy the interface ─▶"
         echo "          'sudo systemctl stop clearpath-manipulators.service', then retry."
         if sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
               "source /opt/ros/jazzy/setup.bash && ros2 launch ur_calibration calibration_correction.launch.py robot_ip:=${UR_ROBOT_IP} target_filename:='${UR_CALIB_FILE}'"; then
             chown "$REAL_USER":"$REAL_USER" "$UR_CALIB_FILE" 2>/dev/null || true
             echo "    Calibration saved: ${UR_CALIB_FILE}"
-            echo "    -> Enter it in robot.yaml at the arm and regenerate (reboot):"
+            echo "    ─▶ Enter it in robot.yaml at the arm and regenerate (reboot):"
             echo "         kinematics_parameters_file: \"${UR_CALIB_FILE}\""
         else
             echo "    WARN: calibration failed (arm on/reachable? interface free?)."
@@ -1467,7 +1467,7 @@ chmod 0644 "$JS_UNIT_PATH"
 # IMMEDIATELY instead of only on the next boot -- clearpath-robot-check md5sums
 # /etc/clearpath/robot.yaml every second and restarts the stack on a change
 # (md5sum follows the symlink).
-echo ">>> robot.yaml: repo clone + symlink (${SETUP_WS} -> ${ROBOT_YAML_PATH})"
+echo ">>> robot.yaml: repo clone + symlink (${SETUP_WS} ─▶ ${ROBOT_YAML_PATH})"
 if [ -d "${SETUP_WS}/.git" ]; then
     sudo -u "$REAL_USER" git -C "$SETUP_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
 else
@@ -1489,7 +1489,7 @@ if [ -f "${SETUP_WS}/robot.yaml" ]; then
         if [ "${SKIP_SYMLINK:-0}" != "1" ]; then
             install -d -m 0755 "$(dirname "$ROBOT_YAML_PATH")"
             ln -sfn "${SETUP_WS}/robot.yaml" "$ROBOT_YAML_PATH"
-            echo "    symlink set: ${ROBOT_YAML_PATH} -> ${SETUP_WS}/robot.yaml"
+            echo "    symlink set: ${ROBOT_YAML_PATH} ─▶ ${SETUP_WS}/robot.yaml"
         fi
     fi
 else
@@ -1669,7 +1669,7 @@ if RTDE_RECIPE_SRC="$(repo_file rtde_input_recipe_no_tool.txt)"; then
     else
         install -m 0644 -o "$REAL_USER" -g "$REAL_USER" \
             "$RTDE_RECIPE_SRC" "$RTDE_RECIPE_DST"
-        echo ">>> RTDE recipe -> ${RTDE_RECIPE_DST}  (from ${RTDE_RECIPE_SRC})"
+        echo ">>> RTDE recipe ─▶ ${RTDE_RECIPE_DST}  (from ${RTDE_RECIPE_SRC})"
     fi
 else
     echo "    WARN: rtde_input_recipe_no_tool.txt neither local nor retrievable -"
@@ -1714,7 +1714,7 @@ if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
     # translate a GripperCommand goal into a width.
     if RG6_KIN_SRC="$(repo_file scripts/rg6_finger_kinematics.json)"; then
         install -m 0644 -o root -g root "$RG6_KIN_SRC" "$RG6_KIN_DST"
-        echo "    linkage table -> ${RG6_KIN_DST}  (from ${RG6_KIN_SRC})"
+        echo "    linkage table ─▶ ${RG6_KIN_DST}  (from ${RG6_KIN_SRC})"
     else
         echo "    WARN: rg6_finger_kinematics.json missing - the node does NOT start without it."
         DO_RG6_BRIDGE=0
@@ -1883,7 +1883,7 @@ echo
 echo "=============================================================="
 echo "Installation complete."
 echo "  ${UNIT_NAME} : patches the configs on every boot"
-echo "  ${ROBOT_YAML_PATH} -> ${SETUP_WS}/robot.yaml (symlink, SSOT in the repo)"
+echo "  ${ROBOT_YAML_PATH} ─▶ ${SETUP_WS}/robot.yaml (symlink, SSOT in the repo)"
 echo "  ${JS_UNIT}           : joint_state_aggregator + legacy bus relays (phase 2)"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  ${UR_DASH_UNIT}           : starts the ur_robot_driver dashboard_client"
@@ -1895,9 +1895,9 @@ echo "  clearpath-manipulators.service.d/override.conf : SIGINT stop drop-in (cl
 [ -f "$RG6_MOVEIT_PATCH_BIN" ] && \
 echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-owned copy of rg6_moveit_patch (used by the boot service, updated only by the installer)"
 [ -f "$OCTO_UNIT_PATH" ] && \
-echo "  ${OCTO_UNIT}   : depth->PointCloud2 for MoveIt's octomap (the move_group sensor parameters come from robot.yaml)"
+echo "  ${OCTO_UNIT}   : depth─▶PointCloud2 for MoveIt's octomap (the move_group sensor parameters come from robot.yaml)"
 [ -f "$MD_UNIT_PATH" ] && \
-echo "  ${MD_UNIT} : UR5 + RG6 -> diagnostic_msgs (the analyzers come from robot.yaml)"
+echo "  ${MD_UNIT} : UR5 + RG6 ─▶ diagnostic_msgs (the analyzers come from robot.yaml)"
 [ -f "$RG6_BRIDGE_UNIT_PATH" ] && \
 echo "  ${RG6_BRIDGE_UNIT} : RG6 over XML-RPC to the OnRobot URCap (grip commands, finger joint, gripper state)"
 [ -d "$CKPT_PKG_DIR" ] && \
