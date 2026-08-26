@@ -63,7 +63,7 @@ def pointcloud_to_laserscan_params() -> dict:
         "max_height": 0.50,
         "angle_min": -3.141592653589793,
         "angle_max": 3.141592653589793,
-        "angle_increment": 0.0087,  # 0,5 degrees -> 720 rays
+        "angle_increment": 0.0087,  # 0,5 degrees ─▶ 720 rays
         "scan_time": 0.1,  # the RS16 spins at 10 Hz
         # Below 20 cm the sensor sees its own housing; in the costmap those points would become a ring of obstacles
         # around the robot.

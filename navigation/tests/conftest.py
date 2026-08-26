@@ -4,7 +4,7 @@ The root run distributes across several processes with ``-n 4 --dist loadfile``,
 test_platform_mock_e2e.py and test_navigation_e2e.py therefore land on different workers and drive off at the same
 time.  Both command the same base and read the same odometry.
 
-Measured on 2026-08-22: both reported exactly the same values (3,878 -> 4,058) and both failed.  Each had measured the
+Measured on 2026-08-22: both reported exactly the same values (3,878 ─▶ 4,058) and both failed.  Each had measured the
 other one's motion.  That is the same fault CLAUDE.md describes for the three offboard_e2e packages -- "they share
 server and arm".
 

@@ -1,8 +1,8 @@
 """Nav2 for the a200-0553.
 
-localization:=none    static_transform_publisher supplies map -> odom
+localization:=none    static_transform_publisher supplies map ─▶ odom
 localization:=amcl    AMCL against the stored map (needs scans)
-localization:=slam    slam_toolbox maps and supplies map -> odom itself
+localization:=slam    slam_toolbox maps and supplies map ─▶ odom itself
 
 The default is NONE, deliberately: as long as the sensor path delivers no scans, an AMCL in the graph publishes NO
 transform at all, the TF chain would stand still, and one would look for the fault in the costmaps.
@@ -57,7 +57,7 @@ def _setup(context, *args, **kwargs):
             executable="map_server",
             name="map_server",
             parameters=[PARAMS, {"yaml_filename": os.path.join(MAPS, map_file)}],
-            **common
+            **common,
         ),
         Node(
             package="nav2_controller",
@@ -66,7 +66,7 @@ def _setup(context, *args, **kwargs):
             parameters=[PARAMS],
             # By default controller_server publishes on cmd_vel in its own namespace -- that IS the twist_mux input
             # "external".
-            **common
+            **common,
         ),
         Node(package="nav2_planner", executable="planner_server", name="planner_server", parameters=[PARAMS], **common),
         Node(
@@ -74,7 +74,7 @@ def _setup(context, *args, **kwargs):
             executable="behavior_server",
             name="behavior_server",
             parameters=[PARAMS],
-            **common
+            **common,
         ),
         Node(
             package="nav2_bt_navigator", executable="bt_navigator", name="bt_navigator", parameters=[PARAMS], **common
@@ -93,11 +93,11 @@ def _setup(context, *args, **kwargs):
                 executable="async_slam_toolbox_node",
                 name="slam_toolbox",
                 parameters=[os.path.join(_HERE, "config", "slam_toolbox.yaml")],
-                **common
+                **common,
             )
         )
     else:
-        # Identity map -> odom. The robot therefore drifts against the map, because only the wheel odometry carries it
+        # Identity map ─▶ odom. The robot therefore drifts against the map, because only the wheel odometry carries it
         # -- that is the deliberate state as long as there are no scans.
         nodes.append(
             Node(
@@ -105,7 +105,7 @@ def _setup(context, *args, **kwargs):
                 executable="static_transform_publisher",
                 name="map_to_odom_identity",
                 arguments=["--frame-id", "map", "--child-frame-id", "odom"],
-                **common
+                **common,
             )
         )
 
@@ -127,7 +127,7 @@ def _setup(context, *args, **kwargs):
                             "bond_timeout": 10.0,
                         }
                     ],
-                    **common
+                    **common,
                 )
             ],
         )

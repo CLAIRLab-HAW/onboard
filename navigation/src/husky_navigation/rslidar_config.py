@@ -31,7 +31,7 @@ TEMPLATE_PATH = Path(__file__).resolve().parents[2] / "config" / "rslidar_rs16.y
 def render(template: dict, *, pcap_path: str | None = None) -> dict:
     """Sets the packet source in a loaded template.
 
-    ``pcap_path=None`` -> the device.  Otherwise -> the recording.  The template is modified and returned (the caller
+    ``pcap_path=None`` ─▶ the device.  Otherwise ─▶ the recording.  The template is modified and returned (the caller
     hands over a freshly loaded dict anyway).
     """
     if "common" not in template:

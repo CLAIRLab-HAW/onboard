@@ -12,7 +12,7 @@ import pytest
 pytestmark = pytest.mark.nav_e2e
 
 CONTAINER = "husky-offboard-mock-robot-1"
-#: The mount from docker-compose.yml (../../data/recordings -> /data/recordings).
+#: The mount from docker-compose.yml (../../data/recordings ─▶ /data/recordings).
 PCAP_HOST = Path(__file__).resolve().parents[3] / "data" / "recordings" / "rs16_labor.pcap"
 PCAP_CONTAINER = "/data/recordings/rs16_labor.pcap"
 
@@ -90,7 +90,7 @@ print(len(finite), len(vals))
 
 
 def test_amcl_publishes_the_map_to_odom_transform(replay):
-    """Only with scans does AMCL become the source of map -> odom."""
+    """Only with scans does AMCL become the source of map ─▶ odom."""
     _exec("pkill -f 'nav2|lifecycle_manager' || true; sleep 3")
     _exec("nohup nav localization:=amcl > /tmp/nav-amcl.log 2>&1 & sleep 35; echo ok", timeout=120)
     out = _exec(
@@ -98,4 +98,4 @@ def test_amcl_publishes_the_map_to_odom_transform(replay):
         "--ros-args -r /tf:=/a200_0553/tf "
         "-r /tf_static:=/a200_0553/tf_static 2>&1 | head -20"
     )
-    assert "Translation" in out, f"AMCL publiziert map -> odom nicht. Log:\n" f"{_exec('tail -40 /tmp/nav-amcl.log')}"
+    assert "Translation" in out, f"AMCL publiziert map ─▶ odom nicht. Log:\n" f"{_exec('tail -40 /tmp/nav-amcl.log')}"

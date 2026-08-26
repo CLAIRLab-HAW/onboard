@@ -42,7 +42,7 @@ CMD_VEL_PUBLISHERS = ("controller_server", "behavior_server")
 # bt_navigator and on the Nav2 default "odom" in the controller_server -- a topic nobody publishes to.
 ODOM_CONSUMERS = ("controller_server", "bt_navigator")
 
-# The EKF source, not the raw one from the wheel controller: the EKF also supplies the TF odom -> base_link, so pose
+# The EKF source, not the raw one from the wheel controller: the EKF also supplies the TF odom ─▶ base_link, so pose
 # and velocity come from the same place.
 EXPECTED_ODOM_TOPIC = "platform/odom/filtered"
 

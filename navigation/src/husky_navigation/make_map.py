@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-FREE = 254  # white -> drivable
-OCCUPIED = 0  # black -> wall
+FREE = 254  # white ─▶ drivable
+OCCUPIED = 0  # black ─▶ wall
 
 
 def write_empty_room(
