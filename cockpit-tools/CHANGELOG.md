@@ -1,7 +1,7 @@
 # Changelog
 
-Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
-Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
+Format after [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+versioning after [Semantic Versioning](https://semver.org/).
 
 ## 2026-08-25 (CI added)
 
