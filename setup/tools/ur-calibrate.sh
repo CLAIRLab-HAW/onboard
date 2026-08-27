@@ -25,9 +25,9 @@
 # afterwards, and read `apt-get install -s` first if in doubt.
 #
 # Usage:
-#   bash scripts/ur-calibrate.sh                     # defaults below
-#   bash scripts/ur-calibrate.sh --robot-ip 192.168.131.40 --out ~/ur5.yaml
-#   bash scripts/ur-calibrate.sh --skip-apt          # the UR stack is already right
+#   bash tools/ur-calibrate.sh                     # defaults below
+#   bash tools/ur-calibrate.sh --robot-ip 192.168.131.40 --out ~/ur5.yaml
+#   bash tools/ur-calibrate.sh --skip-apt          # the UR stack is already right
 #
 # Afterwards enter the file in robot.yaml at the arm and regenerate (reboot):
 #   kinematics_parameters_file: "<the path printed at the end>"

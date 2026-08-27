@@ -36,8 +36,17 @@ import argparse
 import json
 import sys
 import time
+from pathlib import Path
 
-from rg6_grip_bridge import Rg6Client, Rg6Error, await_settled
+# The bridge is a DEPLOYED artefact and lives in scripts/; this is a tool and
+# lives here. Python resolves a sibling import against the script's own
+# directory, so the two being in different directories has to be said out loud
+# rather than left to the layout. Deployed as /usr/local/bin/rg6-grip-bridge it
+# is not importable either (hyphens, no .py), so scripts/ is the one place this
+# import can come from.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+
+from rg6_grip_bridge import Rg6Client, Rg6Error, await_settled  # noqa: E402
 
 #: The full stroke, with extra points near the open stop -- that is where the
 #: open question from R19 item 2 sits (model 159.0 mm, caliper ~151 mm).

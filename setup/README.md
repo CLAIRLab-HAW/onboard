@@ -5,10 +5,13 @@ services, udev rules, the network and the OnRobot RG6, plus the nodes Clearpath
 does not ship itself. `config/robot.yaml` is the single source of truth in all
 of this — `/etc/clearpath/robot.yaml` is a symlink to the repo clone.
 
-The repo splits into three: `config/` holds the data this robot runs on
-(`robot.yaml`, the UR5 kinematics calibration, the RTDE input recipe),
-`scripts/` the code that gets deployed, and the installer at the top level ties
-them together.
+The repo splits into four, and the boundary is mechanical: `config/` holds the
+data this robot runs on (`robot.yaml`, the UR5 kinematics calibration, the RTDE
+input recipe), `scripts/` the code the installer deploys — exactly what
+`--verify` hashes —, `tools/` what a human runs by hand against the robot
+(`wakeup.sh`, `shutdown.sh`, `ur-calibrate.sh`, `rg6_stroke_survey.py`), and the
+installer at the top level ties them together. If a file is in the `--verify`
+manifest it belongs in `scripts/`; if it is not, somebody starts it.
 
 ## Features
 
@@ -57,8 +60,8 @@ the installer. Without it the model computes with nominal values and the real
 TCP is off by up to ~1 cm.
 
 ```bash
-bash scripts/ur-calibrate.sh                  # arm powered and reachable
-bash scripts/ur-calibrate.sh --skip-apt       # the UR stack already matches
+bash tools/ur-calibrate.sh                  # arm powered and reachable
+bash tools/ur-calibrate.sh --skip-apt       # the UR stack already matches
 ```
 
 It stands apart because it does two things an installer should not do without

@@ -5,6 +5,23 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (tools/ next to scripts/ and config/)
+
+- **`wakeup.sh`, `shutdown.sh`, `ur-calibrate.sh` and `rg6_stroke_survey.py`
+  moved to `tools/`.** The boundary is not a matter of taste: `scripts/` is what
+  the installer deploys -- exactly the `--verify` manifest -- and `tools/` is
+  what a human starts against the robot. Both halves were already there, they
+  just shared a directory, and nothing said which was which.
+- **`rg6_stroke_survey.py` says its cross-directory import out loud.** It needs
+  `rg6_grip_bridge` from `scripts/`; Python resolves a sibling import against
+  the script's own directory, so the dependency is now a `sys.path` line with
+  the reason next to it instead of an accident of the layout. The deployed copy
+  cannot serve it either -- `/usr/local/bin/rg6-grip-bridge` has hyphens and no
+  `.py`, so it is not importable.
+- The three remote search paths of the SSH wrappers in the workspace root learn
+  `tools/`; they keep the old ones, so a robot that has not pulled yet still
+  answers.
+
 ## 2026-08-27 (config/ next to scripts/)
 
 - **`robot.yaml`, `ur5_a200_0553_calibration.yaml` and

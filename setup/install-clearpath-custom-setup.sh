@@ -65,7 +65,7 @@
 #
 # Idempotent: runnable any number of times, and it installs no package.
 #
-# NOT here: the UR kinematics calibration.  It is scripts/ur-calibrate.sh --
+# NOT here: the UR kinematics calibration.  It is tools/ur-calibrate.sh --
 # see the section further down that says why.
 
 set -euo pipefail
@@ -697,7 +697,7 @@ else
 fi
 
 # --- UR kinematics calibration: NOT here ------------------------------------
-# It is scripts/ur-calibrate.sh, run deliberately and on its own.  It installs
+# It is tools/ur-calibrate.sh, run deliberately and on its own.  It installs
 # packages (the UR stack has to match the ur_client_library ABI) on a robot
 # whose UR stack is pinned, and it needs a powered arm -- a measurement
 # procedure, not an installation step.  Inside the installer, `-y` answered
