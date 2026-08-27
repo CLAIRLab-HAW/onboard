@@ -5,6 +5,28 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (installer prose audited against what the script does)
+
+- **The header list was seven entries short.** `clearpath-custom-joint-states`,
+  the sysctl reservation of the UR ports, the RTDE recipe and the root-owned
+  `rg6_moveit_patch` copy are installed unconditionally and were not named at
+  all; the octomap feed, the manipulator diagnostics and the Cockpit fork were
+  missing among the optional ones. The list now follows the order the installer
+  actually works in, and the closing summary names the sysctl file and the RTDE
+  recipe too.
+- **Three R-references pointed into ROBOTER-TODO.md, where they no longer are.**
+  R6, R22 and R25 are closed and live in the archive; the pointers say so.
+- **`rg6_msgs` was described as deliberately left out of the colcon build.** The
+  package does not exist any more, so there is nothing to leave out -- the
+  comment now says the workspace has no interface package. Same for the wrapper
+  comment of the manipulator diagnostics.
+- **The `--verify` guard comment no longer explains itself through the past.**
+  It says why robot.yaml is a good guard, not what stopped being one.
+- The invocation block no longer asks for an `RG6_REPO_URL` that has been set
+  for a long time; the patcher docstring says why its list starts at 2; one
+  German output line ("oder reboot") became English.
+- Comments and one echo line only, no behaviour change.
+
 ## 2026-08-27 (installer comments: allowlist is a robot.yaml lever, not a patch)
 
 - **The header and the unit-file comment no longer list the foxglove

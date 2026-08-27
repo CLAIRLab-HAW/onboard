@@ -2,17 +2,18 @@
 #
 # All-in-one installer for the Clearpath a200-0553 custom setup + OnRobot RG6.
 #
-# Does all of this in one go:
+# Does all of this in one go, in this order ("optional" = it asks first):
 #   - boot service clearpath-custom-setup: patches the generated configs on
 #     EVERY boot (realsense mesh uris, arm joint_states bus, rg6 srdf)
 #   - udev rules (/etc/udev/rules.d/99-husky.rules), netplan (/etc/netplan/01-netcfg.yaml),
 #     disable systemd-networkd (NetworkManager)
+#   - sysctl 10-ur-reserved-ports.conf: takes the UR driver ports 50001-50004 out
+#     of the ephemeral range, so nothing else can occupy them before the driver
 #   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
 #   - optional: UR kinematics calibration (ros-jazzy-ur-calibration -> YAML;
 #     the robot.yaml path has to be entered by hand)
-#   - clone + build onrobot-rg6 via git (colcon)
-#   - clearpath-custom-rg6-grip-bridge.service: commands the RG6 over XML-RPC to
-#     the OnRobot URCap and publishes the finger joint plus the gripper state
+#   - clone + build onrobot-rg6 via git (colcon), plus a root-owned copy of
+#     rg6_moveit_patch under /usr/local/bin for the boot service
 #   - optional: clearpath-custom-ur-dashboard.service: starts the ur_robot_driver
 #     dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
 #     at boot
@@ -25,11 +26,24 @@
 #     clearpath-manipulators.service when the arm is powered up LONG after the
 #     boot (ros2_control does not retry the HW activation that failed once ->
 #     the driver stays dead). It checks for "arm pingable, but
-#     robot_program_running does not publish" and restarts ONCE.
+#     robot_program_running does not publish" and restarts ONCE. Installs the
+#     SIGINT stop drop-in on clearpath-manipulators.service along with it.
+#   - clearpath-custom-joint-states.service: joint_state_aggregator
+#     (/a200_0553/joint_states) plus the relays back onto the platform bus
 #   - robot.yaml: clone the repo and point /etc/clearpath/robot.yaml at it as a
 #     SYMLINK (the official Clearpath way). No network dependency in the boot
 #     path, reproducible, and a 'git pull' takes effect immediately
 #     (clearpath-robot-check md5sums the file every second).
+#   - optional: clearpath-custom-octomap-feed.service: throttled depth ->
+#     PointCloud2 for MoveIt's occupancy map monitor
+#   - optional: clearpath-custom-manipulator-diagnostics.service: UR5 + RG6 as
+#     diagnostic_msgs for the Clearpath aggregator (Cockpit, diagnostics_agg)
+#   - rtde_input_recipe_no_tool.txt into the home directory: without it the UR
+#     driver does not start alongside the OnRobot URCap
+#   - clearpath-custom-rg6-grip-bridge.service: commands the RG6 over XML-RPC to
+#     the OnRobot URCap and publishes the finger joint plus the gripper state
+#   - optional: the cockpit-ros2-diagnostics fork with the manipulator panel to
+#     /usr/local/share/cockpit (shadows the apt plugin under /usr/share)
 #
 # Note on robot.yaml: the repo is the single source of truth,
 #   /etc/clearpath/robot.yaml is a SYMLINK onto it. So maintain changes in the
@@ -37,16 +51,18 @@
 #   the stack when the content changes).
 #
 # Invocation (sudo is acquired when needed):
-#   1) set RG6_REPO_URL below
-#   2) bash install-clearpath-custom-setup.sh         # interactive (asks when
-#                                                       changes are already
-#                                                       active or differ)
-#      bash install-clearpath-custom-setup.sh -y      # answer every question with "yes"
-#      bash install-clearpath-custom-setup.sh --verify # ONLY check: hashes the
-#                                                        rolled-out copies
-#                                                        against the checkout,
-#                                                        changes nothing, needs
-#                                                        no root
+#   bash install-clearpath-custom-setup.sh         # interactive (asks when
+#                                                    changes are already
+#                                                    active or differ)
+#   bash install-clearpath-custom-setup.sh -y      # answer every question with "yes"
+#   bash install-clearpath-custom-setup.sh --verify # ONLY check: hashes the
+#                                                     rolled-out copies against
+#                                                     the checkout, changes
+#                                                     nothing, needs no root
+#
+# The four repo URLs (onrobot-rg6, ur-state-manager, husky-custom-setup,
+# cockpit-ros2-diagnostics) sit in the configuration block below; a fork
+# changes them there.
 #
 # Idempotent: runnable any number of times.
 
@@ -237,7 +253,7 @@ SETUP_WS="${USER_HOME}/husky-custom-setup"   # versioned robot.yaml (symlink tar
 # Order: next to the script, then the clone the installer maintains for
 # robot.yaml anyway (SETUP_WS, see above), and only after that the network.
 # Local BEFORE GitHub, otherwise main silently overwrites a checked-out state --
-# that is ROBOTER-TODO R6.  Prints the path on stdout; a return != 0 means "not
+# that is ROBOTER-TODO archive R6.  Prints the path on stdout; a return != 0 means "not
 # found anywhere", and the caller decides whether that is a warning or an abort.
 # NOBODY aborts here.
 repo_file() {
@@ -265,7 +281,7 @@ repo_file() {
 # root-owned copies that only change through an installer run.  Whether their
 # content matches the source is therefore only known by measuring it; that is
 # exactly how the octomap_feed drift across three versions came about
-# (ROBOTER-TODO R6).
+# (ROBOTER-TODO archive R6).
 #
 # Deliberately LOCAL ONLY: the comparison is against the checkout or
 # ${SETUP_WS}, NEVER against GitHub main.  A fallback to the network would
@@ -356,6 +372,10 @@ cat > "$PY_PATH" <<'PY_EOF'
 """Custom Clearpath setup: patch generated config files after generation,
 before the sub-services read them.
 
+The numbering starts at 2 and is kept stable: whatever moves out of here into
+robot.yaml leaves its number behind, so references to a step (the watchdog names
+step 3) keep pointing at the same thing.  main() lists what left and where to.
+
 Patches:
   2. Sensor mesh URIs file:// -> package:// (fix_realsense_mesh_uris)
 
@@ -423,7 +443,7 @@ def fix_realsense_mesh_uris(label):
     The effect is therefore purely visual (the camera model in the Foxglove 3D
     panel). RViz loads both forms, and the <collision> is a box primitive --
     planning, collision checking and the self filter are not affected.
-    Context: ROBOTER-TODO.md R25."""
+    Context: R25 in the ROBOTER-TODO archive."""
     import glob
     OLD = "file://$(find realsense2_description)"
     NEW = "package://realsense2_description"
@@ -511,9 +531,6 @@ def move_arm_joint_states(label):
     else:
         log(f"{label}: already manipulators (or pattern not found) - no change.")
     return bool(changed)
-
-
-
 
 
 def run_rg6_moveit_patch(label):
@@ -910,9 +927,9 @@ if [ "$DO_RG6" -eq 1 ]; then
     # of rg6_control.  The gripper itself is driven by rg6_grip_bridge, not by a
     # node from this workspace.
     #
-    # rg6_msgs is deliberately NOT in the list.  The bridge publishes its state
-    # as flat JSON on rg6/bridge_state, so no package declares rg6_msgs as a
-    # dependency and no node builds the type.  Cross-checked on the robot on
+    # These two are the whole workspace -- onrobot-rg6 ships no interface
+    # package.  The bridge publishes its state as flat JSON on rg6/bridge_state,
+    # so a reader needs std_msgs and nothing else.  Cross-checked on the robot on
     # 2026-08-24: <ns>/rg6/state does not exist, only bridge_state.
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
         "source /etc/clearpath/setup.bash && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_control" \
@@ -1512,7 +1529,7 @@ else
 fi
 if [ "$DO_OCTO" -eq 1 ]; then
     echo ">>> Installing ${OCTO_FEED_BIN}"
-    # repo_file takes the checked-out state BEFORE GitHub main (ROBOTER-TODO R6).
+    # repo_file takes the checked-out state BEFORE GitHub main (ROBOTER-TODO archive R6).
     # The other way round, a run from the checkout would silently install
     # something other than what is in the checkout - exactly how the
     # octomap_feed drift across three versions came about.  If the file found is
@@ -1593,7 +1610,7 @@ else
 fi
 if [ "$DO_MD" -eq 1 ]; then
     echo ">>> Installing ${MD_BIN}"
-    # repo_file takes the checked-out state BEFORE GitHub main (ROBOTER-TODO R6).
+    # repo_file takes the checked-out state BEFORE GitHub main (ROBOTER-TODO archive R6).
     # The other way round, a run from the checkout would silently install
     # something other than what is in the checkout - exactly how the
     # octomap_feed drift across three versions came about.  If the file found is
@@ -1619,7 +1636,8 @@ if [ "$DO_MD" -eq 1 ]; then
 #!/usr/bin/env bash
 # UR5 + OnRobot RG6 as diagnostic_msgs for the Clearpath diagnostic_aggregator.
 # No onrobot-rg6 overlay needed: the gripper state arrives as JSON from the
-# bridge (rg6/bridge_state), not as an rg6_msgs type.
+# bridge (rg6/bridge_state), so std_msgs is enough -- onrobot-rg6 ships no
+# interface package at all.
 source /etc/clearpath/setup.bash
 exec python3 ${MD_BIN} --ros-args \\
     -p manipulator_ns:=${MANIP_NS} \\
@@ -1857,7 +1875,7 @@ systemctl enable --now "$UNIT_NAME" "$JS_UNIT"
 [ -f "$MD_UNIT_PATH" ] && systemctl enable --now "$MD_UNIT"
 # Start the bridge IMMEDIATELY too, not only on the next boot: without it
 # rg6_finger_joint is missing from /joint_states, and until the reboot move_group
-# plans against a hand in its default pose (R22).
+# plans against a hand in its default pose (R22 in the ROBOTER-TODO archive).
 [ -f "$RG6_BRIDGE_UNIT_PATH" ] && systemctl enable --now "$RG6_BRIDGE_UNIT"
 
 echo ">>> Checking the unit syntax"
@@ -1871,10 +1889,9 @@ VERIFY_UNITS=("$UNIT_PATH" "$JS_UNIT_PATH")
 systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    units OK."
 
 # --- apply the patches once now --------------------------------------------
-# The guard is robot.yaml: it proves that /etc/clearpath is set up. The generated
-# foxglove_bridge.yaml is no longer suitable for that, because the patcher does
-# not touch it; the remaining steps are individually guarded against missing
-# files.
+# The guard is robot.yaml: it proves that /etc/clearpath is set up, and unlike a
+# generated file it holds no matter which steps the patcher currently performs.
+# The steps themselves are individually guarded against missing files.
 if [ -f "$ROBOT_YAML_PATH" ]; then
     echo ">>> Applying the config patches once now"
     "$PY_PATH" || true
@@ -1886,6 +1903,9 @@ echo "Installation complete."
 echo "  ${UNIT_NAME} : patches the configs on every boot"
 echo "  ${ROBOT_YAML_PATH} ─▶ ${SETUP_WS}/robot.yaml (symlink, SSOT in the repo)"
 echo "  ${JS_UNIT}           : joint_state_aggregator + legacy bus relays"
+echo "  ${SYSCTL_UR_PORTS} : UR driver ports 50001-50004 out of the ephemeral range"
+[ -f "$RTDE_RECIPE_DST" ] && \
+echo "  ${RTDE_RECIPE_DST} : RTDE input recipe without the tool DO (the UR driver needs it next to the URCap)"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  ${UR_DASH_UNIT}           : starts the ur_robot_driver dashboard_client"
 [ -f "$USM_UNIT_PATH" ] && \
@@ -1905,7 +1925,7 @@ echo "  ${RG6_BRIDGE_UNIT} : RG6 over XML-RPC to the OnRobot URCap (grip command
 echo "  ${CKPT_PKG_DIR} : Cockpit plugin with the manipulator panel (shadows the apt plugin under /usr/share)"
 echo
 echo "For EVERYTHING to take effect, restart once:"
-echo "  sudo systemctl restart clearpath-robot   # oder reboot"
+echo "  sudo systemctl restart clearpath-robot   # or reboot"
 echo
 echo "Logs:"
 echo "  journalctl -t clearpath-custom-setup -b"
