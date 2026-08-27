@@ -5,6 +5,21 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (the repo checkout comes first, and repo_file accepts wget)
+
+- **The `robot.yaml` clone runs before everything else.** `repo_file` resolves
+  against `${SETUP_WS}`, so every artefact the installer deploys is answered
+  from that checkout -- ahead of the clone only "next to the script" or the
+  network could answer, and a `wget` of the single installer file has no "next
+  to the script". The symlink step travels with it, they were always one block.
+- **`repo_file` takes `wget` when there is no `curl`.** The documented install
+  path is a `wget` of one file, so a machine with wget and without curl is
+  exactly the machine that reaches this code; insisting on curl made the
+  resolution fail there without a word.
+- **`require_repo_file` is new**: for a file the installer cannot do without, it
+  aborts with the three places it looked and what to do, instead of leaving a
+  systemd unit behind that has no `ExecStart`.
+
 ## 2026-08-27 (the UR calibration leaves the installer)
 
 - **`scripts/ur-calibrate.sh` is new; the installer no longer offers the UR

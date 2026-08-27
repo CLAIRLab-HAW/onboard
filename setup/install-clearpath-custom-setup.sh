@@ -3,6 +3,11 @@
 # All-in-one installer for the Clearpath a200-0553 custom setup + OnRobot RG6.
 #
 # Does all of this in one go, in this order ("optional" = it asks first):
+#   - robot.yaml: clone the repo and point /etc/clearpath/robot.yaml at it as a
+#     SYMLINK (the official Clearpath way). FIRST, because everything this
+#     installer deploys is resolved against that checkout. No network dependency
+#     in the boot path, reproducible, and a 'git pull' takes effect immediately
+#     (clearpath-robot-check md5sums the file every second).
 #   - boot service clearpath-custom-setup: patches the generated configs on
 #     EVERY boot (realsense mesh uris, arm joint_states bus, rg6 srdf)
 #   - udev rules (/etc/udev/rules.d/99-husky.rules), netplan (/etc/netplan/01-netcfg.yaml),
@@ -28,10 +33,6 @@
 #     SIGINT stop drop-in on clearpath-manipulators.service along with it.
 #   - clearpath-custom-joint-states.service: joint_state_aggregator
 #     (/a200_0553/joint_states) plus the relays back onto the platform bus
-#   - robot.yaml: clone the repo and point /etc/clearpath/robot.yaml at it as a
-#     SYMLINK (the official Clearpath way). No network dependency in the boot
-#     path, reproducible, and a 'git pull' takes effect immediately
-#     (clearpath-robot-check md5sums the file every second).
 #   - optional: clearpath-custom-octomap-feed.service: throttled depth ->
 #     PointCloud2 for MoveIt's occupancy map monitor
 #   - optional: clearpath-custom-manipulator-diagnostics.service: UR5 + RG6 as
@@ -258,22 +259,43 @@ SETUP_WS="${USER_HOME}/husky-custom-setup"   # versioned robot.yaml (symlink tar
 # found anywhere", and the caller decides whether that is a warning or an abort.
 # NOBODY aborts here.
 repo_file() {
-    local rel="$1" candidate tmp
+    local rel="$1" candidate tmp url
     for candidate in "$(dirname "$0")/${rel}" "${SETUP_WS}/${rel}"; do
         if [ -f "$candidate" ]; then
             printf '%s\n' "$candidate"
             return 0
         fi
     done
+    # curl OR wget -- the documented install path is a wget of this one file, so
+    # a machine that has wget but no curl is exactly the machine that gets here.
+    # Insisting on curl made repo_file fail silently there.
     tmp="$(mktemp)"
-    if curl -fsSL --connect-timeout 5 --max-time 30 \
-         "https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/${rel}" \
-         -o "$tmp"; then
-        printf '%s\n' "$tmp"
-        return 0
+    url="https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/${rel}"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --connect-timeout 5 --max-time 30 "$url" -o "$tmp" && {
+            printf '%s\n' "$tmp"; return 0; }
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q --timeout=30 --tries=2 -O "$tmp" "$url" && {
+            printf '%s\n' "$tmp"; return 0; }
     fi
     rm -f "$tmp"
     return 1
+}
+
+# A required file that repo_file cannot produce is fatal, and it has to say so
+# HERE rather than leave a unit without an ExecStart behind.  Prints the path.
+require_repo_file() {
+    local rel="$1" path
+    if ! path="$(repo_file "$rel")"; then
+        echo "ERROR: ${rel} is required and was found nowhere:" >&2
+        echo "       - not next to this script ($(dirname "$0"))" >&2
+        echo "       - not in the checkout (${SETUP_WS})" >&2
+        echo "       - and not reachable at raw.githubusercontent.com" >&2
+        echo "       Clone the repo and run the installer out of it, or restore" >&2
+        echo "       network access to github.com." >&2
+        exit 1
+    fi
+    printf '%s\n' "$path"
 }
 
 # ---------------------------------------------------------------------------
@@ -355,6 +377,46 @@ if [ "$DO_VERIFY" -eq 1 ]; then
 fi
 
 CKPT_WS="${USER_HOME}/cockpit-ros2-diagnostics"
+
+# --- robot.yaml: clone the repo (SSOT) + symlink -- FIRST -------------------
+# FIRST, because repo_file resolves against ${SETUP_WS}: the patcher, the
+# watchdog and the four deployed scripts all come out of this checkout.  Ahead
+# of it, only "next to the script" or the network can answer, and a wget of the
+# single installer file has no "next to the script".
+# Clearpath intends robot.yaml to be kept under version control and placed at
+# /etc/clearpath/robot.yaml as a SYMLINK (the customization package concept). No
+# network dependency in the boot path, reproducible, and a 'git pull' takes effect
+# IMMEDIATELY instead of only on the next boot -- clearpath-robot-check md5sums
+# /etc/clearpath/robot.yaml every second and restarts the stack on a change
+# (md5sum follows the symlink).
+echo ">>> robot.yaml: repo clone + symlink (${SETUP_WS} ─▶ ${ROBOT_YAML_PATH})"
+if [ -d "${SETUP_WS}/.git" ]; then
+    sudo -u "$REAL_USER" git -C "$SETUP_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
+else
+    sudo -u "$REAL_USER" git clone "$SETUP_REPO_URL" "$SETUP_WS" || echo "    WARN: git clone failed"
+fi
+if [ -f "${SETUP_WS}/robot.yaml" ]; then
+    if [ -L "$ROBOT_YAML_PATH" ] && [ "$(readlink -f "$ROBOT_YAML_PATH")" = "$(readlink -f "${SETUP_WS}/robot.yaml")" ]; then
+        echo "    symlink already correct - no change."
+    else
+        # Back up an existing REAL file before the symlink replaces it.
+        if [ -f "$ROBOT_YAML_PATH" ] && [ ! -L "$ROBOT_YAML_PATH" ]; then
+            if ! cmp -s "$ROBOT_YAML_PATH" "${SETUP_WS}/robot.yaml"; then
+                echo "    ATTENTION: the existing ${ROBOT_YAML_PATH} differs from the repo state!"
+                confirm "    Replace it with the symlink anyway (a backup is created)?" || {
+                    echo "    robot.yaml: skipped (symlink NOT set)."; SKIP_SYMLINK=1; }
+            fi
+            [ "${SKIP_SYMLINK:-0}" = "1" ] || cp -a "$ROBOT_YAML_PATH" "${ROBOT_YAML_PATH}.pre-symlink.$(date +%Y%m%d%H%M%S)"
+        fi
+        if [ "${SKIP_SYMLINK:-0}" != "1" ]; then
+            install -d -m 0755 "$(dirname "$ROBOT_YAML_PATH")"
+            ln -sfn "${SETUP_WS}/robot.yaml" "$ROBOT_YAML_PATH"
+            echo "    symlink set: ${ROBOT_YAML_PATH} ─▶ ${SETUP_WS}/robot.yaml"
+        fi
+    fi
+else
+    echo "    WARN: ${SETUP_WS}/robot.yaml missing - symlink NOT set, the existing file stays."
+fi
 
 if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
     echo "ERROR: set RG6_REPO_URL at the top of this script to the git URL of onrobot-rg6."
@@ -1430,41 +1492,6 @@ WantedBy=multi-user.target
 EOF
 chmod 0644 "$JS_UNIT_PATH"
 
-# --- robot.yaml: the versioned file via a symlink (the official Clearpath way) ---
-# Clearpath intends robot.yaml to be kept under version control and placed at
-# /etc/clearpath/robot.yaml as a SYMLINK (the customization package concept). No
-# network dependency in the boot path, reproducible, and a 'git pull' takes effect
-# IMMEDIATELY instead of only on the next boot -- clearpath-robot-check md5sums
-# /etc/clearpath/robot.yaml every second and restarts the stack on a change
-# (md5sum follows the symlink).
-echo ">>> robot.yaml: repo clone + symlink (${SETUP_WS} ─▶ ${ROBOT_YAML_PATH})"
-if [ -d "${SETUP_WS}/.git" ]; then
-    sudo -u "$REAL_USER" git -C "$SETUP_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
-else
-    sudo -u "$REAL_USER" git clone "$SETUP_REPO_URL" "$SETUP_WS" || echo "    WARN: git clone failed"
-fi
-if [ -f "${SETUP_WS}/robot.yaml" ]; then
-    if [ -L "$ROBOT_YAML_PATH" ] && [ "$(readlink -f "$ROBOT_YAML_PATH")" = "$(readlink -f "${SETUP_WS}/robot.yaml")" ]; then
-        echo "    symlink already correct - no change."
-    else
-        # Back up an existing REAL file before the symlink replaces it.
-        if [ -f "$ROBOT_YAML_PATH" ] && [ ! -L "$ROBOT_YAML_PATH" ]; then
-            if ! cmp -s "$ROBOT_YAML_PATH" "${SETUP_WS}/robot.yaml"; then
-                echo "    ATTENTION: the existing ${ROBOT_YAML_PATH} differs from the repo state!"
-                confirm "    Replace it with the symlink anyway (a backup is created)?" || {
-                    echo "    robot.yaml: skipped (symlink NOT set)."; SKIP_SYMLINK=1; }
-            fi
-            [ "${SKIP_SYMLINK:-0}" = "1" ] || cp -a "$ROBOT_YAML_PATH" "${ROBOT_YAML_PATH}.pre-symlink.$(date +%Y%m%d%H%M%S)"
-        fi
-        if [ "${SKIP_SYMLINK:-0}" != "1" ]; then
-            install -d -m 0755 "$(dirname "$ROBOT_YAML_PATH")"
-            ln -sfn "${SETUP_WS}/robot.yaml" "$ROBOT_YAML_PATH"
-            echo "    symlink set: ${ROBOT_YAML_PATH} ─▶ ${SETUP_WS}/robot.yaml"
-        fi
-    fi
-else
-    echo "    WARN: ${SETUP_WS}/robot.yaml missing - symlink NOT set, the existing file stays."
-fi
 # --- octomap feed (optional): the dense obstacle layer for move_group ------
 # Step 2 of the HRL obstacle architecture: move_group maintains an octomap
 # (occupancy map monitor) from the wrist D435 and thereby also avoids obstacles
