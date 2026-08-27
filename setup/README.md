@@ -40,7 +40,31 @@ bash -e install-clearpath-custom-setup.sh
 
 The installer is interactive and asks before every optional part (`[y/N]`, or
 `-y` to say yes to everything). `--verify` checks read-only whether the
-deployed copies still match the checkout, and changes nothing.
+deployed copies still match the checkout, and changes nothing. It installs no
+package: it writes files and systemd units.
+
+### UR kinematics calibration — separate, on purpose
+
+The individual factory calibration of the UR5 (DH offsets) is **not** part of
+the installer. Without it the model computes with nominal values and the real
+TCP is off by up to ~1 cm.
+
+```bash
+bash scripts/ur-calibrate.sh                  # arm powered and reachable
+bash scripts/ur-calibrate.sh --skip-apt       # the UR stack already matches
+```
+
+It stands apart because it does two things an installer should not do without
+being asked for them by name: it `apt-get install`s the whole UR stack (the
+`ur_calibration` ABI has to match the `ur_client_library`, so they can only be
+installed together) on a robot whose UR stack is deliberately pinned, and it
+needs a powered arm. Inside the installer, `-y` answered that apt question
+without anyone seeing it. Run it in a maintenance window and test the
+manipulator afterwards.
+
+Afterwards enter the path it prints in `robot.yaml` at the arm
+(`kinematics_parameters_file`) and regenerate — `robot.yaml` is hand
+maintained, the script does not touch it.
 
 All units the installer creates carry the prefix `clearpath-custom-*`
 (`clearpath-custom-rg6-grip-bridge`, `clearpath-custom-joint-states`,

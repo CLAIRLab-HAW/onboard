@@ -5,6 +5,25 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (the UR calibration leaves the installer)
+
+- **`scripts/ur-calibrate.sh` is new; the installer no longer offers the UR
+  kinematics calibration.** It was the only step that ran `apt-get install`, and
+  it ran it on the whole UR stack (`ur-client-library`, `ur-robot-driver`,
+  `ur-calibration` can only be installed together, the `ur_calibration` ABI has
+  to match) on a robot whose UR stack is pinned on purpose. The question sat
+  behind a `[y/N]`, which `-y` answers with yes -- so
+  `install-clearpath-custom-setup.sh -y` lifted the arm's version protection
+  without anyone seeing it. It also needs a powered arm and writes a file that
+  has to be entered in `robot.yaml` by hand: a measurement procedure, not an
+  installation step.
+- **The installer now installs no package at all** -- it writes files and
+  systemd units. The two remaining apt mentions are read-only `dpkg -s` checks
+  and one line of advice.
+- The new script takes `--robot-ip`, `--out` and `--skip-apt`, keeps the five
+  newest backups of a previous measurement, and skips the sudo round trip when
+  it already runs as the target user (this robot has no passwordless sudo).
+
 ## 2026-08-27 (installer prose audited against what the script does)
 
 - **The header list was seven entries short.** `clearpath-custom-joint-states`,

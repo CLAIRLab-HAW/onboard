@@ -10,8 +10,6 @@
 #   - sysctl 10-ur-reserved-ports.conf: takes the UR driver ports 50001-50004 out
 #     of the ephemeral range, so nothing else can occupy them before the driver
 #   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
-#   - optional: UR kinematics calibration (ros-jazzy-ur-calibration -> YAML;
-#     the robot.yaml path has to be entered by hand)
 #   - clone + build onrobot-rg6 via git (colcon), plus a root-owned copy of
 #     rg6_moveit_patch under /usr/local/bin for the boot service
 #   - optional: clearpath-custom-ur-dashboard.service: starts the ur_robot_driver
@@ -64,7 +62,10 @@
 # cockpit-ros2-diagnostics) sit in the configuration block below; a fork
 # changes them there.
 #
-# Idempotent: runnable any number of times.
+# Idempotent: runnable any number of times, and it installs no package.
+#
+# NOT here: the UR kinematics calibration.  It is scripts/ur-calibrate.sh --
+# see the section further down that says why.
 
 set -euo pipefail
 
@@ -849,62 +850,13 @@ else
     echo ">>> GRUB: skipped (boot menu unchanged)."
 fi
 
-# --- UR kinematics calibration (optional, one-off) -------------------------
-# Fetches the individual factory calibration of the UR arm (DH offsets).
-# Without it the model computes with nominal values -> the real TCP is off by
-# up to ~1 cm. Prerequisite: arm on and reachable at UR_ROBOT_IP. robot.yaml is
-# NOT touched (hand maintained) -> enter the path yourself afterwards as
-# kinematics_parameters_file. Overridable via env: UR_ROBOT_IP=, UR_CALIB_FILE=.
-UR_ROBOT_IP="${UR_ROBOT_IP:-${ARM_ROBOT_IP}}"
-UR_CALIB_FILE="${UR_CALIB_FILE:-${USER_HOME}/ur5_a200_0553_calibration.yaml}"
-
-DO_CALIB=0
-if [ -f "$UR_CALIB_FILE" ]; then
-    confirm ">>> The UR calibration file already exists (${UR_CALIB_FILE}). Calibrate AGAIN (overwrites; arm on + ${UR_ROBOT_IP} reachable)?" \
-        && DO_CALIB=1
-else
-    confirm ">>> Calibrate the UR kinematics now? (one-off; installs ros-jazzy-ur-calibration; the arm must be on and reachable at ${UR_ROBOT_IP})" \
-        && DO_CALIB=1
-fi
-
-if [ "$DO_CALIB" -eq 1 ]; then
-    # ur-calibration needs an ABI matching the ur-client-library. Clearpath may
-    # install an older UR stack (driver/urcl) -> the newest ur-calibration then
-    # does not fit (undefined symbol ...urcl...SafetyModeMessage, and 3.7.0 is no
-    # longer in the repo). Solution: install/update the WHOLE UR stack
-    # CONSISTENTLY (together) -> all from the same release.
-    # Note: this can pull ur-robot-driver up (e.g. 3.7.0 -> 3.8.0). In testing it
-    # removed NO clearpath package; test the manipulator briefly afterwards.
-    echo ">>> Installing/updating the UR stack consistently (client-library + driver + calibration)"
-    apt-get update || true
-    apt-get install -y \
-        ros-jazzy-ur-client-library ros-jazzy-ur-robot-driver ros-jazzy-ur-calibration \
-        || echo "    WARN: UR stack installation failed."
-    if ! dpkg -s ros-jazzy-ur-calibration >/dev/null 2>&1; then
-        echo ">>> ur_calibration not available - calibration skipped."
-    elif ! ping -c1 -W2 "$UR_ROBOT_IP" >/dev/null 2>&1; then
-        echo ">>> UR arm ${UR_ROBOT_IP} not reachable (ping) - calibration skipped."
-    else
-        if [ -f "$UR_CALIB_FILE" ]; then
-            cp -a "$UR_CALIB_FILE" "${UR_CALIB_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-            prune_backups "$UR_CALIB_FILE"
-        fi
-        echo ">>> Calibrating the UR arm (${UR_ROBOT_IP}) ─▶ ${UR_CALIB_FILE}"
-        echo "    Note: on 'Could not connect' the driver may occupy the interface ─▶"
-        echo "          'sudo systemctl stop clearpath-manipulators.service', then retry."
-        if sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
-              "source /opt/ros/jazzy/setup.bash && ros2 launch ur_calibration calibration_correction.launch.py robot_ip:=${UR_ROBOT_IP} target_filename:='${UR_CALIB_FILE}'"; then
-            chown "$REAL_USER":"$REAL_USER" "$UR_CALIB_FILE" 2>/dev/null || true
-            echo "    Calibration saved: ${UR_CALIB_FILE}"
-            echo "    ─▶ Enter it in robot.yaml at the arm and regenerate (reboot):"
-            echo "         kinematics_parameters_file: \"${UR_CALIB_FILE}\""
-        else
-            echo "    WARN: calibration failed (arm on/reachable? interface free?)."
-        fi
-    fi
-else
-    echo ">>> UR calibration: skipped."
-fi
+# --- UR kinematics calibration: NOT here ------------------------------------
+# It is scripts/ur-calibrate.sh, run deliberately and on its own.  It installs
+# packages (the UR stack has to match the ur_client_library ABI) on a robot
+# whose UR stack is pinned, and it needs a powered arm -- a measurement
+# procedure, not an installation step.  Inside the installer, `-y` answered
+# that apt question with "yes" without anyone seeing it.  Since it left, this
+# installer installs no package at all: it writes files and units.
 
 # --- clone + build onrobot-rg6 (as the real user, not root) ----------------
 DO_RG6=1
