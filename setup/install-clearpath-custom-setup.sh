@@ -434,6 +434,7 @@ if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
     exit 1
 fi
 
+# --- boot service clearpath-custom-setup: the config patcher ----------------
 DO_BOOT=1
 if systemctl list-unit-files | grep -q "^${UNIT_NAME}" && [ -f "$PY_PATH" ]; then
     confirm ">>> clearpath-custom-setup is already installed. Update?" || DO_BOOT=0
