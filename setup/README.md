@@ -371,9 +371,10 @@ file is recreated on every boot anyway, and a `.bak` sits next to it.
 
 ## Running Tests
 
-Three of the Python nodes carry a ROS-free self-test:
+Four of the Python scripts carry a ROS-free self-test:
 
 ```bash
+python3 scripts/clearpath_custom_setup.py --selftest
 python3 scripts/manipulator_diagnostics.py --selftest
 python3 scripts/rg6_grip_bridge.py --selftest
 python3 scripts/octomap_feed.py --selftest

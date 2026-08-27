@@ -5,6 +5,26 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (the config patcher is a file, not a heredoc)
+
+- **`scripts/clearpath_custom_setup.py` is a real file.** 249 lines of Python
+  lived inside a quoted heredoc in the installer, where no editor, syntax check
+  or test could see them -- while the four other artefacts the installer
+  deploys have come out of `scripts/` through `repo_file` all along. The
+  patcher now takes the same route: resolve, compile check, self-test,
+  root-owned copy, and `--verify` hashes it like the rest.
+- **It is fetched with `require_repo_file`**, not `repo_file`: it is the
+  `ExecStart` of the boot service, so a missing source has to stop the run.
+- **`--selftest` is new** and exercises the two patterns off the robot: that the
+  arm JSB remap hits `'platform','joint_states'` exactly once, leaves
+  `'platform','dynamic_joint_states'` alone, is idempotent and does not care
+  about quoting or spacing; and that the mesh URI swap spares a foreign package.
+  Both patterns moved to module level (`ARM_JS_RX`, `MESH_URI_OLD`) so the test
+  exercises the real ones instead of a copy that drifts.
+- The file is formatted with black now that it is a file -- so the first
+  `--verify` after this change reports DEVIATION against the copy on the robot
+  until the installer runs once.
+
 ## 2026-08-27 (the repo checkout comes first, and repo_file accepts wget)
 
 - **The `robot.yaml` clone runs before everything else.** `repo_file` resolves
