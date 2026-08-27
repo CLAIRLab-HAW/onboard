@@ -188,6 +188,9 @@ WD_MANIP_DROPIN="${WD_MANIP_DROPIN_DIR}/override.conf"
 # is a symlink onto the clone, so a 'git pull' takes effect immediately.
 SETUP_REPO_URL="https://github.com/CLAIRLab-HAW/husky-custom-setup.git"
 ROBOT_YAML_PATH="/etc/clearpath/robot.yaml"
+#: The versioned original, the symlink target.  Repo-relative under config/,
+#: next to the other two files that are data rather than code.
+ROBOT_YAML_REL="config/robot.yaml"
 # ---------------------------------------------------------------------------
 
 # --- arguments -------------------------------------------------------------
@@ -332,7 +335,7 @@ verify_deployments() {
         "${BIN_DIR}/manipulator-diagnostics|scripts/manipulator_diagnostics.py"
         "${BIN_DIR}/rg6-grip-bridge|scripts/rg6_grip_bridge.py"
         "${BIN_DIR}/rg6_finger_kinematics.json|scripts/rg6_finger_kinematics.json"
-        "${USER_HOME}/rtde_input_recipe_no_tool.txt|rtde_input_recipe_no_tool.txt"
+        "${USER_HOME}/rtde_input_recipe_no_tool.txt|config/rtde_input_recipe_no_tool.txt"
     )
     echo "=== --verify: rolled-out copies against the checkout ==="
     for entry in "${MANIFEST[@]}"; do
@@ -400,19 +403,29 @@ CKPT_WS="${USER_HOME}/cockpit-ros2-diagnostics"
 # IMMEDIATELY instead of only on the next boot -- clearpath-robot-check md5sums
 # /etc/clearpath/robot.yaml every second and restarts the stack on a change
 # (md5sum follows the symlink).
-echo ">>> robot.yaml: repo clone + symlink (${SETUP_WS} ─▶ ${ROBOT_YAML_PATH})"
+ROBOT_YAML_SRC="${SETUP_WS}/${ROBOT_YAML_REL}"
+echo ">>> robot.yaml: repo clone + symlink (${ROBOT_YAML_SRC} ─▶ ${ROBOT_YAML_PATH})"
 if [ -d "${SETUP_WS}/.git" ]; then
     sudo -u "$REAL_USER" git -C "$SETUP_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
 else
     sudo -u "$REAL_USER" git clone "$SETUP_REPO_URL" "$SETUP_WS" || echo "    WARN: git clone failed"
 fi
-if [ -f "${SETUP_WS}/robot.yaml" ]; then
-    if [ -L "$ROBOT_YAML_PATH" ] && [ "$(readlink -f "$ROBOT_YAML_PATH")" = "$(readlink -f "${SETUP_WS}/robot.yaml")" ]; then
+if [ -f "${ROBOT_YAML_SRC}" ]; then
+    if [ -L "$ROBOT_YAML_PATH" ] && [ "$(readlink -f "$ROBOT_YAML_PATH")" = "$(readlink -f "${ROBOT_YAML_SRC}")" ]; then
         echo "    symlink already correct - no change."
     else
+        # A symlink that points nowhere is the state a `git pull` leaves behind
+        # when the target moved -- and it is not harmless: clearpath-robot-check
+        # md5sums /etc/clearpath/robot.yaml every second, so the whole stack sits
+        # without its config until this run repairs it. Say so, do not heal it
+        # quietly, otherwise nobody learns that a pull alone is not a rollout.
+        if [ -L "$ROBOT_YAML_PATH" ] && [ ! -e "$ROBOT_YAML_PATH" ]; then
+            echo "    NOTE: ${ROBOT_YAML_PATH} pointed at $(readlink "$ROBOT_YAML_PATH"), which does not exist."
+            echo "          A pull moved the file; re-pointing it at ${ROBOT_YAML_REL} now."
+        fi
         # Back up an existing REAL file before the symlink replaces it.
         if [ -f "$ROBOT_YAML_PATH" ] && [ ! -L "$ROBOT_YAML_PATH" ]; then
-            if ! cmp -s "$ROBOT_YAML_PATH" "${SETUP_WS}/robot.yaml"; then
+            if ! cmp -s "$ROBOT_YAML_PATH" "${ROBOT_YAML_SRC}"; then
                 echo "    ATTENTION: the existing ${ROBOT_YAML_PATH} differs from the repo state!"
                 confirm "    Replace it with the symlink anyway (a backup is created)?" || {
                     echo "    robot.yaml: skipped (symlink NOT set)."; SKIP_SYMLINK=1; }
@@ -421,12 +434,12 @@ if [ -f "${SETUP_WS}/robot.yaml" ]; then
         fi
         if [ "${SKIP_SYMLINK:-0}" != "1" ]; then
             install -d -m 0755 "$(dirname "$ROBOT_YAML_PATH")"
-            ln -sfn "${SETUP_WS}/robot.yaml" "$ROBOT_YAML_PATH"
-            echo "    symlink set: ${ROBOT_YAML_PATH} ─▶ ${SETUP_WS}/robot.yaml"
+            ln -sfn "${ROBOT_YAML_SRC}" "$ROBOT_YAML_PATH"
+            echo "    symlink set: ${ROBOT_YAML_PATH} ─▶ ${ROBOT_YAML_SRC}"
         fi
     fi
 else
-    echo "    WARN: ${SETUP_WS}/robot.yaml missing - symlink NOT set, the existing file stays."
+    echo "    WARN: ${ROBOT_YAML_SRC} missing - symlink NOT set, the existing file stays."
 fi
 
 if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
@@ -1202,7 +1215,7 @@ fi
 # /home/robot/rtde_input_recipe_no_tool.txt -- if the file is missing after a
 # reinstall, the driver does not start, and without any hint at it.
 RTDE_RECIPE_DST="${USER_HOME}/rtde_input_recipe_no_tool.txt"
-if RTDE_RECIPE_SRC="$(repo_file rtde_input_recipe_no_tool.txt)"; then
+if RTDE_RECIPE_SRC="$(repo_file config/rtde_input_recipe_no_tool.txt)"; then
     if [ "$RTDE_RECIPE_SRC" -ef "$RTDE_RECIPE_DST" ]; then
         # Source and target are the same file -- this happens when the installer
         # runs out of ${USER_HOME}.  install(1) then aborts, and with set -e it
@@ -1214,7 +1227,7 @@ if RTDE_RECIPE_SRC="$(repo_file rtde_input_recipe_no_tool.txt)"; then
         echo ">>> RTDE recipe ─▶ ${RTDE_RECIPE_DST}  (from ${RTDE_RECIPE_SRC})"
     fi
 else
-    echo "    WARN: rtde_input_recipe_no_tool.txt neither local nor retrievable -"
+    echo "    WARN: config/rtde_input_recipe_no_tool.txt neither local nor retrievable -"
     echo "          the UR driver does NOT start without it."
 fi
 
@@ -1424,7 +1437,7 @@ echo
 echo "=============================================================="
 echo "Installation complete."
 echo "  ${UNIT_NAME} : patches the configs on every boot"
-echo "  ${ROBOT_YAML_PATH} ─▶ ${SETUP_WS}/robot.yaml (symlink, SSOT in the repo)"
+echo "  ${ROBOT_YAML_PATH} ─▶ ${ROBOT_YAML_SRC} (symlink, SSOT in the repo)"
 echo "  ${JS_UNIT}           : joint_state_aggregator + legacy bus relays"
 echo "  ${SYSCTL_UR_PORTS} : UR driver ports 50001-50004 out of the ephemeral range"
 [ -f "$RTDE_RECIPE_DST" ] && \

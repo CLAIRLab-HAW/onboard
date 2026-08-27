@@ -5,6 +5,22 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (config/ next to scripts/)
+
+- **`robot.yaml`, `ur5_a200_0553_calibration.yaml` and
+  `rtde_input_recipe_no_tool.txt` moved to `config/`.** The repo now separates
+  what this robot RUNS ON (`config/`) from the code that gets deployed
+  (`scripts/`), with the installer on top tying them together.
+- **The symlink target changed with them**: `/etc/clearpath/robot.yaml` now
+  points at `config/robot.yaml`. The installer names the target once
+  (`ROBOT_YAML_REL`) instead of spelling the path in seven places, and it
+  reports a dangling symlink out loud before repairing it rather than healing it
+  in silence -- a `git pull` that moves the file leaves the Clearpath stack
+  without its config until the installer runs, and that should be visible.
+- Two consumers outside this repo follow in their own commits:
+  `deploy/husky-offboard/entrypoint.sh` fetches both YAMLs by URL from main, and
+  `contract/robot-contract/tests/test_ssot_parity.py` reads the SSOT path.
+
 ## 2026-08-27 (require_repo_file: the call form is load-bearing)
 
 - **`require_repo_file` must be called as an assignment.** Its `exit 1` leaves

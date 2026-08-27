@@ -2,14 +2,21 @@
 
 The custom setup of the Clearpath a200-0553: an installer that sets up the boot
 services, udev rules, the network and the OnRobot RG6, plus the nodes Clearpath
-does not ship itself. `robot.yaml` is the single source of truth in all of this
-— `/etc/clearpath/robot.yaml` is a symlink to the repo clone.
+does not ship itself. `config/robot.yaml` is the single source of truth in all
+of this — `/etc/clearpath/robot.yaml` is a symlink to the repo clone.
+
+The repo splits into three: `config/` holds the data this robot runs on
+(`robot.yaml`, the UR5 kinematics calibration, the RTDE input recipe),
+`scripts/` the code that gets deployed, and the installer at the top level ties
+them together.
 
 ## Features
 
-- **`robot.yaml` is the single source of truth** — `/etc/clearpath/robot.yaml`
+- **`config/robot.yaml` is the single source of truth** — `/etc/clearpath/robot.yaml`
   is a symlink to the repo clone, so a `git pull` takes effect within seconds
-  instead of only at the next boot.
+  instead of only at the next boot. On a robot whose symlink still points at the
+  old top-level path, the pull that moved the file leaves it dangling: run the
+  installer once, it re-points the symlink and says that it did.
 - **8 services + 1 timer**, all with the prefix `clearpath-custom-*`.
 - **A watchdog for a late arm power-up** and for a motion link that died while
   ExternalControl kept reporting it was "running".
