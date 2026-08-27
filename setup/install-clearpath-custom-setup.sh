@@ -130,7 +130,7 @@ USM_WRAPPER="${BIN_DIR}/ur-state-manager.sh"
 USM_UNIT="clearpath-custom-ur-state-manager.service"
 USM_UNIT_PATH="/etc/systemd/system/${USM_UNIT}"
 
-# joint-states (phase 2): robot-wide joint_state_aggregator (/a200_0553/joint_states)
+# joint-states: robot-wide joint_state_aggregator (/a200_0553/joint_states)
 # plus relays of the clean arm/gripper source topics back onto the
 # platform/joint_states bus (for RSP + move_group). Uses the onrobot-rg6
 # workspace (rg6_control joint_states.launch.py), no build of its own.
@@ -359,8 +359,8 @@ before the sub-services read them.
 Patches:
   2. Sensor mesh URIs file:// -> package:// (fix_realsense_mesh_uris)
 
-  3. Arm JSB joint_states -> manipulators/joint_states (move_arm_joint_states,
-     phase 2) in /opt/ros/*/share/clearpath_manipulators/launch/control.launch.py.
+  3. Arm JSB joint_states -> manipulators/joint_states (move_arm_joint_states)
+     in /opt/ros/*/share/clearpath_manipulators/launch/control.launch.py.
      Detaches the arm joints from the platform namespace; a relay + aggregator
      (rg6_control joint_states.launch.py, clearpath-custom-joint-states.service)
      keeps the platform/joint_states bus complete for RSP + move_group.
@@ -461,7 +461,7 @@ def fix_realsense_mesh_uris(label):
 
 
 def move_arm_joint_states(label):
-    """Phase 2: remap the arm JSB publisher from platform/ -> manipulators/joint_states.
+    """Remap the arm JSB publisher from platform/ -> manipulators/joint_states.
 
     clearpath_manipulators/control.launch.py remaps the joint_states output of
     the manipulators ros2_control_node via
@@ -585,7 +585,7 @@ def main():
     #    node, Cockpit shows the group as STALE instead of letting it vanish.
     # 2) Sensor meshes file:// -> package:// (foxglove_bridge only serves package://)
     fix_realsense_mesh_uris("sensor mesh package://")
-    # 3) Phase 2: arm JSB joint_states out of the platform namespace ->
+    # 3) Arm JSB joint_states out of the platform namespace ->
     #    manipulators/joint_states (relay + aggregator via clearpath-custom-joint-states.service).
     move_arm_joint_states("arm joint_states -> manipulators")
     # 4) RG6 into MoveIt: patch robot.srdf (group 'gripper' + EE)
@@ -621,7 +621,7 @@ PartOf=clearpath-robot.service
 #   - clearpath-platform.service starts the foxglove_bridge (asset_uri_allowlist
 #     + sensor meshes).
 #   - clearpath-manipulators.service reads control.launch.py -> the arm JSB
-#     joint_states patch (move_arm_joint_states, phase 2) MUST take effect
+#     joint_states patch (move_arm_joint_states) MUST take effect
 #     before that.
 Before=clearpath-platform.service clearpath-manipulators.service
 
@@ -1400,7 +1400,7 @@ else
     echo ">>> manipulators-watchdog: skipped."
 fi
 
-# --- joint-states aggregation + legacy bus relays (phase 2) ----------------
+# --- joint-states aggregation + legacy bus relays ----------------
 # Starts rg6_control/joint_states.launch.py: joint_state_aggregator
 # (-> /a200_0553/joint_states, complete, for rosbag/Foxglove) plus the OWN
 # joint_state_relay (manipulators/joint_states and
@@ -1423,7 +1423,7 @@ chmod 0755 "$JS_WRAPPER"
 
 cat > "$JS_UNIT_PATH" <<EOF
 [Unit]
-Description=Robot-wide joint_states aggregation + legacy bus relays (phase 2)
+Description=Robot-wide joint_states aggregation + legacy bus relays
 # Needs the source topics: wheels (clearpath-platform) + arm
 # (clearpath-manipulators) + gripper (${RG6_BRIDGE_UNIT}). The gripper source is
 # the bridge. An After= on a name that does not exist orders against nothing:
@@ -1884,7 +1884,7 @@ echo "=============================================================="
 echo "Installation complete."
 echo "  ${UNIT_NAME} : patches the configs on every boot"
 echo "  ${ROBOT_YAML_PATH} ─▶ ${SETUP_WS}/robot.yaml (symlink, SSOT in the repo)"
-echo "  ${JS_UNIT}           : joint_state_aggregator + legacy bus relays (phase 2)"
+echo "  ${JS_UNIT}           : joint_state_aggregator + legacy bus relays"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  ${UR_DASH_UNIT}           : starts the ur_robot_driver dashboard_client"
 [ -f "$USM_UNIT_PATH" ] && \
