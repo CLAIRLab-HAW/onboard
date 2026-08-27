@@ -86,7 +86,8 @@ What the installed units do, one section each.
 The watchdog covers two cases that cannot be fixed from within a ROS node —
 both need the dead driver connection for their own inputs and cannot restart
 the driver process they depend on. The installer therefore offers a small
-**systemd timer**:
+**systemd timer** (`scripts/manipulators_watchdog.sh`, a root-owned copy under
+`/usr/local/bin/manipulators-watchdog.sh`):
 
 **(a) Arm powered up late.** If the UR5 is powered **long after** the ROS stack
 boots, the one-off ros2_control hardware activation of the `ur_robot_driver`

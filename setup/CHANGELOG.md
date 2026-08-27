@@ -5,6 +5,19 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (the watchdog is a file, not a heredoc)
+
+- **`scripts/manipulators_watchdog.sh` is a real file**, deployed through
+  `require_repo_file` with a `bash -n` check before it lands, and hashed by
+  `--verify`. 232 lines of shell inside a quoted heredoc could not be read by
+  `bash -n`, by shellcheck or by an editor -- the recovery logic that restarts
+  the arm driver was the least inspectable code in the repo.
+- With the patcher gone the same way, `install-clearpath-custom-setup.sh` is
+  down from 1950 to 1463 lines, and the share of it that is foreign code inside
+  strings from 39% to 19% (289 of 1463 lines) -- all of that now unit files and
+  wrappers that interpolate installer variables, which is where a heredoc
+  belongs.
+
 ## 2026-08-27 (the config patcher is a file, not a heredoc)
 
 - **`scripts/clearpath_custom_setup.py` is a real file.** 249 lines of Python
