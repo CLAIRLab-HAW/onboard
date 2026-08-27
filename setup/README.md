@@ -30,6 +30,9 @@ manifest it belongs in `scripts/`; if it is not, somebody starts it.
   *out of service* instead of invented numbers.
 - **A boot patcher with three steps** — everything `robot.yaml` can express has
   moved there.
+- **Both Cockpit packages are deployed and measured** — the diagnostics fork
+  and the page *Roboter-Werkzeuge*. `--verify` hashes the second one file by
+  file, so a page that looks installed but is three commits old says so.
 
 ## Tech Stack
 
@@ -309,6 +312,35 @@ Three building blocks close the gap, all from the installer (optional steps):
    panel then renders nothing. If the analyzers should go too, remove the block
    from `robot.yaml` (takes effect immediately via `clearpath-robot-check`).
 
+### The two Cockpit packages (no unit of their own)
+
+Both live under `/usr/local/share/cockpit`, which Cockpit searches before
+`/usr/share` — and both are optional steps of the installer, not services.
+
+- The [`cockpit-ros2-diagnostics`](../cockpit-ros2-diagnostics/README.md) fork
+  goes to `ros2-diagnostics/` and adds the manipulator panel to the diagnostics
+  tree. It **shadows** the apt plugin under `/usr/share`, which is why the
+  directory name has to be exactly that one.
+- [`cockpit-robot-tools`](../cockpit-robot-tools/README.md) goes to
+  `robot-tools/` and is the page *Roboter-Werkzeuge*: the offboard-lite
+  container plus the VNC address. It shadows **nothing** — no apt package
+  carries that name, so it is simply a menu entry of its own.
+
+The second one is the cheaper of the two: static files, no `npm`, no `make`, no
+`dist/`, so it never asks for a toolchain on the robot. The installer does not
+copy it itself either — it runs the page's own `install.sh`, which is where the
+list of files belonging to the package lives. `--verify` reads that same list
+and hashes the deployed directory file by file:
+
+```
+  DEVIATION        /usr/local/share/cockpit/robot-tools    ◀─ /home/robot/cockpit-robot-tools
+                   └─ index.js status.js
+```
+
+That comparison exists because the failure it catches has happened: the
+deployed page carried an `index.js` three commits behind the checkout and
+nothing said so. A `--verify` run needs no root.
+
 ### `clearpath-custom-octomap-feed.service` (MoveIt octomap: dense obstacle layer)
 
 Step 2 of the HRL obstacle architecture (step 1 = object-based boxes from the
@@ -404,6 +436,8 @@ with the checkout, read-only.
   modes
 - [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — the panel
   that displays these diagnostics
+- [cockpit-robot-tools](../cockpit-robot-tools/README.md) — the Cockpit page
+  *Roboter-Werkzeuge*, deployed by the same installer
 
 ## Versioning
 

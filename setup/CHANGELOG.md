@@ -5,6 +5,33 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (the Cockpit page "Roboter-Werkzeuge" joins the installer)
+
+- **The installer deploys `cockpit-robot-tools` as well**, as an optional step
+  next to the `cockpit-ros2-diagnostics` fork: clone or `git pull` into
+  `~/cockpit-robot-tools`, then run the page's own `install.sh`. The step is
+  the cheaper of the two Cockpit blocks -- static files, so it never asks for
+  `npm`/`make` on the robot and has no "build it elsewhere and bring the result
+  over" fallback. Root comes from the installer, which is what the manual route
+  lacked: on the robot `sudo` wants a password, so the rollout could not be
+  driven from a non-interactive session.
+- **The copy step is the page's `install.sh`, not a second `cp`.** Which files
+  belong in the package is decided by its `FILES=(...)`; repeating that list in
+  the installer would be a second truth about the very thing this change exists
+  to keep in step.
+- **`--verify` measures the page**, file by file, reading the same `FILES=(...)`
+  out of `install.sh`. It reports `NOT-DEPLOYED`, `SOURCE-MISSING`, `DEVIATION`
+  (naming the files) or `OK` like every other entry, and an unreadable file list
+  counts as `SOURCE-MISSING` rather than passing quietly. The two candidate
+  source paths are the sibling checkout (`../cockpit-robot-tools`, the workspace
+  layout) and `~/cockpit-robot-tools` (the robot, where both coincide).
+- **`CRT_PREFIX` is handed to that `install.sh`**, and `CRT_PKG_DIR` derives from
+  it -- so the directory the installer writes and the directory `--verify`
+  measures are one value instead of two that happen to agree.
+- A directory without `.git` -- how the page reached the robot before this
+  existed, by `rsync` -- is installed, but says out loud that nothing keeps it
+  current.
+
 ## 2026-08-27 (tools/ next to scripts/ and config/)
 
 - **`wakeup.sh`, `shutdown.sh`, `ur-calibrate.sh` and `rg6_stroke_survey.py`

@@ -43,6 +43,9 @@
 #     the OnRobot URCap and publishes the finger joint plus the gripper state
 #   - optional: the cockpit-ros2-diagnostics fork with the manipulator panel to
 #     /usr/local/share/cockpit (shadows the apt plugin under /usr/share)
+#   - optional: the cockpit-robot-tools page "Roboter-Werkzeuge" to
+#     /usr/local/share/cockpit (offboard-lite container + VNC; a menu entry
+#     of its own, it shadows nothing)
 #
 # Note on robot.yaml: the repo is the single source of truth,
 #   /etc/clearpath/robot.yaml is a SYMLINK onto it. So maintain changes in the
@@ -59,9 +62,9 @@
 #                                                     the checkout, changes
 #                                                     nothing, needs no root
 #
-# The four repo URLs (onrobot-rg6, ur-state-manager, husky-custom-setup,
-# cockpit-ros2-diagnostics) sit in the configuration block below; a fork
-# changes them there.
+# The five repo URLs (onrobot-rg6, ur-state-manager, husky-custom-setup,
+# cockpit-ros2-diagnostics, cockpit-robot-tools) sit in the configuration
+# block below; a fork changes them there.
 #
 # Idempotent: runnable any number of times, and it installs no package.
 #
@@ -131,6 +134,20 @@ MD_UNIT_PATH="/etc/systemd/system/${MD_UNIT}"
 # otherwise it does not shadow but appears as a second menu entry.
 CKPT_REPO_URL="https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics.git"
 CKPT_PKG_DIR="/usr/local/share/cockpit/ros2-diagnostics"
+
+# Cockpit page "Roboter-Werkzeuge" (cockpit-robot-tools): starts and stops the
+# offboard-lite container, shows its state as a coloured ball and puts the VNC
+# address next to it.  Same /usr/local reasoning as the fork above, but a
+# DIFFERENT package name -- 'robot-tools' exists under no apt package, so this
+# one shadows nothing and is simply a menu entry of its own.
+# Static files, no build: no npm, no make, no dist/ -- which is why this block
+# never needs a toolchain on the robot, unlike the fork above.
+CRT_REPO_URL="https://github.com/CLAIRLab-HAW/cockpit-robot-tools.git"
+# The prefix is handed to the page's own install.sh, which appends
+# share/cockpit/robot-tools itself -- so the target it writes and the target
+# --verify measures are ONE value, not two that agree today.
+CRT_PREFIX="/usr/local"
+CRT_PKG_DIR="${CRT_PREFIX}/share/cockpit/robot-tools"
 
 # UR dashboard_client: Clearpath does NOT start it in the headless setup, but
 # it provides power_on/brake_release/unlock_protective_stop/restart_safety/get_*_mode.
@@ -247,6 +264,10 @@ USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
 RG6_WS="${USER_HOME}/onrobot-rg6"
 USM_WS="${USER_HOME}/ur-state-manager"
 SETUP_WS="${USER_HOME}/husky-custom-setup"   # versioned robot.yaml (symlink target)
+# The Cockpit page "Roboter-Werkzeuge" -- up here with the other workspaces and
+# NOT next to its block further down, because --verify reads it and exits long
+# before that point.
+CRT_WS="${USER_HOME}/cockpit-robot-tools"
 
 # Find a file of THIS repo.  The installer does NOT necessarily run out of the
 # checkout -- it is called standalone, and then "$(dirname "$0")" is an
@@ -377,6 +398,56 @@ verify_deployments() {
     fi
     printf "  %-16s %-46s ◀─ %s\n" "$status" "$RG6_MOVEIT_PATCH_BIN" \
            "${src:-onrobot-rg6 workspace (not built)}"
+
+    # The Cockpit page "Roboter-Werkzeuge" is its own repo with its own
+    # install.sh -- so its own candidate list, and, more importantly, the file
+    # list is READ OUT OF that install.sh instead of being repeated here.  Its
+    # FILES=(...) decides what belongs in the package; a second copy of that
+    # list in this file would drift exactly the way the copies this function
+    # measures do.
+    #
+    # Why the package is measured at all: on 2026-08-20
+    # /usr/local/share/cockpit/robot-tools carried an index.js three commits
+    # behind the checkout (8252 B against 9534 B) and nothing said so -- the
+    # page looked installed and was old (ROBOTER-TODO archive, R28).
+    #
+    # The first candidate covers the workspace layout (robot/husky-custom-setup
+    # next to robot/cockpit-robot-tools), the second the robot, where the
+    # installer sits in ~/husky-custom-setup and both paths coincide.
+    local crt_src="" crt_files="" crt_bad="" f
+    for candidate in "$(dirname "$0")/../cockpit-robot-tools" "$CRT_WS"; do
+        [ -f "${candidate}/install.sh" ] && { crt_src="$candidate"; break; }
+    done
+    if [ ! -d "$CRT_PKG_DIR" ]; then
+        status="NOT-DEPLOYED"; rc=1
+    elif [ -z "$crt_src" ]; then
+        status="SOURCE-MISSING"; rc=1
+    else
+        crt_files="$(sed -n 's/^FILES=(\(.*\))[[:space:]]*$/\1/p' "${crt_src}/install.sh")"
+        if [ -z "$crt_files" ]; then
+            # Not "everything matches": the list could not be read, so nothing
+            # was compared.  Silence here would read as a green result.
+            status="SOURCE-MISSING"; rc=1
+            crt_bad="FILES=(...) not readable in ${crt_src}/install.sh"
+        else
+            status="OK"
+            # Deliberate word splitting -- crt_files is one line of names.
+            for f in $crt_files; do
+                if [ ! -f "${CRT_PKG_DIR}/${f}" ] || [ ! -f "${crt_src}/${f}" ]; then
+                    crt_bad="${crt_bad}${crt_bad:+ }${f}"
+                elif [ "$(sha256sum "${CRT_PKG_DIR}/${f}" | cut -d" " -f1)" \
+                     != "$(sha256sum "${crt_src}/${f}" | cut -d" " -f1)" ]; then
+                    crt_bad="${crt_bad}${crt_bad:+ }${f}"
+                fi
+            done
+            if [ -n "$crt_bad" ]; then status="DEVIATION"; rc=1; fi
+        fi
+    fi
+    printf "  %-16s %-46s ◀─ %s\n" "$status" "$CRT_PKG_DIR" \
+           "${crt_src:-cockpit-robot-tools (not found)}"
+    if [ -n "$crt_bad" ]; then
+        printf "  %-16s %s\n" "" "└─ ${crt_bad}"
+    fi
 
     if [ "$rc" -eq 0 ]; then
         echo "  ─▶ everything matches."
@@ -1391,6 +1462,63 @@ if [ "$DO_CKPT" -eq 1 ]; then
     fi
 else
     echo ">>> Cockpit plugin: skipped."
+fi
+
+# --- Cockpit page "Roboter-Werkzeuge" (optional) ---------------------------
+# cockpit-robot-tools: starts and stops the offboard-lite container, shows its
+# state as a coloured ball and puts the VNC address next to it.  Unlike the fork
+# above this shadows nothing -- there is no apt package called 'robot-tools',
+# so it is simply an additional menu entry.
+#
+# Cheaper than the block above: static files, no npm, no make, no dist/.  The
+# page is therefore installed straight out of the checkout, with no toolchain
+# question and no fallback to "build it elsewhere and bring the result over".
+#
+# The copy step is the package's OWN install.sh, not a second cp here.  Which
+# files belong in the package is decided by its FILES=(...); a copy of that
+# list in this installer would be exactly the drift this block exists to end
+# (2026-08-20: the deployed index.js was three commits old and nothing said so,
+# ROBOTER-TODO archive R28).  --verify reads the same list.
+DO_CRT=1
+if [ -d "$CRT_PKG_DIR" ]; then
+    confirm ">>> The Cockpit page \"Roboter-Werkzeuge\" is installed. Update?" || DO_CRT=0
+else
+    confirm ">>> Install the Cockpit page \"Roboter-Werkzeuge\" (offboard-lite container + VNC)?" || DO_CRT=0
+fi
+if [ "$DO_CRT" -eq 1 ]; then
+    if ! dpkg -s cockpit-bridge >/dev/null 2>&1; then
+        echo "    WARN: cockpit-bridge is not installed - the page only becomes visible after Cockpit is installed."
+    fi
+    echo ">>> cockpit-robot-tools to ${CRT_WS} (user ${REAL_USER})"
+    CRT_OK=1
+    if [ -d "${CRT_WS}/.git" ]; then
+        sudo -u "$REAL_USER" git -C "$CRT_WS" pull --ff-only \
+            || echo "    WARN: git pull failed, using the existing state"
+    elif [ -d "$CRT_WS" ]; then
+        # A directory without .git is how the page reached the robot before this
+        # block existed: rsync'd from the workstation.  Installable, but nothing
+        # keeps it current -- say so instead of silently deploying whatever age
+        # it happens to have.
+        echo "    WARN: ${CRT_WS} is not a git checkout (rsync'd?) - installing the state that lies there."
+    else
+        sudo -u "$REAL_USER" git clone "$CRT_REPO_URL" "$CRT_WS" || CRT_OK=0
+    fi
+    if [ "$CRT_OK" -eq 1 ] && [ ! -f "${CRT_WS}/install.sh" ]; then
+        echo "    WARN: ${CRT_WS}/install.sh is missing - page not installed."
+        CRT_OK=0
+    fi
+    if [ "$CRT_OK" -eq 1 ]; then
+        # Runs as root (this installer re-execed itself), so install.sh does its
+        # chown root:root branch -- under /usr/local the package must not belong
+        # to the caller.
+        if PREFIX="$CRT_PREFIX" bash "${CRT_WS}/install.sh"; then
+            echo "    Reload Cockpit: a browser reload on http://<robot>:9090 is enough."
+        else
+            echo "    WARN: ${CRT_WS}/install.sh failed - page not installed."
+        fi
+    fi
+else
+    echo ">>> Cockpit page \"Roboter-Werkzeuge\": skipped."
 fi
 
 # --- enable ----------------------------------------------------------------
