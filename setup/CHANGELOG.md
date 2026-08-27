@@ -254,6 +254,12 @@ gegen die Root-Konfiguration über alle vier Python-Dateien, `yaml.safe_load`
 
 ## [Unreleased]
 
+- **`rg6_finger_kinematics.json` regenerated against the clamped gripper model.** The table now starts at
+  `q = 0.038` rad / 151,13 mm instead of `q = 0.0` / 153,17 mm: measured on 2026-08-27 at the robot, the mechanical
+  open stop is 151,10 mm wide and the four-bar chain never reaches its geometric zero. Generated file, not
+  maintained -- the change belongs to `onrobot-rg6` (`rg6_v2.yaml`, `tools/derive_finger_kinematics.py`); the copy
+  here is what `rg6_grip_bridge` reads on the robot.
+
 ## [0.2.0] - 2026-08-19
 
 ### README-Greiferteil auf den Ist-Zustand
