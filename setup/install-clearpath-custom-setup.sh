@@ -284,15 +284,24 @@ repo_file() {
 
 # A required file that repo_file cannot produce is fatal, and it has to say so
 # HERE rather than leave a unit without an ExecStart behind.  Prints the path.
+#
+# CALL IT AS AN ASSIGNMENT -- 'SRC="$(require_repo_file x)"' -- never as an
+# argument to something else.  The 'exit 1' below leaves the command
+# substitution's subshell, not the installer; what stops the run is 'set -e'
+# picking up the failed assignment.  As an argument ('cmd "$(require_repo_file
+# x)"') only the outer command's status counts, the empty string is passed on
+# and the run continues past the error message.  Measured on 2026-08-27, both
+# forms side by side.
 require_repo_file() {
     local rel="$1" path
     if ! path="$(repo_file "$rel")"; then
-        echo "ERROR: ${rel} is required and was found nowhere:" >&2
+        echo "ERROR: ${rel} is required, and none of the three sources had it:" >&2
         echo "       - not next to this script ($(dirname "$0"))" >&2
         echo "       - not in the checkout (${SETUP_WS})" >&2
-        echo "       - and not reachable at raw.githubusercontent.com" >&2
-        echo "       Clone the repo and run the installer out of it, or restore" >&2
-        echo "       network access to github.com." >&2
+        echo "       - and github.com/CLAIRLab-HAW/husky-custom-setup (main) did" >&2
+        echo "         not serve it -- unreachable, or the file is not on main yet." >&2
+        echo "       Clone the repo and run the installer out of it, or push the" >&2
+        echo "       file to main first." >&2
         exit 1
     fi
     printf '%s\n' "$path"

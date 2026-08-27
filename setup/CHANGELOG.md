@@ -5,6 +5,17 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (require_repo_file: the call form is load-bearing)
+
+- **`require_repo_file` must be called as an assignment.** Its `exit 1` leaves
+  the command substitution's subshell, not the installer; what stops the run is
+  `set -e` picking up the failed assignment. As an argument to another command
+  only that command's status counts, the empty string travels on and the run
+  continues past the error. Both forms measured side by side on 2026-08-27; the
+  rule is written at the function, because the wrong form looks identical.
+- The error message no longer claims GitHub was unreachable when it answered
+  404 -- it names both readings, including "the file is not on main yet".
+
 ## 2026-08-27 (the watchdog is a file, not a heredoc)
 
 - **`scripts/manipulators_watchdog.sh` is a real file**, deployed through
