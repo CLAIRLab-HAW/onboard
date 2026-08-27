@@ -28,8 +28,8 @@ def _node(params: dict, name: str) -> dict:
 
 def test_every_node_lives_in_the_robot_namespace(params):
     assert list(params) == [wiring.NAMESPACE], (
-        "Nav2-Parameter ausserhalb des Namespace greifen nicht -- die Knoten "
-        "starten mit ihren Defaults und niemand sagt es."
+        "Nav2 parameters outside the namespace do not take effect -- the "
+        "nodes start with their defaults and nobody says so."
     )
 
 
@@ -56,9 +56,9 @@ def test_every_odom_consumer_reads_the_ekf(params, node):
     acceleration step, over and over from zero.
     """
     assert _node(params, node)["odom_topic"] == EXPECTED_ODOM_TOPIC, (
-        f"{node} liest ein anderes Odometrie-Topic. Der Nav2-Default 'odom' "
-        f"loest im Namespace zu /a200_0553/odom auf -- dort publiziert "
-        f"niemand, und es gibt dafuer keine Fehlermeldung."
+        f"{node} reads a different odometry topic. The Nav2 default 'odom' "
+        f"resolves to /a200_0553/odom inside the namespace -- nobody "
+        f"publishes there, and there is no error message for it."
     )
 
 
@@ -71,9 +71,9 @@ def test_every_cmd_vel_publisher_is_stamped(params, node):
     no obstacles, so in the mock a recovery never triggers, and the dead path was never travelled.
     """
     assert _node(params, node)["enable_stamped_cmd_vel"] is True, (
-        f"{node} publiziert geometry_msgs/Twist, twist_mux abonniert aber nur "
-        "TwistStamped -- die Subscription bindet nicht, und der Roboter steht "
-        "still, ohne Fehlermeldung."
+        f"{node} publishes geometry_msgs/Twist, but twist_mux subscribes only "
+        "to TwistStamped -- the subscription does not bind, and the robot "
+        "stands still, without an error message."
     )
 
 

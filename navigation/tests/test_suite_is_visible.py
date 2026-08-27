@@ -23,29 +23,28 @@ def _config() -> dict:
 def test_the_root_run_descends_into_robot():
     norecurse = _config()["tool"]["pytest"]["ini_options"]["norecursedirs"]
     assert "robot" not in norecurse, (
-        "norecursedirs schliesst 'robot' aus -- robot/husky-navigation/tests "
-        "wird im Root-Lauf dann NICHT gesammelt, und zwar lautlos."
+        "norecursedirs excludes 'robot' -- robot/husky-navigation/tests is "
+        "then NOT collected in the root run, and silently at that."
     )
 
 
 def test_the_nav_e2e_marker_is_registered():
     markers = _config()["tool"]["pytest"]["ini_options"]["markers"]
     assert any(m.startswith("nav_e2e:") for m in markers), (
-        "Marker 'nav_e2e' ist nicht registriert -- pytest warnt dann bei " "jedem Lauf ueber einen unbekannten Marker."
+        "Marker 'nav_e2e' is not registered -- pytest then warns about an " "unknown marker on every run."
     )
 
 
 def test_the_default_run_deselects_nav_e2e():
     addopts = _config()["tool"]["pytest"]["ini_options"]["addopts"]
     assert "not nav_e2e" in addopts, (
-        "Der Root-Lauf waehlt nav_e2e nicht ab -- er wuerde einen laufenden "
-        "Container mit fahrender Basis voraussetzen."
+        "The root run does not deselect nav_e2e -- it would presuppose a " "running container with a driving base."
     )
 
 
 def test_this_package_is_a_workspace_member():
     members = _config()["tool"]["uv"]["workspace"]["members"]
     assert "robot/husky-navigation" in members, (
-        "Ohne Member-Eintrag loest `uv sync` das Paket nicht auf und "
-        "`import husky_navigation` scheitert in jedem Test."
+        "Without a member entry `uv sync` does not resolve the package and "
+        "`import husky_navigation` fails in every test."
     )

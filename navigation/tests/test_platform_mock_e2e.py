@@ -32,19 +32,16 @@ def container():
         text=True,
     )
     if probe.returncode != 0:
-        pytest.skip(f"Container {CONTAINER} laeuft nicht.")
+        pytest.skip(f"Container {CONTAINER} is not running.")
     if "TARGET=mock" not in probe.stdout:
-        pytest.skip(
-            "Container steht NICHT auf TARGET=mock -- dieser Test "
-            "kommandiert cmd_vel und wuerde den echten Husky fahren."
-        )
+        pytest.skip("Container is NOT on TARGET=mock -- this test commands " "cmd_vel and would drive the real Husky.")
     return CONTAINER
 
 
 def test_the_platform_controller_is_active(container):
     out = _exec("source ros-env; ros2 control list_controllers " "-c /a200_0553/controller_manager 2>/dev/null")
     assert "platform_velocity_controller" in out, (
-        "Der Radcontroller ist nicht geladen -- `mock platform:=true` " "gestartet?"
+        "The wheel controller is not loaded -- was `mock platform:=true` " "started?"
     )
     assert "active" in out
 
@@ -55,10 +52,10 @@ def test_only_the_platform_hardware_is_claimed_by_the_platform_manager(container
     out = _exec("source ros-env; ros2 control list_hardware_components " "-c /a200_0553/controller_manager 2>/dev/null")
     assert "a200_hardware" in out
     assert "arm_0" not in out, (
-        "Der Plattform-Manager beansprucht auch die Arm-Hardware -- dann "
-        "streiten sich zwei controller_manager um dieselben Gelenke. "
-        "Ausweichweg: eigenes, mit use_manipulation_controllers:=false "
-        "prozessiertes URDF als Parameter (Spec Paragraph 3.4)."
+        "The platform manager claims the arm hardware as well -- then two "
+        "controller_managers quarrel over the same joints. Way out: an own "
+        "URDF processed with use_manipulation_controllers:=false, passed as "
+        "a parameter (spec paragraph 3.4)."
     )
 
 
@@ -66,12 +63,12 @@ def test_driving_forward_moves_the_odometry(container, exclusive_base):
     """The core: cmd_vel in, distance travelled out."""
     script = r"""
 source ros-env
-# head -1: `--once` haengt eine "---"-Zeile an, an der float() scheitert.
+# head -1: `--once` appends a "---" line on which float() fails.
 #
-# Mit Wiederholung: unter Last (Mock + Nav2 = gut drei Dutzend Knoten) kommt
-# das echo gelegentlich leer zurueck, und float("") beendet die Messung mit
-# einem Fehler, der nach "keine Odometrie" aussieht und keiner ist.  Fuenf
-# Versuche, dann ist es wirklich still.
+# With retries: under load (mock + Nav2 = a good three dozen nodes) the echo
+# occasionally comes back empty, and float("") ends the measurement with an
+# error that looks like "no odometry" and is none.  Five attempts, then it is
+# really silent.
 read_x() {
   for _ in 1 2 3 4 5; do
     V=$(timeout 8 ros2 topic echo /a200_0553/platform/odom --once \
@@ -81,22 +78,22 @@ read_x() {
   echo ""
 }
 BEFORE=$(read_x)
-# Richtung IMMER zur Kartenmitte hin.  Faehrt der Test stets vorwaerts,
-# wandert der Roboter ueber viele Laeufe aus der 10-m-Karte heraus -- am
-# 2026-08-22 gemessen: bei x=4,63 lehnte Nav2 das naechste Ziel ab und der
-# Nachbartest mass 0,000 m.  So bleibt er beliebig oft wiederholbar.
+# Direction ALWAYS towards the centre of the map.  If the test always drives
+# forwards, the robot wanders out of the 10 m map over many runs -- measured
+# on 2026-08-22: at x=4.63 Nav2 refused the next goal and the neighbouring
+# test measured 0.000 m.  This way it stays repeatable as often as you like.
 VX=$(python3 -c "import sys; print(-0.2 if float(sys.argv[1]) > 0 else 0.2)" "$BEFORE")
-# Fahrfenster 8 s, Messschwelle 0,3 m -- bewusst weit auseinander.
+# Drive window 8 s, measurement threshold 0.3 m -- deliberately far apart.
 #
-# `ros2 topic pub` braucht unter Last ein bis zwei Sekunden, bis das erste
-# Kommando auf dem Draht ist (Knoten anlegen, Discovery).  Mit `timeout 3`
-# blieben davon knapp 1 s Fahrt uebrig, und der Test mass 0,155-0,18 m statt
-# 0,6 m -- er mass also die Anlaufzeit des CLI, nicht die Basis.  Am
-# 2026-08-22 dreimal reproduziert.
+# Under load `ros2 topic pub` needs one to two seconds until the first
+# command is on the wire (create node, discovery).  With `timeout 3` barely
+# 1 s of driving was left of that, and the test measured 0.155-0.18 m instead
+# of 0.6 m -- so it measured the start-up time of the CLI, not the base.
+# Reproduced three times on 2026-08-22.
 #
-# 8 s ergeben selbst mit 2 s Anlauf rund 1,2 m.  Die Schwelle bleibt bei
-# 0,3 m: weit ueber der Encoder-Drift (~0,01 rad) und weit unter dem
-# Erwartungswert, also unempfindlich gegen Last und trotzdem aussagekraeftig.
+# 8 s yield around 1.2 m even with 2 s of start-up.  The threshold stays at
+# 0.3 m: far above the encoder drift (~0.01 rad) and far below the expected
+# value, so insensitive to load and still meaningful.
 timeout 8 ros2 topic pub -r 20 /a200_0553/cmd_vel geometry_msgs/msg/TwistStamped \
   "{header: {frame_id: base_link}, twist: {linear: {x: $VX}}}" > /dev/null 2>&1
 sleep 1
@@ -106,11 +103,11 @@ python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after
     result = json.loads(_exec(script).strip().splitlines()[-1])
     travelled = abs(result["after"] - result["before"])
     assert travelled > 0.3, (
-        f"0,2 m/s ueber 8 s sollten rund 1,2 m ergeben (Schwelle 0,3 m), "
-        f"gemessen wurden "
-        f"{travelled:.3f} m (vorher {result['before']:.3f}, nachher "
-        f"{result['after']:.3f}). Bleibt der Wert bei 0, fehlt "
-        f"calculate_dynamics an der Mock-Hardware."
+        f"0.2 m/s over 8 s should yield around 1.2 m (threshold 0.3 m), "
+        f"measured were "
+        f"{travelled:.3f} m (before {result['before']:.3f}, after "
+        f"{result['after']:.3f}). If the value stays at 0, "
+        f"calculate_dynamics is missing on the mock hardware."
     )
 
 
@@ -128,7 +125,7 @@ def test_the_odom_to_base_link_transform_exists(container):
         "2>&1 | head -20"
     )
     assert "Translation" in out, (
-        "Keine TF-Kante odom -> base_link. Sie kommt vom ekf_node, NICHT vom "
-        "Radcontroller (enable_odom_tf: False in control.yaml) -- laeuft der "
-        f"EKF? Ausgabe:\n{out}"
+        "No TF edge odom -> base_link. It comes from the ekf_node, NOT from "
+        "the wheel controller (enable_odom_tf: False in control.yaml) -- is "
+        f"the EKF running? Output:\n{out}"
     )

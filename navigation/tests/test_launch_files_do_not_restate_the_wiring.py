@@ -22,7 +22,7 @@ WIRED_LITERALS = ("/a200_0553/sensors/lidar3d_0/points", "/a200_0553/sensors/lid
 def test_the_launch_file_imports_the_wiring(launch_file):
     text = launch_file.read_text(encoding="utf-8")
     assert "husky_navigation" in text, (
-        f"{launch_file.name} importiert husky_navigation nicht -- die " f"Verdrahtung steht dort dann ein zweites Mal."
+        f"{launch_file.name} does not import husky_navigation -- the wiring " f"then stands there a second time."
     )
 
 
@@ -31,7 +31,7 @@ def test_the_launch_file_restates_no_wired_literal(launch_file):
     text = launch_file.read_text(encoding="utf-8")
     restated = [lit for lit in WIRED_LITERALS if lit in text]
     assert not restated, (
-        f"{launch_file.name} formuliert {restated} selbst. Diese Werte "
-        f"gehoeren nach husky_navigation.wiring -- die Launch-Datei ruft sie "
-        f"ab, statt sie zu spiegeln."
+        f"{launch_file.name} states {restated} itself. These values belong in "
+        f"husky_navigation.wiring -- the launch file fetches them instead of "
+        f"mirroring them."
     )

@@ -3,6 +3,22 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-08-27 (the package speaks English)
+
+- **Assertion and skip messages are English.** They are what somebody reads who does not know the code, and they
+  stand in tickets next to English library messages. The module docstrings were already English, so a failing test
+  used to answer half in one language and half in the other.
+- **The comments inside the embedded shell scripts are English** -- the retry loops in the `nav_e2e` files and the
+  measured rationales beside them (drive window, measurement threshold, always steer towards the centre of the map).
+  German decimal commas became points inside those sentences.
+- **The two `ValueError` messages of `rslidar_config.render` are English.** The `match=` expectations in
+  `test_rslidar_config.py` key on `lidar` and `common`, so they were unaffected.
+- **`make_map` writes an English header** into the generated `.pgm` and `.yaml`; `maps/leerer_raum.*` is regenerated
+  so the checked-in files match their generator. Only the header comment differs, the pixel data is unchanged.
+- **No transliterated umlauts are left** (`laeuft`, `wuerde`, `gehoeren` and four more). The file name
+  `leerer_raum.*` is deliberately kept: it is quoted in `docs/superpowers/plans/2026-08-22-nav2-rs16.md` and in
+  `ROBOTER-TODO.md`, and renaming it would separate those records from what they cite.
+
 ## 2026-08-26 (the black section stops repeating the workspace rule)
 
 - **`[tool.black]` carries no copy of the workspace rule any more.** The section itself is unchanged --

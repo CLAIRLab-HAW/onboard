@@ -27,12 +27,12 @@ def _exec(script: str, timeout: int = 120) -> str:
 @pytest.fixture(scope="module")
 def replay():
     if subprocess.run(["docker", "inspect", CONTAINER], capture_output=True).returncode != 0:
-        pytest.skip(f"Container {CONTAINER} laeuft nicht.")
+        pytest.skip(f"Container {CONTAINER} is not running.")
     if not PCAP_HOST.is_file():
         pytest.skip(
-            f"Keine RS16-Aufnahme unter {PCAP_HOST} -- R-Punkt c in "
-            f"ROBOTER-TODO.md (tcpdump auf UDP 6699 + 7788 am Roboter). "
-            f"Ohne sie hat der Mock keine Lidardaten."
+            f"No RS16 recording under {PCAP_HOST} -- R-point c in "
+            f"ROBOTER-TODO.md (tcpdump on UDP 6699 + 7788 at the robot). "
+            f"Without it the mock has no lidar data."
         )
     _exec("pkill -f rslidar_sdk_node || true; sleep 2")
     _exec(
@@ -49,12 +49,12 @@ def test_the_driver_reads_from_the_recording(replay):
     The values 1/2/3 are in RoboSense's documentation; here stands what the driver actually does.
     """
     log = _exec("cat /tmp/lidar.log")
-    assert "Receive Packets From : Pcap" in log, f"Der Treiber liest nicht aus der Aufnahme. Log:\n{log[-2000:]}"
+    assert "Receive Packets From : Pcap" in log, f"The driver does not read from the recording. Log:\n{log[-2000:]}"
 
 
 def test_the_point_cloud_arrives(replay):
     out = _exec("source ros-env; timeout 15 ros2 topic hz " "/a200_0553/sensors/lidar3d_0/points 2>&1 | head -5")
-    assert "average rate" in out, f"Keine Punktwolke. Ausgabe:\n{out}"
+    assert "average rate" in out, f"No point cloud. Output:\n{out}"
 
 
 def test_the_cloud_carries_the_canonical_frame(replay):
@@ -81,11 +81,11 @@ print(len(finite), len(vals))
 "
 """
     finite, total = (int(x) for x in _exec(script).strip().splitlines()[-1].split())
-    assert total > 0, "Kein LaserScan empfangen."
+    assert total > 0, "No LaserScan received."
     assert finite > total * 0.05, (
-        f"Nur {finite} von {total} Strahlen sind endlich. Entweder trifft das "
-        f"Hoehenband (min_height/max_height in wiring.py) die Fahrebene nicht, "
-        f"oder die Aufnahme zeigt freies Feld."
+        f"Only {finite} of {total} rays are finite. Either the height band "
+        f"(min_height/max_height in wiring.py) misses the driving plane, or "
+        f"the recording shows open field."
     )
 
 
@@ -98,4 +98,4 @@ def test_amcl_publishes_the_map_to_odom_transform(replay):
         "--ros-args -r /tf:=/a200_0553/tf "
         "-r /tf_static:=/a200_0553/tf_static 2>&1 | head -20"
     )
-    assert "Translation" in out, f"AMCL publiziert map ─▶ odom nicht. Log:\n" f"{_exec('tail -40 /tmp/nav-amcl.log')}"
+    assert "Translation" in out, f"AMCL does not publish map ─▶ odom. Log:\n" f"{_exec('tail -40 /tmp/nav-amcl.log')}"

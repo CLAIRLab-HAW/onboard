@@ -36,12 +36,12 @@ def render(template: dict, *, pcap_path: str | None = None) -> dict:
     """
     if "common" not in template:
         raise ValueError(
-            "Vorlage ohne 'common'-Abschnitt -- rslidar_sdk findet dort "
-            "msg_source und wuerde ohne jede Meldung gar nichts empfangen."
+            "Template without a 'common' section -- rslidar_sdk finds msg_source "
+            "there and would receive nothing at all without any message."
         )
     if not template.get("lidar"):
         raise ValueError(
-            "Vorlage ohne 'lidar'-Abschnitt -- ohne ihn kennt der Treiber " "weder Geraetetyp noch Zielframe."
+            "Template without a 'lidar' section -- without it the driver knows " "neither device type nor target frame."
         )
 
     driver = template["lidar"][0].setdefault("driver", {})

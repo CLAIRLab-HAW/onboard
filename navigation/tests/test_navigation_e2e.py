@@ -32,9 +32,9 @@ def container():
         text=True,
     )
     if probe.returncode != 0:
-        pytest.skip(f"Container {CONTAINER} laeuft nicht.")
+        pytest.skip(f"Container {CONTAINER} is not running.")
     if "TARGET=mock" not in probe.stdout:
-        pytest.skip("Container steht NICHT auf TARGET=mock -- dieser Test " "faehrt den Roboter.")
+        pytest.skip("Container is NOT on TARGET=mock -- this test drives " "the robot.")
     return CONTAINER
 
 
@@ -55,8 +55,8 @@ def test_the_navigate_to_pose_action_is_offered(container):
         timeout=260,
     )
     assert "/a200_0553/navigate_to_pose" in out, (
-        "bt_navigator bietet die Action nicht an -- ist der "
-        f"lifecycle_manager durchgekommen? /tmp/nav.log lesen. Gesehen:\n{out}"
+        "bt_navigator does not offer the action -- did the "
+        f"lifecycle_manager come through? Read /tmp/nav.log. Seen:\n{out}"
     )
 
 
@@ -64,7 +64,7 @@ def test_the_map_is_published(container):
     out = _exec(
         "source ros-env; timeout 10 ros2 topic echo /a200_0553/map " "--once --field info.resolution 2>/dev/null"
     )
-    assert out.strip(), "map_server publiziert keine Karte."
+    assert out.strip(), "map_server publishes no map."
 
 
 def test_the_map_to_base_link_transform_exists(container):
@@ -78,9 +78,9 @@ def test_the_map_to_base_link_transform_exists(container):
         "2>&1 | head -20"
     )
     assert "Translation" in out, (
-        "Keine TF-Kette map -> base_link. In diesem Stand liefert map -> odom "
-        f"der static_transform_publisher und odom -> base_link der EKF. "
-        f"Ausgabe:\n{out}"
+        "No TF chain map -> base_link. In this state the "
+        f"static_transform_publisher supplies map -> odom and the EKF "
+        f"odom -> base_link. Output:\n{out}"
     )
 
 
@@ -92,8 +92,8 @@ def test_navigates_without_localization(container, exclusive_base):
     """
     script = r"""
 source ros-env
-# Mit Wiederholung -- s. test_platform_mock_e2e.py: unter Last kommt das
-# echo gelegentlich leer zurueck.
+# With retries -- see test_platform_mock_e2e.py: under load the echo
+# occasionally comes back empty.
 read_x() {
   for _ in 1 2 3 4 5; do
     V=$(timeout 8 ros2 topic echo /a200_0553/platform/odom --once \
@@ -103,10 +103,10 @@ read_x() {
   echo ""
 }
 BEFORE=$(read_x)
-# Die Karte ist 10 x 10 m mit Ursprung in der Mitte -- x reicht von -5 bis
-# +5.  Ein Ziel "immer 1 m weiter vorne" fuehrt den Roboter nach genug
-# Testlaeufen aus der Karte heraus, und Nav2 lehnt es dann ab (am 2026-08-22
-# gemessen: bei x=4,63 wurden 0,000 m gefahren).  Deshalb immer ZUR MITTE hin.
+# The map is 10 x 10 m with its origin in the middle -- x runs from -5 to
+# +5.  A goal "always 1 m further ahead" carries the robot out of the map
+# after enough test runs, and Nav2 then refuses it (measured on 2026-08-22:
+# at x=4.63 all of 0.000 m were driven).  Hence always TOWARDS THE CENTRE.
 GOAL=$(python3 -c "import sys; x=float(sys.argv[1]); print(x - 1.0 if x > 0 else x + 1.0)" "$BEFORE")
 timeout 120 ros2 action send_goal /a200_0553/navigate_to_pose \
   nav2_msgs/action/NavigateToPose \
@@ -118,10 +118,10 @@ python3 -c "import json;print(json.dumps({'before': float('''$BEFORE'''), 'after
     result = json.loads(_exec(script, timeout=200).strip().splitlines()[-1])
     travelled = abs(result["after"] - result["before"])
     assert travelled > 0.7, (
-        f"Ziel war 1,0 m entfernt (zur Kartenmitte hin), gefahren wurden "
-        f"{travelled:.3f} m "
-        f"(vorher {result['before']:.3f}, nachher {result['after']:.3f}). "
-        f"/tmp/nav_goal.log im Container lesen."
+        f"The goal was 1.0 m away (towards the centre of the map), "
+        f"{travelled:.3f} m were driven "
+        f"(before {result['before']:.3f}, after {result['after']:.3f}). "
+        f"Read /tmp/nav_goal.log in the container."
     )
 
 
@@ -142,9 +142,9 @@ read_odom() {   # -> "x y yaw"
   for _ in 1 2 3 4 5; do
     timeout 8 ros2 topic echo /a200_0553/platform/odom --once \
       --field pose.pose 2>/dev/null | grep -E '^  [xyzw]: ' > /tmp/o.txt
-    # pose.pose druckt position(x,y,z) dann orientation(x,y,z,w) -> 7 Werte-
-    # zeilen, jeweils mit ZWEI fuehrenden Leerzeichen (am 2026-08-22 mit
-    # `cat -A` nachgesehen; mit vier gerechnet und der grep lief leer).
+    # pose.pose prints position(x,y,z) then orientation(x,y,z,w) -> 7 value
+    # lines, each with TWO leading spaces (looked up with `cat -A` on
+    # 2026-08-22; reckoned with four and the grep ran empty).
     if [ "$(wc -l < /tmp/o.txt)" = "7" ]; then
       python3 -c "
 import math
@@ -160,9 +160,9 @@ print('%.4f %.4f %.4f' % (px, py,
 }
 read -r X0 Y0 YAW0 <<< "$(read_odom)"
 
-# Zielrichtung IMMER zur Kartenmitte -- sonst wandert der Roboter ueber viele
-# Laeufe aus der 10-m-Karte heraus und Nav2 lehnt das Ziel ab.  Steht er
-# schon fast in der Mitte, ist die Richtung beliebig; dann +x.
+# Goal direction ALWAYS towards the centre of the map -- otherwise the robot
+# wanders out of the 10 m map over many runs and Nav2 refuses the goal.  If
+# it already stands almost in the centre, the direction is arbitrary; then +x.
 read -r GX GY THETA <<< "$(python3 -c "
 import math,sys
 x,y = float('$X0'), float('$Y0')
@@ -170,9 +170,9 @@ r = math.hypot(x,y)
 th = math.atan2(-y,-x) if r > 0.3 else 0.0
 print('%.4f %.4f %.4f' % (x+1.2*math.cos(th), y+1.2*math.sin(th), th))")"
 
-# Erst WEGDREHEN: Ziel-Blickrichtung ist theta+pi, also genau vom Ziel fort.
-# spin dreht RELATIV, deshalb die Differenz zum aktuellen Yaw ausrechnen und
-# auf [-pi,pi] normieren.
+# First TURN AWAY: the target heading is theta+pi, that is exactly away from
+# the goal.  spin turns RELATIVELY, so compute the difference to the current
+# yaw and normalise it onto [-pi,pi].
 DELTA=$(python3 -c "
 import math
 d = ($THETA + math.pi) - $YAW0
@@ -204,20 +204,20 @@ print(json.dumps({
     result = json.loads(_exec(script, timeout=320).strip().splitlines()[-1])
 
     assert result["status"] == "SUCCEEDED", (
-        f"Das Ziel hinter dem Roboter endete mit {result['status']!r} nach "
-        f"{result['seconds']} s; gefahren wurden {result['travelled']:.3f} m, "
-        f"es fehlen {result['remaining']:.3f} m. Ohne den "
-        f"RotationShimController bleibt der Husky bei grossen "
-        f"Richtungsaenderungen stehen -- pruefe, ob FollowPath.plugin noch "
-        f"RotationShimController ist."
+        f"The goal behind the robot ended with {result['status']!r} after "
+        f"{result['seconds']} s; {result['travelled']:.3f} m were driven, "
+        f"{result['remaining']:.3f} m are missing. Without the "
+        f"RotationShimController the Husky stands still on large changes of "
+        f"direction -- check whether FollowPath.plugin is still "
+        f"RotationShimController."
     )
     assert result["travelled"] > 0.8, (
-        f"Nav2 meldet SUCCEEDED, aber die Odometrie sieht nur "
-        f"{result['travelled']:.3f} m -- das Ziel lag 1,2 m entfernt. Ein "
-        f"Erfolg ohne Bewegung ist kein Erfolg."
+        f"Nav2 reports SUCCEEDED, but the odometry sees only "
+        f"{result['travelled']:.3f} m -- the goal was 1.2 m away. A success "
+        f"without motion is no success."
     )
     assert result["remaining"] < 0.35, (
-        f"Angekommen ist er nicht: {result['remaining']:.3f} m zum Ziel " f"(xy_goal_tolerance ist 0,25)."
+        f"It has not arrived: {result['remaining']:.3f} m to the goal " f"(xy_goal_tolerance is 0.25)."
     )
 
 
@@ -234,22 +234,22 @@ def test_the_controller_actually_receives_odometry(container):
         "/a200_0553/controller_server odom_topic 2>/dev/null "
         "| tail -1 | sed 's/.*: //'"
     ).strip()
-    assert topic, "odom_topic ist am laufenden controller_server nicht lesbar."
+    assert topic, "odom_topic is not readable on the running controller_server."
 
     full = topic if topic.startswith("/") else f"/a200_0553/{topic}"
     info = _exec(f"source ros-env; timeout 20 ros2 topic info -v {full} " "2>/dev/null | grep 'Publisher count'")
     assert "Publisher count: 0" not in info, (
-        f"Auf {full} publiziert NIEMAND -- der controller_server bekommt "
-        f"seine Ist-Geschwindigkeit nie, `speed` bleibt 0, und der Regler "
-        f"regelt blind. Sichtbar wird das als kriechende Drehung (0,05 rad/s "
-        f"statt 0,8), nicht als Fehlermeldung. Gesehen: {info.strip()!r}"
+        f"NOBODY publishes on {full} -- the controller_server never gets its "
+        f"actual velocity, `speed` stays 0, and the controller controls "
+        f"blind. That shows up as a creeping rotation (0.05 rad/s instead of "
+        f"0.8), not as an error message. Seen: {info.strip()!r}"
     )
 
     sample = _exec(
         f"source ros-env; timeout 8 ros2 topic echo {full} --once "
         "--field twist.twist.angular.z 2>/dev/null | head -1"
     )
-    assert sample.strip(), f"{full} hat einen Publisher, liefert aber keine Daten."
+    assert sample.strip(), f"{full} has a publisher but delivers no data."
 
 
 def test_the_ground_frame_matches_the_wheel_geometry(container):
@@ -277,7 +277,7 @@ def test_the_ground_frame_matches_the_wheel_geometry(container):
             "-r /tf:=/a200_0553/tf -r /tf_static:=/a200_0553/tf_static "
             "2>&1 | grep -m1 Translation"
         )
-        assert "Translation" in out, f"Keine TF {parent} -> {child}: {out!r}"
+        assert "Translation" in out, f"No TF {parent} -> {child}: {out!r}"
         return float(out.split("[")[1].split("]")[0].split(",")[2])
 
     footprint_z = _z("base_link", "base_footprint")
@@ -289,9 +289,9 @@ def test_the_ground_frame_matches_the_wheel_geometry(container):
 
     expected = axle_z - radius
     assert abs(footprint_z - expected) < 0.005, (
-        f"base_footprint liegt bei {footprint_z:.5f}, die Raeder beruehren "
-        f"den Boden aber bei {expected:.5f} (Achse {axle_z:.5f} minus "
-        f"Radradius {radius} aus control.yaml). URDF und Radcontroller "
-        f"rechnen mit verschiedenen Raedern -- dann ist auch die Odometrie "
-        f"um denselben Faktor falsch, und das meldet niemand."
+        f"base_footprint sits at {footprint_z:.5f}, but the wheels touch the "
+        f"ground at {expected:.5f} (axle {axle_z:.5f} minus wheel radius "
+        f"{radius} from control.yaml). URDF and wheel controller reckon with "
+        f"different wheels -- then the odometry is wrong by the same factor "
+        f"too, and nobody reports that."
     )

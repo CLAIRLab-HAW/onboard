@@ -56,8 +56,8 @@ def test_the_scan_band_brackets_the_driving_plane():
 def test_the_scan_range_starts_beyond_the_robot_itself():
     params = wiring.pointcloud_to_laserscan_params()
     assert params["range_min"] >= 0.2, (
-        "Unter 20 cm sieht der RS16 sich selbst -- diese Punkte wuerden zu "
-        "einem Hindernisring rund um den Roboter in der Costmap."
+        "Below 20 cm the RS16 sees itself -- those points would become a "
+        "ring of obstacles around the robot in the costmap."
     )
 
 

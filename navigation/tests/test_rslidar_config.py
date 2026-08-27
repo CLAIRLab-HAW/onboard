@@ -35,8 +35,8 @@ def test_pcap_selects_the_file(template):
 def test_online_carries_no_pcap_path(template):
     out = rc.render(template)
     assert "pcap_path" not in out["lidar"][0]["driver"], (
-        "Ein pcap_path in der Online-Konfiguration ist eine Falle: er sieht "
-        "harmlos aus und entscheidet nichts, bis jemand msg_source aendert."
+        "A pcap_path in the online configuration is a trap: it looks harmless "
+        "and decides nothing, until somebody changes msg_source."
     )
 
 
