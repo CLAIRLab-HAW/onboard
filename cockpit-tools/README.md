@@ -190,7 +190,8 @@ node --test test/*.test.mjs
 
 ## Related
 
-- [husky-offboard-lite](../../deploy/husky-offboard-lite/README.md) — the container this page operates
+- [husky-offboard](../../deploy/husky-offboard/README.md) — its `lite` stage builds
+  `husky-offboard-lite:jazzy`, the container this page operates
 - [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — the diagnostics plugin next to it
 
 ## Versioning

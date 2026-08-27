@@ -3,6 +3,14 @@
 Format after [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning after [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (Related pointed at a directory that is gone)
+
+- **The link to `husky-offboard-lite` now names `husky-offboard`.** There is no
+  `deploy/husky-offboard-lite/` any more: `lite` is a build stage of
+  `deploy/husky-offboard`, deployed on the robot through `docker-compose.robot.yml`, and it is that stage
+  which builds `husky-offboard-lite:jazzy` -- the container this page starts and stops. The old link
+  resolved to nothing.
+
 ## 2026-08-25 (CI added)
 
 - **`.github/workflows/ci.yml` added** -- `node --check` over every `.js`/`.mjs` file, `bash -n` over the
