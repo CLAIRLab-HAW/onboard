@@ -5,6 +5,17 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-27 (installer comments: allowlist is a robot.yaml lever, not a patch)
+
+- **The header and the unit-file comment no longer list the foxglove
+  `asset_uri_allowlist` among what the per-boot patcher writes.** It is set in
+  `robot.yaml` under `platform.extras.ros_parameters.foxglove_bridge`; the
+  patcher's own `main()` has said so since 0.2.0, only these two spots still
+  claimed the old way. The ordering note on
+  `Before=clearpath-platform.service` now names the reason that still holds:
+  the patched sensor meshes.
+- Comments only, no behaviour change.
+
 ## 2026-08-24 (.gitignore normalised to the workspace base)
 
 - **`.gitignore` now uses the workspace's lean 8-line base** (`__pycache__/`, `*.py[cod]`, `*.egg-info/`, `build/`, `dist/`, `.venv/`, `.pytest_cache/`, `.DS_Store`). No package-specific extras.

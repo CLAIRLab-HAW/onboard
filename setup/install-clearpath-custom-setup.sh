@@ -4,7 +4,7 @@
 #
 # Does all of this in one go:
 #   - boot service clearpath-custom-setup: patches the generated configs on
-#     EVERY boot (foxglove asset_uri_allowlist, realsense mesh uris)
+#     EVERY boot (realsense mesh uris, arm joint_states bus, rg6 srdf)
 #   - udev rules (/etc/udev/rules.d/99-husky.rules), netplan (/etc/netplan/01-netcfg.yaml),
 #     disable systemd-networkd (NetworkManager)
 #   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
@@ -618,8 +618,9 @@ Wants=clearpath-robot.service
 # Propagates stop AND restart.
 PartOf=clearpath-robot.service
 # BEFORE the consumers of the patched files:
-#   - clearpath-platform.service starts the foxglove_bridge (asset_uri_allowlist
-#     + sensor meshes).
+#   - clearpath-platform.service starts the foxglove_bridge, which serves the
+#     patched sensor meshes (its asset_uri_allowlist comes from robot.yaml and
+#     needs no ordering).
 #   - clearpath-manipulators.service reads control.launch.py -> the arm JSB
 #     joint_states patch (move_arm_joint_states) MUST take effect
 #     before that.
