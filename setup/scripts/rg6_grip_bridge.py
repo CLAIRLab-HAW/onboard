@@ -193,7 +193,7 @@ class FingerKinematics:
     """
 
     def __init__(self, path: str) -> None:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             raw = json.load(fh)
         tab = raw["table_q_rad_width_m"]
         self._q = [float(z[0]) for z in tab]
