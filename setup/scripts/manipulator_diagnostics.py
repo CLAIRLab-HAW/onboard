@@ -521,11 +521,10 @@ def main(argv=None) -> int:
     import time
 
     import rclpy
+    from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
     from rclpy.executors import ExternalShutdownException
     from rclpy.node import Node
     from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
-
-    from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
     from sensor_msgs.msg import JointState
     from std_msgs.msg import Bool, String
 
