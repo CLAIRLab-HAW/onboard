@@ -3,6 +3,20 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-08-29 (the package run can measure coverage again)
+
+- **`-p no:cov` is gone from `addopts` in `[tool.pytest.ini_options]`.** It disabled the pytest-cov plugin
+  outright, so `pytest --cov` in this package aborted with `unrecognized arguments: --cov`. The package run is
+  where a suite is measured on its own, and where the E2E marks are reachable at all -- the root run deselects
+  them.
+- The reason the line carried applied to the SYSTEM interpreter, whose pytest-cov did not match its coverage.
+  The workspace venv is not that interpreter: it carries pytest-cov 5.0.0 against coverage 7.15.1.
+- **15 packages carried the line, and they were not found in one go**: `grep --cov` does not match `no:cov`, so
+  the first pass found five and a layered measurement died on the rest three quarters of the way through.
+  `.claude/skills/coverage-report` now checks every member for it BEFORE measuring anything.
+- **`.gitignore` gained `.coverage` and `.coverage.*`** -- a justified package extra, not a mass dump: a package
+  run with `--cov` writes them here. The workspace-wide measurement writes to `.coverage-data/` at the root.
+
 ## 2026-08-27 (the package speaks English)
 
 - **Assertion and skip messages are English.** They are what somebody reads who does not know the code, and they

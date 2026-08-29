@@ -12,3 +12,6 @@ log/
 *.pcd
 COLCON_IGNORE
 AMENT_IGNORE
+# a package run with --cov writes these; the workspace-wide measurement writes to the root instead
+.coverage
+.coverage.*
