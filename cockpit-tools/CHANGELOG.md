@@ -3,6 +3,19 @@
 Format after [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning after [Semantic Versioning](https://semver.org/).
 
+## 2026-08-29 (the page speaks English)
+
+- **The whole page is English -- the menu entry included.** `manifest.json` now carries the label
+  `Robot tools`, `index.html` is `lang="en"` with English headings and hints, and every text
+  `status.js` produces is English: `running`, `stopped`, `paused`, `restarting…`, `not created`,
+  `broken (dead)`, `Docker unreachable`, `checking…`, plus the three VNC diagnosis notes. The
+  operator on the robot sees English strings from now on; nothing about the logic, the codes
+  (`no-password`, `bridge-network`, `desktop-down`) or the ball colours changed.
+- **`node --test` states its expectations in the same words** (43 tests, unchanged in number), and the
+  comments in `index.js`, `theme.js`, `style.css`, `install.sh` and the preview stub follow, with the
+  transliterated umlauts written out of them.
+- **The preview stub takes `&vnc=both` instead of `&vnc=beides`.**
+
 ## 2026-08-27 (Related pointed at a directory that is gone)
 
 - **The link to `husky-offboard-lite` now names `husky-offboard`.** There is no

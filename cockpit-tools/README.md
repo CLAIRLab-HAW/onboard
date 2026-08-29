@@ -9,7 +9,7 @@ tasks) get added here without the package having to be renamed.
 
 ![The page in preview](screenshots/vorschau.jpg)
 
-*(Cockpit → "Roboter-Werkzeuge"; shown here in the workstation preview, see
+*(Cockpit → "Robot tools"; shown here in the workstation preview, see
 [Development](#development).)*
 
 ## Features
@@ -130,14 +130,14 @@ The target is `/usr/local/share/cockpit/robot-tools` — the same level as the
 [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) fork; the two
 packages do not interfere with each other. Afterwards reload
 `http://<robot>:9090` in the browser; the menu entry is called
-**Roboter-Werkzeuge**.
+**Robot tools**.
 
 Removal: `sudo ~/cockpit-robot-tools/install.sh --uninstall`.
 
 ## Usage
 
 Open Cockpit at `http://<robot>:9090`, elevate to administrator, and pick
-**Roboter-Werkzeuge** from the menu. The card starts and stops the container
+**Robot tools** from the menu. The card starts and stops the container
 and shows the VNC address.
 
 ## Development

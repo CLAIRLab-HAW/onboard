@@ -1,24 +1,24 @@
-/* Eigenes, knappes CSS statt PatternFly: dieses Paket wird nicht gebaut,
-   sondern so, wie es hier liegt, nach /usr/local/share/cockpit kopiert. Es
-   soll neben Cockpit nicht auffallen, aber auch keine Bibliothek mitziehen.
+/* Our own, terse CSS instead of PatternFly: this package is not built but
+   copied to /usr/local/share/cockpit exactly as it lies here. It should not
+   stand out beside Cockpit, but must not drag a library along either.
 
-   "Nicht auffallen" heisst konkret: neben cockpit-ros2-diagnostics stehen
-   koennen, das echtes PatternFly 6 mitbringt. Die Zahlen unten sind deshalb
-   keine Schaetzungen, sondern am 2026-08-24 an dessen gebautem index.css
-   gemessene PF-6-Werte -- der PF-Tokenname steht jeweils daneben, damit man
-   sie spaeter nachziehen kann.
+   "Not stand out" means concretely: to be able to stand beside
+   cockpit-ros2-diagnostics, which brings real PatternFly 6. The numbers below
+   are therefore not estimates but PF 6 values measured against that package's
+   built index.css on 2026-08-24 -- the PF token name stands beside each one, so
+   they can be followed up later.
 
-   Alle Masse in rem. PF 6 tut dasselbe; die Wurzelgroesse gehoert dem
-   Browser des Betrachters, und ein festes px hier waere genau die Abweichung,
-   die man neben der Nachbarseite sieht. (Zur Umrechnung: die Notizen in
-   CLAUDE.md rechnen mit 12px Wurzel, dort ist 1.5rem = 18px.) */
+   All measures in rem. PF 6 does the same; the root size belongs to the
+   viewer's browser, and a fixed px here would be exactly the deviation one
+   sees beside the neighbouring page. (For conversion: the notes in CLAUDE.md
+   reckon with a 12px root, where 1.5rem = 18px.) */
 
-/* --- Farben ------------------------------------------------------------ */
+/* --- colours ------------------------------------------------------------ */
 
-/* Hell ist der Normalfall und steht deshalb auf :root. Dunkel haengt NICHT
-   an `prefers-color-scheme`, sondern an der Klasse, die theme.js setzt --
-   Cockpits Wahl schlaegt die des Betriebssystems, und nur so bleibt diese
-   Seite hell, wenn die Shell hell ist. */
+/* Light is the normal case and therefore stands on :root. Dark does NOT hang
+   on `prefers-color-scheme` but on the class theme.js sets -- Cockpit's choice
+   beats the operating system's, and only that way does this page stay light
+   when the shell is light. */
 :root {
     --bg-page: #f2f2f2;      /* background--color--secondary--default */
     --bg-panel: #ffffff;     /* background--color--primary--default   */
@@ -37,19 +37,18 @@
     --yellow: #dca614;       /* icon--color--status--warning--default */
     --red: #b1380b;          /* icon--color--status--danger--default  */
 
-    /* Abstaende sind bei PF rem und wachsen mit der Schrift mit. Die 1.5rem
-       sind `spacer--inset--page-chrome` und bestimmen zugleich den Abstand
-       der Wanne zum Rand und ihre Innenpolsterung. */
+    /* Spacings are rem in PF and grow with the font. The 1.5rem is
+       `spacer--inset--page-chrome` and determines both the tub's distance from
+       the edge and its inner padding. */
     --sp-xs: 0.25rem;        /* spacer--xs  */
     --sp-sm: 0.5rem;         /* spacer--sm  */
     --sp-md: 1rem;           /* spacer--md  */
     --sp-lg: 1.5rem;         /* spacer--lg  */
 
-    /* Radien sind bei PF dagegen ABSOLUT, und das ist kein Versehen: eine
-       Ecke ist eine Ecke, egal wie gross die Schrift steht. Ein `1rem` hier
-       war am 2026-08-24 in einem Browser mit 12px-Wurzel eine 12px-Ecke
-       neben der 16px-Ecke der Nachbarseite -- also wieder derselbe Bruch,
-       nur kleiner. */
+    /* Radii, by contrast, are ABSOLUTE in PF, and that is no oversight: a
+       corner is a corner, however large the font stands. A `1rem` here was, on
+       2026-08-24 in a browser with a 12px root, a 12px corner beside the
+       neighbouring page's 16px corner -- the same break again, only smaller. */
     --radius-box: 16px;      /* border--radius--medium */
     --radius-small: 6px;     /* border--radius--small  */
     --radius-pill: 999px;    /* border--radius--pill   */
@@ -76,24 +75,23 @@
 
 * { box-sizing: border-box }
 
-/* --- Wurzel ------------------------------------------------------------ */
+/* --- root --------------------------------------------------------------- */
 
-/* Der Aufbau ist der von PFs `.pf-v6-c-page`: der Seitengrund fuellt den
-   Rahmen, und darauf sitzt EINE helle Wanne mit runden Ecken, die oben
-   anliegt und nur so hoch wird wie ihr Inhalt. `align-content: start` ist
-   das Gegenstueck zu PFs `align-self: start` an der Wanne. */
+/* The build-up is that of PF's `.pf-v6-c-page`: the page ground fills the
+   frame, and on it sits ONE light tub with rounded corners that hugs the top
+   and grows only as tall as its content. `align-content: start` is the
+   counterpart to PF's `align-self: start` on the tub. */
 html {
     block-size: 100%;
     background: var(--bg-page);
 }
 
 body {
-    /* Eine Zeile, und zwar `1fr` statt `auto`: die Wanne unten haengt mit
-       ihrer Hoehenschranke an einem Prozentwert, und der braucht eine feste
-       Bezugshoehe. Mit `auto` bemisst sich die Zeile am Inhalt, der
-       Prozentwert an der Zeile -- Chrome loeste das am 2026-08-24 auf, indem
-       es die Wanne 18px zu kurz machte und ihr eine Bildlaufleiste gab,
-       obwohl alles hineinpasste. */
+    /* One row, and namely `1fr` instead of `auto`: the tub below hangs its
+       height limit on a percentage, and that needs a fixed reference height.
+       With `auto` the row is measured by the content and the percentage by the
+       row -- Chrome resolved that on 2026-08-24 by making the tub 18px too
+       short and giving it a scrollbar, although everything fitted. */
     display: grid;
     grid-template-rows: 1fr;
     block-size: 100%;
@@ -102,28 +100,28 @@ body {
     overflow: hidden;
     background: var(--bg-page);
     color: var(--fg);
-    /* Die Familien sind PFs Stapel; die Red-Hat-Schriften liefert Cockpit
-       selbst aus, deshalb greifen sie hier ohne eigenes @font-face. */
+    /* The families are PF's stack; Cockpit serves the Red Hat fonts itself,
+       which is why they take here without a @font-face of our own. */
     font-family: "Red Hat Text", "RedHatText", Helvetica, Arial, sans-serif;
     font-size: 0.875rem;     /* font--size--body--default */
     line-height: 1.5;        /* font--line-height--body   */
 }
 
 /*
- * Die Wanne.
+ * The tub.
  *
- * Gemessen an cockpit-ros2-diagnostics: Grund `primary`, Radius
- * `border--radius--medium`, links und rechts `spacer--inset--page-chrome`
- * Abstand, oben buendig, unten dieselbe Luft wie seitlich -- daher die
- * Hoehenschranke statt eines Randes, sonst schoebe der Rand die Wanne nach
- * unten, statt ihr Ende hochzuziehen.
+ * Measured against cockpit-ros2-diagnostics: ground `primary`, radius
+ * `border--radius--medium`, `spacer--inset--page-chrome` of distance left and
+ * right, flush at the top, the same air below as at the sides -- hence the
+ * height limit instead of a margin, since a margin would push the tub down
+ * rather than pull its end up.
  *
- * PF kommt auf dieselbe Innenpolsterung ueber einen 4px-Rand IN der Farbe des
- * Grundes plus 14px Polsterung der Section. Nachgebaut wird das Ergebnis,
- * nicht der Umweg: 1.5rem seitlich, oben 1rem.
+ * PF arrives at the same inner padding over a 4px border IN the colour of the
+ * ground plus 14px of section padding. What is rebuilt is the result, not the
+ * detour: 1.5rem at the sides, 1rem at the top.
  *
- * Sie scrollt selbst (`overflow-y`), damit die runden Ecken auch bei langem
- * Inhalt am Rahmenrand stehenbleiben -- so wie nebenan.
+ * It scrolls itself (`overflow-y`), so that the rounded corners stay at the
+ * frame edge even with long content -- just like next door.
  */
 .page {
     align-self: start;
@@ -136,15 +134,15 @@ body {
     border-radius: var(--radius-box);
 }
 
-/* Cockpits Groesse fuer eine blanke <h1> (`page.scss`: 4xl, Normalgewicht). */
+/* Cockpit's size for a bare <h1> (`page.scss`: 4xl, normal weight). */
 h1 {
     font-size: 2.25rem;
     font-weight: 400;
     margin: 0 0 var(--sp-md);
 }
 
-/* Kein blankes h2 im Cockpit-Massstab (das waere 3xl), sondern PFs
-   Kartentitel: `font--size--heading--xs` mit Ueberschriftengewicht. */
+/* Not a bare h2 at Cockpit scale (that would be 3xl) but PF's card title:
+   `font--size--heading--xs` with heading weight. */
 h2 {
     font-size: 1rem;
     font-weight: 500;
@@ -159,11 +157,11 @@ code {
     padding: 0.05em 0.3em;
 }
 
-/* --- Karten ------------------------------------------------------------ */
+/* --- cards -------------------------------------------------------------- */
 
-/* PFs Karte: derselbe Grund wie die Wanne, ein Haarstrich als Kante, Radius
-   und Polsterung wie dort. Ein kleinerer Radius faellt in einer Wanne mit
-   1rem Ecken sofort auf -- das war der zweite Teil des Befunds. */
+/* PF's card: the same ground as the tub, a hairline as its edge, radius and
+   padding as there. A smaller radius stands out at once in a tub with 1rem
+   corners -- that was the second half of the finding. */
 .card {
     background: var(--bg-panel);
     border: 1px solid var(--line);
@@ -179,17 +177,17 @@ code {
     margin: var(--sp-xs) 0 0;
 }
 
-/* Fliesstext bleibt lesbar, auch wenn die Wanne 1600px breit ist. Nur der
-   Prosa auferlegt, nicht der Karte: eine Bedienzeile darf mitwachsen.
-   `.detail` gehoert dazu -- dort steht im Fall "nicht angelegt" der laengste
-   Satz der Seite, und der lief ueber die volle Breite. */
+/* Running text stays readable even when the tub is 1600px wide. Imposed on
+   the prose only, not on the card: a control row may grow along. `.detail`
+   belongs to it -- in the "not created" case it holds the longest sentence on
+   the page, and that ran across the full width. */
 .sub,
 .detail,
 .hints {
     max-inline-size: 46rem;
 }
 
-/* --- Statuszeile ------------------------------------------------------- */
+/* --- status row --------------------------------------------------------- */
 
 .status-row {
     display: flex;
@@ -219,8 +217,8 @@ code {
 .ball-yellow { background: var(--yellow) }
 .ball-red { background: var(--red) }
 
-/* "Container nicht angelegt": kein Zustand, sondern eine Leerstelle --
-   deshalb hohl statt gefuellt. */
+/* "Container not created": not a state but a blank -- hence hollow rather
+   than filled. */
 .ball-outline {
     background: transparent;
     border: 2px solid var(--grey);
@@ -246,11 +244,11 @@ code {
 
 .detail-error { color: var(--err) }
 
-/* --- Knoepfe ----------------------------------------------------------- */
+/* --- buttons ------------------------------------------------------------ */
 
-/* PF-6-Knoepfe sind Pillen (`border--radius--pill`), mit
-   `spacer--control--vertical` / `spacer--action--horizontal` als Polsterung.
-   Eckige Knoepfe in einer runden Wanne waren derselbe Bruch wie die Karten. */
+/* PF 6 buttons are pills (`border--radius--pill`), with
+   `spacer--control--vertical` / `spacer--action--horizontal` as padding.
+   Square buttons in a round tub were the same break as the cards. */
 .btn {
     font: inherit;
     padding: var(--sp-sm) var(--sp-md);
@@ -274,8 +272,8 @@ code {
     color: var(--accent-fg);
 }
 
-/* Ein blauer Knopf mit 45 % Deckkraft sieht immer noch nach "druck mich" aus.
-   Deaktiviert faellt er deshalb ganz auf die neutrale Farbe zurueck. */
+/* A blue button at 45 % opacity still looks like "press me". Disabled, it
+   therefore falls back to the neutral colour entirely. */
 .btn-primary:disabled {
     background: var(--btn);
     border-color: var(--line);

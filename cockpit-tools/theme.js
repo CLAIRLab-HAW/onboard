@@ -1,27 +1,28 @@
-// Cockpits Thema, nicht das des Betriebssystems.
+// Cockpit's theme, not the operating system's.
 //
-// Diese Seite bringt kein PatternFly mit, muss aber neben cockpit-ros2-
-// diagnostics stehen können -- und das folgt Cockpit: die Shell legt ihre
-// Wahl unter `shell:style` in den localStorage und setzt an jedem Rahmen
-// `pf-v6-theme-dark` am <html>. Nur "auto" fragt zusätzlich das System.
+// This page brings no PatternFly of its own, but has to be able to stand beside
+// cockpit-ros2-diagnostics -- and that one follows Cockpit: the shell puts its
+// choice into localStorage under `shell:style` and sets `pf-v6-theme-dark` on
+// the <html> of every frame. Only "auto" additionally asks the system.
 //
-// Ein reines `@media (prefers-color-scheme: dark)` reicht deshalb NICHT: wer
-// in Cockpit hell wählt, während das System dunkel steht, bekäme eine dunkle
-// Seite zwischen lauter hellen. Genau so stand es hier bis 2026-08-24.
+// A plain `@media (prefers-color-scheme: dark)` is therefore NOT enough:
+// whoever picks light in Cockpit while the system stands dark would get a dark
+// page among nothing but light ones. That is exactly how it stood here until
+// 2026-08-24.
 //
-// Klassisches Skript im <head>, kein Modul: Module sind deferred und würden
-// erst nach dem ersten Bild laufen -- die Seite blitzte dann hell auf. Und
-// kein Inline-Skript, das verbietet die CSP der Seite (default-src 'self').
+// A classic script in the <head>, not a module: modules are deferred and would
+// run only after the first paint -- the page would then flash bright. And no
+// inline script, which the page's CSP forbids (default-src 'self').
 //
-// Die Rahmen liegen auf demselben Ursprung wie die Shell, deshalb sieht diese
-// Seite denselben localStorage. Steht dort nichts (Vorschau ohne Cockpit),
-// bleibt "auto" -- und damit das Verhalten von früher.
+// The frames sit on the same origin as the shell, which is why this page sees
+// the same localStorage. When nothing stands there (a preview without Cockpit),
+// "auto" remains.
 (function () {
     "use strict";
 
-    // Der localStorage kann werfen (Vorschau von file://, gesperrte Cookies).
-    // Ohne den Fang stuerbe dieses Skript im <head>, und die Seite haette gar
-    // kein Thema -- fuer eine Einstellung ist das der falsche Preis.
+    // localStorage can throw (a preview from file://, blocked cookies). Without
+    // the catch this script would die in the <head>, and the page would have no
+    // theme at all -- the wrong price for a setting.
     function stored() {
         try {
             return localStorage.getItem("shell:style");
@@ -38,14 +39,14 @@
         document.documentElement.classList.toggle("pf-v6-theme-dark", dark);
     }
 
-    // Umschalten in einem anderen Rahmen: der localStorage meldet sich.
+    // A switch in another frame: localStorage reports it.
     window.addEventListener("storage", function (event) {
         if (event.key === "shell:style")
             apply();
     });
 
-    // Umschalten in der Shell selbst: die feuert zusätzlich dieses Ereignis,
-    // weil `storage` im auslösenden Dokument nicht fällt.
+    // A switch in the shell itself: it additionally fires this event, because
+    // `storage` does not fire in the document that triggers it.
     window.addEventListener("cockpit-style", function (event) {
         apply(event.detail && event.detail.style);
     });

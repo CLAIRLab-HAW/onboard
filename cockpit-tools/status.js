@@ -1,25 +1,25 @@
-// Zustandsabbildung fuer die Statuskugel.
+// The state mapping for the status ball.
 //
-// Bewusst eine reine Funktion ohne DOM, ohne cockpit.js und ohne Docker: sie
-// ist die einzige Stelle mit Entscheidungslogik und laesst sich deshalb hier
-// am Schreibtisch pruefen (test/status.test.mjs, `node --test test/`), waehrend
-// der Rest der Seite nur noch Knoepfe und Text ist.
+// Deliberately a pure function without DOM, without cockpit.js and without
+// Docker: it is the only place carrying decision logic and can therefore be
+// checked here at the desk (test/status.test.mjs, `node --test test/`), while
+// the rest of the page is nothing but buttons and text.
 //
-// Farbabsprache (bewusst nicht die uebliche Ampel):
-//   gruen  = laeuft
-//   grau   = gestoppt -- das ist der NORMALFALL, kein Fehler
-//   gelb   = Uebergang (Start/Stopp unterwegs, restarting)
-//   rot    = Fehler: Docker antwortet nicht, oder der Container ist defekt
-// Waere "gestoppt" rot, leuchtete die Kugel die meiste Zeit alarmierend, ohne
-// dass irgendetwas kaputt ist -- und ein echter Fehler ginge darin unter.
+// The colour agreement (deliberately not the usual traffic light):
+//   green  = running
+//   grey   = stopped -- that is the NORMAL CASE, not a fault
+//   yellow = transition (a start/stop under way, restarting)
+//   red    = fault: Docker does not answer, or the container is broken
+// Were "stopped" red, the ball would glow alarmingly most of the time without
+// anything being broken -- and a real fault would drown in it.
 
 const MISSING_RE = /no such (object|container)/i;
 
 /**
  * @param {object} state
- * @param {string} [state.status]  Docker-Zustand aus `docker inspect -f '{{.State.Status}}'`
- * @param {string} [state.error]   Fehlertext des letzten Docker-Aufrufs
- * @param {'start'|'stop'} [state.pending] laufendes Kommando
+ * @param {string} [state.status]  Docker state from `docker inspect -f '{{.State.Status}}'`
+ * @param {string} [state.error]   error text of the last Docker call
+ * @param {'start'|'stop'} [state.pending] the command in flight
  * @returns {{color:string,label:string,detail:string,pulse:boolean,
  *            outline:boolean,missing:boolean,canStart:boolean,canStop:boolean}}
  */
@@ -35,70 +35,69 @@ export function classify({ status = null, error = null, pending = null, missing 
         canStop: false,
     };
 
-    // Ein laufendes Kommando schlaegt alles andere: waehrend `docker start`
-    // arbeitet, meldet inspect noch minutenlang den alten Zustand.
+    // A command in flight beats everything else: while `docker start` works,
+    // inspect keeps reporting the old state for minutes.
     if (pending === 'start')
-        return { ...base, color: 'yellow', pulse: true, label: 'startet…' };
+        return { ...base, color: 'yellow', pulse: true, label: 'starting…' };
     if (pending === 'stop')
-        return { ...base, color: 'yellow', pulse: true, label: 'stoppt…' };
+        return { ...base, color: 'yellow', pulse: true, label: 'stopping…' };
 
     if (missing || (error && MISSING_RE.test(error))) {
         return {
             ...base,
             outline: true,
             missing: true,
-            label: 'nicht angelegt',
-            // Kein geratener Pfad: die Seite kennt den Ablageort des
-            // Compose-Projekts nicht, und ein falsches "cd" schickt den
-            // Leser genau in die Irre, aus der er kommt.
-            detail: 'Auf diesem Rechner gibt es keinen Container aus dem Image '
-                  + 'husky-offboard-lite (compose-Dienst moveit-rviz). Einmal anlegen, '
-                  + 'im Verzeichnis des Compose-Projekts: docker compose '
+            label: 'not created',
+            // No guessed path: the page does not know where the compose project
+            // lives, and a wrong "cd" sends the reader into exactly the confusion
+            // they are coming from.
+            detail: 'There is no container from the image husky-offboard-lite on this '
+                  + 'machine (compose service moveit-rviz). Create it once, in the '
+                  + 'directory of the compose project: docker compose '
                   + '-f docker-compose.yml -f docker-compose.robot.yml up -d',
         };
     }
 
     if (error)
-        return { ...base, color: 'red', label: 'Docker nicht erreichbar', detail: error };
+        return { ...base, color: 'red', label: 'Docker unreachable', detail: error };
 
     switch (status) {
     case null:
-        return { ...base, label: 'wird geprüft…' };
+        return { ...base, label: 'checking…' };
     case 'running':
-        return { ...base, color: 'green', label: 'läuft', canStop: true };
+        return { ...base, color: 'green', label: 'running', canStop: true };
     case 'exited':
     case 'created':
-        return { ...base, label: 'gestoppt', canStart: true };
+        return { ...base, label: 'stopped', canStart: true };
     case 'paused':
-        // `docker start` scheitert an einem pausierten Container, `docker stop`
-        // nicht -- deshalb hier nur der Stopp-Knopf.
-        return { ...base, label: 'pausiert', canStop: true };
+        // `docker start` fails on a paused container, `docker stop` does not --
+        // hence only the stop button here.
+        return { ...base, label: 'paused', canStop: true };
     case 'restarting':
-        return { ...base, color: 'yellow', pulse: true, label: 'startet neu…' };
+        return { ...base, color: 'yellow', pulse: true, label: 'restarting…' };
     case 'dead':
         return {
             ...base,
             color: 'red',
-            label: 'defekt (dead)',
-            detail: 'Docker bekommt den Container nicht mehr aufgeraeumt. '
-                  + 'Hilft nur noch: docker rm -f und neu anlegen.',
+            label: 'broken (dead)',
+            detail: 'Docker cannot clean the container up any more. The only thing '
+                  + 'left: docker rm -f and create it again.',
             canStop: true,
         };
     default:
-        // Lieber den unbekannten Zustand woertlich zeigen als ihn zu raten.
+        // Better to show the unknown state verbatim than to guess it.
         return { ...base, label: status };
     }
 }
 
 /**
- * Ob jetzt abgefragt werden soll.
+ * Whether to poll right now.
  *
- * Im Hintergrundtab wird gespart -- die Seite bleibt in Cockpit geladen, auch
- * wenn man laengst woanders ist, und jede Abfrage ist ein Docker-Aufruf mit
- * Root-Rechten. Die ERSTE Abfrage laeuft aber immer: eine Seite, die nie im
- * Vordergrund war (Cockpit im Hintergrundtab geoeffnet, oder ein Browser, der
- * das Rahmenfenster als verborgen meldet), stuende sonst fuer immer auf
- * "wird geprueft…".
+ * In a background tab we economise -- the page stays loaded in Cockpit long
+ * after one has moved elsewhere, and every poll is a Docker call with root
+ * rights. The FIRST poll always runs, though: a page that was never in the
+ * foreground (Cockpit opened in a background tab, or a browser reporting the
+ * frame window as hidden) would otherwise stand on "checking…" forever.
  *
  * @param {{hidden:boolean, everFetched:boolean}} ctx
  * @returns {boolean}
@@ -107,17 +106,17 @@ export function shouldPoll({ hidden = false, everFetched = false } = {}) {
     return !hidden || !everFetched;
 }
 
-// Adressen, die zwar in der Adresszeile stehen koennen, als VNC-Ziel aber
-// auf den falschen Rechner zeigen (Cockpit direkt auf dem Roboter geoeffnet,
-// oder durch einen SSH-Tunnel).
+// Addresses that may well stand in the address bar but point at the wrong
+// machine as a VNC target (Cockpit opened directly on the robot, or through an
+// SSH tunnel).
 const LOCAL_HOSTS = ['', 'localhost', '127.0.0.1', '::1'];
 
 /**
- * Unter welcher Adresse der Betrachter den VNC-Port dieses Rechners erreicht.
+ * The address under which the viewer reaches this machine's VNC port.
  *
  * @param {{transportHost?:string, locationHost?:string, fallback:string}} ctx
- *   transportHost = cockpit.transport.host (ueber einen Sprungrechner der
- *   Zielrechner, sonst "localhost"), locationHost = window.location.hostname.
+ *   transportHost = cockpit.transport.host (over a jump host the target
+ *   machine, otherwise "localhost"), locationHost = window.location.hostname.
  * @returns {string}
  */
 export function resolveHost({ transportHost = null, locationHost = '', fallback = '' } = {}) {
@@ -129,23 +128,23 @@ export function resolveHost({ transportHost = null, locationHost = '', fallback 
     return fallback;
 }
 
-// --- Den Container finden, statt seinen Namen zu raten --------------------
+// --- Find the container instead of guessing its name ----------------------
 //
-// Der Name eines compose-Containers ist <projekt>-<dienst>-<n>, und das
-// Projekt heisst per Vorgabe wie das VERZEICHNIS. Ein fest verdrahtetes
-// "offboard-lite-moveit-rviz-1" ist damit eine Wette auf den Ablageort --
-// verloren am 2026-08-20, als die Seite auf dem Roboter "nicht angelegt"
-// meldete und dazu ein falsches Verzeichnis nannte.
+// The name of a compose container is <project>-<service>-<n>, and by default
+// the project is named after the DIRECTORY. A hard-wired
+// "offboard-lite-moveit-rviz-1" is therefore a bet on where it lives -- lost on
+// 2026-08-20, when the page reported "not created" on the robot and named a
+// wrong directory alongside.
 //
-// Erkannt wird stattdessen an zwei Merkmalen, die den Ablageort nicht kennen:
-// dem compose-Dienst (im Compose dieses Images heisst er moveit-rviz) und dem
-// Image-Namen.
+// It is recognised instead by two marks that know nothing of the location: the
+// compose service (called moveit-rviz in this image's compose) and the image
+// name.
 
 const COMPOSE_SERVICE = 'moveit-rviz';
 const IMAGE_HINT = 'offboard-lite';
 
 /**
- * Zerlegt die Ausgabe von
+ * Splits the output of
  * `docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Label "com.docker.compose.service"}}'`.
  *
  * @param {string} text
@@ -169,13 +168,13 @@ export function parseContainers(text) {
 }
 
 /**
- * Sucht den Offboard-Lite-Container heraus.
+ * Picks the offboard-lite container out.
  *
  * @param {ReturnType<typeof parseContainers>} rows
  * @returns {{container: object|null, others: Array<object>}}
- *   `others` sind weitere Treffer -- mehr als einer ist kein Fehler (ein alter
- *   Container aus einem umbenannten Projekt bleibt liegen), aber die Seite
- *   sagt dann, welchen sie bedient.
+ *   `others` are further hits -- more than one is not a fault (an old container
+ *   from a renamed project stays behind), but the page then says which one it
+ *   operates.
  */
 export function pickContainer(rows, { service = COMPOSE_SERVICE, imageHint = IMAGE_HINT } = {}) {
     const hits = (rows || []).filter(r =>
@@ -184,23 +183,23 @@ export function pickContainer(rows, { service = COMPOSE_SERVICE, imageHint = IMA
     if (hits.length === 0)
         return { container: null, others: [] };
 
-    // Laufende zuerst: wer zwei Container hat, meint den, der arbeitet.
+    // Running ones first: whoever has two containers means the one that works.
     const running = hits.filter(r => r.state === 'running');
     const chosen = running.length > 0 ? running[0] : hits[0];
 
     return { container: chosen, others: hits.filter(r => r !== chosen) };
 }
 
-// --- Warum der VNC-Port von aussen nicht erreichbar ist -------------------
+// --- Why the VNC port is unreachable from outside -------------------------
 //
-// Am 2026-08-20 an a200-0553 gemessen: 6080 offen, 5900 keine Antwort. Zwei
-// Ursachen erzeugen dieses Bild, und beide entstehen beim ANLEGEN des
-// Containers -- ein `docker start` kann sie nicht heilen, weil es den
-// Container mit genau seiner alten Konfiguration hochfaehrt. Die Seite sagt
-// deshalb, welche der beiden vorliegt, statt den Leser raten zu lassen.
+// Measured on a200-0553 on 2026-08-20: 6080 open, 5900 no answer. Two causes
+// produce that picture, and both arise when the container is CREATED -- a
+// `docker start` cannot heal them, because it brings the container up with
+// exactly its old configuration. The page therefore says which of the two
+// applies instead of letting the reader guess.
 
 /**
- * Zerlegt die Ausgabe von
+ * Splits the output of
  * `docker inspect -f '{{.HostConfig.NetworkMode}}{{"\n"}}{{range .Config.Env}}{{println .}}{{end}}'`.
  *
  * @param {string} text
@@ -215,9 +214,9 @@ export function parseInspect(text) {
 
 /**
  * @param {{networkMode:string, env:string[]}|null} info
- * @returns {Array<{code:string, text:string}>} leer, wenn alles passt.
- *   Der Code ist dazu da, andere Stellen der Seite stumm zu schalten: solange
- *   "no-password" gilt, darf daneben nicht stehen, der Viewer frage nach einem.
+ * @returns {Array<{code:string, text:string}>} empty when everything fits.
+ *   The code exists to mute other places on the page: as long as "no-password"
+ *   holds, nothing beside it may claim the viewer asks for one.
  */
 export function diagnoseVnc(info, { probe = null } = {}) {
     if (!info)
@@ -225,45 +224,45 @@ export function diagnoseVnc(info, { probe = null } = {}) {
 
     const notes = [];
 
-    // Von INNEN gemessen: lauscht ueberhaupt jemand auf 5900? Das trennt einen
-    // toten Desktop von einem, der nur nach aussen nicht erreichbar ist -- von
-    // aussen sehen beide gleich aus (6080 offen, 5900 stumm). Steht diese
-    // Meldung, sind die beiden Ursachen darunter zweitrangig.
+    // Measured from INSIDE: is anybody listening on 5900 at all? That separates
+    // a dead desktop from one that is merely unreachable from outside -- from
+    // outside the two look the same (6080 open, 5900 mute). When this note
+    // stands, the two causes below are secondary.
     if (probe === 'down') {
         notes.push({
             code: 'desktop-down',
-            text: 'Im Container lauscht niemand auf Port 5900 — der Desktop ist beim Neustart '
-                + 'nicht hochgekommen. Bei Images ohne den Lock-Fix vom 2026-08-20 passiert das '
-                + 'nach jedem Stop+Start: Xvfb findet sein altes Lock in /tmp vor und bricht ab, '
-                + 'x11vnc stirbt mit. Sofort geholfen ist mit '
-                + 'docker compose ... up -d --force-recreate (frisches /tmp); dauerhaft mit '
-                + 'einem neu gebauten Base-Image.',
+            text: 'Nobody is listening on port 5900 inside the container — the desktop did '
+                + 'not come up on the restart. On images without the lock fix of 2026-08-20 '
+                + 'this happens after every stop+start: Xvfb finds its old lock in /tmp and '
+                + 'aborts, and x11vnc dies with it. The immediate remedy is '
+                + 'docker compose ... up -d --force-recreate (a fresh /tmp); the lasting one '
+                + 'is a rebuilt base image.',
         });
     }
 
-    // Ohne Passwort bietet x11vnc nur Security-Typ "None" an -- und bindet
-    // dann an 127.0.0.1 statt 0.0.0.0. noVNC auf 6080 merkt davon nichts,
-    // weil websockify containerintern verbindet. Genau daher der Eindruck
-    // "der Container laeuft doch".
+    // Without a password x11vnc offers only security type "None" -- and then
+    // binds to 127.0.0.1 instead of 0.0.0.0. noVNC on 6080 notices nothing of
+    // it, because websockify connects inside the container. Hence exactly the
+    // impression "but the container is running".
     const pw = info.env.find(e => e.startsWith('VNC_PASSWORD='));
     if (!pw || pw.slice('VNC_PASSWORD='.length).trim() === '') {
         notes.push({
             code: 'no-password',
-            text: 'Dieser Container läuft ohne VNC_PASSWORD — x11vnc lauscht dann nur auf '
-                + 'localhost, ein Viewer von außen bekommt keine Verbindung (noVNC auf 6080 '
-                + 'geht trotzdem). Ein Neustart ändert das nicht: den Container mit gesetztem '
-                + 'VNC_PASSWORD neu anlegen.',
+            text: 'This container runs without VNC_PASSWORD — x11vnc then listens on '
+                + 'localhost only, and a viewer from outside gets no connection (noVNC on '
+                + '6080 still works). A restart does not change it: create the container '
+                + 'again with VNC_PASSWORD set.',
         });
     }
 
-    // Ohne den robot-Override laeuft der Container im Bridge-Netz, und das
-    // Port-Mapping bindet 5900 an 127.0.0.1 des Roboters.
+    // Without the robot override the container runs in the bridge network, and
+    // the port mapping binds 5900 to the robot's 127.0.0.1.
     if (info.networkMode && info.networkMode !== 'host') {
         notes.push({
             code: 'bridge-network',
-            text: 'Dieser Container läuft im Bridge-Netz (' + info.networkMode + '), nicht im '
-                + 'Netz des Roboters — Port 5900 liegt dann nur auf dessen 127.0.0.1. Mit '
-                + '-f docker-compose.robot.yml neu anlegen.',
+            text: 'This container runs in the bridge network (' + info.networkMode + '), not '
+                + "in the robot's network — port 5900 then lies on its 127.0.0.1 only. "
+                + 'Create it again with -f docker-compose.robot.yml.',
         });
     }
 
@@ -280,15 +279,16 @@ export function hasCode(notes, code) {
 }
 
 /**
- * Glaettet die 5900-Messung: ein einzelnes "down" ist kein Befund.
+ * Smooths the 5900 measurement: a single "down" is no finding.
  *
- * Nach `docker start` steht der Container sofort auf `running`, waehrend Xvfb,
- * fluxbox und x11vnc noch hochkommen -- wer da schon misst, meldet die
- * Anlaufzeit als Defekt. "up" gilt dagegen sofort: wer antwortet, lebt.
+ * After `docker start` the container stands on `running` immediately, while
+ * Xvfb, fluxbox and x11vnc are still coming up -- whoever measures then reports
+ * the start-up time as a defect. "up", by contrast, counts at once: whoever
+ * answers is alive.
  *
- * @param {{streak:number}|null} previous voriger Stand
- * @param {'up'|'down'|null} probe Messung ('null' = nicht messbar)
- * @param {{needed?:number}} [opts] wie oft "down" hintereinander noetig ist
+ * @param {{streak:number}|null} previous the previous stand
+ * @param {'up'|'down'|null} probe the measurement ('null' = not measurable)
+ * @param {{needed?:number}} [opts] how many "down" in a row are needed
  * @returns {{streak:number, value:'up'|'down'|null}}
  */
 export function settleProbe(previous, probe, { needed = 3 } = {}) {
@@ -297,8 +297,8 @@ export function settleProbe(previous, probe, { needed = 3 } = {}) {
     if (probe === 'up')
         return { streak: 0, value: 'up' };
 
-    // Nicht messbar (kein bash im Container, exec verweigert): nichts
-    // behaupten, aber auch nichts vergessen.
+    // Not measurable (no bash in the container, exec refused): claim nothing,
+    // but forget nothing either.
     if (probe !== 'down')
         return { streak, value: null };
 

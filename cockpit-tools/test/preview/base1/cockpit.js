@@ -1,16 +1,16 @@
-// Attrappe von cockpit.js, nur fuer die Vorschau am Arbeitsplatz.
-// Kein Cockpit, kein Docker: sie beantwortet `docker ps` und `docker inspect`
-// aus einem Zustand im Speicher, den Start/Stopp umlegen -- damit die echte
-// index.html ohne Roboter bedienbar ist.
+// A dummy of cockpit.js, only for the preview at the workstation.
+// No Cockpit, no Docker: it answers `docker ps` and `docker inspect` from a
+// state in memory that start/stop flip over -- so that the real index.html can
+// be operated without a robot.
 //
-// Szenario ueber die Adresszeile waehlbar:
+// The scenario is selectable over the address bar:
 //   ?state=running | exited | created | paused | restarting | dead
-//   ?state=missing        -> kein passender Container in der Liste
-//   ?state=error          -> Docker antwortet nicht
-//   &vnc=ok | nopw | bridge | beides   -> was die Diagnose finden soll
-//   &desktop=up | down                 -> lauscht im Container jemand auf 5900
-//   &name=<containername>              -> anderer compose-Projektname
-//   &delay=2000                        -> Start/Stopp dauern so lange
+//   ?state=missing        -> no matching container in the list
+//   ?state=error          -> Docker does not answer
+//   &vnc=ok | nopw | bridge | both   -> what the diagnosis is meant to find
+//   &desktop=up | down               -> is anybody listening on 5900 in there
+//   &name=<container name>           -> a different compose project name
+//   &delay=2000                      -> start/stop take that long
 (function () {
     const params = new URLSearchParams(window.location.search);
     let status = params.get('state') || 'exited';
@@ -30,29 +30,29 @@
     }
 
     function psLines() {
-        // Der grosse husky-offboard-Container steht immer mit in der Liste --
-        // die Seite darf ihn nicht mitnehmen.
-        const fremd = 'husky-offboard-offboard-1\tclearpath-offboard:jazzy\trunning\toffboard';
+        // The big husky-offboard container always stands in the list too -- the
+        // page must not take it along.
+        const foreign = 'husky-offboard-offboard-1\tclearpath-offboard:jazzy\trunning\toffboard';
         if (status === 'missing')
-            return fremd + '\n';
+            return foreign + '\n';
         return [
             name + '\thusky-offboard-lite:jazzy\t' + status + '\tmoveit-rviz',
-            fremd,
+            foreign,
         ].join('\n') + '\n';
     }
 
     function inspectOut() {
-        const netz = (vnc === 'bridge' || vnc === 'beides') ? 'default' : 'host';
+        const network = (vnc === 'bridge' || vnc === 'both') ? 'default' : 'host';
         const env = ['ROS_DOMAIN_ID=0', 'RVIZ_AUTOSTART=1'];
-        if (vnc !== 'nopw' && vnc !== 'beides')
+        if (vnc !== 'nopw' && vnc !== 'both')
             env.push('VNC_PASSWORD=husky');
-        return netz + '\n' + env.join('\n') + '\n';
+        return network + '\n' + env.join('\n') + '\n';
     }
 
     window.cockpit = {
         transport: { host: 'localhost' },
         spawn(argv) {
-            // argv = ['/bin/sh', '-c', <prefix>, 'sh', <docker-argumente...>]
+            // argv = ['/bin/sh', '-c', <prefix>, 'sh', <docker arguments...>]
             const args = argv.slice(4);
             const verb = args[0];
 

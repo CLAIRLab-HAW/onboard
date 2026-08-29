@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs the Cockpit page "Roboter-Werkzeuge" into
+# Installs the Cockpit page "Robot tools" into
 # /usr/local/share/cockpit/robot-tools.
 #
 # Why /usr/local and not /usr/share: Cockpit searches in the order
@@ -24,17 +24,17 @@ FILES=(manifest.json index.html index.js status.js style.css theme.js)
 
 if [ "${1:-}" = "--uninstall" ]; then
     rm -rf "$DEST"
-    echo "entfernt: $DEST"
+    echo "removed: $DEST"
     exit 0
 fi
 
 for f in "${FILES[@]}"; do
-    [ -f "${SRC}/${f}" ] || { echo "FEHLER: ${SRC}/${f} fehlt." >&2; exit 1; }
+    [ -f "${SRC}/${f}" ] || { echo "ERROR: ${SRC}/${f} is missing." >&2; exit 1; }
 done
 
 if ! command -v cockpit-bridge >/dev/null 2>&1; then
-    echo "WARN: cockpit-bridge nicht gefunden -- die Seite wird erst nach der"
-    echo "      Cockpit-Installation sichtbar."
+    echo "WARN: cockpit-bridge not found -- the page becomes visible only after"
+    echo "      Cockpit is installed."
 fi
 
 # Clear out the old contents, so that deleted files do not linger.
@@ -44,8 +44,8 @@ rm -rf "$DEST"
 # against a PREFIX in one's own directory, and the error message comes from
 # the place where it really gets stuck.
 if ! install -d -m 0755 "$DEST" 2>/dev/null; then
-    echo "FEHLER: ${DEST} laesst sich nicht anlegen -- mit sudo aufrufen" >&2
-    echo "        (oder PREFIX=~/.local setzen, Cockpit sucht dort zuerst)." >&2
+    echo "ERROR: ${DEST} cannot be created -- call this with sudo" >&2
+    echo "       (or set PREFIX=~/.local, Cockpit looks there first)." >&2
     exit 1
 fi
 
@@ -57,5 +57,5 @@ done
 # how it should be under /usr/local.
 [ "$(id -u)" -eq 0 ] && chown -R root:root "$DEST"
 
-echo "installiert: $DEST"
-echo "Cockpit im Browser neu laden -> Menuepunkt \"Roboter-Werkzeuge\"."
+echo "installed: $DEST"
+echo "Reload Cockpit in the browser -> menu entry \"Robot tools\"."

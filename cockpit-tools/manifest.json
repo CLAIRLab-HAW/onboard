@@ -5,10 +5,10 @@
 
     "menu": {
         "index": {
-            "label": "Roboter-Werkzeuge",
+            "label": "Robot tools",
             "keywords": [
                 {
-                    "matches": ["offboard", "lite", "rviz", "moveit", "vnc", "container", "docker", "roboter"]
+                    "matches": ["offboard", "lite", "rviz", "moveit", "vnc", "container", "docker", "robot"]
                 }
             ],
             "order": 106

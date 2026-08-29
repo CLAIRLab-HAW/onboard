@@ -1,5 +1,5 @@
-// Cockpit-Anbindung: Docker-Aufrufe, Abfragetakt, Knoepfe, VNC-Adresse.
-// Die einzige Entscheidungslogik liegt in status.js und wird dort geprueft.
+// The Cockpit binding: Docker calls, poll cadence, buttons, VNC address.
+// The only decision logic lives in status.js and is checked there.
 
 import {
     classify, shouldPoll, resolveHost,
@@ -7,43 +7,43 @@ import {
     parseInspect, diagnoseVnc, hasCode, settleProbe,
 } from './status.js';
 
-// Der Containername wird NICHT geraten: compose bildet ihn aus dem
-// Verzeichnisnamen (<projekt>-moveit-rviz-1), er aendert sich also, sobald das
-// Projekt umzieht. Die Seite sucht ihn stattdessen in `docker ps -a` heraus --
-// am compose-Dienst und am Image (siehe pickContainer in status.js).
+// The container name is NOT guessed: compose forms it from the directory name
+// (<project>-moveit-rviz-1), so it changes as soon as the project moves. The
+// page looks it up in `docker ps -a` instead -- by the compose service and by
+// the image (see pickContainer in status.js).
 const PS_FORMAT = '{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Label "com.docker.compose.service"}}';
 
-// Netzmodus in der ersten Zeile, danach die Umgebung -- daraus beantwortet
-// diagnoseVnc(), warum Port 5900 von aussen zu ist.
+// The network mode on the first line, the environment after it -- from that
+// diagnoseVnc() answers why port 5900 is closed from outside.
 const INSPECT_FORMAT = '{{.HostConfig.NetworkMode}}{{"\n"}}{{range .Config.Env}}{{println .}}{{end}}';
 
-// Lauscht IM Container ueberhaupt jemand auf 5900? Das trennt einen toten
-// Desktop von einem, der nur nach aussen nicht erreichbar ist -- von aussen
-// sehen beide gleich aus. bash kann das ohne jedes Zusatzwerkzeug (kein ss,
-// kein netstat, kein pgrep noetig).
+// Is anybody listening on 5900 INSIDE the container at all? That separates a
+// dead desktop from one that is merely unreachable from outside -- from outside
+// the two look the same. bash can do it without any extra tool (no ss, no
+// netstat, no pgrep needed).
 const PROBE_5900 = 'exec 3<>/dev/tcp/127.0.0.1/5900 2>/dev/null && echo up || echo down';
 const VNC_PORT = 5900;
 
-// Faellt ein, wenn die Adresszeile kein brauchbares VNC-Ziel hergibt -- also
-// wenn Cockpit direkt auf dem Roboter oder durch einen SSH-Tunnel geoeffnet
-// wurde und dort "localhost" steht. Anderes Netz (netbird), andere Adresse:
-// hier eintragen.
+// Steps in when the address bar yields no usable VNC target -- that is, when
+// Cockpit was opened directly on the robot or through an SSH tunnel and reads
+// "localhost" there. A different network (netbird) means a different address:
+// enter it here.
 const ROBOT_HOST = '10.42.42.159';
 const POLL_IDLE_MS = 3000;
 
-// Auf diesem Roboter ist Docker das SNAP-Docker: das Binary liegt in
-// /snap/bin, und die Cockpit-Bridge garantiert keinen Login-PATH. Ohne das
-// vorangestellte /snap/bin schlaegt jeder Aufruf mit "docker: not found" fehl
-// -- was wie ein fehlender Docker aussieht und keiner ist.
+// On this robot Docker is the SNAP Docker: the binary lies in /snap/bin, and
+// the Cockpit bridge guarantees no login PATH. Without the /snap/bin put in
+// front, every call fails with "docker: not found" -- which looks like a
+// missing Docker and is not one.
 const PATH_PREFIX = 'PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin:$PATH; exec docker "$@"';
 
 const state = { status: null, error: null, pending: null, missing: false };
 let pollTimer = null;
 let everFetched = false;
-let container = null;      // der gefundene Container, sobald es einen gibt
-let vncNotes = [];         // warum 5900 von aussen zu ist (leer = alles gut)
-let inspectedKey = null;   // fuer welchen Container+Zustand das schon geprueft ist
-let probeState = null;     // geglaettete 5900-Messung (siehe settleProbe)
+let container = null;      // the container found, as soon as there is one
+let vncNotes = [];         // why 5900 is closed from outside (empty = all fine)
+let inspectedKey = null;   // for which container+state that is already checked
+let probeState = null;     // the smoothed 5900 measurement (see settleProbe)
 
 function docker(...args) {
     return cockpit.spawn(['/bin/sh', '-c', PATH_PREFIX, 'sh', ...args],
@@ -74,24 +74,23 @@ function render() {
     el('btn-start').disabled = !s.canStart;
     el('btn-stop').disabled = !s.canStop;
 
-    // Welchen Container die Seite gerade bedient -- sonst raet der Leser bei
-    // "nicht angelegt", wonach ueberhaupt gesucht wurde.
+    // Which container the page currently operates -- otherwise, on "not
+    // created", the reader guesses what was even looked for.
     el('container-name').textContent = container ? container.name : '—';
 
     const diag = el('vnc-diagnose');
     diag.textContent = vncNotes.map(n => n.text).join('\n\n');
     diag.hidden = vncNotes.length === 0;
 
-    // Kein Widerspruch auf einer Seite: solange die Diagnose sagt, dass gar
-    // kein Passwort gesetzt ist, verschwindet der Hinweis, der Viewer frage
-    // nach einem.
+    // No contradiction on one page: as long as the diagnosis says no password
+    // is set at all, the hint that the viewer asks for one disappears.
     el('hint-password').hidden = hasCode(vncNotes, 'no-password');
 
     const extra = el('container-extra');
     if (container && container.others && container.others.length > 0) {
-        extra.textContent = 'Weitere passende Container: '
+        extra.textContent = 'Further matching containers: '
                           + container.others.map(o => o.name).join(', ')
-                          + ' — bedient wird der oben genannte.';
+                          + ' — the one named above is the one operated.';
         extra.hidden = false;
     } else {
         extra.hidden = true;
@@ -133,10 +132,10 @@ function poll() {
             });
 }
 
-// Ein zweiter Docker-Aufruf, aber nicht im 3-Sekunden-Takt: Netzmodus und
-// Umgebung eines Containers aendern sich nur beim Neuanlegen, nicht im
-// Betrieb. Neu geprueft wird deshalb erst, wenn ein anderer Container
-// gefunden wurde oder er seinen Zustand gewechselt hat.
+// A second Docker call, but not on the 3-second cadence: the network mode and
+// environment of a container change only when it is created anew, not while it
+// runs. It is therefore re-checked only once a different container was found or
+// this one changed its state.
 function refreshDiagnosis() {
     if (!container) {
         vncNotes = [];
@@ -148,10 +147,10 @@ function refreshDiagnosis() {
     const key = container.name + '|' + container.state;
     const settled = probeState && probeState.value !== null;
 
-    // Netzmodus und Umgebung aendern sich nur beim Neuanlegen -- die einmal
-    // je Container zu pruefen genuegt. Die 5900-Messung dagegen laeuft weiter,
-    // bis sie zu einem Ergebnis gekommen ist (der Desktop braucht nach dem
-    // Start ein paar Sekunden, siehe settleProbe).
+    // Network mode and environment change only when the container is created
+    // anew -- checking those once per container is enough. The 5900 measurement,
+    // by contrast, keeps running until it has come to a result (after a start the
+    // desktop takes a few seconds, see settleProbe).
     if (key === inspectedKey && settled)
         return;
     inspectedKey = key;
@@ -171,8 +170,8 @@ function refreshDiagnosis() {
                 probeState = container.state === 'running'
                     ? settleProbe(probeState, measured)
                     : null;
-                // Die Diagnose ist eine Zugabe -- ohne inspect-Daten behauptet
-                // sie nichts, statt zu raten.
+                // The diagnosis is an extra -- without inspect data it claims
+                // nothing rather than guessing.
                 vncNotes = diagnoseVnc(parsed, { probe: probeState ? probeState.value : null });
             })
             .finally(render);
@@ -194,7 +193,7 @@ function run(action) {
             })
             .finally(() => {
                 state.pending = null;
-                poll();          // sofort nachsehen, statt den Takt abzuwarten
+                poll();          // look at once instead of waiting for the cadence
             });
 }
 
@@ -210,8 +209,8 @@ function copyText(text) {
     if (navigator.clipboard && window.isSecureContext)
         return navigator.clipboard.writeText(text);
 
-    // Cockpit laeuft hier ueber http (AllowUnencrypted) -- dann gibt es
-    // navigator.clipboard nicht, und es bleibt der alte Weg.
+    // Cockpit runs over http here (AllowUnencrypted) -- then there is no
+    // navigator.clipboard, and the old way is what remains.
     return new Promise((resolve, reject) => {
         const ta = document.createElement('textarea');
         ta.value = text;
@@ -239,7 +238,7 @@ function initVnc() {
             window.setTimeout(() => { note.hidden = true }, 1500);
         }).catch(() => {
             const note = el('copy-note');
-            note.textContent = 'Kopieren nicht möglich — Adresse von Hand markieren';
+            note.textContent = 'Copying is not possible — select the address by hand';
             note.hidden = false;
         });
     });
