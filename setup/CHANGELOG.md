@@ -5,6 +5,18 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-29 (the parity guards fire when THIS repo changes)
+
+- **`.github/workflows/ci.yml`** runs the two suites that read this repo as their source of truth: the linkage
+  parity in `onrobot-rg6` (60 tests) and the SSOT and gripper-linkage parity in `robot-contract` (15). Both guards
+  live in the other repos, so until now they only ever fired when one of *those* was touched -- a change to
+  `config/robot.yaml` or `scripts/rg6_finger_kinematics.json` here went unnoticed until someone happened to edit
+  the far side. Measured in a bare 3.11 venv: 75 tests, 1.7 s, no ROS and no robot.
+- **`touch workspace.repos` is load-bearing in that workflow.** Both suites walk up for the marker and skip by name
+  while there is none; without it the run would be green having compared nothing.
+- **The scripts get a syntax pass instead of a suite** -- `ruff --select E9,F63,F7,F82` for Python (importing them
+  needs rclpy, which no runner has) and `bash -n` over every `*.sh`.
+
 ## 2026-08-27 (the Cockpit page "Roboter-Werkzeuge" joins the installer)
 
 - **The installer deploys `cockpit-robot-tools` as well**, as an optional step
