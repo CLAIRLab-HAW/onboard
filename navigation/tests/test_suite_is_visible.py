@@ -9,8 +9,9 @@ base, and that is not a precondition a ``uv run pytest`` at the root may silentl
 This test needs neither ROS nor Docker -- it reads text.
 """
 
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[3]
 PYPROJECT = ROOT / "pyproject.toml"

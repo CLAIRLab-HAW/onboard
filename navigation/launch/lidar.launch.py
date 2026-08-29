@@ -13,12 +13,11 @@ Every name comes from husky_navigation.wiring -- none of them is stated a second
 (tests/test_launch_files_do_not_restate_the_wiring.py).
 """
 
+from husky_navigation import rslidar_config, wiring
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-
-from husky_navigation import rslidar_config, wiring
 
 
 def _setup(context, *args, **kwargs):

@@ -12,12 +12,11 @@ All topic and frame names come from husky_navigation.wiring.
 
 import os
 
+from husky_navigation import wiring
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-
-from husky_navigation import wiring
 
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PARAMS = os.path.join(_HERE, "config", "nav2_params.yaml")

@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from husky_navigation import wiring
 
 PARAMS_PATH = Path(__file__).resolve().parents[1] / "config" / "nav2_params.yaml"

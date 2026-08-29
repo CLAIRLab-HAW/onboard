@@ -12,7 +12,6 @@ import copy
 
 import pytest
 import yaml
-
 from husky_navigation import rslidar_config as rc
 
 
