@@ -53,7 +53,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "pcap", default_value="", description="Pfad einer RS16-Aufnahme. Leer = echtes Geraet."
+                "pcap", default_value="", description="the path of an RS16 recording. Empty = the real device."
             ),
             OpaqueFunction(function=_setup),
         ]
