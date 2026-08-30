@@ -472,7 +472,7 @@ def selftest() -> int:
             try:
                 for _ in range(25):
                     cli.state()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(exc)
 
         threads = [threading.Thread(target=_hammer) for _ in range(4)]

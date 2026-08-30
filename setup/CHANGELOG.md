@@ -5,6 +5,13 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-30 (the inert BLE001 directives are gone)
+
+- `# noqa: BLE001` removed in 1 place. `BLE` is not in the workspace lint scope, so these directives suppressed
+  nothing -- they were flake8 residue. Where one carried a justification, the justification stays as a plain comment.
+- Enabling the rule instead was measured and rejected: 156 blind `except Exception` stand in the workspace against 88
+  directives, so the marker was never a reliable signal, and switching it on would have produced 87 findings.
+
 ## 2026-08-30 (ruff resolves the same settings from anywhere)
 
 - **CI pins `ruff>=0.16.5,<0.17`** -- the minor the lint scope was measured against, the same bound the
