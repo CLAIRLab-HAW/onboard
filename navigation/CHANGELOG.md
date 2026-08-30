@@ -3,6 +3,14 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-08-30 (ruff resolves the same settings from anywhere)
+
+- **`target-version = "py311"` now stands in `[tool.ruff]`.** Ruff infers it from `project.requires-python`
+  when absent -- which the virtual workspace root has no `[project]` table to supply, so a run through the ROOT
+  config resolved to 3.10 while a run inside this package resolved to 3.11 (measured 2026-08-30,
+  `ruff check --show-settings`). The pre-commit hook passes `--config <workspace-root>`, so 3.10 was the
+  version every commit got checked against.
+
 ## 2026-08-29 (the package docstring names the launch directory)
 
 - **The docstring refers to the repo's `launch/`** rather than `../launch/`, which reads as a path relative to the

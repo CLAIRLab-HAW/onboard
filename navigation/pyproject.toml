@@ -30,6 +30,12 @@ where = ["src"]
 # 2026-08-30 switch is one reflow commit per repo, not a rewrite. Mirrors the workspace root ([tool.ruff] there),
 # so formatting this repo on its own gives the same result as from the workspace.
 line-length = 120
+# Spelled out rather than inferred from `project.requires-python`: the virtual workspace root carries no
+# [project] table, so a run through the ROOT config resolved to 3.10 while a run inside a package resolved
+# to 3.11 (measured 2026-08-30, `ruff check --show-settings`). The pre-commit hook passes
+# --config <workspace-root>, so 3.10 was what every commit got checked against. Same class of trap as the
+# known-first-party split below: one stock, two verdicts, depending on where the run started.
+target-version = "py311"
 extend-exclude = [".venv", ".superpowers", ".idea", "urdf", "data", "node_modules", "build", "dist", "*.egg-info"]
 respect-gitignore = false
 
