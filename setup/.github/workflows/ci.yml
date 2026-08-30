@@ -59,7 +59,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: pip install pytest numpy pyyaml ruff
+      # ruff is pinned to the minor the lint scope was measured against (same bound as the workspace dev
+      # group): an unpinned install lets a ruff release stabilise new rules and turn this CI red with no commit.
+      - run: pip install pytest numpy pyyaml 'ruff>=0.16.5,<0.17'
 
       # The scripts import rclpy and the OnRobot XML-RPC endpoint, so they cannot be imported here -- E9/F63/F7/F82
       # are the checks that read the file rather than run it.

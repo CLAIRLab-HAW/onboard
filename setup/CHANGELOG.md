@@ -5,6 +5,12 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-30 (ruff resolves the same settings from anywhere)
+
+- **CI pins `ruff>=0.16.5,<0.17`** -- the minor the lint scope was measured against, the same bound the
+  workspace dev group carries. Unpinned, a ruff release can stabilise new rules and turn this CI red without
+  a commit of ours.
+
 ## 2026-08-30 (the silent paths on the robot speak, without lying on the topic)
 
 - **`rg6_grip_bridge` reports a status outage edge-triggered.** The TOPIC stays silent on purpose -- the silence
