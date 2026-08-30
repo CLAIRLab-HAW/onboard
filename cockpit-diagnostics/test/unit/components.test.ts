@@ -268,9 +268,8 @@ const treeMarkup = (over: Partial<React.ComponentProps<typeof DiagnosticsTreeTab
         ...over,
     }));
 
-// The level column is the only place severity shows now (Task 2 removed the
-// icon that used to sit in front of the name), so an OK row must leave that
-// cell empty while a row that is not OK must not -- otherwise the column
+// The level column is the only place severity shows, so an OK row must leave
+// that cell empty while a row that is not OK must not -- otherwise the column
 // would either shout at every healthy row or say nothing about a real one.
 const levelCells = (html: string): string[] =>
     Array.from(html.matchAll(/<td[^>]*data-label="Level"[^>]*>([\s\S]*?)<\/td>/g), m => m[1]);
@@ -286,9 +285,9 @@ const filtered = treeMarkup({ query: "gyro" });
 check(!filtered.includes(okLeaf.message), "a query hides a sibling that does not match");
 check(filtered.includes(warnLeaf.message), "a query keeps the matching row");
 
-// Task 11 moved the "Connecting" empty state up to app.tsx: the whole
-// workspace is guarded there now, not just the tree, so the tree itself must
-// no longer carry it (and no longer take a bridgeConnected prop to drive it).
+// The "Connecting" empty state lives in app.tsx: the whole workspace is
+// guarded there, not just the tree, so the tree itself must not carry it
+// (and takes no bridgeConnected prop to drive it).
 const emptyTree = treeMarkup({ diagnostics: [] });
 check(!emptyTree.includes("Connecting"), "the tree no longer renders its own connecting state");
 
