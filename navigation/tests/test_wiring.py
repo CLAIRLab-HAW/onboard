@@ -22,6 +22,7 @@ def test_the_scan_topic_sits_beside_the_points_topic():
 def test_the_driver_template_publishes_on_the_wired_points_topic():
     """Driver template and wiring must not diverge."""
     import yaml
+
     from husky_navigation import rslidar_config as rc
 
     template = yaml.safe_load(rc.TEMPLATE_PATH.read_text(encoding="utf-8"))
@@ -30,6 +31,7 @@ def test_the_driver_template_publishes_on_the_wired_points_topic():
 
 def test_the_driver_template_uses_the_wired_frame():
     import yaml
+
     from husky_navigation import rslidar_config as rc
 
     template = yaml.safe_load(rc.TEMPLATE_PATH.read_text(encoding="utf-8"))
