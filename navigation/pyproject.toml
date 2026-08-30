@@ -10,7 +10,7 @@ readme = "README.md"
 authors = [
     { name = "Hannes Philip Voss", email = "mail@hannesvoss.de" },
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = ["pyyaml>=6.0"]
 
 # Test-only, hence a group and not `dependencies`: this package runs onboard the robot, where neither the
@@ -35,7 +35,7 @@ line-length = 120
 # to 3.11 (measured 2026-08-30, `ruff check --show-settings`). The pre-commit hook passes
 # --config <workspace-root>, so 3.10 was what every commit got checked against. Same class of trap as the
 # known-first-party split below: one stock, two verdicts, depending on where the run started.
-target-version = "py311"
+target-version = "py312"
 extend-exclude = [".venv", ".superpowers", ".idea", "urdf", "data", "node_modules", "build", "dist", "*.egg-info"]
 respect-gitignore = false
 
