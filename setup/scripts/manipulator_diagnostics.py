@@ -165,7 +165,7 @@ def arm_mode_level(robot_mode, safety_mode):
     necessarily mean the arm is broken.
     """
     if robot_mode is None and safety_mode is None:
-        return Verdict(STALE, "no robot_mode/safety_mode received - is the " "io_and_status_controller running?")
+        return Verdict(STALE, "no robot_mode/safety_mode received - is the io_and_status_controller running?")
 
     rm, sm = robot_mode_name(robot_mode), safety_mode_name(safety_mode)
 
@@ -209,7 +209,7 @@ def arm_control_level(program_running, joint_state_age, timeout, arm_off=False):
             "restart clearpath-manipulators)",
         )
     if joint_state_age > timeout:
-        return Verdict(ERROR, f"joint_state stream silent for {joint_state_age:.1f}s " "- motion link dead")
+        return Verdict(ERROR, f"joint_state stream silent for {joint_state_age:.1f}s - motion link dead")
     if program_running is False:
         return Verdict(WARN, "external control not running (arm not commandable from ROS)")
     if program_running is None:
@@ -227,7 +227,7 @@ def arm_joints_level(joint_count, joint_state_age, timeout, arm_off=False):
     if not joint_count or joint_state_age is None or joint_state_age > timeout:
         return Verdict(STALE, "no current joint values")
     if arm_off:
-        return inactive(f"arm switched off - {joint_count} joints, " "values are the last encoder positions")
+        return inactive(f"arm switched off - {joint_count} joints, values are the last encoder positions")
     return Verdict(OK, f"{joint_count} joints")
 
 
@@ -339,17 +339,17 @@ def gripper_level(state_age, timeout, signal_valid, robot_mode, width_raw, dead_
         # The bridge STAYS SILENT when the XML-RPC endpoint does not answer (it prefers reporting nothing over an old
         # value).  A status that is too old is therefore exactly the signal for "endpoint gone".
         return Verdict(
-            ERROR, f"rg6/bridge_state silent for {state_age:.1f}s - " "rg6-grip-bridge dead or URCap endpoint gone?"
+            ERROR, f"rg6/bridge_state silent for {state_age:.1f}s - rg6-grip-bridge dead or URCap endpoint gone?"
         )
 
     if not signal_valid:
         raw = "n/a" if width_raw is None else f"{width_raw:.2f} V"
         if arm_is_off(robot_mode):
-            return inactive("arm switched off - gripper without supply " f"(tool signal {raw})")
+            return inactive(f"arm switched off - gripper without supply (tool signal {raw})")
         if arm_is_powered(robot_mode) is False:
             return Verdict(
                 WARN,
-                f"arm not powered ({robot_mode_name(robot_mode)}) " f"- gripper without supply (tool signal {raw})",
+                f"arm not powered ({robot_mode_name(robot_mode)}) - gripper without supply (tool signal {raw})",
             )
         # Arm powered, still no signal: the 24 V tool supply is not present. Switching it on is the business of the
         # OnRobot URCap -- the ROS route there would go over a tool DO, and the URCap occupies that itself.  No ROS
@@ -651,9 +651,7 @@ def main(argv=None) -> int:
             self._pub = self.create_publisher(DiagnosticArray, self.diagnostics_topic, 10)
             self.create_timer(1.0 / max(self.rate_hz, 0.1), self._tick)
 
-            self.get_logger().info(
-                f"manipulator_diagnostics: {ns} ─▶ {self.diagnostics_topic} " f"@ {self.rate_hz:.1f} Hz"
-            )
+            self.get_logger().info(f"manipulator_diagnostics: {ns} ─▶ {self.diagnostics_topic} @ {self.rate_hz:.1f} Hz")
             for missing, what in (
                 (UR_MSGS_ERROR, "ur_dashboard_msgs"),
                 (TOOL_MSGS_ERROR, "ur_msgs"),

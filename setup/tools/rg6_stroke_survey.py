@@ -103,13 +103,17 @@ def main() -> int:
         try:
             await_settled(client)
         except Rg6Error as exc:
+            # Recorded in the row AND on stderr, like the grip failure above: stdout carries the survey, and a
+            # run that quietly drops half its points otherwise looks like a complete one.
             rows.append({"commanded_mm": width_mm, "error": str(exc)})
+            print(f"# {width_mm:6.1f} mm -> ERROR while settling: {exc}", file=sys.stderr)
             continue
         time.sleep(settle_s)
         try:
             st = client.state()
         except Rg6Error as exc:
             rows.append({"commanded_mm": width_mm, "error": str(exc)})
+            print(f"# {width_mm:6.1f} mm -> ERROR while reading back: {exc}", file=sys.stderr)
             continue
         rows.append(
             {
@@ -128,7 +132,7 @@ def main() -> int:
             }
         )
         print(
-            f"# {width_mm:6.1f} mm ─▶ {st.width_m * 1000:6.2f} mm " f"(busy={st.busy}, grip={st.grip_detected})",
+            f"# {width_mm:6.1f} mm ─▶ {st.width_m * 1000:6.2f} mm (busy={st.busy}, grip={st.grip_detected})",
             file=sys.stderr,
         )
 

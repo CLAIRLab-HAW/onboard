@@ -94,7 +94,10 @@ def fix_realsense_mesh_uris(label):
         try:
             with open(path) as f:
                 content = f.read()
-        except OSError:
+        except OSError as e:
+            # Skipped, so the patch this file was meant to receive never lands -- and the run still reports
+            # success for the files it DID reach.
+            log(f"{label}: cannot read {path}, skipping: {e}", err=True)
             continue
         if OLD not in content:
             continue
@@ -102,8 +105,9 @@ def fix_realsense_mesh_uris(label):
         if not os.path.exists(backup):
             try:
                 shutil.copy2(path, backup)
-            except OSError:
-                pass
+            except OSError as e:
+                # The patch below goes ahead regardless, but without the .bak it cannot be undone.
+                log(f"{label}: no backup of {path}: {e}", err=True)
         tmp = path + ".tmp"
         try:
             with open(tmp, "w") as f:
@@ -146,7 +150,10 @@ def move_arm_joint_states(label):
         try:
             with open(path) as f:
                 content = f.read()
-        except OSError:
+        except OSError as e:
+            # Skipped, so the patch this file was meant to receive never lands -- and the run still reports
+            # success for the files it DID reach.
+            log(f"{label}: cannot read {path}, skipping: {e}", err=True)
             continue
         new_content, n = rx.subn(ARM_JS_SUB, content)
         if n == 0:
@@ -155,8 +162,9 @@ def move_arm_joint_states(label):
         if not os.path.exists(backup):
             try:
                 shutil.copy2(path, backup)
-            except OSError:
-                pass
+            except OSError as e:
+                # The patch below goes ahead regardless, but without the .bak it cannot be undone.
+                log(f"{label}: no backup of {path}: {e}", err=True)
         tmp = path + ".tmp"
         try:
             with open(tmp, "w") as f:
@@ -195,8 +203,7 @@ def run_rg6_moveit_patch(label):
     tool = "/usr/local/bin/rg6-moveit-patch"
     if not os.path.isfile(tool):
         log(
-            f"{label}: {tool} missing (run the installer with an "
-            "onrobot-rg6 workspace) - MoveIt without the gripper.",
+            f"{label}: {tool} missing (run the installer with an onrobot-rg6 workspace) - MoveIt without the gripper.",
             err=True,
         )
         return False

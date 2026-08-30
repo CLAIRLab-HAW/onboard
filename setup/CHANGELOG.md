@@ -5,6 +5,24 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-08-30 (the silent paths on the robot speak, without lying on the topic)
+
+- **`rg6_grip_bridge` reports a status outage edge-triggered.** The TOPIC stays silent on purpose -- the silence
+  is itself the signal, and the diagnostics judges the age of the last status from it. The LOG is a different
+  channel and lies to nobody: one WARNING when the outage begins, one INFO with its duration when it ends. Per
+  iteration it would have buried the moment it began under thousands of identical lines at
+  `joint_state_rate_hz`.
+- **`clearpath_custom_setup` says which file it could not patch.** An unreadable file was skipped in silence
+  while the run still reported success for the files it did reach; a failed `.bak` was equally quiet, and the
+  patch that follows it cannot be undone.
+- **`octomap_feed` reports the dropped frame on a size mismatch**, throttled, exactly as the sibling branch above
+  it already did for an unknown encoding -- a mismatch previously looked like no frames arriving at all.
+- **`rg6_stroke_survey` notes a settle or read-back failure on stderr**, like the grip failure already did:
+  stdout carries the survey, and a run that quietly drops half its points looks like a complete one.
+- Checked and deliberately left silent: the five handlers in `manipulator_diagnostics` (three store the import
+  error and report it later, one must not raise inside a callback, one is the normal stop) and the `Rg6Client`
+  self-test assertions.
+
 ## 2026-08-29 (the parity guards fire when THIS repo changes)
 
 - **`.github/workflows/ci.yml`** runs the two suites that read this repo as their source of truth: the linkage

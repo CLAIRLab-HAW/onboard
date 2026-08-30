@@ -127,7 +127,7 @@ class Rg6Client:
         # as an int.
         rc = self._call("rg_grip", self._tool, width_mm + 0.0, force + 0.0)
         if int(rc) != 0:
-            raise Rg6Error(f"rg_grip({width_mm:.1f} mm, {force:.1f} N) " f"answered {rc!r} instead of 0")
+            raise Rg6Error(f"rg_grip({width_mm:.1f} mm, {force:.1f} N) answered {rc!r} instead of 0")
 
     def stop(self) -> None:
         self._call("rg_stop", self._tool)
@@ -146,9 +146,9 @@ class Rg6Client:
             with self._lock:
                 return getattr(self._proxy, method)(*args)
         except xmlrpc.client.Fault as exc:
-            raise Rg6Error(f"{method}: Fault {exc.faultCode} " f"{exc.faultString}") from exc
+            raise Rg6Error(f"{method}: Fault {exc.faultCode} {exc.faultString}") from exc
         except OSError as exc:
-            raise Rg6Error(f"{method}: {self._url} not reachable " f"({exc})") from exc
+            raise Rg6Error(f"{method}: {self._url} not reachable ({exc})") from exc
 
 
 def await_settled(
@@ -529,9 +529,7 @@ def run(argv) -> int:
 
     kin_file = _p("kinematics_file") or str(pathlib.Path(__file__).with_name("rg6_finger_kinematics.json"))
     linkage = FingerKinematics(kin_file)
-    log.info(
-        f"linkage table: {kin_file} " f"({linkage.max_width_m * 1000:.1f} mm open, " f"q up to {linkage.q_max:.5f} rad)"
-    )
+    log.info(f"linkage table: {kin_file} ({linkage.max_width_m * 1000:.1f} mm open, q up to {linkage.q_max:.5f} rad)")
 
     # -- finger joint ------------------------------------------------------
     # Nothing else publishes rg6_finger_joint into /joint_states (measured
@@ -560,14 +558,25 @@ def run(argv) -> int:
         The conversion width ─▶ joint is done by the linkage geometry of the profile (R19), not by this node.
         """
         period = 1.0 / float(_p("joint_state_rate_hz"))
+        # Edge-triggered, NOT per iteration: the loop runs at joint_state_rate_hz, and an outage that logged every
+        # pass would bury the moment it began under thousands of identical lines.  One line when it starts, one
+        # when it comes back -- and the duration on the second, which is the number an operator actually wants.
+        outage_since: float | None = None
         while rclpy.ok():
             try:
                 state = client.state()
-            except Rg6Error:
-                # Staying silent is better than lying -- and the SILENCE is the signal at the same time: the diagnostics
-                # judges the age of the last status and reports the outage from it.
+            except Rg6Error as exc:
+                # The TOPIC stays silent, deliberately: the silence is itself the signal, and the diagnostics
+                # judges the age of the last status and reports the outage from it.  The LOG is a different
+                # channel and lies to nobody -- without it the moment an outage began is unrecoverable.
+                if outage_since is None:
+                    outage_since = time.monotonic()
+                    log.warning(f"gripper status unavailable: {exc}")
                 time.sleep(period)
                 continue
+            if outage_since is not None:
+                log.info(f"gripper status back after {time.monotonic() - outage_since:.1f} s")
+                outage_since = None
             # The same rule, only for the case where the endpoint ANSWERS
             # without having measured (state.readable, see there).  Otherwise
             # -999 mm runs through the clamp and becomes a closed gripper -- a

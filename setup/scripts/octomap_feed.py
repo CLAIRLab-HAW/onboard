@@ -94,7 +94,7 @@ def selftest() -> int:
     pts_mm = depth_to_cloud(mm, K, stride=2)
     assert len(pts_mm) == len(pts), "mm/uint16 path"
     assert np.allclose(pts_mm[:, 2], pts[:, 2], atol=1e-3), "mm scaling"
-    print("octomap_feed selftest: OK " f"({len(pts)} points, z {pts[:, 2].min():.2f}..{pts[:, 2].max():.2f} m)")
+    print(f"octomap_feed selftest: OK ({len(pts)} points, z {pts[:, 2].min():.2f}..{pts[:, 2].max():.2f} m)")
     return 0
 
 
@@ -178,7 +178,13 @@ def main(argv=None) -> int:
                 return
             try:
                 depth = depth.reshape(msg.height, msg.width)
-            except ValueError:
+            except ValueError as exc:
+                # The branch right above throttles a warning for the sibling case (unknown encoding); this one
+                # dropped the frame without a word, so a size mismatch looked like no frames arriving at all.
+                self.get_logger().warning(
+                    f"depth {msg.height}x{msg.width} does not match the payload -- frame dropped: {exc}",
+                    throttle_duration_sec=10.0,
+                )
                 return
             pts = depth_to_cloud(depth, K, self.stride, self.min_depth, self.max_depth)
             cloud = PointCloud2()
