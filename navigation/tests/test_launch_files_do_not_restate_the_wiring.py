@@ -22,7 +22,7 @@ WIRED_LITERALS = ("/a200_0553/sensors/lidar3d_0/points", "/a200_0553/sensors/lid
 def test_the_launch_file_imports_the_wiring(launch_file):
     text = launch_file.read_text(encoding="utf-8")
     assert "husky_navigation" in text, (
-        f"{launch_file.name} does not import husky_navigation -- the wiring " f"then stands there a second time."
+        f"{launch_file.name} does not import husky_navigation -- the wiring then stands there a second time."
     )
 
 

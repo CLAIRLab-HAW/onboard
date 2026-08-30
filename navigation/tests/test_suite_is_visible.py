@@ -32,14 +32,14 @@ def test_the_root_run_descends_into_robot():
 def test_the_nav_e2e_marker_is_registered():
     markers = _config()["tool"]["pytest"]["ini_options"]["markers"]
     assert any(m.startswith("nav_e2e:") for m in markers), (
-        "Marker 'nav_e2e' is not registered -- pytest then warns about an " "unknown marker on every run."
+        "Marker 'nav_e2e' is not registered -- pytest then warns about an unknown marker on every run."
     )
 
 
 def test_the_default_run_deselects_nav_e2e():
     addopts = _config()["tool"]["pytest"]["ini_options"]["addopts"]
     assert "not nav_e2e" in addopts, (
-        "The root run does not deselect nav_e2e -- it would presuppose a " "running container with a driving base."
+        "The root run does not deselect nav_e2e -- it would presuppose a running container with a driving base."
     )
 
 

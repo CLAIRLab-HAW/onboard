@@ -34,7 +34,7 @@ def container():
     if probe.returncode != 0:
         pytest.skip(f"Container {CONTAINER} is not running.")
     if "TARGET=mock" not in probe.stdout:
-        pytest.skip("Container is NOT on TARGET=mock -- this test drives " "the robot.")
+        pytest.skip("Container is NOT on TARGET=mock -- this test drives the robot.")
     return CONTAINER
 
 
@@ -61,9 +61,7 @@ def test_the_navigate_to_pose_action_is_offered(container):
 
 
 def test_the_map_is_published(container):
-    out = _exec(
-        "source ros-env; timeout 10 ros2 topic echo /a200_0553/map " "--once --field info.resolution 2>/dev/null"
-    )
+    out = _exec("source ros-env; timeout 10 ros2 topic echo /a200_0553/map --once --field info.resolution 2>/dev/null")
     assert out.strip(), "map_server publishes no map."
 
 
@@ -217,7 +215,7 @@ print(json.dumps({
         f"without motion is no success."
     )
     assert result["remaining"] < 0.35, (
-        f"It has not arrived: {result['remaining']:.3f} m to the goal " f"(xy_goal_tolerance is 0.25)."
+        f"It has not arrived: {result['remaining']:.3f} m to the goal (xy_goal_tolerance is 0.25)."
     )
 
 
@@ -237,7 +235,7 @@ def test_the_controller_actually_receives_odometry(container):
     assert topic, "odom_topic is not readable on the running controller_server."
 
     full = topic if topic.startswith("/") else f"/a200_0553/{topic}"
-    info = _exec(f"source ros-env; timeout 20 ros2 topic info -v {full} " "2>/dev/null | grep 'Publisher count'")
+    info = _exec(f"source ros-env; timeout 20 ros2 topic info -v {full} 2>/dev/null | grep 'Publisher count'")
     assert "Publisher count: 0" not in info, (
         f"NOBODY publishes on {full} -- the controller_server never gets its "
         f"actual velocity, `speed` stays 0, and the controller controls "
@@ -246,8 +244,7 @@ def test_the_controller_actually_receives_odometry(container):
     )
 
     sample = _exec(
-        f"source ros-env; timeout 8 ros2 topic echo {full} --once "
-        "--field twist.twist.angular.z 2>/dev/null | head -1"
+        f"source ros-env; timeout 8 ros2 topic echo {full} --once --field twist.twist.angular.z 2>/dev/null | head -1"
     )
     assert sample.strip(), f"{full} has a publisher but delivers no data."
 
@@ -284,7 +281,7 @@ def test_the_ground_frame_matches_the_wheel_geometry(container):
     axle_z = _z("base_link", "front_left_wheel_link")
 
     radius = float(
-        _exec("grep -m1 'wheel_radius:' /clearpath/platform/config/control.yaml " "| tr -d ' ' | cut -d: -f2").strip()
+        _exec("grep -m1 'wheel_radius:' /clearpath/platform/config/control.yaml | tr -d ' ' | cut -d: -f2").strip()
     )
 
     expected = axle_z - radius

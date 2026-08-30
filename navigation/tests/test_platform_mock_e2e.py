@@ -34,14 +34,14 @@ def container():
     if probe.returncode != 0:
         pytest.skip(f"Container {CONTAINER} is not running.")
     if "TARGET=mock" not in probe.stdout:
-        pytest.skip("Container is NOT on TARGET=mock -- this test commands " "cmd_vel and would drive the real Husky.")
+        pytest.skip("Container is NOT on TARGET=mock -- this test commands cmd_vel and would drive the real Husky.")
     return CONTAINER
 
 
 def test_the_platform_controller_is_active(container):
-    out = _exec("source ros-env; ros2 control list_controllers " "-c /a200_0553/controller_manager 2>/dev/null")
+    out = _exec("source ros-env; ros2 control list_controllers -c /a200_0553/controller_manager 2>/dev/null")
     assert "platform_velocity_controller" in out, (
-        "The wheel controller is not loaded -- was `mock platform:=true` " "started?"
+        "The wheel controller is not loaded -- was `mock platform:=true` started?"
     )
     assert "active" in out
 
@@ -49,7 +49,7 @@ def test_the_platform_controller_is_active(container):
 def test_only_the_platform_hardware_is_claimed_by_the_platform_manager(container):
     """The risk from spec paragraph 3.4: a controller_manager loads ALL
     ros2_control blocks of the URDF it is given."""
-    out = _exec("source ros-env; ros2 control list_hardware_components " "-c /a200_0553/controller_manager 2>/dev/null")
+    out = _exec("source ros-env; ros2 control list_hardware_components -c /a200_0553/controller_manager 2>/dev/null")
     assert "a200_hardware" in out
     assert "arm_0" not in out, (
         "The platform manager claims the arm hardware as well -- then two "
