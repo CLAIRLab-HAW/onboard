@@ -57,8 +57,10 @@ cd ~/husky-extras && colcon build --packages-select husky_extras_description
 ```
 
 In the offboard container the package comes out of the build context and is
-built into `/opt/husky-extras`; the entrypoint symlinks `/home/robot/husky-extras`
-onto it so the absolute paths from `robot.yaml` resolve there as well.
+built into `/opt/husky-extras` (the `extras-build` stage), so the image tag is
+the state of the checkout it was built from; the entrypoint symlinks
+`/home/robot/husky-extras` onto it, so the absolute paths from `robot.yaml`
+resolve there as well.
 
 ## Usage
 

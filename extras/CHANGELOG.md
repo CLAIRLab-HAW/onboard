@@ -31,6 +31,11 @@ the versioning [Semantic Versioning](https://semver.org/).
   names a package which actually ships the file; that the four link names other
   repos hold on to survived the move; and that `robot.yaml` in the neighbouring
   repo still addresses this path and lists this workspace.
+- **The arch inertia arrived with the file, and it was derived the same day.** `husky_top_assembly` carried six
+  collision boxes and no mass at all, so `twinlink.urdf_mujoco._ensure_inertial` was substituting 0.1 kg for a
+  half-metre portal frame, a factor of 62. 2.3 L of measured structure volume at the assumed density of 6xxx
+  aluminium gives 6.21 kg, distributed over the six boxes by volume with the box mode of `onrobot-rg6`'s
+  `tools/derive_link_inertia.py`. The volume is measured, the density is not; R47 carries the scale.
 - **The naked `TODO`s at the ArUco marker became R48.** Neither its parent frame
   nor its offset has ever been measured; the marker is visual only, so nothing
   plans against it, but a reader of the viewer and any pose estimation trusting
