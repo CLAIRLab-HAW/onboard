@@ -1,0 +1,66 @@
+# CI: the seam checks of this repo, run in a workspace rather than in the repo alone.
+#
+# There is nothing to build and nothing to execute here -- the package is data, `colcon build` would install two
+# directories and run no test -- so the suite guards the seams instead, and one of them crosses a repo boundary:
+# `config/robot.yaml` in husky-custom-setup addresses this file by ABSOLUTE path and lists the workspace it is
+# installed from. Both have to hold together, otherwise the next boot generates a robot without extras and nothing
+# errors.
+#
+# That check is why the sibling is checked out and why `workspace.repos` is touched below: tests/test_extras_urdf.py
+# SKIPS by name while there is no workspace root above the repo, so without the marker this workflow would be green
+# having compared nothing. It is also the direction that would otherwise go unnoticed -- the far side has its own
+# workflow, so a change to robot.yaml is seen there; a change HERE is seen only here.
+#
+# What is deliberately NOT run:
+#
+# * `colcon build` / `xacro` -- both want a sourced ROS 2 Jazzy and the Clearpath description packages, since this
+#   file names frames (`arm_0_tool0`, `top_plate_rear_mount`) that only exist once the generator has built an a200
+#   with a UR5 on it. That the file expands is measured where a stack actually comes up (the offboard container).
+# * `ruff format --check` and the full lint scope -- this repo carries no pyproject.toml on purpose (CLAUDE.md: uv
+#   would take it for the workspace root and run against the system interpreter), so ruff falls back to its own
+#   default line-length 88 instead of the workspace's 120 and reports the tree unformatted. E9/F63/F7/F82 are the
+#   checks that read the file rather than measure its layout.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # The paths mirror the workspace layout (workspace.repos): the suite resolves its sibling relative to the
+      # workspace root, so a checkout anywhere else would not find it.
+      - uses: actions/checkout@v5
+        with:
+          path: robot/husky-extras
+
+      # CLAIRLAB_READ_TOKEN, not GITHUB_TOKEN: the default token is scoped to the repository the workflow runs in,
+      # so against another PRIVATE repo of the same org the API answers "Not Found" rather than 403 -- it does not
+      # confirm the repo exists. The org secret is the same one robot-contract, plan-bridge, skill-tree, husky-sdk,
+      # onrobot-rg6, husky-custom-setup and husky-offboard use for their private siblings.
+      - uses: actions/checkout@v5
+        with:
+          repository: CLAIRLab-HAW/husky-custom-setup
+          path: robot/husky-custom-setup
+          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
+
+      # Root-finder marker, and it is load-bearing rather than cosmetic: the robot.yaml check walks up for
+      # workspace.repos and skips while there is none.
+      - run: touch workspace.repos
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # No pyproject.toml here (see the header), so the dependencies are named rather than resolved. ruff is pinned
+      # to the minor the lint scope was measured against (same bound as the workspace dev group): an unpinned
+      # install lets a ruff release stabilise new rules and turn this CI red with no commit.
+      - run: pip install pytest pyyaml 'ruff>=0.16.5,<0.17'
+
+      - run: cd robot/husky-extras && ruff check --select E9,F63,F7,F82 .
+
+      - name: own tests
+        working-directory: robot/husky-extras
+        run: python -m pytest tests -q

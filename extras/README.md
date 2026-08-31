@@ -91,6 +91,12 @@ that really ships the file, that the four addressed link names survived, and
 that `robot.yaml` in `husky-custom-setup` still points at this path and lists
 this workspace.
 
+`.github/workflows/ci.yml` runs the same suite on every push and pull request.
+It checks `husky-custom-setup` out next to this repo and lays a
+`workspace.repos` above both, because the `robot.yaml` check skips itself while
+there is no workspace root — a run without that marker would be green having
+compared nothing.
+
 ## Related
 
 - [onrobot-rg6](../onrobot-rg6/README.md) — the RG6 model whose macro this file

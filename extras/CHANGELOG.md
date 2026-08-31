@@ -41,3 +41,14 @@ the versioning [Semantic Versioning](https://semver.org/).
   plans against it, but a reader of the viewer and any pose estimation trusting
   the frame are misled. A `TODO` without a number and a date says neither who
   decides it nor what it hangs on.
+- **CI, and it runs the suite in a workspace rather than in the repo alone.**
+  `.github/workflows/ci.yml` checks this repo out at `robot/husky-extras`,
+  `husky-custom-setup` next to it and touches `workspace.repos` between them,
+  because the check that reads `robot.yaml` skips by name while there is no
+  workspace root above the repo — measured here: nine passed and one skipped
+  without the marker, ten passed with it. That skip would have made the
+  workflow green having compared nothing, and the far side is exactly the
+  change that goes unnoticed otherwise. Plus `ruff check --select
+  E9,F63,F7,F82`; no `colcon build`, which would install two directories and
+  run no test, and no `ruff format --check`, which without a `pyproject.toml`
+  measures against line-length 88 instead of the workspace's 120.
