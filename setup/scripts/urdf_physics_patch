@@ -237,7 +237,13 @@ def apply_target(content, target):
         indent = (trailing.group(1) if trailing else "  ") + "  "
         block = f"{MARKER}\n{indent}{target.fragment}"
 
-        pattern = rf"[ \t]*(?:{re.escape(MARKER)}\s*)?<{target.child}\b.*?(?:/>|</{target.child}>)"
+        # Two branches, the self-closing one first: ``<child .../>`` OR ``<child ...>...</child>``.  A single
+        # ``.*?`` in front of the alternation cannot express that -- non-greedy stops at the FIRST ``/>``, which
+        # inside a nested element is one of its children.  Measured 2026-08-31 on the top plate's own target: after
+        # inserting a four-element ``<inertial>`` (141 characters), a second run matched the 33 up to the inner
+        # ``<origin/>``, reported "refreshed" and produced a mismatched tag that the well-formedness gate then
+        # refused to write.  ``[^>]*`` is what keeps a branch from crossing the opening tag's own ``>``.
+        pattern = rf"[ \t]*(?:{re.escape(MARKER)}\s*)?<{target.child}\b(?:[^>]*/>|[^>]*>.*?</{target.child}>)"
         existing = re.search(pattern, body, re.S)
         if existing is None:
             stripped = body.rstrip(" \t")

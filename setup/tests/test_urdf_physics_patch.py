@@ -159,6 +159,31 @@ def test_a_changed_value_refreshes_rather_than_duplicates():
     assert 'damping="9.0"' in twice
 
 
+def test_a_nested_fragment_is_idempotent():
+    """The top plate's own target: an ``<inertial>`` whose children are themselves elements.
+
+    Measured 2026-08-31 before the fix: the second run matched only up to the inner ``<origin/>`` -- 33 of the
+    fragment's 141 characters -- reported "refreshed" and left a mismatched tag behind, so the very target the tool
+    anticipates was the one it could not apply twice.  The well-formedness gate caught it, which is why the failure
+    read as an ERROR in the log rather than as a broken description; idempotency was still gone.
+    """
+    import xml.etree.ElementTree as ET
+
+    inertial = (
+        '<inertial><origin xyz="0 0 0"/><mass value="4.0"/>'
+        '<inertia ixx="0.1" iyy="0.1" izz="0.1" ixy="0" ixz="0" iyz="0"/></inertial>'
+    )
+    content = '<robot>\n  <link name="${name}_link">\n    <visual/>\n  </link>\n</robot>'
+    target = _target("p", "f", "link", "${name}_link", "inertial", inertial)
+    once, first = patch.apply_target(content, target)
+    assert first == "inserted"
+    twice, second = patch.apply_target(once, target)
+    assert second == "unchanged"
+    assert twice == once
+    assert twice.count("<inertial") == 1
+    ET.fromstring(twice)
+
+
 def test_the_marker_survives_a_refresh():
     """Without the marker a reader of an apt file cannot tell our line from upstream's."""
     content = '<robot>\n  <joint name="j">\n    <axis xyz="0 0 1"/>\n  </joint>\n</robot>'

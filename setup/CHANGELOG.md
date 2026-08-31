@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-08-31 (urdf_physics_patch survives a second run over a nested element)
+
+- **`apply_target` recognises a property element that has children.** The anchor for an existing element was
+  `<child\b.*?(?:/>|</child>)`, and non-greedy `.*?` stops at the FIRST `/>` -- which inside an `<inertial>` is
+  its own `<origin/>`. The pattern now carries the alternation one level up, `<child\b(?:[^>]*/>|[^>]*>.*?</child>)`,
+  so the self-closing form is tried first and the closing-tag branch spans the whole element.
+- **What it cost:** a second run over an already-patched `<inertial>` matched 33 of the fragment's 141 characters,
+  reported `refreshed`, and built a block with a mismatched tag. The well-formedness gate refused to write it and
+  logged ERROR, so no description was ever broken -- but the tool was not idempotent for exactly the `top_plate`
+  target it anticipates, and a per-boot patcher that reports a change every boot is one nobody can read the log of.
+  `<dynamics>` was unaffected throughout: it is self-closing, and the first `/>` is its own.
+- **`tests/test_urdf_physics_patch.py` applies a nested `<inertial>` twice** and asserts the second action is
+  `unchanged` -- the case the suite's other idempotency test (`ur_macro.xacro`'s `<dynamics>`) could not reach.
+
 ## 2026-08-31 (the gripper node leaves, its service stays)
 
 - **`scripts/rg6_grip_bridge.py` and `scripts/rg6_finger_kinematics.json` moved to `onrobot-rg6`**
