@@ -1,16 +1,18 @@
 # CI: the parity guards that read THIS repo, run when THIS repo changes.
 #
-# This repo has no test suite of its own, and that is not what the workflow is for. It is the single source of
-# truth for two files that other repos copy from and check against:
+# Beyond its own suite (tests/, the urdf_physics_patch patcher) this workflow guards the one file OTHER repos copy
+# from and check against:
 #
 #   config/robot.yaml                 -> contract/robot-contract/tests/test_ssot_parity.py     (arm poses)
-#   scripts/rg6_finger_kinematics.json -> contract/robot-contract/tests/test_gripper_linkage.py (linkage table)
-#                                      -> robot/onrobot-rg6/tests/test_linkage_parity.py       (generated C++ header)
 #
-# Both guards live in the OTHER repos, so until now they only ever fired when one of those repos was touched --
-# a change to robot.yaml or the linkage table here went unnoticed until someone happened to edit the far side.
-# The direction that matters most is exactly the one that was missing. Measured 2026-08-29 in a bare 3.11 venv:
-# 60 + 15 = 75 tests, 1.7 s, no ROS, no robot.
+# That guard lives in the OTHER repo, so it would only ever fire when THAT repo is touched -- a change to
+# robot.yaml here went unnoticed until someone happened to edit the far side. The direction that matters most is
+# exactly the one that was missing.
+#
+# The linkage table was the second such file until 2026-08-31, when it moved to onrobot-rg6 together with
+# rg6_grip_bridge: the bridge is the driver half of the gripper, whose mock half was in rg6_control all along, and
+# the table travels with the node that reads it. Both parity guards for it now sit in repos that are not this one,
+# so neither the checkout nor the step is here any more.
 #
 # Nothing here is imported by those tests -- they read the two files as data -- so the scripts get a syntax pass
 # instead: ruff for Python (importing them needs rclpy, which no runner has) and `bash -n` for the shell.
@@ -41,11 +43,6 @@ jobs:
       # onrobot-rg6 and husky-offboard use for their private siblings.
       - uses: actions/checkout@v5
         with:
-          repository: CLAIRLab-HAW/onrobot-rg6
-          path: robot/onrobot-rg6
-          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
-      - uses: actions/checkout@v5
-        with:
           repository: CLAIRLab-HAW/robot-contract
           path: contract/robot-contract
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
@@ -71,15 +68,13 @@ jobs:
         working-directory: robot/husky-custom-setup
         run: find . -name '*.sh' -print0 | xargs -0 -n1 bash -n
 
-      # onrobot-rg6 carries no pyproject.toml either, so robot_contract has to be put on the path by hand. Only
-      # the linkage-parity file: the rest of that suite compiles the generated C++ header with g++ and is that
-      # repo's own business, run by its own workflow.
-      - name: linkage table vs. the generated C++ header
-        working-directory: robot/onrobot-rg6
-        env:
-          PYTHONPATH: ${{ github.workspace }}/contract/robot-contract/src
-        run: python -m pytest tests/test_linkage_parity.py -q
+      # This repo's own suite: the physics patcher against copies of the real upstream files.
+      - name: own tests
+        working-directory: robot/husky-custom-setup
+        run: python -m pytest tests -q
 
-      - name: robot.yaml and the linkage table vs. the a200_0553 profile
+      # test_gripper_linkage.py is NOT run here any more: it compares the profile against a table that lives in
+      # onrobot-rg6 now, so a change in this repo cannot break it.
+      - name: robot.yaml vs. the a200_0553 profile
         working-directory: contract/robot-contract
-        run: python -m pytest tests/test_ssot_parity.py tests/test_gripper_linkage.py -q
+        run: python -m pytest tests/test_ssot_parity.py -q

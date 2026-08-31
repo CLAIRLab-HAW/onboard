@@ -28,8 +28,11 @@ belongs in `scripts/`; if it is not, somebody starts it.
 - **8 services + 1 timer**, all with the prefix `clearpath-custom-*`.
 - **A watchdog for a late arm power-up** and for a motion link that died while
   ExternalControl kept reporting it was "running".
-- **`rg6_grip_bridge`** — the node that actually drives the RG6, via XML-RPC
-  against the OnRobot URCap.
+- **The RG6 gripper service** — `clearpath-custom-rg6-grip-bridge`, unit and
+  wrapper. The node itself (`rg6_grip_bridge`, XML-RPC against the OnRobot
+  URCap) belongs to [onrobot-rg6](../onrobot-rg6/README.md), where its mock
+  counterpart already sat; the installer rolls it out from that workspace as a
+  root-owned copy, together with its linkage table.
 - **Manipulator diagnostics in Cockpit**: arm mode, control, joints,
   controllers and gripper as `diagnostic_msgs`, with an explicit state
   *out of service* instead of invented numbers.
@@ -422,14 +425,17 @@ file is recreated on every boot anyway, and a `.bak` sits next to it.
 
 ## Running Tests
 
-Four of the Python scripts carry a ROS-free self-test:
+Three of the Python scripts carry a ROS-free self-test:
 
 ```bash
 python3 scripts/clearpath_custom_setup.py --selftest
 python3 scripts/manipulator_diagnostics.py --selftest
-python3 scripts/rg6_grip_bridge.py --selftest
 python3 scripts/octomap_feed.py --selftest
 ```
+
+The fourth, `rg6_grip_bridge --selftest`, moved with the node into
+[onrobot-rg6](../onrobot-rg6/README.md) and runs there; the installer still
+executes it against the copy it has just deployed.
 
 `urdf_physics_patch` has a dry run instead — it reports every target that is
 still waiting for a measurement and writes nothing:
@@ -451,8 +457,10 @@ with the checkout, read-only.
 
 ## Related
 
-- [onrobot-rg6](../onrobot-rg6/README.md) — gripper model, MoveIt patch,
-  container mock; one of the two workspaces `robot.yaml` lists
+- [onrobot-rg6](../onrobot-rg6/README.md) — gripper model, MoveIt patch, and
+  the gripper on both stages (`rg6_grip_bridge`, `rg6_control_sim`); one of the
+  two workspaces `robot.yaml` lists, and the source of three files this
+  installer deploys
 - [husky-extras](../husky-extras/README.md) — the a200-0553's URDF extras
   (sensor arch, ArUco marker, RG6 mounting), the other one; `robot.yaml`
   addresses its file under `platform.extras.urdf`

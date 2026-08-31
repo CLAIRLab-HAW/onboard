@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-08-31 (the gripper node leaves, its service stays)
+
+- **`scripts/rg6_grip_bridge.py` and `scripts/rg6_finger_kinematics.json` moved to `onrobot-rg6`**
+  (`rg6_control/scripts/`). The bridge is the driver half of the gripper, and its mock half `rg6_control_sim` was
+  in that package all along -- same action, same `bridge_state` fields, same table. It stood here because the
+  systemd unit did, which is a deployment reason and not an ownership one.
+- **The unit, the wrapper and the root-owned copy stay.** `clearpath-custom-rg6-grip-bridge` is unchanged;
+  `ExecStart` still points at `/usr/local/bin/rg6-grip-bridge`. Only the SOURCE of that copy changed, from
+  `repo_file` to `rg6_tool_src` -- the resolver that already fetched `rg6_moveit_patch` out of the rg6 workspace.
+- **`--verify` follows.** The two files left the repo manifest and joined the three-file loop over the rg6-sourced
+  tools, so a deployed copy is still hashed against the source it came from.
+- **`tools/rg6_stroke_survey.py` imports the bridge from where it now lives.** Three candidates instead of one
+  hard-coded `../scripts`: the workspace checkout, the robot's clone and its install space. Not found means an
+  error naming all three, rather than an `ImportError` on a path nobody stated.
+- **CI drops the `onrobot-rg6` checkout and the linkage step.** This repo is the single source of truth for
+  `robot.yaml` alone now; the table's two parity guards sit in repos that are not this one, so a change here
+  cannot break them. Its own `tests/` run in that place instead.
+
 ## 2026-08-31 (robot.yaml lists a second workspace)
 
 - **`platform.extras.urdf.path` points into the new repo `husky-extras`.** The extras file (sensor arch, ArUco

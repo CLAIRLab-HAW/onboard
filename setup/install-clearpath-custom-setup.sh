@@ -15,8 +15,9 @@
 #   - sysctl 10-ur-reserved-ports.conf: takes the UR driver ports 50001-50004 out
 #     of the ephemeral range, so nothing else can occupy them before the driver
 #   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
-#   - clone + build onrobot-rg6 via git (colcon), plus a root-owned copy of
-#     rg6_moveit_patch under /usr/local/bin for the boot service
+#   - clone + build onrobot-rg6 via git (colcon), plus root-owned copies of
+#     rg6_moveit_patch (boot service) and rg6_grip_bridge.py + its linkage
+#     table (the gripper service) under /usr/local/bin
 #   - clone + build husky-extras via git (colcon): the URDF extras robot.yaml
 #     addresses under platform.extras.urdf and lists as a workspace
 #   - root-owned copy of urdf_physics_patch (this repo) under /usr/local/bin, likewise for the boot service
@@ -112,10 +113,13 @@ RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
 # not rg6_tool_src, which resolves against a foreign workspace.
 URDF_PHYSICS_PATCH_BIN="${BIN_DIR}/urdf-physics-patch"
 
-# rg6_moveit_patch lives in onrobot-rg6, not in this repo, and can be taken
-# either from a built workspace or straight from the sources.  One resolver
-# rather than two candidate lists: a second copy of the same two paths is
-# exactly the drift --verify exists to catch.
+# THREE files live in onrobot-rg6, not in this repo, and each can be taken either from a built workspace or
+# straight from the sources: rg6_moveit_patch (the SRDF patch), rg6_grip_bridge.py (the gripper driver) and its
+# linkage table.  One resolver rather than three candidate lists: a second copy of the same two paths is exactly
+# the drift --verify exists to catch.
+#
+# Both candidate directories are flat and hold all three, which is why the install rules put the table into
+# lib/rg6_control next to the script instead of under share/ -- the bridge resolves it relative to itself.
 rg6_tool_src() {
     _cand=""
     for _cand in "${RG6_WS}/install/rg6_control/lib/rg6_control/$1" \
@@ -382,8 +386,6 @@ verify_deployments() {
         "${WD_WRAPPER}|scripts/manipulators_watchdog.sh"
         "${BIN_DIR}/octomap-feed|scripts/octomap_feed.py"
         "${BIN_DIR}/manipulator-diagnostics|scripts/manipulator_diagnostics.py"
-        "${BIN_DIR}/rg6-grip-bridge|scripts/rg6_grip_bridge.py"
-        "${BIN_DIR}/rg6_finger_kinematics.json|scripts/rg6_finger_kinematics.json"
         "${URDF_PHYSICS_PATCH_BIN}|scripts/urdf_physics_patch"
         "${USER_HOME}/rtde_input_recipe_no_tool.txt|config/rtde_input_recipe_no_tool.txt"
     )
@@ -409,19 +411,26 @@ verify_deployments() {
 
     # rg6_moveit_patch comes from the onrobot-rg6 workspace, not from this repo -- its own resolver, otherwise the
     # manifest run above would never find it.
-    dst="${RG6_MOVEIT_PATCH_BIN}"
-    src="$(rg6_tool_src rg6_moveit_patch)"
-    if [ ! -f "$dst" ]; then
-        status="NOT-DEPLOYED"; rc=1
-    elif [ -z "$src" ]; then
-        # Not an error: the workspace does not have to be built on the robot.
-        status="SOURCE-MISSING"
-    elif [ "$(sha256sum "$dst" | cut -d" " -f1)" = "$(sha256sum "$src" | cut -d" " -f1)" ]; then
-        status="OK"
-    else
-        status="DEVIATION"; rc=1
-    fi
-    printf "  %-16s %-46s ◀─ %s\n" "$status" "$dst" "${src:-onrobot-rg6 workspace (not built)}"
+    # The three files that come from the onrobot-rg6 workspace instead of from this repo -- their own resolver,
+    # otherwise the manifest run above would never find them.
+    for entry in "rg6_moveit_patch|${RG6_MOVEIT_PATCH_BIN}" \
+                 "rg6_grip_bridge.py|${RG6_BRIDGE_BIN}" \
+                 "rg6_finger_kinematics.json|${BIN_DIR}/rg6_finger_kinematics.json"; do
+        rel="${entry%%|*}"
+        dst="${entry##*|}"
+        src="$(rg6_tool_src "$rel")"
+        if [ ! -f "$dst" ]; then
+            status="NOT-DEPLOYED"; rc=1
+        elif [ -z "$src" ]; then
+            # Not an error: the workspace does not have to be built on the robot.
+            status="SOURCE-MISSING"
+        elif [ "$(sha256sum "$dst" | cut -d" " -f1)" = "$(sha256sum "$src" | cut -d" " -f1)" ]; then
+            status="OK"
+        else
+            status="DEVIATION"; rc=1
+        fi
+        printf "  %-16s %-46s ◀─ %s\n" "$status" "$dst" "${src:-onrobot-rg6 workspace (not built)}"
+    done
 
     # The Cockpit page "Roboter-Werkzeuge" is its own repo with its own
     # install.sh -- so its own candidate list, and, more importantly, the file
@@ -812,14 +821,13 @@ if [ "$DO_RG6" -eq 1 ]; then
         sudo -u "$REAL_USER" git clone "$RG6_REPO_URL" "$RG6_WS"
     fi
     echo ">>> Building the workspace (colcon)"
-    # rg6_description = gripper model + meshes + clearpath_extras (the glue);
-    # rg6_control = simulation gripper, joint_state helper nodes, rg6_moveit_patch.
+    # rg6_description = gripper model + meshes; rg6_control = the gripper on BOTH stages (rg6_grip_bridge for the
+    # real one, rg6_control_sim for the container mock), the joint_state helper nodes and rg6_moveit_patch.
     #
-    # rg6_description carries the gripper model in the URDF (including its derived
-    # masses and inertia tensors), rg6_moveit_patch the SRDF adjustment, and
-    # clearpath-custom-joint-states starts the relay out of rg6_control.  The gripper itself is driven by rg6_grip_bridge, not by a
-    # node from this workspace.  The second patch tool, urdf_physics_patch, is a
-    # script of THIS repo and needs none of this build.
+    # Three files of that workspace are rolled out here as root-owned copies: the SRDF patch for the boot service,
+    # and the bridge plus its linkage table for the gripper service (see rg6_tool_src).  clearpath-custom-joint-states
+    # starts the relay out of the same workspace.  The second patch tool, urdf_physics_patch, is a script of THIS
+    # repo and needs none of this build.
     #
     # These two are the whole workspace -- onrobot-rg6 ships no interface
     # package.  The bridge publishes its state as flat JSON on rg6/bridge_state,
@@ -1398,8 +1406,11 @@ else
 fi
 
 if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
-    if ! RG6_SRC="$(repo_file scripts/rg6_grip_bridge.py)"; then
-        echo "    WARN: scripts/rg6_grip_bridge.py neither local nor retrievable -"
+    # From the onrobot-rg6 workspace, not from this repo: the bridge is the DRIVER half of the gripper, whose mock
+    # half (rg6_control_sim) has always been in rg6_control -- same action, same bridge_state fields, same linkage
+    # table.  What belongs here is what surrounds it: this unit, its wrapper, and the root-owned copy below.
+    if ! RG6_SRC="$(rg6_tool_src rg6_grip_bridge.py)" || [ -z "$RG6_SRC" ]; then
+        echo "    WARN: rg6_grip_bridge.py not found in ${RG6_WS} (cloned and built?) -"
         echo "          RG6 bridge skipped."
         DO_RG6_BRIDGE=0
         RG6_SRC=""
@@ -1415,10 +1426,12 @@ if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
     # from the robot (git asks for credentials) -- a dependency that prevents the
     # roll-out secures nothing.
     # The file is generated from the GENERATED URDF, see
-    # onrobot-rg6/tools/derive_finger_kinematics.py.  Without it the node does
-    # not start: with no kinematics it can neither publish the finger joint nor
-    # translate a GripperCommand goal into a width.
-    if RG6_KIN_SRC="$(repo_file scripts/rg6_finger_kinematics.json)"; then
+    # onrobot-rg6/tools/derive_finger_kinematics.py, and it travels WITH the
+    # bridge out of that same workspace.  Without it the node does not start:
+    # with no kinematics it can neither publish the finger joint nor translate
+    # a GripperCommand goal into a width.  It lands next to the bridge because
+    # that is how the node resolves it (Path(__file__).with_name).
+    if RG6_KIN_SRC="$(rg6_tool_src rg6_finger_kinematics.json)" && [ -n "$RG6_KIN_SRC" ]; then
         install -m 0644 -o root -g root "$RG6_KIN_SRC" "$RG6_KIN_DST"
         echo "    linkage table ─▶ ${RG6_KIN_DST}  (from ${RG6_KIN_SRC})"
     else

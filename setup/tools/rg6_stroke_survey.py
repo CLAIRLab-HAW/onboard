@@ -38,13 +38,24 @@ import sys
 import time
 from pathlib import Path
 
-# The bridge is a DEPLOYED artefact and lives in scripts/; this is a tool and
-# lives here. Python resolves a sibling import against the script's own
-# directory, so the two being in different directories has to be said out loud
-# rather than left to the layout. Deployed as /usr/local/bin/rg6-grip-bridge it
-# is not importable either (hyphens, no .py), so scripts/ is the one place this
-# import can come from.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+# The bridge lives in the onrobot-rg6 workspace (rg6_control), this is a tool of this repo, and the deployed copy
+# under /usr/local/bin/rg6-grip-bridge is not importable by name (hyphens, no .py).  So the import has to be said
+# out loud rather than left to the layout, and it has to work in both places this tool is run: out of the checkout
+# on the workstation, and next to the built workspace on the robot.
+_BRIDGE_DIRS = (
+    Path(__file__).resolve().parents[2] / "onrobot-rg6/src/rg6_control/scripts",  # workspace checkout
+    Path.home() / "onrobot-rg6/src/rg6_control/scripts",  # the robot's clone
+    Path.home() / "onrobot-rg6/install/rg6_control/lib/rg6_control",  # its install space
+)
+for _dir in _BRIDGE_DIRS:
+    if (_dir / "rg6_grip_bridge.py").is_file():
+        sys.path.insert(0, str(_dir))
+        break
+else:  # no break
+    raise SystemExit(
+        "rg6_grip_bridge.py found in none of:\n  " + "\n  ".join(str(d) for d in _BRIDGE_DIRS) + "\n"
+        "It belongs to the onrobot-rg6 workspace -- clone/build it, or run this tool from the checkout."
+    )
 
 from rg6_grip_bridge import Rg6Client, Rg6Error, await_settled  # noqa: E402
 
