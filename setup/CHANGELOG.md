@@ -5,6 +5,38 @@ What changed when. The current state is described in the [README](README.md).
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+
+## 2026-08-31 (physical properties into the descriptions the generator reads)
+
+- **New `scripts/urdf_physics_patch`.** Puts physical properties into the apt descriptions that ship without
+  them: the six UR joints' `<dynamics damping="0" friction="0"/>`, the four wheel joints without any, and
+  `top_plate_link` with a collision mesh and no `<inertial>`. None of the three has a lever in `robot.yaml` --
+  `clearpath_config` does not model joint dynamics, and both descriptions come from apt.
+- **It patches the package macros, not a generated file, and that decides the design.** There is no
+  `/clearpath/robot.urdf` to append to -- only a 2.5 kB `robot.urdf.xacro` wrapper expanded at launch -- and an
+  existing joint's dynamics cannot be overridden by declaring it twice. So the edit lands IN the macro,
+  idempotent, with a `.bak` and an atomic write, the same shape as the two package edits
+  `clearpath_custom_setup.py` already makes.
+- **All nine targets ship without a value, on purpose.** Nobody has measured the viscous damping or the Coulomb
+  friction of this arm, and `maniskill_robot.physics.ARM_DAMPING = 100.0` is not that number: it is the D gain of
+  a PD drive, where `<dynamics damping>` is passive drag in the joint. Writing the one into the other adds
+  100 N*m*s/rad underneath a drive tuned without it. R47 carries the measurement; the tool names each missing
+  value and changes nothing.
+- **`clearpath_custom_setup.py` gained step 5, `run_urdf_physics_patch`.** Delegates to the root-owned copy under
+  `/usr/local/bin`, the same arrangement as step 4 and for the same reason: the service runs as root and must not
+  call anything out of a user-writable checkout.
+- **Numbered last, runs first.** Step 4 edits what the Clearpath generator writes (the flat `robot.srdf`); step 5
+  edits what it reads (`ur_macro.xacro`, the a200 wheel and top plate macros). Both windows are inside this
+  service, and the ordering is the whole of it.
+- **The installer deploys it like every other script here** -- `repo_file`, compile check, root-owned copy, and an
+  entry in the `--verify` manifest. New `URDF_PHYSICS_PATCH_BIN` under `/usr/local/bin`. `rg6_tool_src` stays, but
+  for `rg6_moveit_patch` alone: that one really does come from a foreign workspace, and the one-element loops the
+  shared arrangement left behind are gone.
+- **New `tests/`, the first pytest suite in this repo.** 17 tests for the patcher, run from the workspace root
+  without ROS and without a robot. They edit COPIES of the real upstream files where the workspace bundle has
+  them -- the point is not that the tool can edit some XML, it is that it can edit `ur_macro.xacro` as UR writes
+  it -- and skip themselves by name in a bare checkout.
+
 ## 2026-08-30 (the inert BLE001 directives are gone)
 
 - `# noqa: BLE001` removed in 1 place. `BLE` is not in the workspace lint scope, so these directives suppressed

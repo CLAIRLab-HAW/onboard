@@ -5,13 +5,14 @@ services, udev rules, the network and the OnRobot RG6, plus the nodes Clearpath
 does not ship itself. `config/robot.yaml` is the single source of truth in all
 of this — `/etc/clearpath/robot.yaml` is a symlink to the repo clone.
 
-The repo splits into four, and the boundary is mechanical: `config/` holds the
+The repo splits into five, and the boundary is mechanical: `config/` holds the
 data this robot runs on (`robot.yaml`, the UR5 kinematics calibration, the RTDE
 input recipe), `scripts/` the code the installer deploys — exactly what
 `--verify` hashes —, `tools/` what a human runs by hand against the robot
-(`wakeup.sh`, `shutdown.sh`, `ur-calibrate.sh`, `rg6_stroke_survey.py`), and the
-installer at the top level ties them together. If a file is in the `--verify`
-manifest it belongs in `scripts/`; if it is not, somebody starts it.
+(`wakeup.sh`, `shutdown.sh`, `ur-calibrate.sh`, `rg6_stroke_survey.py`),
+`tests/` the pytest suite that runs without a robot, and the installer at the
+top level ties them together. If a file is in the `--verify` manifest it
+belongs in `scripts/`; if it is not, somebody starts it.
 
 ## Features
 
@@ -28,8 +29,11 @@ manifest it belongs in `scripts/`; if it is not, somebody starts it.
 - **Manipulator diagnostics in Cockpit**: arm mode, control, joints,
   controllers and gripper as `diagnostic_msgs`, with an explicit state
   *out of service* instead of invented numbers.
-- **A boot patcher with three steps** — everything `robot.yaml` can express has
-  moved there.
+- **A boot patcher with four steps** — everything `robot.yaml` can express has
+  moved there. Two of the four edit what the Clearpath generator writes (mesh
+  URIs, the arm `joint_states` bus, the RG6's SRDF); `urdf_physics_patch` edits
+  what it reads — the UR joints' zero `<dynamics>`, the wheel joints' missing
+  one, `top_plate_link` without an `<inertial>` — and therefore runs first.
 - **Both Cockpit packages are deployed and measured** — the diagnostics fork
   and the page *Roboter-Werkzeuge*. `--verify` hashes the second one file by
   file, so a page that looks installed but is three commits old says so.
@@ -423,8 +427,21 @@ python3 scripts/rg6_grip_bridge.py --selftest
 python3 scripts/octomap_feed.py --selftest
 ```
 
-The installer runs the same self-test before deploying a file, and discards a
-source that does not even compile.
+`urdf_physics_patch` has a dry run instead — it reports every target that is
+still waiting for a measurement and writes nothing:
+
+```bash
+python3 scripts/urdf_physics_patch --dry-run
+```
+
+Its own suite runs from the workspace root, without a robot and without ROS:
+
+```bash
+uv run pytest robot/husky-custom-setup/tests
+```
+
+The installer runs the same self-test resp. dry run before deploying a file,
+and discards a source that does not even compile.
 `bash install-clearpath-custom-setup.sh --verify` compares the deployed copies
 with the checkout, read-only.
 

@@ -17,6 +17,11 @@ Patches:
 
   4. RG6 into the generated MoveIt config (run_rg6_moveit_patch).
 
+  5. Physical properties into the apt descriptions (run_urdf_physics_patch):
+     joint dynamics on the arm and the wheels, an inertial on the top plate.
+     Numbered last, RUNS FIRST -- it edits what the Clearpath generator reads,
+     where step 4 edits what it writes.
+
 Every edit is surgical, idempotent, with a .bak backup and an atomic write.
 If a file or a key is missing, that change is skipped (with a warning).
 
@@ -220,6 +225,46 @@ def run_rg6_moveit_patch(label):
         return False
 
 
+def run_urdf_physics_patch(label):
+    """Put physical properties into the apt descriptions, before the generator expands them.
+
+    Same delegation as :func:`run_rg6_moveit_patch`, and for the same reason -- this service runs as root, so it
+    calls the root-owned copy the installer placed rather than anything out of a user-writable checkout.  The tool
+    itself is a script of this repo (``scripts/urdf_physics_patch``), unlike the SRDF patcher, which comes from the
+    onrobot-rg6 workspace: every target here is an arm, wheel or platform property, and none of them is a gripper
+    part.
+
+    The two differ in WHEN they have to run, and it is worth being precise about it.  ``rg6_moveit_patch`` edits the
+    flat robot.srdf the generator PRODUCES, so it runs after clearpath-robot-generate.  This one edits the package
+    xacros the generator CONSUMES -- ur_description's zero joint dynamics, the wheel joints without any, the top
+    plate without an inertial -- so it has to run before.  Both windows are inside this service; the ordering here
+    is the whole of it.
+
+    Every target is still waiting for a measurement (R47), so today the tool reports and changes nothing.  It is
+    called regardless: the alternative is a call site that first runs on the day somebody fills in a value."""
+    import subprocess
+
+    tool = "/usr/local/bin/urdf-physics-patch"
+    if not os.path.isfile(tool):
+        log(
+            f"{label}: {tool} missing (run the installer with an onrobot-rg6 workspace) - "
+            "descriptions stay as apt ships them.",
+            err=True,
+        )
+        return False
+    try:
+        out = subprocess.run([tool], capture_output=True, text=True, timeout=60)
+        for line in (out.stdout + out.stderr).splitlines():
+            log(f"{label}: {line}")
+        if out.returncode != 0:
+            log(f"{label}: exit code {out.returncode}.", err=True)
+            return False
+        return True
+    except (OSError, subprocess.TimeoutExpired) as e:
+        log(f"{label}: call failed: {e}", err=True)
+        return False
+
+
 def selftest():
     """Exercise the two patterns without touching a file or needing ROS.
 
@@ -293,6 +338,11 @@ def main():
     # 3) Arm JSB joint_states out of the platform namespace ->
     #    manipulators/joint_states (relay + aggregator via clearpath-custom-joint-states.service).
     move_arm_joint_states("arm joint_states -> manipulators")
+    # 5) Physical properties into the apt descriptions (ur_description, clearpath_platform_description).
+    #    Runs FIRST of the numbered steps although it is numbered last: it edits what the generator reads, while
+    #    step 4 edits what the generator writes.  No lever in robot.yaml -- clearpath_config models no joint
+    #    dynamics, and both descriptions come from foreign apt repos.
+    run_urdf_physics_patch("urdf physics")
     # 4) RG6 into MoveIt: patch robot.srdf (group 'gripper' + EE)
     #    (onrobot-rg6 tool).  For the SRDF there is no lever in robot.yaml --
     #    clearpath_config does not know the word 'srdf', and the gripper enum

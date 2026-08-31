@@ -17,6 +17,7 @@
 #   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
 #   - clone + build onrobot-rg6 via git (colcon), plus a root-owned copy of
 #     rg6_moveit_patch under /usr/local/bin for the boot service
+#   - root-owned copy of urdf_physics_patch (this repo) under /usr/local/bin, likewise for the boot service
 #   - optional: clearpath-custom-ur-dashboard.service: starts the ur_robot_driver
 #     dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
 #     at boot
@@ -97,6 +98,25 @@ RG6_BRIDGE_UNIT_PATH="/etc/systemd/system/${RG6_BRIDGE_UNIT}"
 # rg6 build). The boot service clearpath-custom-setup (root) calls ONLY this
 # copy - never the user-writable workspace directly.
 RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
+# The second patch tool, and a script of THIS repo (scripts/urdf_physics_patch):
+# it edits the apt descriptions the Clearpath generator READS (joint dynamics,
+# top plate inertial), where rg6-moveit-patch edits what the generator writes.
+# It takes the ordinary repo_file route like every other deployed script here --
+# not rg6_tool_src, which resolves against a foreign workspace.
+URDF_PHYSICS_PATCH_BIN="${BIN_DIR}/urdf-physics-patch"
+
+# rg6_moveit_patch lives in onrobot-rg6, not in this repo, and can be taken
+# either from a built workspace or straight from the sources.  One resolver
+# rather than two candidate lists: a second copy of the same two paths is
+# exactly the drift --verify exists to catch.
+rg6_tool_src() {
+    _cand=""
+    for _cand in "${RG6_WS}/install/rg6_control/lib/rg6_control/$1" \
+                 "${RG6_WS}/src/rg6_control/scripts/$1"; do
+        [ -f "${_cand}" ] && { printf '%s' "${_cand}"; return 0; }
+    done
+    return 0
+}
 
 # Octomap feed (step 2 of the HRL obstacle architecture): throttled
 # depth->PointCloud2 source for MoveIt's occupancy map monitor, so that
@@ -356,6 +376,7 @@ verify_deployments() {
         "${BIN_DIR}/manipulator-diagnostics|scripts/manipulator_diagnostics.py"
         "${BIN_DIR}/rg6-grip-bridge|scripts/rg6_grip_bridge.py"
         "${BIN_DIR}/rg6_finger_kinematics.json|scripts/rg6_finger_kinematics.json"
+        "${URDF_PHYSICS_PATCH_BIN}|scripts/urdf_physics_patch"
         "${USER_HOME}/rtde_input_recipe_no_tool.txt|config/rtde_input_recipe_no_tool.txt"
     )
     echo "=== --verify: rolled-out copies against the checkout ==="
@@ -378,26 +399,21 @@ verify_deployments() {
         printf "  %-16s %-46s ◀─ %s\n" "$status" "$dst" "${src:-${rel} (not found)}"
     done
 
-    # rg6-moveit-patch comes from the onrobot-rg6 workspace, not from this repo
-    # -- its own candidate list, otherwise the manifest run would never find it.
-    src=""
-    for candidate in "${RG6_WS}/install/rg6_control/lib/rg6_control/rg6_moveit_patch" \
-                     "${RG6_WS}/src/rg6_control/scripts/rg6_moveit_patch"; do
-        [ -f "$candidate" ] && { src="$candidate"; break; }
-    done
-    if [ ! -f "$RG6_MOVEIT_PATCH_BIN" ]; then
+    # rg6_moveit_patch comes from the onrobot-rg6 workspace, not from this repo -- its own resolver, otherwise the
+    # manifest run above would never find it.
+    dst="${RG6_MOVEIT_PATCH_BIN}"
+    src="$(rg6_tool_src rg6_moveit_patch)"
+    if [ ! -f "$dst" ]; then
         status="NOT-DEPLOYED"; rc=1
     elif [ -z "$src" ]; then
         # Not an error: the workspace does not have to be built on the robot.
         status="SOURCE-MISSING"
-    elif [ "$(sha256sum "$RG6_MOVEIT_PATCH_BIN" | cut -d" " -f1)" \
-         = "$(sha256sum "$src" | cut -d" " -f1)" ]; then
+    elif [ "$(sha256sum "$dst" | cut -d" " -f1)" = "$(sha256sum "$src" | cut -d" " -f1)" ]; then
         status="OK"
     else
         status="DEVIATION"; rc=1
     fi
-    printf "  %-16s %-46s ◀─ %s\n" "$status" "$RG6_MOVEIT_PATCH_BIN" \
-           "${src:-onrobot-rg6 workspace (not built)}"
+    printf "  %-16s %-46s ◀─ %s\n" "$status" "$dst" "${src:-onrobot-rg6 workspace (not built)}"
 
     # The Cockpit page "Roboter-Werkzeuge" is its own repo with its own
     # install.sh -- so its own candidate list, and, more importantly, the file
@@ -791,10 +807,11 @@ if [ "$DO_RG6" -eq 1 ]; then
     # rg6_description = gripper model + meshes + clearpath_extras (the glue);
     # rg6_control = simulation gripper, joint_state helper nodes, rg6_moveit_patch.
     #
-    # rg6_description carries the gripper model in the URDF, rg6_moveit_patch
-    # the SRDF adjustment, and clearpath-custom-joint-states starts the relay out
-    # of rg6_control.  The gripper itself is driven by rg6_grip_bridge, not by a
-    # node from this workspace.
+    # rg6_description carries the gripper model in the URDF (including its derived
+    # masses and inertia tensors), rg6_moveit_patch the SRDF adjustment, and
+    # clearpath-custom-joint-states starts the relay out of rg6_control.  The gripper itself is driven by rg6_grip_bridge, not by a
+    # node from this workspace.  The second patch tool, urdf_physics_patch, is a
+    # script of THIS repo and needs none of this build.
     #
     # These two are the whole workspace -- onrobot-rg6 ships no interface
     # package.  The bridge publishes its state as flat JSON on rg6/bridge_state,
@@ -807,25 +824,54 @@ else
     echo ">>> onrobot-rg6: skipped (the existing state stays)."
 fi
 
-# --- install rg6_moveit_patch as a root-owned copy --------------------------
-# The boot service clearpath-custom-setup runs as root and hooks the RG6 into
-# the MoveIt config. The tool for that comes from the user workspace - running
-# it as root DIRECTLY from there would be a privilege escalation (whoever can
-# write into the workspace would get root on every boot; via git pull even the
-# remote repo). Hence a root-owned copy here: it only changes through another
-# installer run, not through changes in the workspace.
-RG6_PATCH_SRC=""
-for cand in "${RG6_WS}/install/rg6_control/lib/rg6_control/rg6_moveit_patch" \
-            "${RG6_WS}/src/rg6_control/scripts/rg6_moveit_patch"; do
-    [ -f "$cand" ] && { RG6_PATCH_SRC="$cand"; break; }
-done
+# --- install the two patch tools as root-owned copies -----------------------
+# The boot service clearpath-custom-setup runs as root: it hooks the RG6 into
+# the generated MoveIt config (rg6_moveit_patch) and puts physical properties
+# into the apt descriptions the generator reads (urdf_physics_patch). Neither
+# may be called from where it is edited - running user-writable code as root on
+# every boot is a privilege escalation (whoever can write there gets root; via
+# git pull even the remote repo). Hence root-owned copies: they only change
+# through another installer run.
+#
+# The two differ in WHERE they come from, and only there. rg6_moveit_patch is a
+# file of the onrobot-rg6 workspace (rg6_tool_src). urdf_physics_patch is a
+# script of THIS repo and takes the same route as every other one here
+# (repo_file: next to the installer, then the checkout, then main).
+RG6_PATCH_SRC="$(rg6_tool_src rg6_moveit_patch)"
 if [ -n "$RG6_PATCH_SRC" ]; then
     echo ">>> Installing ${RG6_MOVEIT_PATCH_BIN} (copy of ${RG6_PATCH_SRC})"
     install -m 0755 -o root -g root "$RG6_PATCH_SRC" "$RG6_MOVEIT_PATCH_BIN"
 elif [ -f "$RG6_MOVEIT_PATCH_BIN" ]; then
     echo ">>> rg6_moveit_patch: workspace tool not found - the existing copy ${RG6_MOVEIT_PATCH_BIN} stays."
 else
-    echo "    WARN: rg6_moveit_patch not found (is onrobot-rg6 cloned/built?) - the RG6 MoveIt patch is inactive at boot until the installer runs again with the workspace present."
+    echo "    WARN: rg6_moveit_patch not found (is onrobot-rg6 cloned/built?) - it is inactive at boot until the installer runs again with the workspace present."
+fi
+
+# repo_file and NOT require_repo_file: a missing physics patcher is a warning,
+# not a dead unit.  The boot service handles its absence by name and leaves the
+# apt descriptions as they are (clearpath_custom_setup.run_urdf_physics_patch),
+# so aborting the whole roll-out over it would be the harsher failure.  Same
+# shape as the octomap feed further down, including the compile check: the file
+# carries no .py suffix, so neither an editor nor a syntax check finds it on its
+# own, and a broken one is DISCARDED rather than quietly replaced from main.
+UPP_SRC=""
+if UPP_CAND="$(repo_file scripts/urdf_physics_patch)"; then
+    if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$UPP_CAND"; then
+        UPP_SRC="$UPP_CAND"
+    else
+        echo "    WARN: $UPP_CAND is not valid Python - discarding it."
+    fi
+else
+    echo "    WARN: scripts/urdf_physics_patch found neither in the checkout nor under ${SETUP_WS} nor on GitHub."
+fi
+if [ -n "$UPP_SRC" ]; then
+    echo ">>> Installing ${URDF_PHYSICS_PATCH_BIN} (copy of ${UPP_SRC})"
+    install -m 0755 -o root -g root "$UPP_SRC" "$URDF_PHYSICS_PATCH_BIN"
+    # Smoke test, writes nothing: today every target waits for a measurement, so a dry run reports exactly that.
+    "$URDF_PHYSICS_PATCH_BIN" --dry-run >/dev/null \
+        || echo "    WARN: ${URDF_PHYSICS_PATCH_BIN} --dry-run failed - installed anyway (check the logs)."
+elif [ -f "$URDF_PHYSICS_PATCH_BIN" ]; then
+    echo ">>> urdf_physics_patch: no usable source - the existing copy ${URDF_PHYSICS_PATCH_BIN} stays."
 fi
 
 # --- UR dashboard_client as a boot service (optional) ----------------------
@@ -1579,6 +1625,8 @@ echo "  ${WD_TIMER}    : driver reconnect on a late arm power-up OR a stuck reco
 echo "  clearpath-manipulators.service.d/override.conf : SIGINT stop drop-in (clean driver shutdown, prevents the socket collision on reconnect)"
 [ -f "$RG6_MOVEIT_PATCH_BIN" ] && \
 echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-owned copy of rg6_moveit_patch (used by the boot service, updated only by the installer)"
+[ -f "$URDF_PHYSICS_PATCH_BIN" ] && \
+echo "  ${URDF_PHYSICS_PATCH_BIN}   : root-owned copy of scripts/urdf_physics_patch (used by the boot service, updated only by the installer)"
 [ -f "$OCTO_UNIT_PATH" ] && \
 echo "  ${OCTO_UNIT}   : depth─▶PointCloud2 for MoveIt's octomap (the move_group sensor parameters come from robot.yaml)"
 [ -f "$MD_UNIT_PATH" ] && \
