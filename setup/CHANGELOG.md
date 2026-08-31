@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-08-31 (robot.yaml lists a second workspace)
+
+- **`platform.extras.urdf.path` points into the new repo `husky-extras`.** The extras file (sensor arch, ArUco
+  marker, and where the RG6 is bolted onto the UR5 flange) sat in `rg6_description`, a package that describes a
+  gripper -- while every link in it names a frame of THIS robot (`arm_0_tool0`, `top_plate_rear_mount`,
+  `top_plate_front_mount`).
+- **`system.ros2.workspaces` therefore carries two entries now.** Both are needed together, and it is worth being
+  precise about why: the generator finds the extras file by its absolute path, but expands
+  `$(find rg6_description)` and `package://husky_extras_description` through the ament index that these workspaces
+  build up. A missing rg6 overlay kills the generator run on the include; a missing extras overlay leaves the arch
+  without a mesh in RViz and Foxglove.
+- **The installer clones and builds the second workspace as well**, next to the rg6 one and after it. A failing
+  clone warns rather than aborting, and says what it costs: a URDF without the arch, the marker and the gripper.
+- **Sequence matters when this reaches the robot.** `/etc/clearpath/robot.yaml` is a symlink into the checkout, so
+  a `git pull` here takes effect at once -- while `husky-extras` is only there after an installer run. Pulling
+  this repo without running the installer generates a robot without extras at the next boot. R49 carries the
+  roll-out.
+
 ## 2026-08-31 (physical properties into the descriptions the generator reads)
 
 - **New `scripts/urdf_physics_patch`.** Puts physical properties into the apt descriptions that ship without

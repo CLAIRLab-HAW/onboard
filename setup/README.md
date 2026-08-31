@@ -16,6 +16,10 @@ belongs in `scripts/`; if it is not, somebody starts it.
 
 ## Features
 
+- **Two overlay workspaces come out of `robot.yaml`** — `onrobot-rg6` (the
+  gripper) and `husky-extras` (this robot's URDF extras). The installer clones
+  and builds both; `system.ros2.workspaces` is what puts them on
+  `AMENT_PREFIX_PATH` for the generator, RViz and the `foxglove_bridge` alike.
 - **`config/robot.yaml` is the single source of truth** — `/etc/clearpath/robot.yaml`
   is a symlink to the repo clone, so a `git pull` takes effect within seconds
   instead of only at the next boot. On a robot whose symlink still points at the
@@ -448,7 +452,10 @@ with the checkout, read-only.
 ## Related
 
 - [onrobot-rg6](../onrobot-rg6/README.md) — gripper model, MoveIt patch,
-  container mock
+  container mock; one of the two workspaces `robot.yaml` lists
+- [husky-extras](../husky-extras/README.md) — the a200-0553's URDF extras
+  (sensor arch, ArUco marker, RG6 mounting), the other one; `robot.yaml`
+  addresses its file under `platform.extras.urdf`
 - [ur-state-manager](../ur-state-manager/README.md) — arm state and controller
   modes
 - [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — the panel

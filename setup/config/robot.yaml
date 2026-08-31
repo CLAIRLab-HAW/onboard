@@ -9,8 +9,19 @@ system:
     namespace: a200_0553
     middleware:
       implementation: rmw_zenoh_cpp # alternative: rmw_fastrtps_cpp
+    # Overlay workspaces.  The generator writes them into /etc/clearpath/setup.bash (and, in the offboard
+    # container, into /clearpath/setup.bash), so this list is what puts a package on AMENT_PREFIX_PATH for
+    # EVERYTHING that follows: the generator's own $(find ...), RViz and the foxglove_bridge resolving
+    # package:// meshes, and every helper that sources the chain.
+    #
+    # TWO of them, and the split is the same one the repos have: onrobot-rg6 describes the COMPONENT (the RG6
+    # model, its macro and the measured rg6_v2.yaml), husky-extras describes THIS ROBOT's assembly (sensor
+    # arch, ArUco marker, and where the hand is bolted onto the UR5 flange).  platform.extras.urdf.path below
+    # names a file from the second, which includes a macro from the first -- so both have to be listed, and a
+    # missing husky-extras is not a mesh that fails to draw but a generator run that dies on the include.
     workspaces:
-      - /home/robot/onrobot-rg6/install/setup.bash # path to custom WS
+      - /home/robot/onrobot-rg6/install/setup.bash  # rg6_description, rg6_control
+      - /home/robot/husky-extras/install/setup.bash # husky_extras_description (the file under extras.urdf below)
 platform:
   mcu:
     protocol: proton
@@ -21,7 +32,10 @@ platform:
   controller: logitech
   extras:
     urdf:
-      path: /home/robot/onrobot-rg6/src/rg6_description/urdf/clearpath_extras.urdf.xacro
+      # The SOURCE tree, not the install space: the generator reads this file as a path and expands it, while the
+      # package:// meshes inside it resolve through the workspaces above.  Both halves of the pair have to move
+      # together when this path does.
+      path: /home/robot/husky-extras/src/husky_extras_description/urdf/clearpath_extras.urdf.xacro
     ros_parameters:
       joy_node:
         dev: /dev/input/js0 # needed due to custom BT receiver

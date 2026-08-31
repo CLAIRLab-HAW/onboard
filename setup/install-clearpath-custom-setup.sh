@@ -17,6 +17,8 @@
 #   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
 #   - clone + build onrobot-rg6 via git (colcon), plus a root-owned copy of
 #     rg6_moveit_patch under /usr/local/bin for the boot service
+#   - clone + build husky-extras via git (colcon): the URDF extras robot.yaml
+#     addresses under platform.extras.urdf and lists as a workspace
 #   - root-owned copy of urdf_physics_patch (this repo) under /usr/local/bin, likewise for the boot service
 #   - optional: clearpath-custom-ur-dashboard.service: starts the ur_robot_driver
 #     dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
@@ -76,6 +78,11 @@ set -euo pipefail
 
 # ---- configuration ---------------------------------------------------------
 RG6_REPO_URL="https://github.com/CLAIRLab-HAW/onrobot-rg6.git"
+# The a200-0553's URDF extras (sensor arch, ArUco marker, and where the RG6 is bolted onto the UR5 flange).
+# robot.yaml addresses a file of this workspace under platform.extras.urdf and lists it under
+# system.ros2.workspaces -- so without it the generator run produces a robot WITHOUT extras, and the arm
+# comes up bare.  Its own repo since 2026-08-31: none of it is a gripper part.
+EXTRAS_REPO_URL="https://github.com/CLAIRLab-HAW/husky-extras.git"
 USM_REPO_URL="https://github.com/CLAIRLab-HAW/ur-state-manager.git"
 # UR control box + manipulators namespace: ONE source for dashboard, watchdog
 # and calibration (the section variables below derive from these).
@@ -282,6 +289,7 @@ prune_backups() {
 REAL_USER="${SUDO_USER:-robot}"
 USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
 RG6_WS="${USER_HOME}/onrobot-rg6"
+EXTRAS_WS="${USER_HOME}/husky-extras"   # the path robot.yaml names; do not move without moving it there
 USM_WS="${USER_HOME}/ur-state-manager"
 SETUP_WS="${USER_HOME}/husky-custom-setup"   # versioned robot.yaml (symlink target)
 # The Cockpit page "Roboter-Werkzeuge" -- up here with the other workspaces and
@@ -822,6 +830,32 @@ if [ "$DO_RG6" -eq 1 ]; then
         || echo "    WARN: colcon build failed - without rg6_description the gripper is missing from the URDF, without rg6_control the joint-states relay."
 else
     echo ">>> onrobot-rg6: skipped (the existing state stays)."
+fi
+
+# --- clone + build husky-extras (as the real user, not root) ---------------
+# The SECOND workspace robot.yaml lists, and it hangs on the first: the extras file instantiates the RG6 macro
+# out of rg6_description, so it is built after it.  A pure data package (urdf/ + meshes/), so the build is a
+# copy into install/ and takes no measurable time.
+DO_EXTRAS=1
+if [ -d "${EXTRAS_WS}/.git" ]; then
+    confirm ">>> husky-extras exists in ${EXTRAS_WS}. git pull + rebuild?" || DO_EXTRAS=0
+fi
+if [ "$DO_EXTRAS" -eq 1 ]; then
+    echo ">>> husky-extras to ${EXTRAS_WS} (user ${REAL_USER})"
+    if [ -d "${EXTRAS_WS}/.git" ]; then
+        sudo -u "$REAL_USER" git -C "$EXTRAS_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
+    else
+        sudo -u "$REAL_USER" git clone "$EXTRAS_REPO_URL" "$EXTRAS_WS" \
+            || echo "    WARN: clone failed - the robot then generates a URDF WITHOUT the sensor arch, the marker and the gripper."
+    fi
+    if [ -d "${EXTRAS_WS}/src" ]; then
+        echo ">>> Building the workspace (colcon)"
+        sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
+            "source /etc/clearpath/setup.bash && cd '$EXTRAS_WS' && colcon build --packages-select husky_extras_description" \
+            || echo "    WARN: colcon build failed - package://husky_extras_description stays unresolvable (arch without a mesh)."
+    fi
+else
+    echo ">>> husky-extras: skipped (the existing state stays)."
 fi
 
 # --- install the two patch tools as root-owned copies -----------------------
