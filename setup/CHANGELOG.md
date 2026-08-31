@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-08-31 (the physics patcher carries a .py suffix like every other script here)
+
+- **`scripts/urdf_physics_patch` is `scripts/urdf_physics_patch.py`.** It was the only Python file in this repo
+  without the suffix; the convention is the other way round -- the suffix stays in the tree, and the installer
+  drops it at the target (`octomap_feed.py` -> `octomap-feed`, `manipulator_diagnostics.py` ->
+  `manipulator-diagnostics`). **The deployed name `/usr/local/bin/urdf-physics-patch` is unchanged**, so the boot
+  service, the unit files and the running robot see nothing of this.
+- **The test imports the tool by name.** `tests/test_urdf_physics_patch.py` built a `SourceFileLoader` by hand and
+  put the module into `sys.modules` itself, because a suffix-less file cannot be imported. It is a plain
+  `import urdf_physics_patch` now; the new `tests/conftest.py` puts `scripts/` on the path, which
+  works under both import modes (the workspace root run uses `--import-mode=importlib`, CI's `pytest tests` the
+  default one).
+- **CI's syntax pass now reads the file at all.** `ruff check --select E9,F63,F7,F82 .` only ever looked at
+  `*.py`, so the one script that got a `compile()` check in the installer was the one CI could not see. Both
+  still run -- the installer's check is about a broken CHECKOUT, not about ruff -- but the comment claiming the
+  check exists *because* the file has no suffix was wrong the moment it was written and is gone.
+- **Until this is on `main`, an installer run WITHOUT a checkout finds no patcher.** `repo_file` falls back to
+  raw.githubusercontent.com under the repo-relative path, and the old name is what stands there. It warns and
+  leaves the existing `/usr/local/bin/urdf-physics-patch` in place (`repo_file`, not `require_repo_file`), so
+  nothing breaks -- but a roll-out from `wget` alone would not pick up a new version of it before the push.
+
 ## 2026-08-31 (urdf_physics_patch survives a second run over a nested element)
 
 - **`apply_target` recognises a property element that has children.** The anchor for an existing element was

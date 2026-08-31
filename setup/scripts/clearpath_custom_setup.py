@@ -230,7 +230,7 @@ def run_urdf_physics_patch(label):
 
     Same delegation as :func:`run_rg6_moveit_patch`, and for the same reason -- this service runs as root, so it
     calls the root-owned copy the installer placed rather than anything out of a user-writable checkout.  The tool
-    itself is a script of this repo (``scripts/urdf_physics_patch``), unlike the SRDF patcher, which comes from the
+    itself is a script of this repo (``scripts/urdf_physics_patch.py``), unlike the SRDF patcher, which comes from the
     onrobot-rg6 workspace: every target here is an arm, wheel or platform property, and none of them is a gripper
     part.
 

@@ -106,7 +106,7 @@ RG6_BRIDGE_UNIT_PATH="/etc/systemd/system/${RG6_BRIDGE_UNIT}"
 # rg6 build). The boot service clearpath-custom-setup (root) calls ONLY this
 # copy - never the user-writable workspace directly.
 RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
-# The second patch tool, and a script of THIS repo (scripts/urdf_physics_patch):
+# The second patch tool, and a script of THIS repo (scripts/urdf_physics_patch.py):
 # it edits the apt descriptions the Clearpath generator READS (joint dynamics,
 # top plate inertial), where rg6-moveit-patch edits what the generator writes.
 # It takes the ordinary repo_file route like every other deployed script here --
@@ -386,7 +386,7 @@ verify_deployments() {
         "${WD_WRAPPER}|scripts/manipulators_watchdog.sh"
         "${BIN_DIR}/octomap-feed|scripts/octomap_feed.py"
         "${BIN_DIR}/manipulator-diagnostics|scripts/manipulator_diagnostics.py"
-        "${URDF_PHYSICS_PATCH_BIN}|scripts/urdf_physics_patch"
+        "${URDF_PHYSICS_PATCH_BIN}|scripts/urdf_physics_patch.py"
         "${USER_HOME}/rtde_input_recipe_no_tool.txt|config/rtde_input_recipe_no_tool.txt"
     )
     echo "=== --verify: rolled-out copies against the checkout ==="
@@ -893,18 +893,18 @@ fi
 # not a dead unit.  The boot service handles its absence by name and leaves the
 # apt descriptions as they are (clearpath_custom_setup.run_urdf_physics_patch),
 # so aborting the whole roll-out over it would be the harsher failure.  Same
-# shape as the octomap feed further down, including the compile check: the file
-# carries no .py suffix, so neither an editor nor a syntax check finds it on its
-# own, and a broken one is DISCARDED rather than quietly replaced from main.
+# shape as the octomap feed further down, including the compile check: a broken
+# file found in the checkout is DISCARDED rather than quietly replaced from
+# main, because a broken checkout should be noticed.
 UPP_SRC=""
-if UPP_CAND="$(repo_file scripts/urdf_physics_patch)"; then
+if UPP_CAND="$(repo_file scripts/urdf_physics_patch.py)"; then
     if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$UPP_CAND"; then
         UPP_SRC="$UPP_CAND"
     else
         echo "    WARN: $UPP_CAND is not valid Python - discarding it."
     fi
 else
-    echo "    WARN: scripts/urdf_physics_patch found neither in the checkout nor under ${SETUP_WS} nor on GitHub."
+    echo "    WARN: scripts/urdf_physics_patch.py found neither in the checkout nor under ${SETUP_WS} nor on GitHub."
 fi
 if [ -n "$UPP_SRC" ]; then
     echo ">>> Installing ${URDF_PHYSICS_PATCH_BIN} (copy of ${UPP_SRC})"
@@ -1673,7 +1673,7 @@ echo "  clearpath-manipulators.service.d/override.conf : SIGINT stop drop-in (cl
 [ -f "$RG6_MOVEIT_PATCH_BIN" ] && \
 echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-owned copy of rg6_moveit_patch (used by the boot service, updated only by the installer)"
 [ -f "$URDF_PHYSICS_PATCH_BIN" ] && \
-echo "  ${URDF_PHYSICS_PATCH_BIN}   : root-owned copy of scripts/urdf_physics_patch (used by the boot service, updated only by the installer)"
+echo "  ${URDF_PHYSICS_PATCH_BIN}   : root-owned copy of scripts/urdf_physics_patch.py (used by the boot service, updated only by the installer)"
 [ -f "$OCTO_UNIT_PATH" ] && \
 echo "  ${OCTO_UNIT}   : depth─▶PointCloud2 for MoveIt's octomap (the move_group sensor parameters come from robot.yaml)"
 [ -f "$MD_UNIT_PATH" ] && \

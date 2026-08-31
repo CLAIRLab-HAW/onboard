@@ -13,19 +13,10 @@ files do not happen to contain.
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 
 import pytest
-
-_TOOL = Path(__file__).resolve().parent.parent / "scripts/urdf_physics_patch"
-_spec = importlib.util.spec_from_loader(
-    "urdf_physics_patch", importlib.machinery.SourceFileLoader("urdf_physics_patch", str(_TOOL))
-)
-patch = importlib.util.module_from_spec(_spec)
-sys.modules["urdf_physics_patch"] = patch
-_spec.loader.exec_module(patch)
+import urdf_physics_patch as patch
 
 #: The workspace's copy of the generated bundle's source packages -- ``robot/<repo>/tests/`` is three
 #: levels below the workspace root.  Absent in a bare checkout of this repo, and then every test that

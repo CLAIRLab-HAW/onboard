@@ -441,7 +441,7 @@ executes it against the copy it has just deployed.
 still waiting for a measurement and writes nothing:
 
 ```bash
-python3 scripts/urdf_physics_patch --dry-run
+python3 scripts/urdf_physics_patch.py --dry-run
 ```
 
 Its own suite runs from the workspace root, without a robot and without ROS:
