@@ -6,6 +6,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-08-31 (the sensor mesh URI fix is a script, so the offboard container can run the same one)
+
+- **New `scripts/sensor_mesh_uri_patch.py`, deployed as `/usr/local/bin/sensor-mesh-uri-patch`.** It carries what
+  `clearpath_custom_setup.fix_realsense_mesh_uris` did -- the `file://$(find realsense2_description)` ->
+  `package://realsense2_description` swap over `clearpath_sensors_description`, idempotent, with a one-time `.bak`
+  -- plus the whole reasoning that used to sit in that function's docstring.
+- **Why a script and not a function:** the husky-offboard image applied the same swap through a
+  `python3 - <<PY` heredoc in its Dockerfile, so the fix existed twice and the only way to know the two still
+  agreed was to read both. The container now copies THIS file out of this repo at build time. The robot and the
+  container each generate a URDF of their own, and a difference between them must never be explainable by the fix
+  having run on one side only.
+- **`run_root_tool` replaces three near-identical call bodies.** `run_sensor_mesh_uri_patch`,
+  `run_rg6_moveit_patch` and `run_urdf_physics_patch` differ only in the tool path, its arguments and what its
+  absence costs; the subprocess call, the output relay and the "missing copy is a warning, never an abort" rule
+  are stated once. `tests/test_run_root_tool.py` covers it -- those three call sites had no test at all.
+- **The installer gained `install_repo_tool`** and installs every script of this repo that lands under
+  /usr/local/bin through it (`repo_file`, compile check, `install -m 0755 -o root -g root`, the smoke test as
+  trailing arguments): both patchers with `--dry-run`, the octomap feed and the manipulator diagnostics with
+  their selftests. Its return status says whether a usable copy sits on disk, so the two optional services gate
+  wrapper and unit on it. `rg6_moveit_patch` keeps its own block (foreign workspace, no GitHub fallback) but now
+  shares the compile check (`python_compiles`). `--verify` hashes the new copy too.
+- **The mesh half of `--selftest` is gone**, and with it the module constants `MESH_URI_OLD`/`MESH_URI_NEW`. The
+  swap has its own tests now (`tests/test_sensor_mesh_uri_patch.py`, twelve of them), and one of them checks that
+  this file does not state the swap a second time.
+- **Robot-side behaviour changes with the split.** "Found nothing" is two outcomes instead of one message: zero
+  xacros matched means the package is gone or moved and warns with a nonzero exit -- which fails the offboard
+  image build, while the boot service only logs it; xacros found with none left to patch is the steady state
+  after the first boot and stays quiet. The old single line ("no file:// mesh found") could not tell the two
+  apart. A rewrite that cannot land exits nonzero too, instead of hiding behind the steady-state line. The step
+  as a whole can now be missing (the boot service calls a root-owned copy and degrades to a per-boot warning
+  until the installer places it), and the tool's stderr reaches the journal through the service's stdout relay.
+  A failed backup still does not stop the rewrite.
+
 ## 2026-08-31 (the physics patcher carries a .py suffix like every other script here)
 
 - **`scripts/urdf_physics_patch` is `scripts/urdf_physics_patch.py`.** It was the only Python file in this repo

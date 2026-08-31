@@ -7,7 +7,7 @@ robot.yaml leaves its number behind, so references to a step (the watchdog names
 step 3) keep pointing at the same thing.  main() lists what left and where to.
 
 Patches:
-  2. Sensor mesh URIs file:// -> package:// (fix_realsense_mesh_uris)
+  2. Sensor mesh URIs file:// -> package:// (run_sensor_mesh_uri_patch).
 
   3. Arm JSB joint_states -> manipulators/joint_states (move_arm_joint_states)
      in /opt/ros/*/share/clearpath_manipulators/launch/control.launch.py.
@@ -37,10 +37,6 @@ import sys
 
 TAG = "clearpath-custom-setup"
 
-#: Sensor mesh URI as Clearpath ships it, and what it has to become.
-MESH_URI_OLD = "file://$(find realsense2_description)"
-MESH_URI_NEW = "package://realsense2_description"
-
 #: The remap pair of the arm JSB in clearpath_manipulators/control.launch.py.
 #: Deliberately anchored on the SECOND token: 'platform','dynamic_joint_states'
 #: sits right next to it and must not be touched.
@@ -53,79 +49,6 @@ ARM_JS_SUB = r"\1manipulators\1\2\3joint_states\3"
 def log(msg, err=False):
     """Log line (stdout/stderr); captured by journald via SyslogIdentifier."""
     print(f"{TAG}: {msg}", file=(sys.stderr if err else sys.stdout), flush=True)
-
-
-def fix_realsense_mesh_uris(label):
-    """Clearpath's sensor xacros reference meshes as
-    'file://$(find realsense2_description)/...'; switch them to
-    'package://realsense2_description' here. Applies to apt-installed files
-    under /opt/ros/*/share/clearpath_sensors_description -> re-applied
-    idempotently on every boot (survives apt updates too).
-
-    DO NOT REMOVE -- this is not a transitional workaround. Upstream never
-    fixed the URIs; checked on the a200-0553 on 2026-08-20 by unpacking and
-    reading both .deb files:
-
-        2.9.8  (packages.ros.org)               -> file://, all four intel xacros
-        2.9.15 (packages.clearpathrobotics.com) -> file://, all four
-
-    Two probes that can NOT settle this, even though they look as if they
-    could:
-      * 'the URDF builds without error' -- xacro substitutes $(find ...) and
-        writes text, it never opens a mesh. Even a completely made-up
-        package:// passes with exit 0 and empty stderr.
-      * 'the mesh is visible in Foxglove' -- that shows the state AFTER the
-        last patcher run. The patch is persistent: it writes into the package
-        files, and they stay written until dpkg overwrites them.
-    What counts is solely what is inside the .deb.
-
-    Why it matters at all: not the resource_retriever -- that can do file://
-    -- but the 'asset_uri_allowlist' of the foxglove_bridge, which starts with
-    ^package:// and rejects everything else. Measured via fetchAsset:
-    package://realsense2_description/meshes/d435.dae -> status 0, 15782439
-    bytes; the same file as file:// -> status 1, 'Failed to retrieve asset'.
-
-    The effect is therefore purely visual (the camera model in the Foxglove 3D
-    panel). RViz loads both forms, and the <collision> is a box primitive --
-    planning, collision checking and the self filter are not affected.
-    Context: R25 in the ROBOTER-TODO archive."""
-    import glob
-
-    OLD = MESH_URI_OLD
-    NEW = MESH_URI_NEW
-    files = glob.glob("/opt/ros/*/share/clearpath_sensors_description/urdf/**/*.urdf.xacro", recursive=True)
-    changed = []
-    for path in files:
-        try:
-            with open(path) as f:
-                content = f.read()
-        except OSError as e:
-            # Skipped, so the patch this file was meant to receive never lands -- and the run still reports
-            # success for the files it DID reach.
-            log(f"{label}: cannot read {path}, skipping: {e}", err=True)
-            continue
-        if OLD not in content:
-            continue
-        backup = path + ".bak"
-        if not os.path.exists(backup):
-            try:
-                shutil.copy2(path, backup)
-            except OSError as e:
-                # The patch below goes ahead regardless, but without the .bak it cannot be undone.
-                log(f"{label}: no backup of {path}: {e}", err=True)
-        tmp = path + ".tmp"
-        try:
-            with open(tmp, "w") as f:
-                f.write(content.replace(OLD, NEW))
-            os.replace(tmp, path)
-            changed.append(os.path.basename(path))
-        except OSError as e:
-            log(f"{label}: cannot write {path}: {e}", err=True)
-    if changed:
-        log(f"{label}: package:// set in: {', '.join(sorted(changed))}")
-    else:
-        log(f"{label}: already package:// (or nothing found) - no change.")
-    return bool(changed)
 
 
 def move_arm_joint_states(label):
@@ -185,35 +108,28 @@ def move_arm_joint_states(label):
     return bool(changed)
 
 
-def run_rg6_moveit_patch(label):
-    """Hook the RG6 into the freshly generated MoveIt config.
+def run_root_tool(label, tool, args=(), *, missing):
+    """Call one of the root-owned patch tools the installer placed in /usr/local/bin, and relay its output.
 
-    Delegates to the root-owned copy of the self-contained tool from the
-    onrobot-rg6 repo (rg6_moveit_patch: robot.srdf, idempotent) that the
-    installer copies to /usr/local/bin.  It does NOT patch moveit.yaml -
-    gripper controller and joint_limits come from robot.yaml
-    (manipulators.moveit.ros_parameters.move_group); the tool only checks that
-    they arrived and exits with code 1 if they did not.
+    Deliberately NO call directly out of /home/*: this service runs as root, so code from a user-writable
+    workspace would be a privilege escalation (workspace/repo write access -> root on every boot; via ``git pull``
+    even the remote repo).  A copy under /usr/local/bin only changes through another installer run, which is an
+    explicit admin decision.
 
-    Deliberately NO call directly out of /home/*: this service runs as root -
-    code from a user-writable workspace would be a privilege escalation
-    (workspace/repo write access -> root on every boot). The copy only changes
-    through another installer run (an explicit admin decision).
-    Must run AFTER clearpath-robot-generate and BEFORE clearpath-manipulators -
-    exactly the window of this service. If the copy is missing (the installer
-    never ran with an onrobot-rg6 workspace present), only a warning is
-    issued."""
+    A missing copy is a warning and a ``False``, never an abort: each of the three callers below can say what its
+    absence costs, and none of those costs is worth taking the boot down for.
+
+    :param missing: what the caller loses when the tool is not there -- appended to the warning, so the log says
+        which capability is gone rather than only which file.  Keyword-only and without a default: a caller that
+        cannot name the cost has no business skipping the boot quietly.
+    """
     import subprocess
 
-    tool = "/usr/local/bin/rg6-moveit-patch"
     if not os.path.isfile(tool):
-        log(
-            f"{label}: {tool} missing (run the installer with an onrobot-rg6 workspace) - MoveIt without the gripper.",
-            err=True,
-        )
+        log(f"{label}: {tool} missing (run the installer again) - {missing}", err=True)
         return False
     try:
-        out = subprocess.run([tool, "--setup-path", "/etc/clearpath"], capture_output=True, text=True, timeout=60)
+        out = subprocess.run([tool, *args], capture_output=True, text=True, timeout=60)
         for line in (out.stdout + out.stderr).splitlines():
             log(f"{label}: {line}")
         if out.returncode != 0:
@@ -223,54 +139,77 @@ def run_rg6_moveit_patch(label):
     except (OSError, subprocess.TimeoutExpired) as e:
         log(f"{label}: call failed: {e}", err=True)
         return False
+
+
+def run_sensor_mesh_uri_patch(label):
+    """Rewrite the sensor mesh URIs from file:// to package://, so the foxglove_bridge will serve them.
+
+    The tool is a script of this repo (``scripts/sensor_mesh_uri_patch.py``) and carries the whole reasoning --
+    what upstream ships, why neither "the URDF builds" nor "Foxglove shows it" settles the question, and what the
+    bridge's ``asset_uri_allowlist`` does with a ``file://``.
+
+    It is a script of its own rather than a function here because the husky-offboard container needs the SAME
+    patch on its OWN copy of those apt xacros: the robot and the container each generate a URDF, and a difference
+    between the two must never be explainable by the fix having run on one side only.  A copy in the image is the
+    one thing an fetch of robot.yaml cannot deliver.
+
+    Applies to apt-installed files, so it is re-applied on every boot -- an apt update rolls them back."""
+    return run_root_tool(
+        label,
+        "/usr/local/bin/sensor-mesh-uri-patch",
+        missing="sensor meshes stay file:// - the camera model is invisible in Foxglove.",
+    )
+
+
+def run_rg6_moveit_patch(label):
+    """Hook the RG6 into the freshly generated MoveIt config.
+
+    The tool comes from the onrobot-rg6 workspace (rg6_moveit_patch: robot.srdf, idempotent).  It does NOT patch
+    moveit.yaml - gripper controller and joint_limits come from robot.yaml
+    (manipulators.moveit.ros_parameters.move_group); the tool only checks that they arrived and exits with code 1
+    if they did not.
+
+    Must run AFTER clearpath-robot-generate and BEFORE clearpath-manipulators - exactly the window of this
+    service."""
+    return run_root_tool(
+        label,
+        "/usr/local/bin/rg6-moveit-patch",
+        args=("--setup-path", "/etc/clearpath"),
+        missing="MoveIt without the gripper (is onrobot-rg6 cloned and built?).",
+    )
 
 
 def run_urdf_physics_patch(label):
     """Put physical properties into the apt descriptions, before the generator expands them.
 
-    Same delegation as :func:`run_rg6_moveit_patch`, and for the same reason -- this service runs as root, so it
-    calls the root-owned copy the installer placed rather than anything out of a user-writable checkout.  The tool
-    itself is a script of this repo (``scripts/urdf_physics_patch.py``), unlike the SRDF patcher, which comes from the
-    onrobot-rg6 workspace: every target here is an arm, wheel or platform property, and none of them is a gripper
-    part.
+    The tool is a script of this repo (``scripts/urdf_physics_patch.py``), unlike the SRDF patcher, which comes
+    from the onrobot-rg6 workspace: every target here is an arm, wheel or platform property, and none of them is a
+    gripper part.
 
-    The two differ in WHEN they have to run, and it is worth being precise about it.  ``rg6_moveit_patch`` edits the
-    flat robot.srdf the generator PRODUCES, so it runs after clearpath-robot-generate.  This one edits the package
-    xacros the generator CONSUMES -- ur_description's zero joint dynamics, the wheel joints without any, the top
-    plate without an inertial -- so it has to run before.  Both windows are inside this service; the ordering here
-    is the whole of it.
+    It and ``rg6_moveit_patch`` differ in WHEN they have to run, and it is worth being precise about it.
+    ``rg6_moveit_patch`` edits the flat robot.srdf the generator PRODUCES, so it runs after
+    clearpath-robot-generate.  This one edits the package xacros the generator CONSUMES -- ur_description's zero
+    joint dynamics, the wheel joints without any, the top plate without an inertial -- so it has to run before.
+    Both windows are inside this service; the ordering here is the whole of it.
 
     Every target is still waiting for a measurement (R47), so today the tool reports and changes nothing.  It is
     called regardless: the alternative is a call site that first runs on the day somebody fills in a value."""
-    import subprocess
-
-    tool = "/usr/local/bin/urdf-physics-patch"
-    if not os.path.isfile(tool):
-        log(
-            f"{label}: {tool} missing (run the installer with an onrobot-rg6 workspace) - "
-            "descriptions stay as apt ships them.",
-            err=True,
-        )
-        return False
-    try:
-        out = subprocess.run([tool], capture_output=True, text=True, timeout=60)
-        for line in (out.stdout + out.stderr).splitlines():
-            log(f"{label}: {line}")
-        if out.returncode != 0:
-            log(f"{label}: exit code {out.returncode}.", err=True)
-            return False
-        return True
-    except (OSError, subprocess.TimeoutExpired) as e:
-        log(f"{label}: call failed: {e}", err=True)
-        return False
+    return run_root_tool(
+        label,
+        "/usr/local/bin/urdf-physics-patch",
+        missing="descriptions stay as apt ships them.",
+    )
 
 
 def selftest():
-    """Exercise the two patterns without touching a file or needing ROS.
+    """Exercise the remap pattern without touching a file or needing ROS.
 
-    Both are string surgery on files this installer does not own (they come from
-    apt and are regenerated), so the only thing that can be tested off the robot
-    is whether the patterns hit what they must and spare what they must not.
+    It is string surgery on a file this installer does not own (it comes from apt and is regenerated), so the only
+    thing that can be tested off the robot is whether the pattern hits what it must and spares what it must not.
+
+    The mesh URI swap is NOT here: it is its own tool now, with its own tests
+    (``tests/test_sensor_mesh_uri_patch.py``), and every other step is a call to a root-owned copy that only
+    exists on the robot.
     """
     # The remap pair as clearpath_manipulators writes it.
     src = (
@@ -290,16 +229,7 @@ def selftest():
     # Double quotes and loose spacing are the same line to the pattern.
     assert ARM_JS_RX.subn(ARM_JS_SUB, '["platform" ,  "joint_states"]')[1] == 1, "quoting/spacing"
 
-    # The mesh URI swap, and that it leaves a foreign package alone.
-    xacro = f'<mesh filename="{MESH_URI_OLD}/meshes/d435.dae"/>'
-    assert (
-        xacro.replace(MESH_URI_OLD, MESH_URI_NEW)
-        == '<mesh filename="package://realsense2_description/meshes/d435.dae"/>'
-    ), "mesh uri"
-    other = '<mesh filename="file://$(find rg6_description)/meshes/hand.dae"/>'
-    assert other.replace(MESH_URI_OLD, MESH_URI_NEW) == other, "foreign package touched"
-
-    print("clearpath_custom_setup selftest: OK (arm joint_states remap, mesh uri)")
+    print("clearpath_custom_setup selftest: OK (arm joint_states remap)")
     return 0
 
 
@@ -334,7 +264,7 @@ def main():
     #    switch), and robot.yaml does not know that condition -- without the
     #    node, Cockpit shows the group as STALE instead of letting it vanish.
     # 2) Sensor meshes file:// -> package:// (foxglove_bridge only serves package://)
-    fix_realsense_mesh_uris("sensor mesh package://")
+    run_sensor_mesh_uri_patch("sensor mesh package://")
     # 3) Arm JSB joint_states out of the platform namespace ->
     #    manipulators/joint_states (relay + aggregator via clearpath-custom-joint-states.service).
     move_arm_joint_states("arm joint_states -> manipulators")

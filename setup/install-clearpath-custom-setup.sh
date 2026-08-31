@@ -20,7 +20,8 @@
 #     table (the gripper service) under /usr/local/bin
 #   - clone + build husky-extras via git (colcon): the URDF extras robot.yaml
 #     addresses under platform.extras.urdf and lists as a workspace
-#   - root-owned copy of urdf_physics_patch (this repo) under /usr/local/bin, likewise for the boot service
+#   - root-owned copies of urdf_physics_patch and sensor_mesh_uri_patch (both
+#     this repo) under /usr/local/bin, likewise for the boot service
 #   - optional: clearpath-custom-ur-dashboard.service: starts the ur_robot_driver
 #     dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
 #     at boot
@@ -106,12 +107,17 @@ RG6_BRIDGE_UNIT_PATH="/etc/systemd/system/${RG6_BRIDGE_UNIT}"
 # rg6 build). The boot service clearpath-custom-setup (root) calls ONLY this
 # copy - never the user-writable workspace directly.
 RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
-# The second patch tool, and a script of THIS repo (scripts/urdf_physics_patch.py):
-# it edits the apt descriptions the Clearpath generator READS (joint dynamics,
-# top plate inertial), where rg6-moveit-patch edits what the generator writes.
-# It takes the ordinary repo_file route like every other deployed script here --
-# not rg6_tool_src, which resolves against a foreign workspace.
+# The other two patch tools are scripts of THIS repo, so both take the ordinary repo_file route like every other
+# deployed script here -- not rg6_tool_src, which resolves against a foreign workspace.
+#
+# urdf-physics-patch edits the apt descriptions the Clearpath generator READS (joint dynamics, top plate
+# inertial), where rg6-moveit-patch edits what the generator writes.
 URDF_PHYSICS_PATCH_BIN="${BIN_DIR}/urdf-physics-patch"
+# sensor-mesh-uri-patch turns the Realsense mesh URIs from file:// into package://, which is the only form the
+# foxglove_bridge's asset_uri_allowlist serves.  The husky-offboard container copies the SAME file out of this
+# repo at build time -- so that a difference between the robot's URDF and the container's can never be explained
+# by the fix having run on one side only.
+SENSOR_MESH_URI_PATCH_BIN="${BIN_DIR}/sensor-mesh-uri-patch"
 
 # THREE files live in onrobot-rg6, not in this repo, and each can be taken either from a built workspace or
 # straight from the sources: rg6_moveit_patch (the SRDF patch), rg6_grip_bridge.py (the gripper driver) and its
@@ -387,6 +393,7 @@ verify_deployments() {
         "${BIN_DIR}/octomap-feed|scripts/octomap_feed.py"
         "${BIN_DIR}/manipulator-diagnostics|scripts/manipulator_diagnostics.py"
         "${URDF_PHYSICS_PATCH_BIN}|scripts/urdf_physics_patch.py"
+        "${SENSOR_MESH_URI_PATCH_BIN}|scripts/sensor_mesh_uri_patch.py"
         "${USER_HOME}/rtde_input_recipe_no_tool.txt|config/rtde_input_recipe_no_tool.txt"
     )
     echo "=== --verify: rolled-out copies against the checkout ==="
@@ -866,55 +873,90 @@ else
     echo ">>> husky-extras: skipped (the existing state stays)."
 fi
 
-# --- install the two patch tools as root-owned copies -----------------------
+# --- install the three patch tools as root-owned copies ---------------------
 # The boot service clearpath-custom-setup runs as root: it hooks the RG6 into
-# the generated MoveIt config (rg6_moveit_patch) and puts physical properties
-# into the apt descriptions the generator reads (urdf_physics_patch). Neither
-# may be called from where it is edited - running user-writable code as root on
-# every boot is a privilege escalation (whoever can write there gets root; via
-# git pull even the remote repo). Hence root-owned copies: they only change
-# through another installer run.
+# the generated MoveIt config (rg6_moveit_patch), puts physical properties into
+# the apt descriptions the generator reads (urdf_physics_patch) and rewrites the
+# sensor mesh URIs the foxglove_bridge will only serve as package://
+# (sensor_mesh_uri_patch). None of them may be called from where it is edited -
+# running user-writable code as root on every boot is a privilege escalation
+# (whoever can write there gets root; via git pull even the remote repo). Hence
+# root-owned copies: they only change through another installer run.
 #
-# The two differ in WHERE they come from, and only there. rg6_moveit_patch is a
-# file of the onrobot-rg6 workspace (rg6_tool_src). urdf_physics_patch is a
-# script of THIS repo and takes the same route as every other one here
-# (repo_file: next to the installer, then the checkout, then main).
+# They differ in WHERE they come from, and only there. rg6_moveit_patch is a
+# file of the onrobot-rg6 workspace (rg6_tool_src), so it is installed here on
+# its own. The other two are scripts of THIS repo and take the same route as
+# every other one here (repo_file: next to the installer, then the checkout,
+# then main) -- hence one function for both, further down.
+
+# Whether one file parses as python3.  Shared by install_repo_tool and the rg6_moveit_patch block below: the
+# check guards WHAT is installed (Python run as root at boot), not where it comes from.
+python_compiles() {
+    python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$1"
+}
+
 RG6_PATCH_SRC="$(rg6_tool_src rg6_moveit_patch)"
+if [ -n "$RG6_PATCH_SRC" ] && ! python_compiles "$RG6_PATCH_SRC"; then
+    # DISCARDED like a broken checkout in install_repo_tool: a broken workspace should be noticed at install
+    # time, not at the next boot as "MoveIt without the gripper".
+    echo "    WARN: ${RG6_PATCH_SRC} is not valid Python - discarding it."
+    RG6_PATCH_SRC=""
+fi
 if [ -n "$RG6_PATCH_SRC" ]; then
     echo ">>> Installing ${RG6_MOVEIT_PATCH_BIN} (copy of ${RG6_PATCH_SRC})"
     install -m 0755 -o root -g root "$RG6_PATCH_SRC" "$RG6_MOVEIT_PATCH_BIN"
 elif [ -f "$RG6_MOVEIT_PATCH_BIN" ]; then
-    echo ">>> rg6_moveit_patch: workspace tool not found - the existing copy ${RG6_MOVEIT_PATCH_BIN} stays."
+    echo ">>> rg6_moveit_patch: no usable workspace tool - the existing copy ${RG6_MOVEIT_PATCH_BIN} stays."
 else
     echo "    WARN: rg6_moveit_patch not found (is onrobot-rg6 cloned/built?) - it is inactive at boot until the installer runs again with the workspace present."
 fi
 
-# repo_file and NOT require_repo_file: a missing physics patcher is a warning,
-# not a dead unit.  The boot service handles its absence by name and leaves the
-# apt descriptions as they are (clearpath_custom_setup.run_urdf_physics_patch),
-# so aborting the whole roll-out over it would be the harsher failure.  Same
-# shape as the octomap feed further down, including the compile check: a broken
-# file found in the checkout is DISCARDED rather than quietly replaced from
-# main, because a broken checkout should be noticed.
-UPP_SRC=""
-if UPP_CAND="$(repo_file scripts/urdf_physics_patch.py)"; then
-    if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$UPP_CAND"; then
-        UPP_SRC="$UPP_CAND"
+# Every script of THIS repo that lands under /usr/local/bin takes the same route, so it takes the same function:
+# the two patchers directly below, the octomap feed and the manipulator diagnostics further down.
+#
+# repo_file and NOT require_repo_file: a missing tool of this kind is a warning, not a dead unit -- each caller
+# owns what its absence costs (the boot service skips that one patch by name, the optional services stay
+# uninstalled), and aborting the whole roll-out over it would be the harsher failure.  The compile check applies
+# either way: a broken file found in the checkout is DISCARDED rather than quietly replaced from main, because a
+# broken checkout should be noticed.  repo_file itself resolves local BEFORE GitHub main -- that ordering is
+# ROBOTER-TODO archive R6, the octomap_feed drift across three versions.
+#
+# Everything after rel and dst is the smoke test, run with stdout discarded: it writes nothing and is not a
+# strong check on any of the tools (the patchers find their targets waiting or their work done, the selftests
+# need no ROS), but it does catch the copy that cannot even start.  Returns 0 while a usable copy sits at dst --
+# freshly installed or left by an earlier run -- so a caller can gate what hangs off the tool (wrapper + unit) on
+# it; callers that treat absence as a mere warning add '|| true'.
+install_repo_tool() {
+    local rel="$1" dst="$2" src="" cand
+    shift 2
+    if cand="$(repo_file "$rel")"; then
+        if python_compiles "$cand"; then
+            src="$cand"
+        else
+            echo "    WARN: $cand is not valid Python - discarding it."
+        fi
     else
-        echo "    WARN: $UPP_CAND is not valid Python - discarding it."
+        echo "    WARN: ${rel} found neither in the checkout nor under ${SETUP_WS} nor on GitHub."
     fi
-else
-    echo "    WARN: scripts/urdf_physics_patch.py found neither in the checkout nor under ${SETUP_WS} nor on GitHub."
-fi
-if [ -n "$UPP_SRC" ]; then
-    echo ">>> Installing ${URDF_PHYSICS_PATCH_BIN} (copy of ${UPP_SRC})"
-    install -m 0755 -o root -g root "$UPP_SRC" "$URDF_PHYSICS_PATCH_BIN"
-    # Smoke test, writes nothing: today every target waits for a measurement, so a dry run reports exactly that.
-    "$URDF_PHYSICS_PATCH_BIN" --dry-run >/dev/null \
-        || echo "    WARN: ${URDF_PHYSICS_PATCH_BIN} --dry-run failed - installed anyway (check the logs)."
-elif [ -f "$URDF_PHYSICS_PATCH_BIN" ]; then
-    echo ">>> urdf_physics_patch: no usable source - the existing copy ${URDF_PHYSICS_PATCH_BIN} stays."
-fi
+    if [ -n "$src" ]; then
+        echo ">>> Installing ${dst} (copy of ${src})"
+        install -m 0755 -o root -g root "$src" "$dst"
+        # "$@" would abort under bash 3.2's set -u when no smoke command was passed.
+        if [ "$#" -gt 0 ]; then
+            "$@" >/dev/null \
+                || echo "    WARN: ${dst} smoke test failed - installed anyway (check the logs)."
+        fi
+    elif [ -f "$dst" ]; then
+        echo ">>> ${rel}: no usable source - the existing copy ${dst} stays."
+    fi
+    [ -f "$dst" ]
+}
+
+# '|| true': a missing patcher degrades that one patch at boot (see above), it must not kill the installer.
+install_repo_tool scripts/sensor_mesh_uri_patch.py "$SENSOR_MESH_URI_PATCH_BIN" \
+    "$SENSOR_MESH_URI_PATCH_BIN" --dry-run || true
+install_repo_tool scripts/urdf_physics_patch.py "$URDF_PHYSICS_PATCH_BIN" \
+    "$URDF_PHYSICS_PATCH_BIN" --dry-run || true
 
 # --- UR dashboard_client as a boot service (optional) ----------------------
 # Provides the dashboard services (power_on/brake_release/unlock_protective_stop/
@@ -1223,28 +1265,9 @@ else
     confirm ">>> Install the octomap feed (move_group then also avoids untracked obstacles; ~5 Hz onboard load)?" || DO_OCTO=0
 fi
 if [ "$DO_OCTO" -eq 1 ]; then
-    echo ">>> Installing ${OCTO_FEED_BIN}"
-    # repo_file takes the checked-out state BEFORE GitHub main (ROBOTER-TODO archive R6).
-    # The other way round, a run from the checkout would silently install
-    # something other than what is in the checkout - exactly how the
-    # octomap_feed drift across three versions came about.  If the file found is
-    # broken, it is DISCARDED and not quietly replaced by main: a broken
-    # checkout should be noticed.
-    OCTO_SRC=""
-    if OCTO_CAND="$(repo_file scripts/octomap_feed.py)"; then
-        if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$OCTO_CAND"; then
-            OCTO_SRC="$OCTO_CAND"
-        else
-            echo "    WARN: $OCTO_CAND is not valid Python - discarding it."
-        fi
-    else
-        echo "    WARN: scripts/octomap_feed.py found neither in the checkout nor under ${SETUP_WS} nor on GitHub."
-    fi
-    if [ -n "$OCTO_SRC" ]; then
-        install -m 0755 -o root -g root "$OCTO_SRC" "$OCTO_FEED_BIN"
-        # Selftest of the conversion (numpy only, no ROS needed).
-        python3 "$OCTO_FEED_BIN" --selftest || echo "    WARN: selftest failed - the service is installed anyway (check the logs)."
-
+    # Resolve order, compile check and discard rule live in install_repo_tool; the smoke test is the selftest of
+    # the conversion (numpy only, no ROS needed).  Wrapper + unit only land while a usable copy does.
+    if install_repo_tool scripts/octomap_feed.py "$OCTO_FEED_BIN" python3 "$OCTO_FEED_BIN" --selftest; then
         echo ">>> Installing ${OCTO_WRAPPER} + ${OCTO_UNIT}"
         cat > "$OCTO_WRAPPER" <<EOF
 #!/usr/bin/env bash
@@ -1304,28 +1327,9 @@ else
     confirm ">>> Install the manipulator diagnostics (UR5 + RG6 then appear in Cockpit/diagnostics_agg)?" || DO_MD=0
 fi
 if [ "$DO_MD" -eq 1 ]; then
-    echo ">>> Installing ${MD_BIN}"
-    # repo_file takes the checked-out state BEFORE GitHub main (ROBOTER-TODO archive R6).
-    # The other way round, a run from the checkout would silently install
-    # something other than what is in the checkout - exactly how the
-    # octomap_feed drift across three versions came about.  If the file found is
-    # broken, it is DISCARDED and not quietly replaced by main: a broken
-    # checkout should be noticed.
-    MD_SRC=""
-    if MD_CAND="$(repo_file scripts/manipulator_diagnostics.py)"; then
-        if python3 -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" "$MD_CAND"; then
-            MD_SRC="$MD_CAND"
-        else
-            echo "    WARN: $MD_CAND is not valid Python - discarding it."
-        fi
-    else
-        echo "    WARN: scripts/manipulator_diagnostics.py found neither in the checkout nor under ${SETUP_WS} nor on GitHub."
-    fi
-    if [ -n "$MD_SRC" ]; then
-        install -m 0755 -o root -g root "$MD_SRC" "$MD_BIN"
-        # Selftest of the evaluation logic (pure Python, no ROS needed).
-        python3 "$MD_BIN" --selftest || echo "    WARN: selftest failed - the service is installed anyway (check the logs)."
-
+    # Resolve order, compile check and discard rule live in install_repo_tool; the smoke test is the selftest of
+    # the evaluation logic (pure Python, no ROS needed).  Wrapper + unit only land while a usable copy does.
+    if install_repo_tool scripts/manipulator_diagnostics.py "$MD_BIN" python3 "$MD_BIN" --selftest; then
         echo ">>> Installing ${MD_WRAPPER} + ${MD_UNIT}"
         cat > "$MD_WRAPPER" <<EOF
 #!/usr/bin/env bash
@@ -1674,6 +1678,8 @@ echo "  clearpath-manipulators.service.d/override.conf : SIGINT stop drop-in (cl
 echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-owned copy of rg6_moveit_patch (used by the boot service, updated only by the installer)"
 [ -f "$URDF_PHYSICS_PATCH_BIN" ] && \
 echo "  ${URDF_PHYSICS_PATCH_BIN}   : root-owned copy of scripts/urdf_physics_patch.py (used by the boot service, updated only by the installer)"
+[ -f "$SENSOR_MESH_URI_PATCH_BIN" ] && \
+echo "  ${SENSOR_MESH_URI_PATCH_BIN}: root-owned copy of scripts/sensor_mesh_uri_patch.py (same; husky-offboard too)"
 [ -f "$OCTO_UNIT_PATH" ] && \
 echo "  ${OCTO_UNIT}   : depth─▶PointCloud2 for MoveIt's octomap (the move_group sensor parameters come from robot.yaml)"
 [ -f "$MD_UNIT_PATH" ] && \
