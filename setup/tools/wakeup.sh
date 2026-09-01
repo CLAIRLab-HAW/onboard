@@ -14,10 +14,14 @@
 #                                       otherwise the joint interpolation is
 #                                       not collision checked)
 #   5. drive the arm to the target     (arm_0_joint_trajectory_controller)
+#   6. power the arm down              (ur_state_manager/power_off) - ONLY with
+#                                       --power-off-arm
 #
 # NOTHING is started and nothing is shut down - the platform services must
 # already be running (boot services from husky-custom-setup). The arm stays
-# powered and in trajectory mode at the end, so it is ready for MoveIt.
+# powered and in trajectory mode at the end, so it is ready for MoveIt;
+# --power-off-arm de-energises it instead, so the arm stands in the target pose
+# on its brakes and has to be prepared again before the next movement.
 #
 # The arm moves widely and fast -> there is a confirmation before the travel
 # (skippable with -y / --yes).
@@ -28,6 +32,8 @@
 #   --joints <csv>      target pose directly as 6 joint angles in rad, comma separated
 #                       (overrides --pose)
 #   --from-any          do NOT check the start pose against "packed"
+#   --power-off-arm     power the arm down after the travel (ur_state_manager/power_off);
+#                       the arm holds the target pose on its brakes
 #   --time <sec>        travel time (default 10.0)
 #   --ns <namespace>    robot namespace (default: a200_0553 or $CLEARPATH_NS)
 #   -h, --help          this help
@@ -84,17 +90,20 @@ ARM_JOINTS=(
 
 DO_YES=0
 CHECK_START=1
+DO_POWER_OFF=0
+TOTAL_STEPS=5
 
 # ---------------------------------------------------------------------------
 # arguments
 # ---------------------------------------------------------------------------
-usage() { sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'; exit 0; }
+usage() { sed -n '2,47p' "$0" | sed 's/^# \{0,1\}//'; exit 0; }
 while [ $# -gt 0 ]; do
   case "$1" in
     -y|--yes)        DO_YES=1; shift ;;
     --pose)          POSE_NAME="$2"; shift 2 ;;
     --joints)        JOINTS_CSV="$2"; shift 2 ;;
     --from-any)      CHECK_START=0; shift ;;
+    --power-off-arm) DO_POWER_OFF=1; TOTAL_STEPS=6; shift ;;
     --time)          ARM_TIME="$2"; shift 2 ;;
     --ns)            NS="$2"; MANIP_NS="${NS}/manipulators"; shift 2 ;;
     -h|--help)       usage ;;
@@ -139,6 +148,7 @@ done
 JTC_ACTION="/${MANIP_NS}/arm_0_joint_trajectory_controller/follow_joint_trajectory"
 JTC_STATE="/${MANIP_NS}/arm_0_joint_trajectory_controller/controller_state"
 PREPARE_SRV="/${MANIP_NS}/ur_state_manager/prepare"
+POWER_OFF_SRV="/${MANIP_NS}/ur_state_manager/power_off"
 TRAJ_MODE_SRV="/${MANIP_NS}/ur_controller_mode_manager/mode/trajectory"
 
 # ---------------------------------------------------------------------------
@@ -173,7 +183,7 @@ call_trigger() {
 # ---------------------------------------------------------------------------
 # 1. resolve the target pose (robot.yaml is the source of truth)
 # ---------------------------------------------------------------------------
-log "step 1/5: resolving target pose '${POSE_NAME}'"
+log "step 1/${TOTAL_STEPS}: resolving target pose '${POSE_NAME}'"
 
 if [ -n "$JOINTS_CSV" ]; then
   log "target pose taken from --joints"
@@ -238,14 +248,14 @@ log "target joint angles: ${JOINTS_CSV}"
 # ---------------------------------------------------------------------------
 # 2. make the arm ready (idempotent: power on + release brakes)
 # ---------------------------------------------------------------------------
-log "step 2/5: preparing the arm (ur_state_manager/prepare)"
+log "step 2/${TOTAL_STEPS}: preparing the arm (ur_state_manager/prepare)"
 call_trigger "$PREPARE_SRV" "prepare" 30.0 \
   || die "prepare failed - arm not powered/unbraked. Aborting, nothing is driven."
 
 # ---------------------------------------------------------------------------
 # 3. activate trajectory mode (otherwise the JTC rejects the goal)
 # ---------------------------------------------------------------------------
-log "step 3/5: activating trajectory mode (mode/trajectory)"
+log "step 3/${TOTAL_STEPS}: activating trajectory mode (mode/trajectory)"
 call_trigger "$TRAJ_MODE_SRV" "mode/trajectory" 15.0 \
   || warn "mode/trajectory not successful - attempting the movement anyway."
 
@@ -254,6 +264,8 @@ call_trigger "$TRAJ_MODE_SRV" "mode/trajectory" 15.0 \
 # ---------------------------------------------------------------------------
 if [ "$DO_YES" -ne 1 ]; then
   echo "  The arm now travels from 'packed' to '${POSE_NAME}' (${ARM_TIME}s)." >&2
+  [ "$DO_POWER_OFF" -eq 1 ] && \
+    echo "  Afterwards it is powered DOWN (--power-off-arm) and holds on its brakes." >&2
   echo "  Workspace clear? Nobody inside the swivel range?" >&2
   printf '  Continue? [y/N] ' >&2
   read -r ans
@@ -266,8 +278,8 @@ fi
 # ---------------------------------------------------------------------------
 # 5. check the start pose + drive the arm to the target pose
 # ---------------------------------------------------------------------------
-log "step 4/5: checking the start pose (expects 'packed', tolerance ${START_TOL} rad)"
-log "step 5/5: driving the arm to '${POSE_NAME}' (${ARM_TIME}s)"
+log "step 4/${TOTAL_STEPS}: checking the start pose (expects 'packed', tolerance ${START_TOL} rad)"
+log "step 5/${TOTAL_STEPS}: driving the arm to '${POSE_NAME}' (${ARM_TIME}s)"
 
 JN_CSV="$(IFS=,; echo "${ARM_JOINTS[*]}")"
 PK_CSV="$(IFS=,; echo "${PACKED_JOINTS[*]}")"
@@ -387,4 +399,18 @@ if [ "$MOVE_RC" -ne 0 ]; then
   die "travel to '${POSE_NAME}' failed (rc=${MOVE_RC}) - the arm stays put, powered."
 fi
 
-log "wakeup: the arm stands in '${POSE_NAME}', powered and in trajectory mode (ready for MoveIt)."
+# ---------------------------------------------------------------------------
+# 6. power the arm down (only with --power-off-arm)
+# ---------------------------------------------------------------------------
+if [ "$DO_POWER_OFF" -eq 1 ]; then
+  log "step 6/6: powering the arm down (ur_state_manager/power_off)"
+  # shutdown.sh only WARNS here because the PC poweroff follows and de-energises
+  # the arm anyway. Nothing follows here: a failed power_off leaves the arm
+  # energised, the opposite of what was asked for - hence an error.
+  call_trigger "$POWER_OFF_SRV" "power_off" 30.0 \
+    || die "power_off failed - the arm stands in '${POSE_NAME}' but is STILL ENERGISED."
+  log "wakeup: the arm stands in '${POSE_NAME}', powered down and holding on its brakes."
+  log "wakeup: prepare + mode/trajectory are needed again before the next movement."
+else
+  log "wakeup: the arm stands in '${POSE_NAME}', powered and in trajectory mode (ready for MoveIt)."
+fi

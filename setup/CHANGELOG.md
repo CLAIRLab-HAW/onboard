@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-01 (`wakeup.sh --power-off-arm`)
+
+- **`wakeup.sh` gets a `--power-off-arm` switch**: after the travel it calls `ur_state_manager/power_off`, the same
+  service `shutdown.sh` uses in its step 4, and the arm stands in the target pose on its brakes instead of energised
+  in trajectory mode. Off by default -- the arm still ends ready for MoveIt unless the switch is given.
+- **A failed `power_off` is an ERROR here, not a warning.** `shutdown.sh` only warns because its own step 6 switches
+  the PC off and de-energises the arm anyway; nothing follows in `wakeup.sh`, so a failed call would silently leave
+  the arm energised -- the opposite of what was asked for. The travel itself has already succeeded at that point, so
+  the message says so and names the pose the arm stands in.
+- **The step counter became `${TOTAL_STEPS}`** instead of a literal `/5`, so the log reads `step 5/6` when the switch
+  is set and `step 5/5` when it is not. The `usage()` line range moved from `2,41p` to `2,47p` with the header.
+- **Untested at the robot** -- the flag has only been exercised for argument parsing and `--help` on the workstation.
+  It is ROBOTER-TODO R52.
+
 ## 2026-09-01 (one number per end of the octomap band)
 
 - **`max_range` drops from 3.0 to 2.5 m**, the value `octomap_feed.py` already cuts at. The wider setting could
