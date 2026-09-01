@@ -6,6 +6,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-01 (the tyre squish moves from the deck mount to the ride height)
+
+- **`ride_height_patch.py` is new**, and `attachments.top_plate.xyz` goes back to `[0.0, 0.0, 0.0]`. The 31 mm
+  measured earlier the same day are real, but carrying them as a deck offset lowers the plate against the
+  CHASSIS, where squashed tyres lower the whole vehicle against the GROUND. The two are not interchangeable:
+  with the deck offset in place, `move_group` on the robot answered `valid=False` for every state, with
+  `husky_top_assembly` 25.78 mm inside `base_link` -- a permanent self-collision, so every plan was refused with
+  START_STATE_IN_COLLISION. In the MuJoCo twin the same shape showed as `base_link` vs `arm_0_shoulder_link`
+  (-3.64 mm) and `top_plate_link` vs all four wheels (-4.92 mm) and took 22 of hrl's tests down; moving the same
+  31 mm to the ride height left 4, three of them frozen model pins.
+- **The new tool subtracts the deflection from the wheel radius** that `a200.urdf.xacro` computes
+  `base_footprint` from, so the ground reference lands where the loaded tyres put it. There is no lever for it in
+  `robot.yaml` (`clearpath_config` models mounts and sensors, not the ground reference), which is the same
+  situation `urdf_physics_patch` and `sensor_mesh_uri_patch` answer; it is a separate tool from the former
+  because that one is about physical properties and deliberately carries no measured value. Wired into
+  `clearpath_custom_setup.py` (step 6, same window as step 5), the husky-offboard entrypoint and the installer
+  manifest.
+- **The number is confirmed by a second, independent descent.** The identical floor contact read TCP 113.0 mm
+  under the nominal model and 81.0 mm with the 31 mm applied -- 32.0 mm measured against 31.0 mm applied. On the
+  same touch `rg6_gripper_grasp_frame` sat at 23.0 mm, half a pad height, so the pad underside met the floor at
+  z = 0.
+- **An upstream upgrade does not remove the need.** `clearpath_platform_description` 2.9.15 carries the same
+  `${wheel_vertical_offset - front_wheel_radius}` as the installed 2.9.5, byte for byte; across the package one
+  a200 line differs (the `control` default) and no `.stl` at all. How far THIS vehicle's tyres deflect under THIS
+  payload is a property of our build.
+
 ## 2026-09-01 (the deck measures lower and the arm nearer than the generated URDF claims)
 
 - **`attachments.top_plate.xyz` moves from `[0.0, 0.0, 0.0]` to `[0.0, 0.0, -0.031]`.** Measured with the

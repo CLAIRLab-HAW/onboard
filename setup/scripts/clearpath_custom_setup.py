@@ -22,6 +22,11 @@ Patches:
      Numbered last, RUNS FIRST -- it edits what the Clearpath generator reads,
      where step 4 edits what it writes.
 
+  6. This vehicle's loaded wheel radius into the a200 description
+     (run_ride_height_patch), so base_footprint -- the ground reference every
+     calibrated height is measured against -- sits where the squashed tyres put
+     it. Same window as step 5.
+
 Every edit is surgical, idempotent, with a .bak backup and an atomic write.
 If a file or a key is missing, that change is skipped (with a warning).
 
@@ -201,6 +206,26 @@ def run_urdf_physics_patch(label):
     )
 
 
+def run_ride_height_patch(label):
+    """Put this vehicle's loaded wheel radius into the a200 description, before the generator expands it.
+
+    The tool is a script of this repo (``scripts/ride_height_patch.py``) and carries the measurement.  Same window
+    as ``urdf_physics_patch`` -- it edits a package xacro the generator CONSUMES -- but a separate tool on purpose:
+    that one is about physical properties a physics engine needs and deliberately holds no measured value, this one
+    is geometry and holds one.
+
+    What it moves is ``base_footprint``, the ground reference of the whole workspace.  The alternative that looks
+    equivalent -- carrying the same 31 mm as a ``top_plate`` offset in robot.yaml -- is not: it lowers the deck
+    against the chassis instead of the vehicle against the ground, and the superstructure then intersects both the
+    chassis and the wheels.  Measured on 2026-09-01, move_group answers ``valid=False`` for every state in that
+    shape, so nothing plans at all."""
+    return run_root_tool(
+        label,
+        "/usr/local/bin/ride-height-patch",
+        missing="base_footprint stays on the NOMINAL wheel radius.",
+    )
+
+
 def selftest():
     """Exercise the remap pattern without touching a file or needing ROS.
 
@@ -273,6 +298,10 @@ def main():
     #    step 4 edits what the generator writes.  No lever in robot.yaml -- clearpath_config models no joint
     #    dynamics, and both descriptions come from foreign apt repos.
     run_urdf_physics_patch("urdf physics")
+    # 6) This vehicle's LOADED wheel radius into the a200 description, so that base_footprint -- the ground
+    #    reference every calibrated height is measured against -- matches the squashed tyres under the UR mass.
+    #    Runs in the same window as step 5 and for the same reason: it edits what the generator reads.
+    run_ride_height_patch("ride height")
     # 4) RG6 into MoveIt: patch robot.srdf (group 'gripper' + EE)
     #    (onrobot-rg6 tool).  For the SRDF there is no lever in robot.yaml --
     #    clearpath_config does not know the word 'srdf', and the gripper enum

@@ -136,13 +136,14 @@ platform:
       type: a200.top_plate
       model: large
       parent: default_mount
-      # Measured 2026-09-01, fingertips driven onto the floor as the cross-check:
-      # the deck sits ~330 mm above ground where the generated URDF claims 363
-      # (tyre squish under the UR mass, ~0.6 deg forward pitch a rigid model
-      # cannot carry). Lowering the plate carries the whole superstructure --
-      # both plate mounts, the arm, the top assembly -- and keeps the visual
-      # model consistent; only the chassis itself stays at its rigid height.
-      xyz: [0.0, 0.0, -0.031]
+      # The plate sits where it is bolted: the deck measuring ~330 mm above ground instead of the nominal 363 is
+      # TYRE SQUISH under the UR mass, and squish lowers the whole vehicle towards the ground rather than pulling
+      # the deck down onto the chassis. Carrying those 31 mm here instead drives the superstructure INTO the
+      # chassis and the wheels -- measured 2026-09-01, move_group then answers valid=False for every state
+      # (husky_top_assembly 25.78 mm inside base_link), so no plan starts at all. The ride height lives in
+      # ride_height_patch (scripts/ride_height_patch.py), which puts this vehicle's LOADED wheel radius into the
+      # a200 description, where clearpath_config has no lever.
+      xyz: [0.0, 0.0, 0.0]
       rpy: [0.0, 0.0, 0.0]
       enabled: true
 #links:
@@ -241,9 +242,10 @@ manipulators:
       parent: top_plate_front_mount
       # Measured 2026-09-01 against the real vehicle: the front-mount-to-arm-base
       # offset reads 107 mm on the plate, not the 120 modelled. The arm bolts
-      # flat onto the plate, so z stays 0 here -- the ~31 mm the whole deck
-      # sits too high (tape measure ~330 mm vs. 363 modelled, tyre squish under
-      # the UR mass) is a PLATFORM error and must not be hidden in this joint.
+      # flat onto the plate, so z stays 0 here -- the ~31 mm the whole vehicle
+      # sits lower (tape measure ~330 mm vs. 363 modelled, tyre squish under the
+      # UR mass) is the RIDE HEIGHT and must not be hidden in this joint; it
+      # lives in ride_height_patch.
       xyz: [-0.107, 0.0, 0.0]
       rpy: [0.0, 0.0, 0.0]
       ur_type: ur5

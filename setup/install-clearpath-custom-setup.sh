@@ -20,8 +20,9 @@
 #     table (the gripper service) under /usr/local/bin
 #   - clone + build husky-extras via git (colcon): the URDF extras robot.yaml
 #     addresses under platform.extras.urdf and lists as a workspace
-#   - root-owned copies of urdf_physics_patch and sensor_mesh_uri_patch (both
-#     this repo) under /usr/local/bin, likewise for the boot service
+#   - root-owned copies of urdf_physics_patch, sensor_mesh_uri_patch and
+#     ride_height_patch (all this repo) under /usr/local/bin, likewise for the
+#     boot service
 #   - optional: clearpath-custom-ur-dashboard.service: starts the ur_robot_driver
 #     dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
 #     at boot
@@ -118,6 +119,10 @@ URDF_PHYSICS_PATCH_BIN="${BIN_DIR}/urdf-physics-patch"
 # repo at build time -- so that a difference between the robot's URDF and the container's can never be explained
 # by the fix having run on one side only.
 SENSOR_MESH_URI_PATCH_BIN="${BIN_DIR}/sensor-mesh-uri-patch"
+# ride-height-patch puts this vehicle's LOADED wheel radius into the a200 description, so that base_footprint --
+# the ground reference every calibrated height is measured against -- sits where the squashed tyres put it.  Also
+# copied into the husky-offboard container from this repo, for the same reason as the mesh URI fix.
+RIDE_HEIGHT_PATCH_BIN="${BIN_DIR}/ride-height-patch"
 
 # THREE files live in onrobot-rg6, not in this repo, and each can be taken either from a built workspace or
 # straight from the sources: rg6_moveit_patch (the SRDF patch), rg6_grip_bridge.py (the gripper driver) and its
@@ -394,6 +399,7 @@ verify_deployments() {
         "${BIN_DIR}/manipulator-diagnostics|scripts/manipulator_diagnostics.py"
         "${URDF_PHYSICS_PATCH_BIN}|scripts/urdf_physics_patch.py"
         "${SENSOR_MESH_URI_PATCH_BIN}|scripts/sensor_mesh_uri_patch.py"
+        "${RIDE_HEIGHT_PATCH_BIN}|scripts/ride_height_patch.py"
         "${USER_HOME}/rtde_input_recipe_no_tool.txt|config/rtde_input_recipe_no_tool.txt"
     )
     echo "=== --verify: rolled-out copies against the checkout ==="
@@ -957,6 +963,8 @@ install_repo_tool scripts/sensor_mesh_uri_patch.py "$SENSOR_MESH_URI_PATCH_BIN" 
     "$SENSOR_MESH_URI_PATCH_BIN" --dry-run || true
 install_repo_tool scripts/urdf_physics_patch.py "$URDF_PHYSICS_PATCH_BIN" \
     "$URDF_PHYSICS_PATCH_BIN" --dry-run || true
+install_repo_tool scripts/ride_height_patch.py "$RIDE_HEIGHT_PATCH_BIN" \
+    "$RIDE_HEIGHT_PATCH_BIN" --dry-run || true
 
 # --- UR dashboard_client as a boot service (optional) ----------------------
 # Provides the dashboard services (power_on/brake_release/unlock_protective_stop/
