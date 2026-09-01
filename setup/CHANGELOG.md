@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-01 (one number per end of the octomap band)
+
+- **`max_range` drops from 3.0 to 2.5 m**, the value `octomap_feed.py` already cuts at. The wider setting could
+  never take effect: the feed clips the cloud before `move_group` ever sees it, so 3.0 described a range the dense
+  layer did not have. Its comment claimed the number matched the driver's `depth_module.clip_distance` -- that
+  coupling had no effect either. `clip_distance` stays at 3.0 on purpose; it serves the other depth consumers.
+- **`min_depth` drops from 0.35 to 0.3 m**, the D435's own near limit (`depth_module.min_distance`, hardware
+  around 0.28). The near end of the band is now one number instead of two.
+
+  **This gives up a margin that was measured, not guessed.** The 0.35 m were the wrist self-exclusion: the RG6
+  fingers reach ~0.15-0.25 m in front of the camera and a carried payload hangs < ~0.3 m below the TCP. On
+  2026-07-29 their voxels made transport after the grasp unplannable (`<octomap>` vs `'Robot attached'` -- the
+  attached-body masking of the occupancy monitor did not take effect). Whether 0.3 m still keeps them out has not
+  been measured; the check is ROBOTER-TODO R50, and the code carries the fallback instruction next to the value.
+- **The README said `max_range` 2.0** and now says 2.5. The 2.0 were correct against the last commit -- the 3.0
+  came in as an uncommitted working-tree edit, so the drift sat between the commit and the tree, not between two
+  commits.
+
 ## 2026-09-01 (the tyre squish moves from the deck mount to the ride height)
 
 - **`ride_height_patch.py` is new**, and `attachments.top_plate.xyz` goes back to `[0.0, 0.0, 0.0]`. The 31 mm

@@ -189,7 +189,11 @@ manipulators:
         wrist_depth_camera:
           sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
           point_cloud_topic: /a200_0553/sensors/camera_0/octomap_points
-          max_range: 2.0
+          # Same value as the feed's max_depth (scripts/octomap_feed.py): the feed
+          # already cuts at 2.5 m, so a wider max_range here would never take effect.
+          # The driver's depth_module.clip_distance (3.0) stays wider on purpose -- it
+          # serves the other depth consumers, not the octomap.
+          max_range: 2.5
           point_subsample: 1
           padding_offset: 0.03
           padding_scale: 1.0

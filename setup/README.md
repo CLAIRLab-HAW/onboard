@@ -382,7 +382,8 @@ Two building blocks, both from the installer (optional step):
    Clearpath generator writes them into
    `/etc/clearpath/manipulators/config/moveit.yaml` itself. `octomap_frame` is
    deliberately `base_link` (odom is UTM-backed on this robot and jumps),
-   `octomap_resolution` 0.025, `max_range` 2.0.
+   `octomap_resolution` 0.025, `max_range` 2.5 (the same value the feed cuts
+   at, so one number bounds the dense layer).
    **Careful:** there is no gate "only if `moveit_ros_perception` is
    installed". If the package is missing, `move_group` acknowledges that with a
    plugin load error per boot. On a200-0553 it is installed.

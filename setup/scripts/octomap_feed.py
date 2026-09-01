@@ -127,13 +127,20 @@ def main(argv=None) -> int:
             self.cloud_topic = self.declare_parameter("cloud_topic", f"{ns}/octomap_points").value
             self.rate_hz = float(self.declare_parameter("rate_hz", 5.0).value)
             self.stride = int(self.declare_parameter("stride", 2).value)
-            # Near clip 0.35 m = wrist self-exclusion: the RG6 fingers (~0.15-0.25 m in front of the camera) and the
-            # CARRIED payload (hangs below the TCP, < ~0.3 m) are ALWAYS inside this band -- otherwise their voxels
-            # collide with the attached object itself (measured on the robot 2026-07-29: transport after the grasp
-            # unplannable, "<octomap> vs 'Robot attached'"; the attached-body masking of the occupancy monitor did not
-            # take effect).  Nearby REAL obstacles are covered by the object box layer (workstation side, min_depth 0.15
-            # there).
-            self.min_depth = float(self.declare_parameter("min_depth", 0.35).value)
+            # Near clip 0.3 m = the D435's own near limit (robot.yaml depth_module.min_distance, hardware around
+            # 0.28 m): below it the driver delivers nothing usable anyway, so one number now stands for the near
+            # end instead of two.
+            #
+            # CAUTION, this band is narrower than the wrist self-exclusion that used to sit here (0.35 m): the RG6
+            # fingers reach ~0.15-0.25 m in front of the camera and a CARRIED payload hangs < ~0.3 m below the TCP.
+            # Measured on the robot 2026-07-29, transport after the grasp was unplannable with those voxels in the
+            # octree ("<octomap> vs 'Robot attached'" -- the attached-body masking of the occupancy monitor did not
+            # take effect).  Whether 0.3 m still keeps them out has NOT been measured -- R50 is that measurement;
+            # raise it back to 0.35 if the grasp regression returns.  Nearby REAL obstacles are covered by the
+            # object box layer (workstation side, min_depth 0.15 there).
+            self.min_depth = float(self.declare_parameter("min_depth", 0.3).value)
+            # Far clip 2.5 m cuts BEFORE the move_group updater (robot.yaml max_range, same value) and before the
+            # driver's clip_distance 3.0 -- it is the effective range of the dense layer.
             self.max_depth = float(self.declare_parameter("max_depth", 2.5).value)
 
             self._depth = None  # last depth message (raw data)
