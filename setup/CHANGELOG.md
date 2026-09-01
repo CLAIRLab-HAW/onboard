@@ -7,6 +7,17 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-02 (one shape for the `__main__` block)
+
+- **`if __name__ == "__main__":` now ends in `raise SystemExit(main())`** -- the single form the workspace
+  settled on across its 97 entry points (rule and reasoning in `.claude/rules/code-style.md`). It needs no
+  `import sys`, carries a `main` returning `int` and one returning `None` alike (`SystemExit(None)` is exit
+  code 0), and matches the wrapper setuptools generates for `[project.scripts]`, so running the file, running
+  `python -m`, and the installed console command now agree on the exit code.
+- **Four patch scripts, and their `main` now says `-> int`.** All four return 0/1 (and
+  `clearpath_custom_setup.py` also `selftest()`, itself a 0), which no signature admitted; a reader had to
+  chase the returns to learn the exit code was meant to matter.
+
 ## 2026-09-02 (the shell scripts pass shellcheck)
 
 - **A prose comment in `install-clearpath-custom-setup.sh` was being read as a directive.** The line began

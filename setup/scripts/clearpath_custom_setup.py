@@ -258,7 +258,7 @@ def selftest():
     return 0
 
 
-def main():
+def main() -> int:
     if "--selftest" in sys.argv[1:]:
         return selftest()
     log("start.")
@@ -313,4 +313,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

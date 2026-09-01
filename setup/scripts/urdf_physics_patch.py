@@ -296,7 +296,7 @@ def patch_file(path, targets, dry_run):
     return 1
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--ros-share",
@@ -331,4 +331,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
