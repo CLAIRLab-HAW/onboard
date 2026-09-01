@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-01 (the deck measures lower and the arm nearer than the generated URDF claims)
+
+- **`attachments.top_plate.xyz` moves from `[0.0, 0.0, 0.0]` to `[0.0, 0.0, -0.031]`.** Measured with the
+  fingertips driven onto the floor as the cross-check: the deck sits ~330 mm above ground where the generated
+  URDF claims 363 (tyre squish under the UR mass, ~0.6 deg forward pitch a rigid model cannot carry). Lowering
+  the plate carries the whole superstructure -- both plate mounts, the arm, the top assembly -- so the visual
+  model stays consistent; only the chassis keeps its rigid height. Lowering `default_mount` instead would be
+  equivalent (nothing else hangs on it) but lives in the generated platform description and would need a patch
+  script; the attachment offset is plain configuration.
+- **`arms[0].xyz` moves from `[-0.12, 0.0, 0.0]` to `[-0.107, 0.0, 0.0]`.** The front-mount-to-arm-base offset
+  on the plate is 107 mm, not the 120 modelled. z stays 0 -- the arm bolts flat onto the plate.
+- **What was ruled out against the live robot the same day:** the UR kinematics calibration on the controller is
+  byte-identical to `/home/robot/ur5_a200_0553_calibration.yaml` (hash calib_1016257947934104745), and the RG6
+  chain including the quick changer closes to 290.5 mm behind tool0 against ~295 measured -- neither carries the
+  error. The floor-contact test also pins the real arm base at ~328 mm above ground, flush with the measured deck.
+
 ## 2026-08-31 (the sensor mesh URI fix is a script, so the offboard container can run the same one)
 
 - **New `scripts/sensor_mesh_uri_patch.py`, deployed as `/usr/local/bin/sensor-mesh-uri-patch`.** It carries what

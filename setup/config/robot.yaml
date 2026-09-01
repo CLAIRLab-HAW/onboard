@@ -136,7 +136,13 @@ platform:
       type: a200.top_plate
       model: large
       parent: default_mount
-      xyz: [0.0, 0.0, 0.0]
+      # Measured 2026-09-01, fingertips driven onto the floor as the cross-check:
+      # the deck sits ~330 mm above ground where the generated URDF claims 363
+      # (tyre squish under the UR mass, ~0.6 deg forward pitch a rigid model
+      # cannot carry). Lowering the plate carries the whole superstructure --
+      # both plate mounts, the arm, the top assembly -- and keeps the visual
+      # model consistent; only the chassis itself stays at its rigid height.
+      xyz: [0.0, 0.0, -0.031]
       rpy: [0.0, 0.0, 0.0]
       enabled: true
 #links:
@@ -233,7 +239,12 @@ manipulators:
   arms:
     - model: universal_robots
       parent: top_plate_front_mount
-      xyz: [-0.12, 0.0, 0.0]
+      # Measured 2026-09-01 against the real vehicle: the front-mount-to-arm-base
+      # offset reads 107 mm on the plate, not the 120 modelled. The arm bolts
+      # flat onto the plate, so z stays 0 here -- the ~31 mm the whole deck
+      # sits too high (tape measure ~330 mm vs. 363 modelled, tyre squish under
+      # the UR mass) is a PLATFORM error and must not be hidden in this joint.
+      xyz: [-0.107, 0.0, 0.0]
       rpy: [0.0, 0.0, 0.0]
       ur_type: ur5
       robot_ip: 192.168.131.40
