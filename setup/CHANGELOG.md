@@ -17,8 +17,12 @@ the versioning [Semantic Versioning](https://semver.org/).
   the message says so and names the pose the arm stands in.
 - **The step counter became `${TOTAL_STEPS}`** instead of a literal `/5`, so the log reads `step 5/6` when the switch
   is set and `step 5/5` when it is not. The `usage()` line range moved from `2,41p` to `2,47p` with the header.
-- **Untested at the robot** -- the flag has only been exercised for argument parsing and `--help` on the workstation.
-  It is ROBOTER-TODO R52.
+- **Verified at the robot the same day.** The owner ran the switch on the a200-0553 and it does what it says, so
+  ROBOTER-TODO R52 closed on 2026-09-01 without ever being an open point overnight; the protocol is in
+  `docs/robot-todo-archive.md`. What the workstation had covered before that: argument parsing over five flag
+  combinations, `--help`, and the new step-6 branch against a stubbed `call_trigger` in all three states. What
+  nobody recorded: `get_robot_mode` and the joint angles either side of the `power_off`, so the switch is proven
+  to work, and the arm's positional fidelity as the brakes take over is not.
 
 ## 2026-09-01 (one number per end of the octomap band)
 
