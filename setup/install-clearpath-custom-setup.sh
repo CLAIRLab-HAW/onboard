@@ -297,6 +297,9 @@ confirm() {
 # newest ones (default 5). Never fatal (empty glob etc.) -> safe under set -e.
 prune_backups() {
     local file="$1" keep="${2:-5}"
+    # shellcheck disable=SC2012  # `ls -t` sorts by mtime, which is the point
+    # here; `find` cannot sort by time without a sort pipeline of its own, and
+    # the names are our own timestamps -- no exotic characters to mishandle.
     ls -1t "${file}".bak.* 2>/dev/null | tail -n "+$((keep + 1))" | xargs -r rm -f -- || true
 }
 
@@ -1117,7 +1120,7 @@ if [ "$DO_WD" -eq 1 ]; then
     echo ">>> Installing ${WD_WRAPPER} + ${WD_UNIT} + ${WD_TIMER}"
     # A FILE in this repo (scripts/manipulators_watchdog.sh), for the same reason
     # as the patcher: 232 lines of shell inside a string are invisible to
-    # shellcheck, to `bash -n` and to every editor.  require_repo_file, because
+    # to shellcheck, to `bash -n` and to every editor.  require_repo_file, because
     # the timer without its wrapper is a unit that fails every ten seconds.
     WD_SRC="$(require_repo_file scripts/manipulators_watchdog.sh)"
     bash -n "$WD_SRC" \

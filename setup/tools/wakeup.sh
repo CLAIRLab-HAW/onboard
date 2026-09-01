@@ -235,7 +235,7 @@ print(f"wakeup: none of the poses {names} in {path} "
 sys.exit(1)
 PY
                   )"
-    [ -n "$JOINTS_CSV" ] && { ROBOT_YAML_USED="$cand"; break; }
+    [ -n "$JOINTS_CSV" ] && break
   done
 fi
 

@@ -219,7 +219,7 @@ fi
 #     controller-side program). Short - the resend started external control, the
 #     JSC becomes active quickly.
 ok=""
-for i in $(seq 1 "${RPR_WAIT}"); do
+for _ in $(seq 1 "${RPR_WAIT}"); do
     if ros_cmd "timeout 6 ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
         ok=1; break
     fi

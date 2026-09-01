@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+
+## 2026-09-02 (the shell scripts pass shellcheck)
+
+- **A prose comment in `install-clearpath-custom-setup.sh` was being read as a directive.** The line began
+  `# shellcheck, to \`bash -n\` and to every editor.`, and shellcheck parses `# shellcheck` at the start of a
+  comment as a directive -- a broken one here, which aborted the analysis of the whole 1200-line file. Reworded to
+  `# to shellcheck, ...`; the file now yields exactly one finding instead of a parse error.
+- **The two backup rotations keep their `ls -1t`, with the reason written down.** `ls -t` sorts by mtime, which is
+  the entire point of "keep the five newest"; `find` cannot sort by time without a sort pipeline of its own, and the
+  names are our own timestamps. Both sites carry a `# shellcheck disable=SC2012` and that reasoning.
+- **Two dead names removed.** The counter in `manipulators_watchdog.sh` is never read -- the loop just repeats
+  `RPR_WAIT` times -- and is now `_`. `ROBOT_YAML_USED` in `wakeup.sh` was assigned once and read nowhere; which
+  `robot.yaml` won is already printed to stderr by the python helper directly above it.
+- **Why now:** the pre-commit hook gained a shellcheck stage on 2026-09-02 (`clearpath-ruff-hook` v3), so these
+  would have refused the next commit that touched any of these files.
+
 ## 2026-09-01 (`wakeup.sh --power-off-arm`)
 
 - **`wakeup.sh` gets a `--power-off-arm` switch**: after the travel it calls `ur_state_manager/power_off`, the same

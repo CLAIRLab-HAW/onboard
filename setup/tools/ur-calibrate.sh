@@ -84,6 +84,8 @@ fi
 if [ -f "$OUT_FILE" ]; then
     cp -a "$OUT_FILE" "${OUT_FILE}.bak.$(date +%Y%m%d%H%M%S)"
     # Keep only the five newest backups; never fatal (empty glob) -> safe under set -e.
+    # shellcheck disable=SC2012  # sorting by mtime is the point; the names are
+    # our own timestamps, so there is nothing for `find` to handle better.
     ls -1t "${OUT_FILE}".bak.* 2>/dev/null | tail -n "+6" | xargs -r rm -f -- || true
 fi
 
