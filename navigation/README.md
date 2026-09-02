@@ -101,7 +101,7 @@ uv run pytest -m nav_e2e                      # needs a running container
 ## Related
 
 - [Design spec](../../docs/superpowers/specs/2026-08-22-nav2-rs16-design.md)
-- [robot-contract profile](../../contract/robot-contract/src/robot_contract/profiles/a200_0553.yaml)
+- [robot-contract profile](../../robot/contract/src/robot_contract/profiles/a200_0553.yaml)
 
 ## Versioning
 
