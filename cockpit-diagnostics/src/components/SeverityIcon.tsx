@@ -42,13 +42,13 @@ const _ = cockpit.gettext;
 /*
  * One place that decides how a severity looks.
  *
- * Five states get five distinguishable *shapes*, not just five colours, so the
- * page stays readable in greyscale and with red-green colour blindness. The
+ * Five states get five distinguishable *shapes*, not just five colors, so the
+ * page stays readable in greyscale and with red-green color blindness. The
  * clock and the power symbol replace upstream's question mark and empty circle:
  * those named the uncertainty, not the state -- a stale status means "no fresh
  * message", and an inactive one means "deliberately switched off".
  *
- * Colours come from PatternFly's `<Icon status>`, never from our own SCSS, so
+ * Colors come from PatternFly's `<Icon status>`, never from our own SCSS, so
  * Cockpit's dark mode needs no extra work.
  */
 export const severityLabel = (level: number): string => {

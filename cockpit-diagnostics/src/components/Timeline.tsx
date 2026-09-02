@@ -32,13 +32,13 @@ const _ = cockpit.gettext;
  * The retained snapshots as one band.
  *
  * Equal-height segments on purpose: varying heights read as a chart and invite
- * comparison of a quantity that does not exist here. Colour marks the snapshots
+ * comparison of a quantity that does not exist here. Color marks the snapshots
  * worth clicking; everything healthy stays neutral grey.
  *
  * Unfilled slots are rendered on the left so the newest snapshot always ends at
  * the right edge and the band keeps its width while the history fills up.
  *
- * Colour comes from `variantForLevel` (utils/summary.ts) -- the one place that
+ * Color comes from `variantForLevel` (utils/summary.ts) -- the one place that
  * maps a level to a CSS variant, shared with ManipulatorPanel. "quiet" is that
  * function's name for the neutral state; this band has always called it "ok"
  * (see the "timeline-slot-ok" class below), so the two vocabularies are
@@ -84,13 +84,13 @@ export const Timeline = ({
                         type="button"
                         key={index}
                         className={`timeline-slot timeline-slot-${variantFor(snapshot.level)}` +
-                                   (isPaused && index === selected ? " timeline-slot-selected" : "")}
+                            (isPaused && index === selected ? " timeline-slot-selected" : "")}
                         // The design spec promises the time *and* the state sentence
                         // on hover, and this band is the only place carrying it.
                         // Recomputed per snapshot rather than cached: thirty walks of a
                         // small tree per render is not a performance concern here.
                         title={`${new Date(snapshot.timestamp).toLocaleTimeString()} — ` +
-                               headline(summarise(snapshot.diagnostics))}
+                            headline(summarise(snapshot.diagnostics))}
                         aria-label={cockpit.format(_("diagnostics snapshot $0"), index + 1)}
                         onClick={() => {
                             setDiagStatusDisplay(snapshot);

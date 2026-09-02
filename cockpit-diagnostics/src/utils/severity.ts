@@ -28,7 +28,7 @@ import { DiagnosticsEntry } from "../interfaces";
  *
  *  - "out of service": a subsystem that is deliberately switched off is neither
  *    OK (it is not working) nor a fault (nobody needs to do anything). Painting
- *    a powered-down arm yellow or red trains people to ignore colours.
+ *    a powered-down arm yellow or red trains people to ignore colors.
  *  - some upstream nodes classify harmless conditions as ERROR, which drags the
  *    whole robot's rollup to red and hides real faults.
  *

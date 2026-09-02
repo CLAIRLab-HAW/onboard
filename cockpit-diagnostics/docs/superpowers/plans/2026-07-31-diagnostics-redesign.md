@@ -1,35 +1,58 @@
 # Redesign des Cockpit-Diagnosepanels — Implementierungsplan
 
-> **Für ausführende Agenten:** ERFORDERLICHE SUB-SKILL: `superpowers:subagent-driven-development` (empfohlen) oder `superpowers:executing-plans`, um diesen Plan Aufgabe für Aufgabe umzusetzen. Die Schritte nutzen Checkbox-Syntax (`- [ ]`) zur Nachverfolgung.
+> **Für ausführende Agenten:** ERFORDERLICHE SUB-SKILL: `superpowers:subagent-driven-development` (empfohlen) oder
+> `superpowers:executing-plans`, um diesen Plan Aufgabe für Aufgabe umzusetzen. Die Schritte nutzen Checkbox-Syntax
+> (`- [ ]`) zur Nachverfolgung.
 
-**Ziel:** Das Cockpit-Diagnosepanel bekommt ein ruhigeres, dichteres Layout mit Kopfband, Zeitachse, zweispaltiger Arbeitsfläche und Detail-Panel auf Seitenebene — ohne dass eine einzige heute angezeigte Information verschwindet.
+**Ziel:** Das Cockpit-Diagnosepanel bekommt ein ruhigeres, dichteres Layout mit Kopfband, Zeitachse, zweispaltiger
+Arbeitsfläche und Detail-Panel auf Seitenebene — ohne dass eine einzige heute angezeigte Information verschwindet.
 
-**Architektur:** Die Datenschicht (`roslib/`, `RosConnectionManager`, `hooks/`, `utils/severity.ts`, `utils/manipulatorUtils.ts`) bleibt unangetastet bis auf eine Ausnahme: das fertige React-Element in `DiagnosticsEntry.icon` fällt weg, damit die Level→Symbol-Zuordnung nur noch an einer Stelle steht. Darüber entstehen zwei reine Logikmodule (`utils/summary.ts`, `utils/treeFilter.ts`), die mit echten Unit-Tests abgesichert sind, und darauf sechs Darstellungskomponenten. `app.tsx` wird vom Karten-Stapel zum Layout-Rahmen.
+**Architektur:** Die Datenschicht (`roslib/`, `RosConnectionManager`, `hooks/`, `utils/severity.ts`,
+`utils/manipulatorUtils.ts`) bleibt unangetastet bis auf eine Ausnahme: das fertige React-Element in
+`DiagnosticsEntry.icon` fällt weg, damit die Level→Symbol-Zuordnung nur noch an einer Stelle steht. Darüber entstehen
+zwei reine Logikmodule (`utils/summary.ts`, `utils/treeFilter.ts`), die mit echten Unit-Tests abgesichert sind, und
+darauf sechs Darstellungskomponenten. `app.tsx` wird vom Karten-Stapel zum Layout-Rahmen.
 
-**Tech-Stack:** TypeScript (strict, `exactOptionalPropertyTypes`), React 18, PatternFly v6 (`react-core`, `react-icons`, `react-table`), SCSS, esbuild. Tests: der vorhandene Mini-Runner `test/unit/run.js` (esbuild + node, kein Framework), Komponenten über `react-dom/server`.
+**Tech-Stack:** TypeScript (strict, `exactOptionalPropertyTypes`), React 18, PatternFly v6 (`react-core`, `react-icons`,
+`react-table`), SCSS, esbuild. Tests: der vorhandene Mini-Runner `test/unit/run.js` (esbuild + node, kein Framework),
+Komponenten über `react-dom/server`.
 
 ## Global Constraints
 
 Diese Vorgaben gelten für **jede** Aufgabe:
 
-- **Keine neuen npm-Abhängigkeiten.** `react-dom/server` ist bereits vorhanden (`react-dom` ist Laufzeitabhängigkeit) und deckt Komponententests ab.
-- **Nicht committen und nicht pushen.** Der Benutzer committet selbst. Jede Aufgabe endet mit einem Prüfschritt, nicht mit `git commit`.
+- **Keine neuen npm-Abhängigkeiten.** `react-dom/server` ist bereits vorhanden (`react-dom` ist Laufzeitabhängigkeit)
+  und deckt Komponententests ab.
+- **Nicht committen und nicht pushen.** Der Benutzer committet selbst. Jede Aufgabe endet mit einem Prüfschritt, nicht
+  mit `git commit`.
 - **Gearbeitet wird auf `main`**, ohne Worktree.
-- **Alle sichtbaren Zeichenketten** laufen durch `cockpit.gettext` (`const _ = cockpit.gettext;`) als **englische** Literale; die deutschen Fassungen stehen in `po/de.po`.
-- **Keine Farbwerte in SCSS oder JSX.** Zustandsfarben ausschließlich über PatternFlys `<Icon status="danger|warning|info|success">` und PF-Tokens (`var(--pf-t--global--…)`).
-- **ESLint:** Einrückung 4 Leerzeichen, `semi: always`, `react/jsx-indent: 4`. Anführungszeichen sind frei (`quotes: off`).
-- **TypeScript:** `strict` und `exactOptionalPropertyTypes` sind an — ein optionales Prop darf nicht explizit `undefined` bekommen; den Schlüssel stattdessen weglassen (`{...(cond ? { className: "x" } : {})}`, wie im Bestand).
+- **Alle sichtbaren Zeichenketten** laufen durch `cockpit.gettext` (`const _ = cockpit.gettext;`) als **englische**
+  Literale; die deutschen Fassungen stehen in `po/de.po`.
+- **Keine Farbwerte in SCSS oder JSX.** Zustandsfarben ausschließlich über PatternFlys
+  `<Icon status="danger|warning|info|success">` und PF-Tokens (`var(--pf-t--global--…)`).
+- **ESLint:** Einrückung 4 Leerzeichen, `semi: always`, `react/jsx-indent: 4`. Anführungszeichen sind frei
+  (`quotes: off`).
+- **TypeScript:** `strict` und `exactOptionalPropertyTypes` sind an — ein optionales Prop darf nicht explizit
+  `undefined` bekommen; den Schlüssel stattdessen weglassen (`{...(cond ? { className: "x" } : {})}`, wie im Bestand).
 - **Prüfbefehle** (aus `robot/cockpit-ros2-diagnostics/`):
-  - `make check-unit` — Unit-Tests (`node test/unit/run.js`). **Muss grün sein.** Das ist das eigentliche Tor.
-  - `npm run eslint` — ESLint über `src/`. **Muss ohne Meldung durchlaufen.**
-  - `npm run stylelint` — Stylelint über `src/*.{css,scss}`; nur bei SCSS-Änderungen nötig.
-  - `npx tsc --noEmit` — Typprüfung. **Läuft in diesem Repo nicht fehlerfrei** und hat nie fehlerfrei gelaufen: es gibt vorbestehende Fehler in `src/roslib/`, `src/components/RosConnectionManager.tsx`, `src/components/DiagnosticsCapture.tsx` sowie in PatternFly- und `isomorphic-ws`-Typdefinitionen — allesamt untypisierte ROS-Nutzlasten und Abhängigkeitslücken, nichts aus diesem Umbau. Maßstab ist deshalb **keine neuen Fehler**, nicht „null Fehler“: Ausgabe gegen `.superpowers/sdd/2026-07-31-diagnostics-redesign/tsc-baseline.txt` vergleichen, etwa mit
-    `diff <(npx tsc --noEmit 2>&1 | sort) .superpowers/sdd/2026-07-31-diagnostics-redesign/tsc-baseline.txt`.
-    Zeilennummern verschieben sich beim Bearbeiten einer Datei; entscheidend ist, dass keine **neue** Fehlermeldung und keine Meldung in einer neu angelegten Datei auftaucht.
-  - `make` — Bau nach `dist/`
-  - **Nicht** `make codecheck` verwenden: das Ziel ruft `test/common/static-code` auf, und dessen ESLint-Schritt wird still übersprungen, weil `eslint` nicht auf dem PATH liegt. Der Aufruf meldet Erfolg, ohne geprüft zu haben.
+    - `make check-unit` — Unit-Tests (`node test/unit/run.js`). **Muss grün sein.** Das ist das eigentliche Tor.
+    - `npm run eslint` — ESLint über `src/`. **Muss ohne Meldung durchlaufen.**
+    - `npm run stylelint` — Stylelint über `src/*.{css,scss}`; nur bei SCSS-Änderungen nötig.
+    - `npx tsc --noEmit` — Typprüfung. **Läuft in diesem Repo nicht fehlerfrei** und hat nie fehlerfrei gelaufen: es
+      gibt vorbestehende Fehler in `src/roslib/`, `src/components/RosConnectionManager.tsx`,
+      `src/components/DiagnosticsCapture.tsx` sowie in PatternFly- und `isomorphic-ws`-Typdefinitionen — allesamt
+      untypisierte ROS-Nutzlasten und Abhängigkeitslücken, nichts aus diesem Umbau. Maßstab ist deshalb **keine neuen
+      Fehler**, nicht „null Fehler“: Ausgabe gegen `.superpowers/sdd/2026-07-31-diagnostics-redesign/tsc-baseline.txt`
+      vergleichen, etwa mit
+      `diff <(npx tsc --noEmit 2>&1 | sort) .superpowers/sdd/2026-07-31-diagnostics-redesign/tsc-baseline.txt`.
+      Zeilennummern verschieben sich beim Bearbeiten einer Datei; entscheidend ist, dass keine **neue** Fehlermeldung
+      und keine Meldung in einer neu angelegten Datei auftaucht.
+    - `make` — Bau nach `dist/`
+    - **Nicht** `make codecheck` verwenden: das Ziel ruft `test/common/static-code` auf, und dessen ESLint-Schritt wird
+      still übersprungen, weil `eslint` nicht auf dem PATH liegt. Der Aufruf meldet Erfolg, ohne geprüft zu haben.
 - **`dist/` ist nicht in git versioniert** und wird per `rsync` auf den Roboter gebracht. Kein Bauen auf dem Roboter.
-- Die Spec liegt unter `docs/superpowers/specs/2026-07-31-diagnostics-redesign-design.md` und ist bei Zweifelsfragen maßgeblich.
+- Die Spec liegt unter `docs/superpowers/specs/2026-07-31-diagnostics-redesign-design.md` und ist bei Zweifelsfragen
+  maßgeblich.
 
 ---
 
@@ -37,20 +60,23 @@ Diese Vorgaben gelten für **jede** Aufgabe:
 
 **Neu**
 
-| Datei | Verantwortung |
-|---|---|
-| `src/components/SeverityIcon.tsx` | Einzige Quelle für Level → Symbol, PF-Status und Wort. Exportiert `SeverityIcon` und `severityLabel`. |
-| `src/utils/summary.ts` | Blattknoten, Kennzahlen, Zustandssatz, Dringlichkeitsrangfolge, Aktualisierungsrate. Reine Funktionen, keine JSX. |
-| `src/utils/treeFilter.ts` | Suche und Filterstufe über den Baum; liefert Sichtbarkeits- und Aufklappmengen. Reine Funktionen. |
-| `src/components/StatusBand.tsx` | Kopfband: Zustandssatz, Betriebszeile, Kennzahlen, Pause, ⋯-Menü. |
-| `src/components/Timeline.tsx` | Zeitachse über die Schnappschuss-Historie. Ersetzt `HistorySelection.tsx`. |
-| `src/components/IssueList.tsx` | Auffälligkeitenliste. Ersetzt beide `DiagnosticsTable`-Instanzen. |
-| `src/components/DetailPanel.tsx` | Inhalt des Detail-Panels, aus `DiagnosticsTreeTable` herausgelöst. |
-| `test/unit/summary.test.ts` | Kennzahlen, Zustandssatz, Sortierung, Rate. |
-| `test/unit/treefilter.test.ts` | Suche, Filterstufen, Sichtbarkeit von Vorfahren. |
-| `test/unit/components.test.ts` | Auszeichnungs-Rauchtest über `renderToStaticMarkup`. |
+| Datei                             | Verantwortung                                                                                                     |
+|-----------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `src/components/SeverityIcon.tsx` | Einzige Quelle für Level → Symbol, PF-Status und Wort. Exportiert `SeverityIcon` und `severityLabel`.             |
+| `src/utils/summary.ts`            | Blattknoten, Kennzahlen, Zustandssatz, Dringlichkeitsrangfolge, Aktualisierungsrate. Reine Funktionen, keine JSX. |
+| `src/utils/treeFilter.ts`         | Suche und Filterstufe über den Baum; liefert Sichtbarkeits- und Aufklappmengen. Reine Funktionen.                 |
+| `src/components/StatusBand.tsx`   | Kopfband: Zustandssatz, Betriebszeile, Kennzahlen, Pause, ⋯-Menü.                                                 |
+| `src/components/Timeline.tsx`     | Zeitachse über die Schnappschuss-Historie. Ersetzt `HistorySelection.tsx`.                                        |
+| `src/components/IssueList.tsx`    | Auffälligkeitenliste. Ersetzt beide `DiagnosticsTable`-Instanzen.                                                 |
+| `src/components/DetailPanel.tsx`  | Inhalt des Detail-Panels, aus `DiagnosticsTreeTable` herausgelöst.                                                |
+| `test/unit/summary.test.ts`       | Kennzahlen, Zustandssatz, Sortierung, Rate.                                                                       |
+| `test/unit/treefilter.test.ts`    | Suche, Filterstufen, Sichtbarkeit von Vorfahren.                                                                  |
+| `test/unit/components.test.ts`    | Auszeichnungs-Rauchtest über `renderToStaticMarkup`.                                                              |
 
-**Geändert:** `src/app.tsx`, `src/app.scss`, `src/interfaces.ts`, `src/components/RosConnectionManager.tsx`, `src/components/DiagnosticsTreeTable.tsx`, `src/components/ManipulatorPanel.tsx`, `src/components/DiagnosticsCapture.tsx`, `test/unit/cockpit-stub.ts`, `test/unit/contract.test.ts`, `test/check-application`, `po/de.po`
+**Geändert:** `src/app.tsx`, `src/app.scss`, `src/interfaces.ts`, `src/components/RosConnectionManager.tsx`,
+`src/components/DiagnosticsTreeTable.tsx`, `src/components/ManipulatorPanel.tsx`,
+`src/components/DiagnosticsCapture.tsx`, `test/unit/cockpit-stub.ts`, `test/unit/contract.test.ts`,
+`test/check-application`, `po/de.po`
 
 **Entfernt:** `src/components/HistorySelection.tsx`, `src/components/DiagnosticsTable.tsx`
 
@@ -59,17 +85,22 @@ Diese Vorgaben gelten für **jede** Aufgabe:
 ## Task 1: Zentrale Level-Darstellung
 
 **Files:**
+
 - Create: `src/components/SeverityIcon.tsx`
 - Modify: `po/de.po`
 - Test: `test/unit/components.test.ts`
 
 **Interfaces:**
+
 - Consumes: `LEVEL_*` aus `src/utils/severity.ts` (unverändert).
 - Produces:
-  - `severityLabel(level: number): string` — englisches Literal, durch `cockpit.gettext` gereicht.
-  - `<SeverityIcon level={number} hideOk?={boolean} />` — rendert `null` für `LEVEL_NONE` und (bei `hideOk`) für `LEVEL_OK`.
+    - `severityLabel(level: number): string` — englisches Literal, durch `cockpit.gettext` gereicht.
+    - `<SeverityIcon level={number} hideOk?={boolean} />` — rendert `null` für `LEVEL_NONE` und (bei `hideOk`) für
+      `LEVEL_OK`.
 
-Warum `title` statt PatternFly-`Tooltip`: das Symbol steht in bis zu 34 Tabellenzeilen gleichzeitig. Ein natives `title` kostet nichts, überlebt `renderToStaticMarkup` und vermeidet 34 Popper-Instanzen im DOM. Das `aria-label` trägt dieselbe Zeichenkette, damit Screenreader den Zustand vorlesen.
+Warum `title` statt PatternFly-`Tooltip`: das Symbol steht in bis zu 34 Tabellenzeilen gleichzeitig. Ein natives `title`
+kostet nichts, überlebt `renderToStaticMarkup` und vermeidet 34 Popper-Instanzen im DOM. Das `aria-label` trägt dieselbe
+Zeichenkette, damit Screenreader den Zustand vorlesen.
 
 - [ ] **Schritt 1: Den fehlschlagenden Test schreiben**
 
@@ -86,10 +117,10 @@ Warum `title` statt PatternFly-`Tooltip`: das Symbol steht in bis zu 34 Tabellen
  * nothing into a list, and that every symbol carries its word for screen
  * readers.
  */
-import { renderToStaticMarkup } from 'react-dom/server';
+import {renderToStaticMarkup} from 'react-dom/server';
 import React from 'react';
 
-import { SeverityIcon, severityLabel } from "../../src/components/SeverityIcon";
+import {SeverityIcon, severityLabel} from "../../src/components/SeverityIcon";
 import {
     LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_NONE, LEVEL_OK, LEVEL_STALE, LEVEL_WARN,
 } from "../../src/utils/severity";
@@ -110,17 +141,17 @@ check(severityLabel(LEVEL_INACTIVE) === "Out of service", "LEVEL_INACTIVE must b
 /* ------------------------------------------------------------------ markup */
 
 const markup = (level: number, hideOk = false) =>
-    renderToStaticMarkup(React.createElement(SeverityIcon, { level, hideOk }));
+    renderToStaticMarkup(React.createElement(SeverityIcon, {level, hideOk}));
 
 for (const level of [LEVEL_ERROR, LEVEL_STALE, LEVEL_WARN, LEVEL_INACTIVE]) {
     const html = markup(level);
     check(html.includes(`aria-label="${severityLabel(level)}"`),
-          `level ${level} must expose its word as aria-label`);
+        `level ${level} must expose its word as aria-label`);
     check(html.includes("<svg"), `level ${level} must render a symbol`);
 }
 
-// Five states must be told apart by *shape*, not only by colour, otherwise the
-// page is unreadable in greyscale and with red-green colour blindness.
+// Five states must be told apart by *shape*, not only by color, otherwise the
+// page is unreadable in greyscale and with red-green color blindness.
 //
 // Compared is the SVG path data only. Comparing whole markup would pass
 // trivially -- the label, the title and the status class already differ per
@@ -175,7 +206,7 @@ Erwartet: FAIL — `Could not resolve "../../src/components/SeverityIcon"`
  */
 
 import React from 'react';
-import { Icon } from "@patternfly/react-core";
+import {Icon} from "@patternfly/react-core";
 import {
     CheckCircleIcon,
     ClockIcon,
@@ -199,46 +230,46 @@ const _ = cockpit.gettext;
 /*
  * One place that decides how a severity looks.
  *
- * Five states get five distinguishable *shapes*, not just five colours, so the
- * page stays readable in greyscale and with red-green colour blindness. The
+ * Five states get five distinguishable *shapes*, not just five colors, so the
+ * page stays readable in greyscale and with red-green color blindness. The
  * clock and the power symbol replace upstream's question mark and empty circle:
  * those named the uncertainty, not the state -- a stale status means "no fresh
  * message", and an inactive one means "deliberately switched off".
  *
- * Colours come from PatternFly's `<Icon status>`, never from our own SCSS, so
+ * Colors come from PatternFly's `<Icon status>`, never from our own SCSS, so
  * Cockpit's dark mode needs no extra work.
  */
 export const severityLabel = (level: number): string => {
     switch (level) {
-    case LEVEL_ERROR:
-        return _("Error");
-    case LEVEL_STALE:
-        return _("Stale");
-    case LEVEL_WARN:
-        return _("Warning");
-    case LEVEL_OK:
-        return _("OK");
-    case LEVEL_INACTIVE:
-        return _("Out of service");
-    default:
-        return _("No data");
+        case LEVEL_ERROR:
+            return _("Error");
+        case LEVEL_STALE:
+            return _("Stale");
+        case LEVEL_WARN:
+            return _("Warning");
+        case LEVEL_OK:
+            return _("OK");
+        case LEVEL_INACTIVE:
+            return _("Out of service");
+        default:
+            return _("No data");
     }
 };
 
 const glyphFor = (level: number): React.ReactElement | null => {
     switch (level) {
-    case LEVEL_ERROR:
-        return <Icon status="danger"><ExclamationCircleIcon /></Icon>;
-    case LEVEL_STALE:
-        return <Icon status="info"><ClockIcon /></Icon>;
-    case LEVEL_WARN:
-        return <Icon status="warning"><ExclamationTriangleIcon /></Icon>;
-    case LEVEL_OK:
-        return <Icon status="success"><CheckCircleIcon /></Icon>;
-    case LEVEL_INACTIVE:
-        return <Icon className="severity-icon-inactive"><PowerOffIcon /></Icon>;
-    default:
-        return null;
+        case LEVEL_ERROR:
+            return <Icon status="danger"><ExclamationCircleIcon/></Icon>;
+        case LEVEL_STALE:
+            return <Icon status="info"><ClockIcon/></Icon>;
+        case LEVEL_WARN:
+            return <Icon status="warning"><ExclamationTriangleIcon/></Icon>;
+        case LEVEL_OK:
+            return <Icon status="success"><CheckCircleIcon/></Icon>;
+        case LEVEL_INACTIVE:
+            return <Icon className="severity-icon-inactive"><PowerOffIcon/></Icon>;
+        default:
+            return null;
     }
 };
 
@@ -253,9 +284,9 @@ const glyphFor = (level: number): React.ReactElement | null => {
  * `aria-label` in any case.
  */
 export const SeverityIcon = ({
-    level,
-    hideOk = false,
-}: {
+                                 level,
+                                 hideOk = false,
+                             }: {
     level: number,
     hideOk?: boolean,
 }) => {
@@ -284,7 +315,9 @@ Erwartet: PASS — `components: OK (5 labels, 5 distinct shapes, OK-is-silent ru
 
 - [ ] **Schritt 5: Übersetzungen ergänzen**
 
-`po/de.po` muss Einträge für alle fünf Wörter plus `No data` haben. Vorhandene `msgid`s nicht doppeln — `Warning`, `Error`, `Stale`, `Out of service`, `OK` und `No data` stammen aus `ManipulatorPanel.tsx` und sind wahrscheinlich schon da. Prüfen mit:
+`po/de.po` muss Einträge für alle fünf Wörter plus `No data` haben. Vorhandene `msgid`s nicht doppeln — `Warning`,
+`Error`, `Stale`, `Out of service`, `OK` und `No data` stammen aus `ManipulatorPanel.tsx` und sind wahrscheinlich schon
+da. Prüfen mit:
 
 ```bash
 for s in "Error" "Stale" "Warning" "OK" "Out of service" "No data"; do
@@ -299,13 +332,15 @@ msgid "Stale"
 msgstr "Veraltet"
 ```
 
-Gewünschte Übersetzungen: `Error`→`Fehler`, `Stale`→`Veraltet`, `Warning`→`Warnung`, `OK`→`OK`, `Out of service`→`Außer Dienst`, `No data`→`Keine Daten`.
+Gewünschte Übersetzungen: `Error`→`Fehler`, `Stale`→`Veraltet`, `Warning`→`Warnung`, `OK`→`OK`, `Out of service`→
+`Außer Dienst`, `No data`→`Keine Daten`.
 
 - [ ] **Schritt 6: Prüfen**
 
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck
 ```
+
 Erwartet: alle drei ohne Fehler. Danach dem Benutzer den Stand melden — **nicht committen**.
 
 ---
@@ -313,14 +348,19 @@ Erwartet: alle drei ohne Fehler. Danach dem Benutzer den Stand melden — **nich
 ## Task 2: JSX aus dem Datenmodell entfernen
 
 **Files:**
-- Modify: `src/interfaces.ts:36` (Feld `icon`), `src/components/RosConnectionManager.tsx:65-84,117,152`, `src/components/DiagnosticsTreeTable.tsx:129,224`, `src/components/DiagnosticsTable.tsx:83`
+
+- Modify: `src/interfaces.ts:36` (Feld `icon`), `src/components/RosConnectionManager.tsx:65-84,117,152`,
+  `src/components/DiagnosticsTreeTable.tsx:129,224`, `src/components/DiagnosticsTable.tsx:83`
 - Test: bestehende Suite plus Typprüfung
 
 **Interfaces:**
-- Consumes: `SeverityIcon` aus Task 1.
-- Produces: `DiagnosticsEntry` ohne `icon`-Feld. Alle späteren Aufgaben gehen davon aus, dass Symbole aus `severity_level` gerendert werden.
 
-Warum jetzt und nicht später: die Testfixturen der Tasks 3 und 4 bauen `DiagnosticsEntry`-Literale von Hand. Solange das Feld existiert, müsste jede Fixture ein `icon: null` mitschleppen, das kurz darauf wieder verschwindet.
+- Consumes: `SeverityIcon` aus Task 1.
+- Produces: `DiagnosticsEntry` ohne `icon`-Feld. Alle späteren Aufgaben gehen davon aus, dass Symbole aus
+  `severity_level` gerendert werden.
+
+Warum jetzt und nicht später: die Testfixturen der Tasks 3 und 4 bauen `DiagnosticsEntry`-Literale von Hand. Solange das
+Feld existiert, müsste jede Fixture ein `icon: null` mitschleppen, das kurz darauf wieder verschwindet.
 
 - [ ] **Schritt 1: Feld aus dem Interface entfernen**
 
@@ -336,14 +376,16 @@ Die Zeile `icon: JSX.Element | null;` und den darüberstehenden Kommentar lösch
 - [ ] **Schritt 2: Typprüfung laufen lassen, alle Fundstellen einsammeln**
 
 Ausführen: `npx tsc --noEmit`
-Erwartet: FAIL mit Fehlern in `RosConnectionManager.tsx`, `DiagnosticsTreeTable.tsx` und `DiagnosticsTable.tsx`. Diese Liste ist die Arbeitsanweisung für Schritt 3 — der Compiler findet die Fundstellen zuverlässiger als eine Suche.
+Erwartet: FAIL mit Fehlern in `RosConnectionManager.tsx`, `DiagnosticsTreeTable.tsx` und `DiagnosticsTable.tsx`. Diese
+Liste ist die Arbeitsanweisung für Schritt 3 — der Compiler findet die Fundstellen zuverlässiger als eine Suche.
 
 - [ ] **Schritt 3: Erzeugerseite ausbauen**
 
 In `src/components/RosConnectionManager.tsx`:
 
 - die Funktionen `iconFor` und `assignIcons` vollständig löschen (Zeilen 65–84),
-- den Aufruf `assignIcons(root);` in `buildDiagnosticsTree` löschen und den Kommentar darüber auf den verbleibenden Schritt kürzen:
+- den Aufruf `assignIcons(root);` in `buildDiagnosticsTree` löschen und den Kommentar darüber auf den verbleibenden
+  Schritt kürzen:
 
 ```tsx
     // Propagate overridden levels into the analyzer groups above them.
@@ -353,14 +395,17 @@ In `src/components/RosConnectionManager.tsx`:
 ```
 
 - die Zeile `icon: null, // Assigned once the levels are final` aus dem Objektliteral löschen,
-- die dadurch unbenutzten Importe entfernen: `Icon` aus `@patternfly/react-core` sowie `CheckCircleIcon`, `ExclamationCircleIcon`, `ExclamationTriangleIcon`, `OutlinedCircleIcon`, `QuestionCircleIcon` aus `@patternfly/react-icons`. Welche davon noch anderweitig gebraucht werden, sagt ESLint in Schritt 5.
+- die dadurch unbenutzten Importe entfernen: `Icon` aus `@patternfly/react-core` sowie `CheckCircleIcon`,
+  `ExclamationCircleIcon`, `ExclamationTriangleIcon`, `OutlinedCircleIcon`, `QuestionCircleIcon` aus
+  `@patternfly/react-icons`. Welche davon noch anderweitig gebraucht werden, sagt ESLint in Schritt 5.
 
 - [ ] **Schritt 4: Verbraucherseite umstellen**
 
 In `src/components/DiagnosticsTreeTable.tsx`:
 
 - Import ergänzen: `import { SeverityIcon } from "./SeverityIcon";`
-- in `treeRow.props` die Zeile `icon: diag.icon,` **ersatzlos streichen**. Das Symbol wandert in Task 9 in eine eigene Level-Spalte; ein zusätzliches Symbol direkt vor dem Namen wäre danach die zweite Kodierung derselben Aussage.
+- in `treeRow.props` die Zeile `icon: diag.icon,` **ersatzlos streichen**. Das Symbol wandert in Task 9 in eine eigene
+  Level-Spalte; ein zusätzliches Symbol direkt vor dem Namen wäre danach die zweite Kodierung derselben Aussage.
 - im Drawer-Titel `{selectedEntry.icon}` ersetzen:
 
 ```tsx
@@ -379,27 +424,32 @@ In `src/components/DiagnosticsTable.tsx` (fällt in Task 7 ganz weg, muss bis da
 ```bash
 npx tsc --noEmit && make check-unit && make codecheck
 ```
-Erwartet: `tsc` ohne Fehler, `check-unit` grün (`severity` und `contract` bauen den Baum und müssen unverändert durchlaufen), `codecheck` ohne unbenutzte Importe.
 
-`ManipulatorPanel.tsx` bleibt in dieser Aufgabe unangetastet: es nutzt `entry.icon` nicht, sondern eine eigene `severityStyle`-Tabelle. Die verschwindet in Task 12.
+Erwartet: `tsc` ohne Fehler, `check-unit` grün (`severity` und `contract` bauen den Baum und müssen unverändert
+durchlaufen), `codecheck` ohne unbenutzte Importe.
+
+`ManipulatorPanel.tsx` bleibt in dieser Aufgabe unangetastet: es nutzt `entry.icon` nicht, sondern eine eigene
+`severityStyle`-Tabelle. Die verschwindet in Task 12.
 
 ---
 
 ## Task 3: Kennzahlen und Zustandssatz
 
 **Files:**
+
 - Create: `src/utils/summary.ts`
 - Modify: `test/unit/cockpit-stub.ts`
 - Test: `test/unit/summary.test.ts`
 
 **Interfaces:**
+
 - Consumes: `DiagnosticsEntry` (ohne `icon`, Task 2), `LEVEL_*`, `DiagnosticsStatus`.
 - Produces:
-  - `leafEntries(entries: DiagnosticsEntry[]): DiagnosticsEntry[]`
-  - `summarise(entries: DiagnosticsEntry[]): DiagnosticsSummary` mit `{ errors, warnings, stale, total, worst }`
-  - `headline(summary: DiagnosticsSummary): string`
-  - `issueEntries(entries: DiagnosticsEntry[]): DiagnosticsEntry[]`
-  - `updateRateHz(history: DiagnosticsStatus[]): number | null`
+    - `leafEntries(entries: DiagnosticsEntry[]): DiagnosticsEntry[]`
+    - `summarise(entries: DiagnosticsEntry[]): DiagnosticsSummary` mit `{ errors, warnings, stale, total, worst }`
+    - `headline(summary: DiagnosticsSummary): string`
+    - `issueEntries(entries: DiagnosticsEntry[]): DiagnosticsEntry[]`
+    - `updateRateHz(history: DiagnosticsStatus[]): number | null`
 
 - [ ] **Schritt 1: Den Stub um `ngettext` erweitern**
 
@@ -682,6 +732,7 @@ msgstr "betriebsbereit"
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck
 ```
+
 Erwartet: alle grün, insbesondere `summary`, `severity`, `contract` und `components`.
 
 ---
@@ -689,16 +740,20 @@ Erwartet: alle grün, insbesondere `summary`, `severity`, `contract` und `compon
 ## Task 4: Suche und Filterstufe
 
 **Files:**
+
 - Create: `src/utils/treeFilter.ts`
 - Test: `test/unit/treefilter.test.ts`
 
 **Interfaces:**
+
 - Consumes: `DiagnosticsEntry`, `LEVEL_*`.
 - Produces:
-  - `type FilterLevel = "all" | "warn" | "error"`
-  - `filterTree(entries, query: string, level: FilterLevel): TreeFilterResult` mit `{ visible: Set<string>, expand: Set<string>, matches: number }`. Die Mengen enthalten `rawName`-Werte.
+    - `type FilterLevel = "all" | "warn" | "error"`
+    - `filterTree(entries, query: string, level: FilterLevel): TreeFilterResult` mit
+      `{ visible: Set<string>, expand: Set<string>, matches: number }`. Die Mengen enthalten `rawName`-Werte.
 
-Warum Mengen statt eines beschnittenen Baums: der Baum wird bereits rekursiv gerendert, und ein zweiter, kopierter Baum würde die Knotenidentität zerstören, an der Auswahl (`selectedRawName`) und Aufklappzustand hängen.
+Warum Mengen statt eines beschnittenen Baums: der Baum wird bereits rekursiv gerendert, und ein zweiter, kopierter Baum
+würde die Knotenidentität zerstören, an der Auswahl (`selectedRawName`) und Aufklappzustand hängen.
 
 - [ ] **Schritt 1: Den fehlschlagenden Test schreiben**
 
@@ -897,7 +952,8 @@ export const filterTree = (
 };
 ```
 
-Achtung bei `walk`: `.map(walk).some(Boolean)` statt `.some(walk)` — `some` bricht beim ersten Treffer ab und würde die restlichen Geschwister nie besuchen, wodurch deren Sichtbarkeit fehlte.
+Achtung bei `walk`: `.map(walk).some(Boolean)` statt `.some(walk)` — `some` bricht beim ersten Treffer ab und würde die
+restlichen Geschwister nie besuchen, wodurch deren Sichtbarkeit fehlte.
 
 - [ ] **Schritt 4: Test laufen lassen, Erfolg bestätigen**
 
@@ -915,11 +971,13 @@ make check-unit && npx tsc --noEmit && make codecheck
 ## Task 5: Kopfband
 
 **Files:**
+
 - Create: `src/components/StatusBand.tsx`
 - Modify: `src/app.tsx`, `src/app.scss`, `po/de.po`
 - Test: `test/unit/components.test.ts` (erweitern)
 
 **Interfaces:**
+
 - Consumes: `summarise`, `headline`, `updateRateHz` (Task 3), `SeverityIcon` (Task 1), `FilterLevel` (Task 4).
 - Produces: `<StatusBand />` mit den Props aus Schritt 3. Task 10 hängt `menuItems` an, Task 9 nutzt `onFilterLevel`.
 
@@ -1143,64 +1201,65 @@ An `src/app.scss` anhängen:
 /* Status band ------------------------------------------------------------- */
 
 .status-band {
-    position: sticky;
-    inset-block-start: 0;
-    z-index: 10;
-    padding: var(--pf-t--global--spacer--md) var(--pf-t--global--spacer--lg) 0;
-    background: var(--pf-t--global--background--color--primary--default);
-    border-block-end: 1px solid var(--pf-t--global--border--color--default);
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+  padding: var(--pf-t--global--spacer--md) var(--pf-t--global--spacer--lg) 0;
+  background: var(--pf-t--global--background--color--primary--default);
+  border-block-end: 1px solid var(--pf-t--global--border--color--default);
 }
 
 .status-headline {
-    font-size: var(--pf-t--global--font--size--lg);
-    font-weight: var(--pf-t--global--font--weight--heading--default);
-    margin: 0;
+  font-size: var(--pf-t--global--font--size--lg);
+  font-weight: var(--pf-t--global--font--weight--heading--default);
+  margin: 0;
 }
 
 .status-headline-state {
-    font-weight: var(--pf-t--global--font--weight--body--default);
+  font-weight: var(--pf-t--global--font--weight--body--default);
 }
 
 .status-facts {
-    color: var(--pf-t--global--text--color--subtle);
-    font-size: var(--pf-t--global--font--size--sm);
-    margin-block-start: var(--pf-t--global--spacer--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+  margin-block-start: var(--pf-t--global--spacer--xs);
 }
 
 .status-kpi {
-    text-align: end;
-    min-inline-size: 3.5rem;
+  text-align: end;
+  min-inline-size: 3.5rem;
 }
 
 .status-kpi-value {
-    display: block;
-    font-size: var(--pf-t--global--font--size--2xl);
-    font-weight: var(--pf-t--global--font--weight--body--default);
-    line-height: 1.15;
-    font-variant-numeric: tabular-nums;
-    opacity: 0.85;
+  display: block;
+  font-size: var(--pf-t--global--font--size--2xl);
+  font-weight: var(--pf-t--global--font--weight--body--default);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 /* Only a counter that is not zero earns emphasis. */
 .status-kpi-hit {
-    opacity: 1;
-    font-weight: var(--pf-t--global--font--weight--heading--default);
+  opacity: 1;
+  font-weight: var(--pf-t--global--font--weight--heading--default);
 }
 
 .status-kpi-label {
-    font-size: var(--pf-t--global--font--size--xs);
-    color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
 }
 
 /* An out-of-service subsystem is not a fault; its symbol must not shout. */
 .severity-icon-inactive {
-    color: var(--pf-t--global--icon--color--subtle);
+  color: var(--pf-t--global--icon--color--subtle);
 }
 ```
 
 - [ ] **Schritt 5: In `app.tsx` einhängen**
 
-In `src/app.tsx` den bisherigen `Flex`-Block mit `Title` und Pause-Button (Zeilen 75–94) durch das Kopfband ersetzen. Die restliche Struktur bleibt für den Moment, wie sie ist:
+In `src/app.tsx` den bisherigen `Flex`-Block mit `Title` und Pause-Button (Zeilen 75–94) durch das Kopfband ersetzen.
+Die restliche Struktur bleibt für den Moment, wie sie ist:
 
 ```tsx
 <StatusBand
@@ -1219,9 +1278,11 @@ In `src/app.tsx` den bisherigen `Flex`-Block mit `Title` und Pause-Button (Zeile
 />
 ```
 
-Importe ergänzen: `StatusBand` und `updateRateHz`; die nun unbenutzten Importe `Button`, `Title`, `PauseIcon`, `PlayIcon` entfernen — `make codecheck` benennt sie.
+Importe ergänzen: `StatusBand` und `updateRateHz`; die nun unbenutzten Importe `Button`, `Title`, `PauseIcon`,
+`PlayIcon` entfernen — `make codecheck` benennt sie.
 
-`onFilterLevel` bleibt bis Task 9 ein Platzhalter ohne Wirkung, `menuItems` bis Task 10 `null`. Beides ist beabsichtigt und in den jeweiligen Aufgaben abgeschlossen.
+`onFilterLevel` bleibt bis Task 9 ein Platzhalter ohne Wirkung, `menuItems` bis Task 10 `null`. Beides ist beabsichtigt
+und in den jeweiligen Aufgaben abgeschlossen.
 
 - [ ] **Schritt 6: Test laufen lassen, Erfolg bestätigen**
 
@@ -1230,13 +1291,16 @@ Erwartet: PASS
 
 - [ ] **Schritt 7: Übersetzungen ergänzen**
 
-In `po/de.po`: `Bridge connected`→`Bridge verbunden`, `Bridge disconnected`→`Bridge getrennt`, `$0 Hz`→`$0 Hz`, `as of $0`→`Stand $0`, `Errors`→`Fehler`, `Warnings`→`Warnungen`, `Stale`→`Veraltet`, `Statuses`→`Stati`, `More actions`→`Weitere Aktionen`. Bereits vorhandene `msgid`s (`Pause`, `Resume`, …) nicht doppeln.
+In `po/de.po`: `Bridge connected`→`Bridge verbunden`, `Bridge disconnected`→`Bridge getrennt`, `$0 Hz`→`$0 Hz`,
+`as of $0`→`Stand $0`, `Errors`→`Fehler`, `Warnings`→`Warnungen`, `Stale`→`Veraltet`, `Statuses`→`Stati`,
+`More actions`→`Weitere Aktionen`. Bereits vorhandene `msgid`s (`Pause`, `Resume`, …) nicht doppeln.
 
 - [ ] **Schritt 8: Prüfen**
 
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck && make
 ```
+
 Erwartet: alle grün, `dist/` baut durch.
 
 ---
@@ -1244,17 +1308,21 @@ Erwartet: alle grün, `dist/` baut durch.
 ## Task 6: Zeitachse
 
 **Files:**
+
 - Create: `src/components/Timeline.tsx`
 - Delete: `src/components/HistorySelection.tsx`
 - Modify: `src/app.tsx`, `src/app.scss`, `po/de.po`
 
 **Interfaces:**
+
 - Consumes: `HISTORY_SIZE` aus `hooks/useDiagHistory`, `headline`/`summarise` (Task 3).
-- Produces: `<Timeline />` mit denselben Props, die `HistorySelection` heute hat (`diagHistory`, `setDiagStatusDisplay`, `isPaused`, `setIsPaused`) — die Historien-Verdrahtung bleibt damit unverändert.
+- Produces: `<Timeline />` mit denselben Props, die `HistorySelection` heute hat (`diagHistory`, `setDiagStatusDisplay`,
+  `isPaused`, `setIsPaused`) — die Historien-Verdrahtung bleibt damit unverändert.
 
 - [ ] **Schritt 1: Die Komponente schreiben**
 
-`src/components/Timeline.tsx` (Lizenzkopf wie oben, zusätzlich die Clearpath-Zeile übernehmen, weil die Auswahl-Logik aus `HistorySelection.tsx` stammt):
+`src/components/Timeline.tsx` (Lizenzkopf wie oben, zusätzlich die Clearpath-Zeile übernehmen, weil die Auswahl-Logik
+aus `HistorySelection.tsx` stammt):
 
 ```tsx
 import React, { useEffect, useState } from 'react';
@@ -1271,7 +1339,7 @@ const _ = cockpit.gettext;
  * The retained snapshots as one band.
  *
  * Equal-height segments on purpose: varying heights read as a chart and invite
- * comparison of a quantity that does not exist here. Colour marks the snapshots
+ * comparison of a quantity that does not exist here. Color marks the snapshots
  * worth clicking; everything healthy stays neutral grey.
  *
  * Unfilled slots are rendered on the left so the newest snapshot always ends at
@@ -1402,13 +1470,17 @@ An `src/app.scss` anhängen:
 }
 ```
 
-Sollte ein Tokenname von Stylelint oder zur Laufzeit nicht aufgelöst werden, den tatsächlichen Namen aus `node_modules/@patternfly/patternfly/base/` nachschlagen — **nicht** durch einen Hex-Wert ersetzen.
+Sollte ein Tokenname von Stylelint oder zur Laufzeit nicht aufgelöst werden, den tatsächlichen Namen aus
+`node_modules/@patternfly/patternfly/base/` nachschlagen — **nicht** durch einen Hex-Wert ersetzen.
 
 - [ ] **Schritt 3: Einhängen und Altkomponente entfernen**
 
-In `src/app.tsx` `<HistorySelection … />` durch `<Timeline … />` mit identischen Props ersetzen, den Import umstellen, dann `src/components/HistorySelection.tsx` löschen.
+In `src/app.tsx` `<HistorySelection … />` durch `<Timeline … />` mit identischen Props ersetzen, den Import umstellen,
+dann `src/components/HistorySelection.tsx` löschen.
 
-Das Kopfband ist sticky; die Zeitachse gehört optisch dazu und wandert deshalb **in** den `.status-band`-Container, direkt unter das `Flex`-Element in `StatusBand`. Dazu bekommt `StatusBand` ein zusätzliches Prop `children: React.ReactNode`, das nach dem `Flex` gerendert wird, und `app.tsx` reicht die `Timeline` als Kind hinein:
+Das Kopfband ist sticky; die Zeitachse gehört optisch dazu und wandert deshalb **in** den `.status-band`-Container,
+direkt unter das `Flex`-Element in `StatusBand`. Dazu bekommt `StatusBand` ein zusätzliches Prop
+`children: React.ReactNode`, das nach dem `Flex` gerendert wird, und `app.tsx` reicht die `Timeline` als Kind hinein:
 
 ```tsx
 <StatusBand … >
@@ -1423,17 +1495,22 @@ Das Kopfband ist sticky; die Zeitachse gehört optisch dazu und wandert deshalb 
 
 In `StatusBand.tsx` das Prop ergänzen und nach dem schließenden `</Flex>` einfügen: `{children}`.
 
-Das Prop muss **optional** deklariert werden (`children?: React.ReactNode`), sonst wird der in Task 5 geschriebene Test ungültig, der `StatusBand` ohne Kinder rendert. Wegen `exactOptionalPropertyTypes` darf es nirgends explizit `undefined` bekommen — einfach weglassen, wo keine Kinder gebraucht werden.
+Das Prop muss **optional** deklariert werden (`children?: React.ReactNode`), sonst wird der in Task 5 geschriebene Test
+ungültig, der `StatusBand` ohne Kinder rendert. Wegen `exactOptionalPropertyTypes` darf es nirgends explizit `undefined`
+bekommen — einfach weglassen, wo keine Kinder gebraucht werden.
 
 - [ ] **Schritt 4: Übersetzungen ergänzen**
 
-`no history yet`→`noch kein Verlauf`, `$0 snapshots · click to freeze`→`$0 Schnappschüsse · Klick friert ein`, `frozen`→`eingefroren`, `now`→`jetzt`, `Diagnostics history`→`Diagnoseverlauf`. `diagnostics snapshot $0` existiert bereits aus `HistorySelection`.
+`no history yet`→`noch kein Verlauf`, `$0 snapshots · click to freeze`→`$0 Schnappschüsse · Klick friert ein`, `frozen`→
+`eingefroren`, `now`→`jetzt`, `Diagnostics history`→`Diagnoseverlauf`. `diagnostics snapshot $0` existiert bereits aus
+`HistorySelection`.
 
 - [ ] **Schritt 5: Prüfen**
 
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck && make
 ```
+
 Erwartet: alle grün; `grep -r HistorySelection src/` liefert nichts mehr.
 
 ---
@@ -1441,12 +1518,14 @@ Erwartet: alle grün; `grep -r HistorySelection src/` liefert nichts mehr.
 ## Task 7: Auffälligkeitenliste
 
 **Files:**
+
 - Create: `src/components/IssueList.tsx`
 - Delete: `src/components/DiagnosticsTable.tsx`
 - Modify: `src/app.tsx`, `src/app.scss`, `po/de.po`
 - Test: `test/unit/components.test.ts` (erweitern)
 
 **Interfaces:**
+
 - Consumes: `issueEntries` (Task 3), `SeverityIcon` (Task 1).
 - Produces: `<IssueList diagnostics={…} setSelectedRawName={…} />`
 
@@ -1559,13 +1638,15 @@ export const IssueList = ({
 
 - [ ] **Schritt 5: Einhängen und Altkomponente entfernen**
 
-In `src/app.tsx` beide `<DiagnosticsTable … variant="error" />` und `… variant="warning" />` durch **eine** Instanz ersetzen:
+In `src/app.tsx` beide `<DiagnosticsTable … variant="error" />` und `… variant="warning" />` durch **eine** Instanz
+ersetzen:
 
 ```tsx
 <IssueList diagnostics={diagnostics} setSelectedRawName={setSelectedRawName} />
 ```
 
-Die umgebende Bedingung `diagnostics.length > 0 && (…)` bleibt vorerst bestehen; Task 11 ordnet den Block endgültig ein. Import umstellen, dann `src/components/DiagnosticsTable.tsx` löschen.
+Die umgebende Bedingung `diagnostics.length > 0 && (…)` bleibt vorerst bestehen; Task 11 ordnet den Block endgültig ein.
+Import umstellen, dann `src/components/DiagnosticsTable.tsx` löschen.
 
 - [ ] **Schritt 6: Test laufen lassen, Erfolg bestätigen**
 
@@ -1581,6 +1662,7 @@ Erwartet: PASS
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck && make
 ```
+
 Erwartet: grün; `grep -r DiagnosticsTable src/ | grep -v TreeTable` liefert nichts mehr.
 
 ---
@@ -1588,16 +1670,21 @@ Erwartet: grün; `grep -r DiagnosticsTable src/ | grep -v TreeTable` liefert nic
 ## Task 8: Detail-Panel auf Seitenebene
 
 **Files:**
+
 - Create: `src/components/DetailPanel.tsx`
 - Modify: `src/components/DiagnosticsTreeTable.tsx`, `src/app.tsx`, `po/de.po`
 
 **Interfaces:**
+
 - Consumes: `SeverityIcon` (Task 1).
 - Produces:
-  - `<DetailPanel entry={DiagnosticsEntry | null} onClose={() => void} />` — der Inhalt des Drawers.
-  - `findEntryByRawName(entries, rawName): DiagnosticsEntry | null` wird aus `DiagnosticsTreeTable` nach `DetailPanel.tsx` verschoben und dort exportiert, damit `app.tsx` den ausgewählten Eintrag auflösen kann.
+    - `<DetailPanel entry={DiagnosticsEntry | null} onClose={() => void} />` — der Inhalt des Drawers.
+    - `findEntryByRawName(entries, rawName): DiagnosticsEntry | null` wird aus `DiagnosticsTreeTable` nach
+      `DetailPanel.tsx` verschoben und dort exportiert, damit `app.tsx` den ausgewählten Eintrag auflösen kann.
 
-Warum der Umzug: alle drei Auswahlquellen — Auffälligkeitenliste, Manipulator-Meldung, Baumzeile — rufen bereits dieselbe Funktion `setSelectedRawName` auf, aber der Drawer steckte in der Baum-Karte und war auf 35 % von deren Breite begrenzt. In der rechten Spalte von Task 11 wäre das ein Briefschlitz.
+Warum der Umzug: alle drei Auswahlquellen — Auffälligkeitenliste, Manipulator-Meldung, Baumzeile — rufen bereits
+dieselbe Funktion `setSelectedRawName` auf, aber der Drawer steckte in der Baum-Karte und war auf 35 % von deren Breite
+begrenzt. In der rechten Spalte von Task 11 wäre das ein Briefschlitz.
 
 - [ ] **Schritt 1: `DetailPanel.tsx` anlegen**
 
@@ -1716,9 +1803,11 @@ export const DetailPanel = ({
 
 In `src/components/DiagnosticsTreeTable.tsx`:
 
-- alle `Drawer*`-Importe, `drawerPanel`, `drawerRef`, `triggerDrawerFocus`, `closeDrawer`, `findEntryByRawName`, `selectedEntry` und die zugehörigen `useEffect`s entfernen,
+- alle `Drawer*`-Importe, `drawerPanel`, `drawerRef`, `triggerDrawerFocus`, `closeDrawer`, `findEntryByRawName`,
+  `selectedEntry` und die zugehörigen `useEffect`s entfernen,
 - der Rückgabewert reduziert sich auf die `Card` mit der `Table` (der `Drawer`-Rahmen fällt weg),
-- die Auto-Aufklapp-Logik (`findPathToRawName` + zugehöriger `useEffect`) **bleibt**: sie klappt die Vorfahren eines von außen ausgewählten Status auf und ist unabhängig vom Drawer.
+- die Auto-Aufklapp-Logik (`findPathToRawName` + zugehöriger `useEffect`) **bleibt**: sie klappt die Vorfahren eines von
+  außen ausgewählten Status auf und ist unabhängig vom Drawer.
 
 - [ ] **Schritt 3: Drawer in `app.tsx` mounten**
 
@@ -1745,14 +1834,15 @@ const selectedEntry = selectedRawName ? findEntryByRawName(diagnostics, selected
 
 `isInline` **muss** gesetzt werden — die ursprüngliche Vorgabe hier war falsch.
 
-Ohne `isInline` bekommt der Drawer-Inhalt von PatternFly `flex: 0 0 100%`, kann also
-nicht schrumpfen, während das Panel in derselben Flex-Reihe seine 336 px beansprucht.
-Die Reihe läuft über, und weil sie beschneidet, wird der Inhalt um genau diese Breite
-nach links aus dem Sichtfeld gedrückt (gemessen: −300 px, linke Werte unlesbar). Mit
-`isInline` wird daraus `0 1 100%`, und das Panel nimmt seinen Platz vom Inhalt, statt
-ihn hinauszuschieben. Am Roboter gemessen (2026-08-12).
+Ohne `isInline` bekommt der Drawer-Inhalt von PatternFly `flex: 0 0 100%`, kann also nicht schrumpfen, während das Panel
+in derselben Flex-Reihe seine 336 px beansprucht. Die Reihe läuft über, und weil sie beschneidet, wird der Inhalt um
+genau diese Breite nach links aus dem Sichtfeld gedrückt (gemessen: −300 px, linke Werte unlesbar). Mit
+`isInline` wird daraus `0 1 100%`, und das Panel nimmt seinen Platz vom Inhalt, statt ihn hinauszuschieben. Am Roboter
+gemessen (2026-08-12).
 
-Esc muss **selbst verdrahtet** werden. Ein PatternFly-Drawer schließt sich nicht von allein: `Drawer.js` hat überhaupt keinen Tastatur-Listener, der einzige Escape-Handler im Drawer-Paket sitzt im Resize-Splitter von `DrawerPanelContent`, und der `FocusTrap` greift nur, wenn das `focusTrap`-Prop gesetzt ist. Geprüft gegen PatternFly 6.4.0 (Task 8).
+Esc muss **selbst verdrahtet** werden. Ein PatternFly-Drawer schließt sich nicht von allein: `Drawer.js` hat überhaupt
+keinen Tastatur-Listener, der einzige Escape-Handler im Drawer-Paket sitzt im Resize-Splitter von `DrawerPanelContent`,
+und der `FocusTrap` greift nur, wenn das `focusTrap`-Prop gesetzt ist. Geprüft gegen PatternFly 6.4.0 (Task 8).
 
 - [ ] **Schritt 4: SCSS ergänzen**
 
@@ -1796,30 +1886,35 @@ Esc muss **selbst verdrahtet** werden. Ein PatternFly-Drawer schließt sich nich
 PatternFly setzt die Panelbreite über die eigene Custom Property
 `--pf-v6-c-drawer__panel--FlexBasis`, nicht über `inline-size`. Ein direktes
 `inline-size: 100%` bleibt deshalb wirkungslos — die Regel greift, aber
-`flex-basis` gewinnt und das Panel behält seine 28 rem. Empirisch gegen
-PatternFly 6.4.0 im Browser geprüft (Task 8).
+`flex-basis` gewinnt und das Panel behält seine 28 rem. Empirisch gegen PatternFly 6.4.0 im Browser geprüft (Task 8).
 
 - [ ] **Schritt 5: Übersetzungen ergänzen**
 
-`No message` existiert bereits (aus `ManipulatorPanel`). Neu: nichts — `Hardware ID`, `Values`, `N/A` stammen aus `DiagnosticsTreeTable` und sind vorhanden. Mit dem Skript aus Task 1 Schritt 5 gegenprüfen.
+`No message` existiert bereits (aus `ManipulatorPanel`). Neu: nichts — `Hardware ID`, `Values`, `N/A` stammen aus
+`DiagnosticsTreeTable` und sind vorhanden. Mit dem Skript aus Task 1 Schritt 5 gegenprüfen.
 
 - [ ] **Schritt 6: Prüfen**
 
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck && make
 ```
-Erwartet: grün. Manuell (nach `make`, im Browser gegen einen laufenden Roboter oder gegen `foxglove`-Mock): Klick auf eine Auffälligkeit **und** auf eine Baumzeile öffnen beide dasselbe Panel; Esc und ✕ schließen es.
+
+Erwartet: grün. Manuell (nach `make`, im Browser gegen einen laufenden Roboter oder gegen `foxglove`-Mock): Klick auf
+eine Auffälligkeit **und** auf eine Baumzeile öffnen beide dasselbe Panel; Esc und ✕ schließen es.
 
 ---
 
 ## Task 9: Level-Spalte, Suche und Filter im Baum
 
 **Files:**
+
 - Modify: `src/components/DiagnosticsTreeTable.tsx`, `src/app.tsx`, `src/app.scss`, `po/de.po`
 
 **Interfaces:**
+
 - Consumes: `filterTree`, `FilterLevel` (Task 4), `SeverityIcon` (Task 1).
-- Produces: `DiagnosticsTreeTable` nimmt zusätzlich `query: string`, `filterLevel: FilterLevel`, `onQueryChange`, `onFilterLevelChange`.
+- Produces: `DiagnosticsTreeTable` nimmt zusätzlich `query: string`, `filterLevel: FilterLevel`, `onQueryChange`,
+  `onFilterLevelChange`.
 
 - [ ] **Schritt 1: Zustand in `app.tsx` anlegen**
 
@@ -1880,7 +1975,8 @@ In `DiagnosticsTreeTable`:
 const { visible, expand, matches } = filterTree(diagnostics, query, filterLevel);
 ```
 
-`renderRows` bekommt eine zusätzliche Bedingung ganz am Anfang — nicht sichtbare Knoten werden übersprungen, ihre Geschwister aber weiter verarbeitet:
+`renderRows` bekommt eine zusätzliche Bedingung ganz am Anfang — nicht sichtbare Knoten werden übersprungen, ihre
+Geschwister aber weiter verarbeitet:
 
 ```tsx
 if (!visible.has(diag.rawName)) {
@@ -1970,33 +2066,43 @@ Wenn `diagnostics.length > 0 && matches === 0`, statt der Tabellenzeilen:
 
 - [ ] **Schritt 6: Übersetzungen ergänzen**
 
-`Search name, path or message`→`Name, Pfad oder Meldung durchsuchen`, `Search diagnostics`→`Diagnosen durchsuchen`, `Severity filter`→`Schweregrad-Filter`, `All`→`Alle`, `≥ Warning`→`≥ Warnung`, `≥ Error`→`≥ Fehler`, `Nothing matches`→`Kein Treffer`, `Reset filters`→`Filter zurücksetzen`, `Level`→`Level`.
+`Search name, path or message`→`Name, Pfad oder Meldung durchsuchen`, `Search diagnostics`→`Diagnosen durchsuchen`,
+`Severity filter`→`Schweregrad-Filter`, `All`→`Alle`, `≥ Warning`→`≥ Warnung`, `≥ Error`→`≥ Fehler`, `Nothing matches`→
+`Kein Treffer`, `Reset filters`→`Filter zurücksetzen`, `Level`→`Level`.
 
 - [ ] **Schritt 7: Prüfen**
 
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck && make
 ```
-Manuell: Suche nach `imu` blendet fremde Zweige aus und klappt den Pfad zum Treffer auf; Umschalten auf `≥ Fehler` behält veraltete Meldungen; Klick auf die Kennzahl „Warnungen“ im Kopfband setzt den Umschalter auf `≥ Warnung`; eine Kennzahl mit Wert 0 ist nicht anklickbar.
+
+Manuell: Suche nach `imu` blendet fremde Zweige aus und klappt den Pfad zum Treffer auf; Umschalten auf `≥ Fehler`
+behält veraltete Meldungen; Klick auf die Kennzahl „Warnungen“ im Kopfband setzt den Umschalter auf `≥ Warnung`; eine
+Kennzahl mit Wert 0 ist nicht anklickbar.
 
 ---
 
 ## Task 10: Capture ins ⋯-Menü
 
 **Files:**
+
 - Modify: `src/components/DiagnosticsCapture.tsx`, `src/app.tsx`, `po/de.po`
 
 **Interfaces:**
+
 - Consumes: `StatusBand`-Prop `menuItems` (Task 5).
 - Produces:
-  - `useCapture(namespace): { isCapturing, errorMessage, downloadPath, adminAccess, capture }` — die vorhandene Logik, unverändert, nur aus der Komponente herausgehoben.
-  - `<CaptureAlerts state={…} />` — Fortschritt, Fehler und Download-Link.
+    - `useCapture(namespace): { isCapturing, errorMessage, downloadPath, adminAccess, capture }` — die vorhandene Logik,
+      unverändert, nur aus der Komponente herausgehoben.
+    - `<CaptureAlerts state={…} />` — Fortschritt, Fehler und Download-Link.
 
-Beide bleiben in `DiagnosticsCapture.tsx`: die Datei behält damit genau eine Verantwortung (Diagnose-Paket), und der Auslöser kann trotzdem im Menü sitzen.
+Beide bleiben in `DiagnosticsCapture.tsx`: die Datei behält damit genau eine Verantwortung (Diagnose-Paket), und der
+Auslöser kann trotzdem im Menü sitzen.
 
 - [ ] **Schritt 1: Logik zum Hook umbauen**
 
-In `src/components/DiagnosticsCapture.tsx` die bisherige Komponente in einen Hook überführen. `useState`, `useEffect` (Berechtigung), `runBash` und `handleCapture` wandern unverändert hinein; nur die Rückgabe ändert sich:
+In `src/components/DiagnosticsCapture.tsx` die bisherige Komponente in einen Hook überführen. `useState`, `useEffect`
+(Berechtigung), `runBash` und `handleCapture` wandern unverändert hinein; nur die Rückgabe ändert sich:
 
 ```tsx
 export interface CaptureState {
@@ -2013,7 +2119,8 @@ export const useCapture = (namespace: string): CaptureState => {
 };
 ```
 
-Die Befehlslisten `commands_su`, `commands_usr`, `commands_clearpath`, die Redaktion der netplan-Passwörter und die Archivbenennung bleiben **wortgleich**. Hier wird nichts umformuliert.
+Die Befehlslisten `commands_su`, `commands_usr`, `commands_clearpath`, die Redaktion der netplan-Passwörter und die
+Archivbenennung bleiben **wortgleich**. Hier wird nichts umformuliert.
 
 - [ ] **Schritt 2: Alerts als eigene Komponente**
 
@@ -2065,7 +2172,8 @@ menuItems={
 }
 ```
 
-Achtung `exactOptionalPropertyTypes`: `description` darf nicht explizit `undefined` bekommen. Stattdessen konditional streuen:
+Achtung `exactOptionalPropertyTypes`: `description` darf nicht explizit `undefined` bekommen. Stattdessen konditional
+streuen:
 
 ```tsx
 {...(!capture.adminAccess
@@ -2073,27 +2181,33 @@ Achtung `exactOptionalPropertyTypes`: `description` darf nicht explizit `undefin
     : {})}
 ```
 
-`<CaptureAlerts state={capture} />` direkt unter das Kopfband setzen, oberhalb der Arbeitsfläche. Die bisherige `<DiagnosticsCapture namespace={namespace} />`-Karte entfällt.
+`<CaptureAlerts state={capture} />` direkt unter das Kopfband setzen, oberhalb der Arbeitsfläche. Die bisherige
+`<DiagnosticsCapture namespace={namespace} />`-Karte entfällt.
 
 - [ ] **Schritt 4: Übersetzungen ergänzen**
 
-`Generate diagnostics capture`→`Diagnose-Paket erzeugen`, `Generating…`→`Wird erzeugt…`. Die übrigen Zeichenketten sind bereits übersetzt.
+`Generate diagnostics capture`→`Diagnose-Paket erzeugen`, `Generating…`→`Wird erzeugt…`. Die übrigen Zeichenketten sind
+bereits übersetzt.
 
 - [ ] **Schritt 5: Prüfen**
 
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck && make
 ```
-Manuell auf dem Roboter: ohne Admin-Rechte ist der Menüpunkt deaktiviert und trägt den Hinweistext; mit Admin-Rechten erzeugt er ein Archiv unter `~/diagnostic_captures/` und der Download-Link erscheint unter dem Kopfband.
+
+Manuell auf dem Roboter: ohne Admin-Rechte ist der Menüpunkt deaktiviert und trägt den Hinweistext; mit Admin-Rechten
+erzeugt er ein Archiv unter `~/diagnostic_captures/` und der Download-Link erscheint unter dem Kopfband.
 
 ---
 
 ## Task 11: Zweispaltiges Layout
 
 **Files:**
+
 - Modify: `src/app.tsx`, `src/app.scss`
 
 **Interfaces:**
+
 - Consumes: alle Komponenten aus Tasks 5–10.
 - Produces: die endgültige Seitenstruktur.
 
@@ -2143,7 +2257,8 @@ Der Rumpf innerhalb der `PageSection`:
 )}
 ```
 
-`ConnectingState` ist der Leerzustand, der bisher **in** `DiagnosticsTreeTable` steckte. Er wandert nach `app.tsx` als kleine lokale Komponente, weil er jetzt für die ganze Arbeitsfläche gilt statt nur für den Baum:
+`ConnectingState` ist der Leerzustand, der bisher **in** `DiagnosticsTreeTable` steckte. Er wandert nach `app.tsx` als
+kleine lokale Komponente, weil er jetzt für die ganze Arbeitsfläche gilt statt nur für den Baum:
 
 ```tsx
 const ConnectingState = ({ bridgeConnected }: { bridgeConnected: boolean }) => (
@@ -2167,21 +2282,21 @@ Den entsprechenden Block in `DiagnosticsTreeTable` entfernen — die Tabelle wir
 /* Workspace --------------------------------------------------------------- */
 
 .workspace {
-    display: grid;
-    grid-template-columns: 1.05fr 1fr;
-    gap: var(--pf-t--global--spacer--lg);
-    align-items: start;
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: var(--pf-t--global--spacer--lg);
+  align-items: start;
 }
 
 .workspace-primary {
-    display: flex;
-    flex-direction: column;
-    gap: var(--pf-t--global--spacer--lg);
-    min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pf-t--global--spacer--lg);
+  min-inline-size: 0;
 }
 
 .workspace-secondary {
-    min-inline-size: 0;
+  min-inline-size: 0;
 }
 
 /*
@@ -2189,37 +2304,45 @@ Den entsprechenden Block in `DiagnosticsTreeTable` entfernen — die Tabelle wir
  * need room for a name plus a path. Stack them, order unchanged.
  */
 @media (width <= 1200px) {
-    .workspace {
-        grid-template-columns: 1fr;
-    }
+  .workspace {
+    grid-template-columns: 1fr;
+  }
 }
 ```
 
-`min-inline-size: 0` ist nicht kosmetisch: ohne sie weigern sich Grid-Spalten zu schrumpfen, sobald eine Tabelle darin breiter wird, und die Seite bekommt einen horizontalen Scrollbalken.
+`min-inline-size: 0` ist nicht kosmetisch: ohne sie weigern sich Grid-Spalten zu schrumpfen, sobald eine Tabelle darin
+breiter wird, und die Seite bekommt einen horizontalen Scrollbalken.
 
 - [ ] **Schritt 3: Prüfen**
 
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck && make
 ```
-Manuell: Fenster von 1600 px auf 900 px verkleinern — die Spalten stapeln bei 1200 px, kein horizontaler Scrollbalken; das Detail-Panel schiebt sich in beiden Breiten über die Arbeitsfläche.
+
+Manuell: Fenster von 1600 px auf 900 px verkleinern — die Spalten stapeln bei 1200 px, kein horizontaler Scrollbalken;
+das Detail-Panel schiebt sich in beiden Breiten über die Arbeitsfläche.
 
 ---
 
 ## Task 12: Manipulator-Karten im neuen Stil
 
 **Files:**
+
 - Modify: `src/components/ManipulatorPanel.tsx`, `src/app.scss`, `test/unit/contract.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SeverityIcon`, `severityLabel` (Task 1).
 - Produces: keine neuen Signaturen — `ManipulatorPanel` behält seine Props.
 
-**Kein Feld verschwindet.** Alle heute angezeigten Werte bleiben: Robot mode, Safety mode, External control, Motion link samt Hz, Controller-Anzahl und -Chips, Gelenktabelle mit Position (Grad und Radiant), Geschwindigkeit und Effort, sowie beim Greifer Öffnung, Griff, Bewegung, Werkzeugspannung, Kraftvorwahl, letztes Kommando und Kraftsignal.
+**Kein Feld verschwindet.** Alle heute angezeigten Werte bleiben: Robot mode, Safety mode, External control, Motion link
+samt Hz, Controller-Anzahl und -Chips, Gelenktabelle mit Position (Grad und Radiant), Geschwindigkeit und Effort, sowie
+beim Greifer Öffnung, Griff, Bewegung, Werkzeugspannung, Kraftvorwahl, letztes Kommando und Kraftsignal.
 
 - [ ] **Schritt 1: Doppelte Level-Zuordnung entfernen**
 
-Die lokale `severityStyle`-Tabelle und die Komponente `SeverityLabel` in `ManipulatorPanel.tsx` löschen. Alle Verwendungsstellen ersetzen durch:
+Die lokale `severityStyle`-Tabelle und die Komponente `SeverityLabel` in `ManipulatorPanel.tsx` löschen. Alle
+Verwendungsstellen ersetzen durch:
 
 ```tsx
 <span className="card-state">
@@ -2227,9 +2350,14 @@ Die lokale `severityStyle`-Tabelle und die Komponente `SeverityLabel` in `Manipu
 </span>
 ```
 
-Die Importe `CheckCircleIcon`, `ExclamationCircleIcon`, `ExclamationTriangleIcon`, `OutlinedCircleIcon`, `QuestionCircleIcon`, `Label` und `LabelProps` entsprechend aufräumen — `Label` bleibt nur, soweit es noch für Controller-Chips gebraucht wird.
+Die Importe `CheckCircleIcon`, `ExclamationCircleIcon`, `ExclamationTriangleIcon`, `OutlinedCircleIcon`,
+`QuestionCircleIcon`, `Label` und `LabelProps` entsprechend aufräumen — `Label` bleibt nur, soweit es noch für
+Controller-Chips gebraucht wird.
 
-Die Hilfsfunktionen `modeColor`, `safetyColor`, `boolColor` und der Typ `LabelColor` entfallen: Robot mode, Safety mode, External control und Motion link werden künftig als schlichter Text dargestellt. Ihre Aussage steckt bereits im Zustand der Karte; ein zusätzlich eingefärbtes Etikett pro Zeile war genau die Mehrfachkodierung, die den ersten Entwurf unruhig gemacht hat. `boolText` bleibt.
+Die Hilfsfunktionen `modeColor`, `safetyColor`, `boolColor` und der Typ `LabelColor` entfallen: Robot mode, Safety mode,
+External control und Motion link werden künftig als schlichter Text dargestellt. Ihre Aussage steckt bereits im Zustand
+der Karte; ein zusätzlich eingefärbtes Etikett pro Zeile war genau die Mehrfachkodierung, die den ersten Entwurf unruhig
+gemacht hat. `boolText` bleibt.
 
 - [ ] **Schritt 2: Karten auf Randstreifen umstellen**
 
@@ -2261,7 +2389,9 @@ const cardVariant = (level: number): string => {
 
 - [ ] **Schritt 3: Fortschrittsbalken entfärben**
 
-Beim Greifer die `ProgressVariant.success`-Zuweisung entfernen und `ProgressVariant` aus dem Import streichen — der Balken misst eine Öffnung, er meldet keinen Zustand. Ob ein Objekt gehalten wird, steht weiterhin als Wert „Grip detected“ darunter.
+Beim Greifer die `ProgressVariant.success`-Zuweisung entfernen und `ProgressVariant` aus dem Import streichen — der
+Balken misst eine Öffnung, er meldet keinen Zustand. Ob ein Objekt gehalten wird, steht weiterhin als Wert „Grip
+detected“ darunter.
 
 - [ ] **Schritt 4: SCSS ergänzen**
 
@@ -2313,25 +2443,33 @@ Beim Greifer die `ProgressVariant.success`-Zuweisung entfernen und `ProgressVari
 
 - [ ] **Schritt 5: Vertrag nachziehen**
 
-`test/unit/contract.test.ts` schürft Schlüsselliterale aus der Liste `SOURCES`. Sie bleibt gültig, solange die Schlüssel in `ManipulatorPanel.tsx` und `manipulatorUtils.ts` stehen. Prüfen, ob durch den Umbau ein `valueOf`/`boolOf`/`numberOf`-Aufruf in eine andere Datei gewandert ist; falls ja, diese Datei zu `SOURCES` hinzufügen — sonst prüft der Test stillschweigend weniger.
+`test/unit/contract.test.ts` schürft Schlüsselliterale aus der Liste `SOURCES`. Sie bleibt gültig, solange die Schlüssel
+in `ManipulatorPanel.tsx` und `manipulatorUtils.ts` stehen. Prüfen, ob durch den Umbau ein `valueOf`/`boolOf`/`numberOf`
+-Aufruf in eine andere Datei gewandert ist; falls ja, diese Datei zu `SOURCES` hinzufügen — sonst prüft der Test
+stillschweigend weniger.
 
 - [ ] **Schritt 6: Prüfen**
 
 ```bash
 make check-unit && npx tsc --noEmit && make codecheck && make
 ```
-Erwartet: `contract` grün (das ist der Test, der einen umbenannten oder verlorenen Schlüssel fängt). Manuell: bei stromlosem Arm ist die Karte grau, die Werte gedimmt und die Erklärzeile sichtbar; bei fehlender Werkzeugspannung ist der Greifer-Randstreifen gelb.
+
+Erwartet: `contract` grün (das ist der Test, der einen umbenannten oder verlorenen Schlüssel fängt). Manuell: bei
+stromlosem Arm ist die Karte grau, die Werte gedimmt und die Erklärzeile sichtbar; bei fehlender Werkzeugspannung ist
+der Greifer-Randstreifen gelb.
 
 ---
 
 ## Task 13: Abschluss
 
 **Files:**
+
 - Modify: `test/check-application`, `po/de.po`, `README.md`
 
 - [ ] **Schritt 1: Browser-Test anpassen**
 
-In `test/check-application` wartet `enter_ros2_diagnostics` auf ein `h1` mit dem Text „ROS 2 Diagnostics“. Das Kopfband trägt jetzt Robotername und Zustandssatz. Anpassen auf die Klasse des Kopfbands:
+In `test/check-application` wartet `enter_ros2_diagnostics` auf ein `h1` mit dem Text „ROS 2 Diagnostics“. Das Kopfband
+trägt jetzt Robotername und Zustandssatz. Anpassen auf die Klasse des Kopfbands:
 
 ```python
     def enter_ros2_diagnostics(self):
@@ -2339,7 +2477,9 @@ In `test/check-application` wartet `enter_ros2_diagnostics` auf ein `h1` mit dem
         self.browser.wait_visible(".status-band")
 ```
 
-Die zweite Zusicherung in `testBasic` — der Danger-Alert `'robot.yaml' file not found or empty` — bleibt **unverändert**: der Alert steht weiterhin unter dem Kopfband. Der Seitenname „ROS 2 diagnostics“ steht in `src/manifest.json` und damit in Cockpits Navigation; er geht nicht verloren.
+Die zweite Zusicherung in `testBasic` — der Danger-Alert `'robot.yaml' file not found or empty` — bleibt
+**unverändert**: der Alert steht weiterhin unter dem Kopfband. Der Seitenname „ROS 2 diagnostics“ steht in
+`src/manifest.json` und damit in Cockpits Navigation; er geht nicht verloren.
 
 - [ ] **Schritt 2: Übersetzungen vollständig prüfen**
 
@@ -2350,11 +2490,14 @@ grep -rhoE '_\("([^"]+)"\)' src/ | sed -E 's/_\("(.*)"\)/\1/' | sort -u > /tmp/s
 while read -r s; do grep -q "msgid \"$s\"" po/de.po || echo "FEHLT: $s"; done < /tmp/strings.txt
 ```
 
-Jede Meldung nachtragen. Entfallene `msgid`s (aus `DiagnosticsTable`, `HistorySelection`) dürfen stehenbleiben — sie stören nicht.
+Jede Meldung nachtragen. Entfallene `msgid`s (aus `DiagnosticsTable`, `HistorySelection`) dürfen stehenbleiben — sie
+stören nicht.
 
 - [ ] **Schritt 3: README nachziehen**
 
-Im Abschnitt, der das Manipulator-Panel und den Fork beschreibt, die neue Seitenstruktur in zwei bis drei Sätzen ergänzen: Kopfband mit Kennzahlen, Zeitachse, zweispaltige Arbeitsfläche, Detail-Panel, Suche und Filter, Capture im ⋯-Menü. Bau- und Ausrollanweisungen bleiben unverändert.
+Im Abschnitt, der das Manipulator-Panel und den Fork beschreibt, die neue Seitenstruktur in zwei bis drei Sätzen
+ergänzen: Kopfband mit Kennzahlen, Zeitachse, zweispaltige Arbeitsfläche, Detail-Panel, Suche und Filter, Capture im
+⋯-Menü. Bau- und Ausrollanweisungen bleiben unverändert.
 
 - [ ] **Schritt 4: Gesamtprüfung**
 
@@ -2381,4 +2524,5 @@ Durchgehen und je Punkt bestätigen:
 
 - [ ] **Schritt 6: Übergabe**
 
-Dem Benutzer den Stand melden: was umgesetzt ist, welche Prüfungen liefen und welche Sichtprüfungen bestätigt sind. **Nicht committen, nicht pushen** — das macht der Benutzer selbst.
+Dem Benutzer den Stand melden: was umgesetzt ist, welche Prüfungen liefen und welche Sichtprüfungen bestätigt sind.
+**Nicht committen, nicht pushen** — das macht der Benutzer selbst.

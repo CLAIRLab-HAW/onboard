@@ -8,16 +8,16 @@
  * nothing into a list, and that every symbol carries its word for screen
  * readers.
  */
-import { renderToStaticMarkup } from 'react-dom/server';
+import {renderToStaticMarkup} from 'react-dom/server';
 import React from 'react';
 
-import { SeverityIcon, severityLabel } from "../../src/components/SeverityIcon";
+import {SeverityIcon, severityLabel} from "../../src/components/SeverityIcon";
 import {
     LEVEL_ERROR, LEVEL_INACTIVE, LEVEL_NONE, LEVEL_OK, LEVEL_STALE, LEVEL_WARN,
 } from "../../src/utils/severity";
 import live from "./agg-armed.json";
-import { buildDiagnosticsTree } from "../../src/components/RosConnectionManager";
-import { DiagnosticsEntry } from "../../src/interfaces";
+import {buildDiagnosticsTree} from "../../src/components/RosConnectionManager";
+import {DiagnosticsEntry} from "../../src/interfaces";
 
 const problems: string[] = [];
 const check = (condition: boolean, what: string) => {
@@ -35,17 +35,17 @@ check(severityLabel(LEVEL_INACTIVE) === "Out of service", "LEVEL_INACTIVE must b
 /* ------------------------------------------------------------------ markup */
 
 const markup = (level: number, hideOk = false) =>
-    renderToStaticMarkup(React.createElement(SeverityIcon, { level, hideOk }));
+    renderToStaticMarkup(React.createElement(SeverityIcon, {level, hideOk}));
 
 for (const level of [LEVEL_ERROR, LEVEL_STALE, LEVEL_WARN, LEVEL_INACTIVE]) {
     const html = markup(level);
     check(html.includes(`aria-label="${severityLabel(level)}"`),
-          `level ${level} must expose its word as aria-label`);
+        `level ${level} must expose its word as aria-label`);
     check(html.includes("<svg"), `level ${level} must render a symbol`);
 }
 
-// Five states must be told apart by *shape*, not only by colour, otherwise the
-// page is unreadable in greyscale and with red-green colour blindness.
+// Five states must be told apart by *shape*, not only by color, otherwise the
+// page is unreadable in greyscale and with red-green color blindness.
 //
 // Compared is the SVG path data only. Comparing whole markup would pass
 // trivially -- the label, the title and the status class already differ per
@@ -64,8 +64,8 @@ check(markup(LEVEL_NONE) === "", "LEVEL_NONE has no status of its own and must r
 
 /* -------------------------------------------------------------- StatusBand */
 
-import { StatusBand } from "../../src/components/StatusBand";
-import { headlineLevel, summarise } from "../../src/utils/summary";
+import {StatusBand} from "../../src/components/StatusBand";
+import {headlineLevel, summarise} from "../../src/utils/summary";
 
 const band = (over: Partial<React.ComponentProps<typeof StatusBand>> = {}) =>
     renderToStaticMarkup(React.createElement(StatusBand, {
@@ -86,8 +86,8 @@ check(healthy.includes("no data"), "an empty tree reads as no data, not falsely 
 check(healthy.includes("/a200_0553"), "the namespace is shown");
 check(!healthy.includes("Bridge disconnected"), "a connected bridge is not announced as disconnected");
 
-check(band({ bridgeConnected: false }).includes("Bridge disconnected"),
-      "a missing bridge is stated in the band, not only in the empty tree");
+check(band({bridgeConnected: false}).includes("Bridge disconnected"),
+    "a missing bridge is stated in the band, not only in the empty tree");
 
 // With no namespace resolved yet (robot.yaml missing or not yet read) and no
 // diagnostics, the heading must not render a dangling "— no data" with
@@ -99,25 +99,25 @@ check(band({ bridgeConnected: false }).includes("Bridge disconnected"),
 // Counts must come from the leaves of the real capture, not from the statuses.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const realTree = buildDiagnosticsTree(live as any[]);
-const noNamespace = band({ namespace: "" });
+const noNamespace = band({namespace: ""});
 check(noNamespace.includes("no data"), "with no namespace it still states that there is no data");
 // The facts line is built by joining what is known; an unresolved namespace
 // must drop out of it rather than leave a leading separator.
 check(!/class="status-facts">\s*·/.test(noNamespace),
-      "an unresolved namespace leaves no dangling separator in the facts line");
+    "an unresolved namespace leaves no dangling separator in the facts line");
 // The heading carries no state any more -- the counters and the timeline do.
-check(!band({ diagnostics: realTree }).includes("severity-icon"),
-      "the heading draws no severity symbol, with or without data");
+check(!band({diagnostics: realTree}).includes("severity-icon"),
+    "the heading draws no severity symbol, with or without data");
 
-const withData = band({ diagnostics: realTree });
+const withData = band({diagnostics: realTree});
 // With counters to read it off, the sentence is redundant and gone: the band
 // says "a200_0553" and the Warnings counter carries the number. What must NOT
 // happen is losing it in the no-data case, where the counters all read zero --
 // that is asserted above and is the reason the branch exists at all.
 check(!withData.includes("1 warning"),
-      "the sentence is dropped once a counter states the same thing");
+    "the sentence is dropped once a counter states the same thing");
 check(!withData.includes(" — "),
-      "and the separator goes with it, leaving the robot name alone");
+    "and the separator goes with it, leaving the robot name alone");
 check(withData.includes("Warnings"), "the counter is still there to carry it");
 check(summarise(realTree).total === 15, "and counts 15 statuses");
 
@@ -129,16 +129,16 @@ check(summarise(realTree).total === 15, "and counts 15 statuses");
 const kpiIsButton = (html: string) => /<button[^>]*\bclass="[^"]*\bstatus-kpi\b[^"]*"[^>]*>/.test(html);
 
 check(!kpiIsButton(healthy),
-      "with every counter at zero, no counter renders as a clickable button");
+    "with every counter at zero, no counter renders as a clickable button");
 check(kpiIsButton(withData),
-      "the Warnings counter (1, from the real capture) renders as a clickable button");
+    "the Warnings counter (1, from the real capture) renders as a clickable button");
 
 /* --------------------------------------------------------------- Timeline */
 
-import { Timeline } from "../../src/components/Timeline";
-import { DiagnosticsStatus } from "../../src/interfaces";
+import {Timeline} from "../../src/components/Timeline";
+import {DiagnosticsStatus} from "../../src/interfaces";
 
-const snapshotAt = (level: number): DiagnosticsStatus => ({ timestamp: Date.now(), level, diagnostics: [] });
+const snapshotAt = (level: number): DiagnosticsStatus => ({timestamp: Date.now(), level, diagnostics: []});
 
 const timelineMarkup = (diagHistory: DiagnosticsStatus[]) =>
     renderToStaticMarkup(React.createElement(Timeline, {
@@ -152,20 +152,20 @@ const timelineMarkup = (diagHistory: DiagnosticsStatus[]) =>
 // below are present and their order in the markup reflects render order.
 const partial = timelineMarkup([snapshotAt(LEVEL_OK), snapshotAt(LEVEL_OK)]);
 check(partial.indexOf("timeline-slot-empty") < partial.indexOf("timeline-slot-ok"),
-      "unfilled slots render before real snapshots, keeping the newest one at the right edge");
+    "unfilled slots render before real snapshots, keeping the newest one at the right edge");
 
 check(!partial.includes("timeline-slot-warn") &&
-      !partial.includes("timeline-slot-error") &&
-      !partial.includes("timeline-slot-stale"),
-      "an all-healthy history gets no status colour class");
+    !partial.includes("timeline-slot-error") &&
+    !partial.includes("timeline-slot-stale"),
+    "an all-healthy history gets no status color class");
 
 // The hover has to carry the state sentence, not just the time: the three
 // timestamp lines the previous component had were removed on the argument
 // that this information now lives in the hover (plus the band's own
 // timestamp), so the hover has to actually deliver it.
-const warningSnapshot: DiagnosticsStatus = { timestamp: Date.now(), level: LEVEL_WARN, diagnostics: realTree };
+const warningSnapshot: DiagnosticsStatus = {timestamp: Date.now(), level: LEVEL_WARN, diagnostics: realTree};
 check(timelineMarkup([warningSnapshot]).includes("1 warning"),
-      "a timeline slot's hover states its own snapshot's warning count");
+    "a timeline slot's hover states its own snapshot's warning count");
 
 // The concrete regression: a snapshot with both an error and a stale leaf
 // used to paint blue (stale sorts above error numerically), which is worse
@@ -192,7 +192,7 @@ check(!mixedMarkup.includes("timeline-slot-stale"), "...and must not paint as st
 
 /* ---------------------------------------------------------------- IssueList */
 
-import { IssueList } from "../../src/components/IssueList";
+import {IssueList} from "../../src/components/IssueList";
 
 const issueMarkup = (entries: DiagnosticsEntry[]) =>
     renderToStaticMarkup(React.createElement(IssueList, {
@@ -203,7 +203,7 @@ const issueMarkup = (entries: DiagnosticsEntry[]) =>
 const realIssues = issueMarkup(realTree);
 check(realIssues.includes("Hardware Components Activity"), "the warning is listed");
 check(!realIssues.includes("Joystick Driver Status"),
-      "an out-of-service status is not an issue to act on");
+    "an out-of-service status is not an issue to act on");
 
 // The old pair of tables claimed "No Errors" / "No Warnings" even while the
 // bridge was down. One quiet line, and only when there is genuinely nothing.
@@ -213,10 +213,10 @@ check(!empty.includes("<table"), "an empty list renders no table");
 
 /* --------------------------------------------------------------- DetailPanel */
 
-import { DetailPanel, findEntryByRawName } from "../../src/components/DetailPanel";
+import {DetailPanel, findEntryByRawName} from "../../src/components/DetailPanel";
 
 const panelMarkup = (entry: DiagnosticsEntry | null) =>
-    renderToStaticMarkup(React.createElement(DetailPanel, { entry, onClose: () => undefined }));
+    renderToStaticMarkup(React.createElement(DetailPanel, {entry, onClose: () => undefined}));
 
 check(panelMarkup(null) === "", "with no status selected, the panel renders nothing");
 
@@ -231,14 +231,14 @@ check(joystick !== null, "the real capture must contain the downgraded joystick 
 if (joystick) {
     const joystickMarkup = panelMarkup(joystick);
     check(joystickMarkup.includes(severityLabel(joystick.reported_level)),
-          "a reclassified status states the level ROS actually reported");
+        "a reclassified status states the level ROS actually reported");
     check(joystick.override_reason !== null && joystickMarkup.includes(joystick.override_reason),
-          "and states why the displayed level differs from it");
+        "and states why the displayed level differs from it");
 }
 
 /* ---------------------------------------------------------- DiagnosticsTreeTable */
 
-import { DiagnosticsTreeTable } from "../../src/components/DiagnosticsTreeTable";
+import {DiagnosticsTreeTable} from "../../src/components/DiagnosticsTreeTable";
 
 const treeNode = (name: string, level: number, message: string): DiagnosticsEntry => ({
     name,
@@ -281,14 +281,14 @@ check(cells[0] === "", "an OK row's level cell is empty");
 check(cells[1].includes("<svg"), "a warning row's level cell carries the severity icon");
 
 // The tree must honour `visible` from filterTree, not just accept the props.
-const filtered = treeMarkup({ query: "gyro" });
+const filtered = treeMarkup({query: "gyro"});
 check(!filtered.includes(okLeaf.message), "a query hides a sibling that does not match");
 check(filtered.includes(warnLeaf.message), "a query keeps the matching row");
 
 // The "Connecting" empty state lives in app.tsx: the whole workspace is
 // guarded there, not just the tree, so the tree itself must not carry it
 // (and takes no bridgeConnected prop to drive it).
-const emptyTree = treeMarkup({ diagnostics: [] });
+const emptyTree = treeMarkup({diagnostics: []});
 check(!emptyTree.includes("Connecting"), "the tree no longer renders its own connecting state");
 
 /* --------------------------------------------------------- ManipulatorPanel */
@@ -297,7 +297,7 @@ check(!emptyTree.includes("Connecting"), "the tree no longer renders its own con
 // no way to show a powered-down arm or a gripper warning, so both states
 // below are built by hand, the same way `treeNode` above stands in for a
 // capture the fixture cannot provide.
-import { ManipulatorPanel } from "../../src/components/ManipulatorPanel";
+import {ManipulatorPanel} from "../../src/components/ManipulatorPanel";
 
 const manipEntry = (
     task: string,
@@ -337,35 +337,35 @@ const cardChunks = (html: string): [string, string] => {
 
 const inactiveManipulator = [
     manipEntry("Arm Mode", LEVEL_INACTIVE, "Arm is switched off.",
-               { robot_mode: "POWER_OFF", safety_mode: "NORMAL" }),
+        {robot_mode: "POWER_OFF", safety_mode: "NORMAL"}),
     manipEntry("Arm Control", LEVEL_INACTIVE, "Arm is switched off.",
-               { external_control: "stopped", motion_interface: "dead" }),
+        {external_control: "stopped", motion_interface: "dead"}),
     manipEntry("Arm Joints", LEVEL_INACTIVE, "Arm is switched off.",
-               {
-                   joints: "shoulder_pan_joint",
-                   shoulder_pan_joint_deg: "12.0",
-                   shoulder_pan_joint_rad: "0.209",
-                   shoulder_pan_joint_vel_rad_s: "0.0",
-               }),
+        {
+            joints: "shoulder_pan_joint",
+            shoulder_pan_joint_deg: "12.0",
+            shoulder_pan_joint_rad: "0.209",
+            shoulder_pan_joint_vel_rad_s: "0.0",
+        }),
     manipEntry("Arm Controllers", LEVEL_INACTIVE, "Arm is switched off.", {}),
     manipEntry("Gripper", LEVEL_INACTIVE, "Arm is switched off.",
-               {
-                   width_mm: "80",
-                   stroke_mm: "160",
-                   grip_detected: "false",
-                   busy: "false",
-                   tool_power_commanded: "false",
-                   signal_valid: "false",
-               }),
+        {
+            width_mm: "80",
+            stroke_mm: "160",
+            grip_detected: "false",
+            busy: "false",
+            tool_power_commanded: "false",
+            signal_valid: "false",
+        }),
 ];
 
 const inactiveHtml = manipMarkup(inactiveManipulator);
 const [inactiveArmChunk, inactiveGripperChunk] = cardChunks(inactiveHtml);
 
 check(inactiveArmChunk.includes("manipulator-out-of-service"),
-      "an out-of-service arm renders the dimming class on the readings wrapper");
+    "an out-of-service arm renders the dimming class on the readings wrapper");
 check(inactiveGripperChunk.includes("manipulator-out-of-service"),
-      "an out-of-service gripper renders the dimming class on the readings wrapper");
+    "an out-of-service gripper renders the dimming class on the readings wrapper");
 
 // The SCSS rule dims by descendant selector (".manipulator-out-of-service
 // .pf-v6-c-description-list" etc.), so the class existing somewhere in the
@@ -377,18 +377,18 @@ const armReadings = afterMarker(inactiveArmChunk);
 const gripperReadings = afterMarker(inactiveGripperChunk);
 
 check(armReadings.includes("pf-v6-c-description-list"),
-      "the arm's description list sits inside the out-of-service wrapper, where the dimming selector reaches it");
+    "the arm's description list sits inside the out-of-service wrapper, where the dimming selector reaches it");
 check(armReadings.includes("pf-v6-c-table"),
-      "the arm's joint table sits inside the out-of-service wrapper too -- a joint angle from a powered-down " +
-      "arm must read as dimmed, not current");
+    "the arm's joint table sits inside the out-of-service wrapper too -- a joint angle from a powered-down " +
+    "arm must read as dimmed, not current");
 // The drawing replaced the progress bar here. It has to stay inside the
 // wrapper for the same reason the joint table does: a jaw position drawn at
 // full confidence while nothing is being measured is the most convincing wrong
 // thing this panel could show.
 check(gripperReadings.includes("rg6-figure"),
-      "the gripper drawing sits inside the out-of-service wrapper");
+    "the gripper drawing sits inside the out-of-service wrapper");
 check(gripperReadings.includes("pf-v6-c-description-list"),
-      "the gripper's description list sits inside the out-of-service wrapper");
+    "the gripper's description list sits inside the out-of-service wrapper");
 
 // With no controllers published, the only remaining consumer of PatternFly's
 // Label (the controller chips) has nothing to render -- so this fully
@@ -396,18 +396,18 @@ check(gripperReadings.includes("pf-v6-c-description-list"),
 // any of the rows Task 12 de-labelled (robot mode, safety mode, external
 // control, motion link, grip detected, motion, tool power).
 check(!inactiveHtml.includes("pf-v6-c-label"),
-      "with no controller chips, the panel uses no PatternFly Label at all");
+    "with no controller chips, the panel uses no PatternFly Label at all");
 
 /* -- the stripe is the only state carrier left: wrong suffix = unstyled card -- */
 
 const warnGripper = [
-    manipEntry("Arm Mode", LEVEL_OK, "", { robot_mode: "RUNNING", safety_mode: "NORMAL" }),
+    manipEntry("Arm Mode", LEVEL_OK, "", {robot_mode: "RUNNING", safety_mode: "NORMAL"}),
     manipEntry("Arm Control", LEVEL_OK, "",
-               { external_control: "running", motion_interface: "live", joint_state_rate_hz: "125" }),
-    manipEntry("Arm Joints", LEVEL_OK, "", { joints: "" }),
+        {external_control: "running", motion_interface: "live", joint_state_rate_hz: "125"}),
+    manipEntry("Arm Joints", LEVEL_OK, "", {joints: ""}),
     manipEntry("Arm Controllers", LEVEL_OK, "", {}),
     manipEntry("Gripper", LEVEL_WARN, "Tool voltage off.",
-               { tool_power_commanded: "false", signal_valid: "false", grip_detected: "false", busy: "false" }),
+        {tool_power_commanded: "false", signal_valid: "false", grip_detected: "false", busy: "false"}),
 ];
 
 const [okArmChunk, warnGripperChunk] = cardChunks(manipMarkup(warnGripper));
@@ -418,11 +418,11 @@ const [okArmChunk, warnGripperChunk] = cardChunks(manipMarkup(warnGripper));
 // "warning" for "warn": a real class-name drift that leaves the CSS selector
 // (which matches whole class tokens, not prefixes) unable to find the card.
 check(okArmChunk.startsWith('state-card state-card-quiet"'),
-      "an OK arm card gets exactly the neutral (quiet, grey) stripe variant");
+    "an OK arm card gets exactly the neutral (quiet, grey) stripe variant");
 check(warnGripperChunk.startsWith('state-card state-card-warn"'),
-      "a gripper reporting a warning gets exactly the warn stripe variant");
+    "a gripper reporting a warning gets exactly the warn stripe variant");
 check(warnGripperChunk.includes("Tool voltage off."),
-      "the warning message reaches the card as an alert, not just the stripe colour");
+    "the warning message reaches the card as an alert, not just the stripe color");
 
 /* ------------------------------------------------------------- CaptureAlerts */
 
@@ -431,7 +431,7 @@ check(warnGripperChunk.includes("Tool voltage off."),
 // never runs effects anyway -- so only CaptureAlerts, the pure display half,
 // is honestly testable here. Its state is built by hand instead of by
 // calling useCapture.
-import { CaptureAlerts, CaptureState } from "../../src/components/DiagnosticsCapture";
+import {CaptureAlerts, CaptureState} from "../../src/components/DiagnosticsCapture";
 
 const idleCapture: CaptureState = {
     isCapturing: false,
@@ -442,15 +442,15 @@ const idleCapture: CaptureState = {
 };
 
 const alertsMarkup = (state: CaptureState) =>
-    renderToStaticMarkup(React.createElement(CaptureAlerts, { state }));
+    renderToStaticMarkup(React.createElement(CaptureAlerts, {state}));
 
 check(alertsMarkup(idleCapture) === "", "with nothing captured yet, CaptureAlerts renders nothing");
-check(alertsMarkup({ ...idleCapture, isCapturing: true }).includes("several minutes"),
-      "a capture in progress shows the progress alert");
-check(alertsMarkup({ ...idleCapture, errorMessage: "boom" }).includes("boom"),
-      "a failed capture shows its error message");
-check(alertsMarkup({ ...idleCapture, downloadPath: "/tmp/x.tar.gz" }).includes("Download Diagnostics File"),
-      "a finished capture offers the download link");
+check(alertsMarkup({...idleCapture, isCapturing: true}).includes("several minutes"),
+    "a capture in progress shows the progress alert");
+check(alertsMarkup({...idleCapture, errorMessage: "boom"}).includes("boom"),
+    "a failed capture shows its error message");
+check(alertsMarkup({...idleCapture, downloadPath: "/tmp/x.tar.gz"}).includes("Download Diagnostics File"),
+    "a finished capture offers the download link");
 
 /* -------------------------------------------------------------- Application */
 
@@ -461,8 +461,8 @@ check(alertsMarkup({ ...idleCapture, downloadPath: "/tmp/x.tar.gz" }).includes("
 // show the page-level connecting state added in Task 11, not the two-column
 // workspace (which would need data neither this render pass nor the stub
 // cockpit module can provide).
-import { Application } from "../../src/app";
-import { CookiesProvider } from "react-cookie";
+import {Application} from "../../src/app";
+import {CookiesProvider} from "react-cookie";
 
 const appMarkup = renderToStaticMarkup(
     React.createElement(CookiesProvider, null, React.createElement(Application)));
@@ -479,7 +479,7 @@ check(!appMarkup.includes("workspace-secondary"), "nor the two-column workspace 
  * as the measurement says -- not approximately, and not at a guessed pose when
  * nothing was measured at all.
  */
-import { GripperGraphic } from "../../src/components/GripperGraphic";
+import {GripperGraphic} from "../../src/components/GripperGraphic";
 
 const gripperMarkup = (
     percent: number | null,
@@ -491,23 +491,26 @@ const gripperMarkup = (
 }));
 
 check(gripperMarkup(null, null, null) === "",
-      "without a measurement the gripper draws nothing rather than a guessed pose");
+    "without a measurement the gripper draws nothing rather than a guessed pose");
 
 const openMarkup = gripperMarkup(100, "160.0", "160");
 const shutMarkup = gripperMarkup(0, "0.0", "160");
 
 check(openMarkup.includes('aria-label="Opening: 160.0 of 160 mm"'),
-      "the reading reaches a screen reader, as the replaced Progress bar did");
+    "the reading reaches a screen reader, as the replaced Progress bar did");
 check(gripperMarkup(50, null, null).includes('aria-label="Opening: 50 %"'),
-      "without width/stroke it falls back to the percentage, as the bar did");
+    "without width/stroke it falls back to the percentage, as the bar did");
 
 // The jaws are the two <rect class="rg6-jaw">; their x is the jaw centre minus
 // half the jaw thickness, so it grows with the opening.
 const jawXs = (html: string) => [...html.matchAll(/class="rg6-jaw"[^>]*?x="(-?[\d.]+)"/g)]
-        .map(m => Number(m[1]));
+    .map(m => Number(m[1]));
 const jawXsAlt = (html: string) => [...html.matchAll(/x="(-?[\d.]+)"[^>]*?class="rg6-jaw"/g)]
-        .map(m => Number(m[1]));
-const jaws = (html: string) => { const a = jawXs(html); return a.length ? a : jawXsAlt(html); };
+    .map(m => Number(m[1]));
+const jaws = (html: string) => {
+    const a = jawXs(html);
+    return a.length ? a : jawXsAlt(html);
+};
 
 const openJaws = jaws(openMarkup);
 const shutJaws = jaws(shutMarkup);
@@ -515,17 +518,17 @@ check(openJaws.length === 2 && shutJaws.length === 2, "two jaws are drawn");
 // Fully open must put the jaws further apart than fully shut -- if the width
 // were ignored, these two renders would be identical.
 check(Math.max(...openJaws) > Math.max(...shutJaws),
-      "the jaw gap follows the measured width");
+    "the jaw gap follows the measured width");
 check(openMarkup !== shutMarkup, "0 % and 100 % are not the same picture");
 
 check(!gripperMarkup(60, "96.0", "160", false).includes('class="rg6-object"'),
-      "no object is drawn when none is held");
+    "no object is drawn when none is held");
 check(gripperMarkup(60, "96.0", "160", true).includes('class="rg6-object"'),
-      "a held object is drawn as a shape between the jaws");
+    "a held object is drawn as a shape between the jaws");
 
-// Severity colour must not leak into a measurement.
+// Severity color must not leak into a measurement.
 check(!/rg6-(jaw|link|object|body)[^>]*(danger|warning|success|status)/.test(openMarkup),
-      "the drawing carries no status colour");
+    "the drawing carries no status color");
 
 
 /* ------------------------------------------------------- GripperControl */
@@ -554,17 +557,17 @@ const closeGoal = gripperGoalRequest(true) as Record<string, any>;
 const openGoal = gripperGoalRequest(false) as Record<string, any>;
 
 check(closeGoal.goal === undefined,
-      "the goal request is flat: no `goal` wrapper, or position silently reads 0");
+    "the goal request is flat: no `goal` wrapper, or position silently reads 0");
 check(closeGoal.command?.position === 1.25478,
-      "closing commands the closed joint value, not a width");
+    "closing commands the closed joint value, not a width");
 check(openGoal.command?.position === 0,
-      "opening commands 0 rad");
+    "opening commands 0 rad");
 check(closeGoal.command?.max_effort === 0,
-      "effort is left at 0 so the bridge applies its own profile force");
+    "effort is left at 0 so the bridge applies its own profile force");
 check(closeGoal.goal_id?.uuid?.length === 16,
-      "the goal carries a 16-byte id, since send_goal generates none for us");
+    "the goal carries a 16-byte id, since send_goal generates none for us");
 check(String(openGoal.goal_id.uuid) !== String(closeGoal.goal_id.uuid),
-      "each goal gets its own id");
+    "each goal gets its own id");
 
 const guard = (over: Partial<Parameters<typeof gripperBlockedReason>[0]> = {}) =>
     gripperBlockedReason({
@@ -572,14 +575,14 @@ const guard = (over: Partial<Parameters<typeof gripperBlockedReason>[0]> = {}) =
     });
 
 check(guard() === null, "a connected, idle, in-service gripper may be commanded");
-check(guard({ connected: false }) === "Not connected to the robot.",
-      "no connection blocks the command");
-check(guard({ isInactive: true }) === "The end effector is out of service.",
-      "an out-of-service end effector blocks the command");
-check(guard({ percent: null }) === "No opening is being reported.",
-      "no measurement blocks the command -- without tool voltage the RG6 reports nothing");
-check(guard({ busy: true }) === "The gripper is still moving.",
-      "a moving gripper blocks the command");
+check(guard({connected: false}) === "Not connected to the robot.",
+    "no connection blocks the command");
+check(guard({isInactive: true}) === "The end effector is out of service.",
+    "an out-of-service end effector blocks the command");
+check(guard({percent: null}) === "No opening is being reported.",
+    "no measurement blocks the command -- without tool voltage the RG6 reports nothing");
+check(guard({busy: true}) === "The gripper is still moving.",
+    "a moving gripper blocks the command");
 /*
  * There is no ExternalControl guard any more, and this pins that down so it is
  * not quietly reinstated. It blocked every command while the arm's program ran,
@@ -588,15 +591,15 @@ check(guard({ busy: true }) === "The gripper is still moving.",
  * a200-0553 on 2026-08-19, two goals (154 -> 124 -> 154 mm) left
  * `robot_program_running` true throughout and moved the arm 0.0001 rad.
  */
-check(guard({ busy: false }) === null,
-      "a running arm program no longer blocks the gripper -- the URCap path leaves it alone");
+check(guard({busy: false}) === null,
+    "a running arm program no longer blocks the gripper -- the URCap path leaves it alone");
 
 // Unknown is not permission. `busy: null` means the driver did not say.
-check(guard({ busy: null }) === null, "an unreported busy flag does not block by itself");
+check(guard({busy: null}) === null, "an unreported busy flag does not block by itself");
 
 // The most fundamental obstacle wins, so the operator is told the actionable one.
-check(guard({ connected: false, busy: true }) === "Not connected to the robot.",
-      "the connection is reported before the movement");
+check(guard({connected: false, busy: true}) === "Not connected to the robot.",
+    "the connection is reported before the movement");
 
 check(renderToStaticMarkup(React.createElement(GripperControl, {
     ros: {}, namespace: "/a200_0553", percent: 80, busy: false,
@@ -614,11 +617,11 @@ check(renderToStaticMarkup(React.createElement(GripperControl, {
  * `request`/`response` definitions that current bridges (foxglove_bridge 3.x on
  * this robot) actually send. The client read only the deprecated pair.
  */
-import { serviceSchemaOf } from "../../src/components/../roslib/Impl";
+import {serviceSchemaOf} from "../../src/components/../roslib/Impl";
 
 const nested = {
     id: 1, name: "/rg6_control/close", type: "std_srvs/srv/Trigger",
-    request: { encoding: "cdr", schemaName: "std_srvs/srv/Trigger_Request", schemaEncoding: "ros2msg", schema: "" },
+    request: {encoding: "cdr", schemaName: "std_srvs/srv/Trigger_Request", schemaEncoding: "ros2msg", schema: ""},
     response: {
         encoding: "cdr", schemaName: "std_srvs/srv/Trigger_Response",
         schemaEncoding: "ros2msg", schema: "bool success\nstring message",
@@ -631,13 +634,13 @@ const flat = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 check(serviceSchemaOf(nested as any, "response").schema === "bool success\nstring message",
-      "the nested response definition is read -- this is the shape the robot's bridge sends");
+    "the nested response definition is read -- this is the shape the robot's bridge sends");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 check(serviceSchemaOf(nested as any, "response").schemaEncoding === "ros2msg",
-      "and its schemaEncoding travels with it, not from the channel branch");
+    "and its schemaEncoding travels with it, not from the channel branch");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 check(serviceSchemaOf(flat as any, "response").schema === "bool success\nstring message",
-      "the deprecated flat form still works, so an older bridge keeps functioning");
+    "the deprecated flat form still works, so an older bridge keeps functioning");
 
 // An empty request schema is legitimate: std_srvs/srv/Trigger takes no
 // arguments, so both shapes carry "" and neither may be treated as missing.
@@ -645,14 +648,18 @@ check(serviceSchemaOf(flat as any, "response").schema === "bool success\nstring 
 // nothing, and throw on the one service this feature exists to call.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 check(serviceSchemaOf(nested as any, "request").schema === "",
-      "an empty request schema is a value, not a missing field");
+    "an empty request schema is a value, not a missing field");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 check(serviceSchemaOf(flat as any, "request").schema === "",
-      "same for the deprecated flat form");
+    "same for the deprecated flat form");
 
 let threw = false;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-try { serviceSchemaOf({ id: 3, name: "/x", type: "t" } as any, "request"); } catch { threw = true }
+try {
+    serviceSchemaOf({id: 3, name: "/x", type: "t"} as any, "request");
+} catch {
+    threw = true
+}
 check(threw, "a service advertised with no schema at all fails loudly, naming the service");
 
 
@@ -662,6 +669,6 @@ if (problems.length > 0) {
 }
 
 console.log("components: OK (5 labels, 5 distinct shapes, OK-is-silent rule, timeline blanks-left + " +
-            "no colour on healthy, detail panel empty/override-reason, tree level column + search filter, " +
-            "connecting state moved to app level, manipulator out-of-service dimming reaches its selectors + " +
-            "stripe variants + no stray Label, gripper drawing scales with the measurement, gripper command guards, service schema resolution)");
+    "no color on healthy, detail panel empty/override-reason, tree level column + search filter, " +
+    "connecting state moved to app level, manipulator out-of-service dimming reaches its selectors + " +
+    "stripe variants + no stray Label, gripper drawing scales with the measurement, gripper command guards, service schema resolution)");

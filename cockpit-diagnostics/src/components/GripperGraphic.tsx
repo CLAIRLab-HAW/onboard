@@ -141,8 +141,8 @@ export const GripperGraphic = ({
                 {arm(-1)}
                 {arm(1)}
                 {/*
-                  * A held object is drawn as a shape, not a colour: it fills the
-                  * gap the jaws are holding. Colour on this page means severity,
+                  * A held object is drawn as a shape, not a color: it fills the
+                  * gap the jaws are holding. Color on this page means severity,
                   * and "something is gripped" is not a severity.
                   */}
                 {gripDetected && half > 1 && (

@@ -1,42 +1,42 @@
 @use "page.scss";
 
 .diagnostics-title .pf-v6-c-alert__title, .pf-v6-c-card__title-text, .diagnostics-title.pf-v6-c-title {
-    font-size: var(--pf-t--global--font--size--xl);
-    font-weight: var(--pf-t--global--font--weight--heading--default);
+  font-size: var(--pf-t--global--font--size--xl);
+  font-weight: var(--pf-t--global--font--weight--heading--default);
 }
 
 .diagnostics-title .pf-v6-c-alert__icon {
-    font-size: var(--pf-t--global--font--size--xl);
+  font-size: var(--pf-t--global--font--size--xl);
 }
 
 .pf-v6-c-table thead th {
-    font-size: var(--pf-t--global--font--size--lg);
-    font-weight: var(--pf-t--global--font--weight--body--default);
+  font-size: var(--pf-t--global--font--size--lg);
+  font-weight: var(--pf-t--global--font--weight--body--default);
 }
 
 .diagnostics-table-name {
-    font-size: var(--pf-t--global--font--size--md);
-    font-weight: var(--pf-t--global--font--weight--heading--default);
+  font-size: var(--pf-t--global--font--size--md);
+  font-weight: var(--pf-t--global--font--weight--heading--default);
 }
 
 .diagnostics-no-margin {
-    margin-block-start: 0 !important;
-    margin-block-end: 0 !important;
+  margin-block-start: 0 !important;
+  margin-block-end: 0 !important;
 }
 
 /* Tree controls ----------------------------------------------------------- */
 
 .tree-controls {
-    display: flex;
-    gap: var(--pf-t--global--spacer--sm);
-    align-items: center;
-    margin-block-end: var(--pf-t--global--spacer--md);
-    flex-wrap: wrap;
+  display: flex;
+  gap: var(--pf-t--global--spacer--sm);
+  align-items: center;
+  margin-block-end: var(--pf-t--global--spacer--md);
+  flex-wrap: wrap;
 }
 
 .tree-controls .pf-v6-c-text-input-group {
-    flex: 1;
-    min-inline-size: 12rem;
+  flex: 1;
+  min-inline-size: 12rem;
 }
 
 /*
@@ -55,14 +55,14 @@
  */
 .tree-level,
 .issue-level {
-    --pf-v6-c-table--cell--first-last-child--PaddingInline: var(--pf-t--global--spacer--sm);
+  --pf-v6-c-table--cell--first-last-child--PaddingInline: var(--pf-t--global--spacer--sm);
 
-    padding-inline-start: var(--pf-t--global--spacer--sm);
-    padding-inline-end: var(--pf-t--global--spacer--sm);
+  padding-inline-start: var(--pf-t--global--spacer--sm);
+  padding-inline-end: var(--pf-t--global--spacer--sm);
 }
 
 .pf-v6-c-progress-stepper__step-main {
-    margin-block-start: 0 !important;
+  margin-block-start: 0 !important;
 }
 
 /* Manipulator panel (arm + end effector) */
@@ -73,107 +73,107 @@
  * against "UR5 at ..." and the card read as one undifferentiated block.
  */
 .manipulator-subtitle {
-    color: var(--pf-t--global--text--color--subtle);
-    font-size: var(--pf-t--global--font--size--sm);
-    font-weight: var(--pf-t--global--font--weight--body--default);
-    margin-block-end: var(--pf-t--global--spacer--md);
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+  font-weight: var(--pf-t--global--font--weight--body--default);
+  margin-block-end: var(--pf-t--global--spacer--md);
 }
 
 .manipulator-hint {
-    color: var(--pf-t--global--text--color--subtle);
-    font-size: var(--pf-t--global--font--size--sm);
-    margin-inline-start: var(--pf-t--global--spacer--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+  margin-inline-start: var(--pf-t--global--spacer--xs);
 }
 
 .manipulator-alert {
-    margin-block-end: var(--pf-t--global--spacer--sm);
+  margin-block-end: var(--pf-t--global--spacer--sm);
 }
 
 /*
  * End effector drawing.
  *
- * Ink only -- no status colour anywhere in here. Colour on this page means
+ * Ink only -- no status color anywhere in here. Color on this page means
  * severity, and an opening width is a measurement, not a severity. The whole
  * figure inherits the card's dimming when the gripper is out of service,
  * because a drawing of a jaw position nobody is measuring right now would be
  * the most convincing wrong thing on the page.
  */
 .rg6-figure {
-    margin: 0 0 var(--pf-t--global--spacer--md);
-    text-align: center;
+  margin: 0 0 var(--pf-t--global--spacer--md);
+  text-align: center;
 }
 
 .rg6-graphic {
-    inline-size: 100%;
-    max-inline-size: 15rem;
-    block-size: auto;
-    color: var(--pf-t--global--icon--color--subtle);
+  inline-size: 100%;
+  max-inline-size: 15rem;
+  block-size: auto;
+  color: var(--pf-t--global--icon--color--subtle);
 }
 
 .rg6-body {
-    fill: var(--pf-t--global--background--color--secondary--default);
-    stroke: currentcolor;
-    stroke-width: 2;
+  fill: var(--pf-t--global--background--color--secondary--default);
+  stroke: currentcolor;
+  stroke-width: 2;
 }
 
 .rg6-link {
-    stroke: currentcolor;
-    stroke-width: 5;
-    stroke-linecap: round;
+  stroke: currentcolor;
+  stroke-width: 5;
+  stroke-linecap: round;
 }
 
 .rg6-pad {
-    fill: currentcolor;
-    opacity: 0.45;
+  fill: currentcolor;
+  opacity: 0.45;
 }
 
 .rg6-pivot {
-    fill: var(--pf-t--global--background--color--primary--default);
-    stroke: currentcolor;
-    stroke-width: 2;
+  fill: var(--pf-t--global--background--color--primary--default);
+  stroke: currentcolor;
+  stroke-width: 2;
 }
 
 .rg6-jaw {
-    fill: var(--pf-t--global--background--color--secondary--default);
-    stroke: currentcolor;
-    stroke-width: 2;
+  fill: var(--pf-t--global--background--color--secondary--default);
+  stroke: currentcolor;
+  stroke-width: 2;
 }
 
 /*
- * A held object is a shape, not a colour -- "something is gripped" is not a
- * severity, and colour on this page means severity. A filled block with its
+ * A held object is a shape, not a color -- "something is gripped" is not a
+ * severity, and color on this page means severity. A filled block with its
  * own outline so it reads as an object between the jaws at a glance; at the
  * previous 0.35 flat opacity it was easy to miss in a figure this small.
  */
 .rg6-object {
-    fill: currentcolor;
-    fill-opacity: 0.45;
-    stroke: currentcolor;
-    stroke-width: 1.5;
+  fill: currentcolor;
+  fill-opacity: 0.45;
+  stroke: currentcolor;
+  stroke-width: 1.5;
 }
 
 .rg6-dim {
-    stroke: currentcolor;
-    stroke-width: 1.5;
-    opacity: 0.55;
+  stroke: currentcolor;
+  stroke-width: 1.5;
+  opacity: 0.55;
 }
 
 .rg6-caption {
-    font-size: var(--pf-t--global--font--size--sm);
-    color: var(--pf-t--global--text--color--subtle);
-    font-variant-numeric: tabular-nums;
-    margin-block-start: var(--pf-t--global--spacer--xs);
+  font-size: var(--pf-t--global--font--size--sm);
+  color: var(--pf-t--global--text--color--subtle);
+  font-variant-numeric: tabular-nums;
+  margin-block-start: var(--pf-t--global--spacer--xs);
 }
 
 .manipulator-joints,
 .manipulator-controllers {
-    margin-block-start: var(--pf-t--global--spacer--md);
+  margin-block-start: var(--pf-t--global--spacer--md);
 }
 
 /* Explanation line for an out-of-service subsystem: informative, not alarming. */
 .manipulator-note {
-    color: var(--pf-t--global--text--color--subtle);
-    margin-block-end: var(--pf-t--global--spacer--sm);
+  color: var(--pf-t--global--text--color--subtle);
+  margin-block-end: var(--pf-t--global--spacer--sm);
 }
 
 /*
@@ -184,42 +184,42 @@
 .manipulator-out-of-service .pf-v6-c-description-list,
 .manipulator-out-of-service .pf-v6-c-table,
 .manipulator-out-of-service .rg6-figure {
-    opacity: 0.65;
+  opacity: 0.65;
 }
 
 /* State cards ------------------------------------------------------------- */
 
 .state-card {
-    border: 1px solid var(--pf-t--global--border--color--default);
-    border-inline-start: 3px solid var(--pf-t--global--border--color--default);
-    border-radius: var(--pf-t--global--border--radius--small);
-    padding: var(--pf-t--global--spacer--md);
+  border: 1px solid var(--pf-t--global--border--color--default);
+  border-inline-start: 3px solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  padding: var(--pf-t--global--spacer--md);
 }
 
 .state-card-warn {
-    border-inline-start-color: var(--pf-t--global--color--status--warning--default);
+  border-inline-start-color: var(--pf-t--global--color--status--warning--default);
 }
 
 .state-card-error {
-    border-inline-start-color: var(--pf-t--global--color--status--danger--default);
+  border-inline-start-color: var(--pf-t--global--color--status--danger--default);
 }
 
 .state-card-stale {
-    border-inline-start-color: var(--pf-t--global--color--status--info--default);
+  border-inline-start-color: var(--pf-t--global--color--status--info--default);
 }
 
 .state-card-title {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: var(--pf-t--global--font--size--md);
-    margin: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--pf-t--global--font--size--md);
+  margin: 0;
 }
 
 /* Readings line up so they can be compared down the column. */
 .manipulator-joints td,
 .state-card .pf-v6-c-description-list__description {
-    font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -233,7 +233,7 @@
  * other instead of each card finding its own.
  */
 .state-card .pf-v6-c-description-list {
-    --pf-v6-c-description-list--m-horizontal__term--width: 17ch;
+  --pf-v6-c-description-list--m-horizontal__term--width: 17ch;
 }
 
 /* Status band ------------------------------------------------------------- */
@@ -249,78 +249,78 @@
  * a band at 10 scrolled underneath its own cards.
  */
 .status-band {
-    position: sticky;
-    inset-block-start: 0;
-    z-index: 200;
-    padding: var(--pf-t--global--spacer--md) var(--pf-t--global--spacer--lg) 0;
-    background: var(--pf-t--global--background--color--primary--default);
-    border-block-end: 1px solid var(--pf-t--global--border--color--default);
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 200;
+  padding: var(--pf-t--global--spacer--md) var(--pf-t--global--spacer--lg) 0;
+  background: var(--pf-t--global--background--color--primary--default);
+  border-block-end: 1px solid var(--pf-t--global--border--color--default);
 }
 
 .status-headline {
-    font-size: var(--pf-t--global--font--size--lg);
-    font-weight: var(--pf-t--global--font--weight--heading--default);
-    margin: 0;
+  font-size: var(--pf-t--global--font--size--lg);
+  font-weight: var(--pf-t--global--font--weight--heading--default);
+  margin: 0;
 }
 
 .status-headline-state {
-    font-weight: var(--pf-t--global--font--weight--body--default);
+  font-weight: var(--pf-t--global--font--weight--body--default);
 }
 
 .status-facts {
-    color: var(--pf-t--global--text--color--subtle);
-    font-size: var(--pf-t--global--font--size--sm);
-    margin-block-start: var(--pf-t--global--spacer--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+  margin-block-start: var(--pf-t--global--spacer--xs);
 }
 
 .status-kpi {
-    text-align: end;
-    min-inline-size: 3.5rem;
+  text-align: end;
+  min-inline-size: 3.5rem;
 }
 
 .status-kpi-value {
-    display: block;
-    font-size: var(--pf-t--global--font--size--2xl);
-    font-weight: var(--pf-t--global--font--weight--body--default);
-    line-height: 1.15;
-    font-variant-numeric: tabular-nums;
-    opacity: 0.85;
+  display: block;
+  font-size: var(--pf-t--global--font--size--2xl);
+  font-weight: var(--pf-t--global--font--weight--body--default);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 /* Only a counter that is not zero earns emphasis. */
 .status-kpi-hit {
-    opacity: 1;
-    font-weight: var(--pf-t--global--font--weight--heading--default);
+  opacity: 1;
+  font-weight: var(--pf-t--global--font--weight--heading--default);
 }
 
 .status-kpi-label {
-    font-size: var(--pf-t--global--font--size--xs);
-    color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
 }
 
 /* An out-of-service subsystem is not a fault; its symbol must not shout. */
 .severity-icon-inactive {
-    color: var(--pf-t--global--icon--color--subtle);
+  color: var(--pf-t--global--icon--color--subtle);
 }
 
 /* Timeline ---------------------------------------------------------------- */
 
 .timeline {
-    padding-block: var(--pf-t--global--spacer--sm) var(--pf-t--global--spacer--md);
+  padding-block: var(--pf-t--global--spacer--sm) var(--pf-t--global--spacer--md);
 }
 
 .timeline-band {
-    display: flex;
-    gap: 2px;
-    block-size: 0.625rem;
+  display: flex;
+  gap: 2px;
+  block-size: 0.625rem;
 }
 
 .timeline-slot {
-    flex: 1;
-    border: none;
-    border-radius: 1px;
-    padding: 0;
-    background: var(--pf-t--global--color--nonstatus--gray--default);
+  flex: 1;
+  border: none;
+  border-radius: 1px;
+  padding: 0;
+  background: var(--pf-t--global--color--nonstatus--gray--default);
 }
 
 /*
@@ -330,76 +330,76 @@
  * replaced set this inline.
  */
 button.timeline-slot {
-    cursor: pointer;
+  cursor: pointer;
 }
 
 .timeline-slot-empty {
-    opacity: 0.25;
+  opacity: 0.25;
 }
 
 .timeline-slot-ok {
-    opacity: 0.55;
+  opacity: 0.55;
 }
 
 .timeline-slot-warn {
-    background: var(--pf-t--global--color--status--warning--default);
+  background: var(--pf-t--global--color--status--warning--default);
 }
 
 .timeline-slot-error {
-    background: var(--pf-t--global--color--status--danger--default);
+  background: var(--pf-t--global--color--status--danger--default);
 }
 
 .timeline-slot-stale {
-    background: var(--pf-t--global--color--status--info--default);
+  background: var(--pf-t--global--color--status--info--default);
 }
 
 .timeline-slot-selected {
-    outline: 1px solid var(--pf-t--global--border--color--default);
-    outline-offset: 1px;
+  outline: 1px solid var(--pf-t--global--border--color--default);
+  outline-offset: 1px;
 }
 
 .timeline-legend {
-    display: flex;
-    justify-content: space-between;
-    font-size: var(--pf-t--global--font--size--xs);
-    color: var(--pf-t--global--text--color--subtle);
-    margin-block-start: var(--pf-t--global--spacer--xs);
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  margin-block-start: var(--pf-t--global--spacer--xs);
 }
 
 /* Issue list -------------------------------------------------------------- */
 
 .issue-empty {
-    color: var(--pf-t--global--text--color--subtle);
-    padding-block: var(--pf-t--global--spacer--sm);
+  color: var(--pf-t--global--text--color--subtle);
+  padding-block: var(--pf-t--global--spacer--sm);
 }
 
 .issue-path {
-    font-size: var(--pf-t--global--font--size--xs);
-    color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
 }
 
 /* Detail panel ------------------------------------------------------------ */
 
 .detail-path {
-    font-size: var(--pf-t--global--font--size--xs);
-    color: var(--pf-t--global--text--color--subtle);
-    margin-block-end: var(--pf-t--global--spacer--sm);
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  margin-block-end: var(--pf-t--global--spacer--sm);
 }
 
 .detail-message {
-    background: var(--pf-t--global--background--color--secondary--default);
-    border-radius: var(--pf-t--global--border--radius--small);
-    padding: var(--pf-t--global--spacer--sm);
-    margin-block-end: var(--pf-t--global--spacer--md);
+  background: var(--pf-t--global--background--color--secondary--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  padding: var(--pf-t--global--spacer--sm);
+  margin-block-end: var(--pf-t--global--spacer--md);
 }
 
 .detail-values-title {
-    margin-block-start: var(--pf-t--global--spacer--md);
-    margin-block-end: var(--pf-t--global--spacer--sm);
+  margin-block-start: var(--pf-t--global--spacer--md);
+  margin-block-end: var(--pf-t--global--spacer--sm);
 }
 
 .detail-values .pf-v6-c-description-list__description {
-    font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -421,18 +421,18 @@ button.timeline-slot {
  * width.
  */
 @media (width <= 1200px) {
-    .pf-v6-c-drawer__panel {
-        --pf-v6-c-drawer__panel--FlexBasis: 100%;
-    }
+  .pf-v6-c-drawer__panel {
+    --pf-v6-c-drawer__panel--FlexBasis: 100%;
+  }
 }
 
 /* Workspace --------------------------------------------------------------- */
 
 .workspace {
-    display: grid;
-    grid-template-columns: 1.05fr 1fr;
-    gap: var(--pf-t--global--spacer--lg);
-    align-items: start;
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: var(--pf-t--global--spacer--lg);
+  align-items: start;
 }
 
 /*
@@ -443,10 +443,10 @@ button.timeline-slot {
  */
 .workspace-primary,
 .workspace-secondary {
-    display: flex;
-    flex-direction: column;
-    gap: var(--pf-t--global--spacer--lg);
-    min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pf-t--global--spacer--lg);
+  min-inline-size: 0;
 }
 
 
@@ -455,16 +455,16 @@ button.timeline-slot {
  * need room for a name plus a path. Stack them, order unchanged.
  */
 @media (width <= 1200px) {
-    .workspace {
-        grid-template-columns: 1fr;
-    }
+  .workspace {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* End effector control ---------------------------------------------------- */
 
 .rg6-control {
-    margin-block-end: var(--pf-t--global--spacer--md);
-    text-align: center;
+  margin-block-end: var(--pf-t--global--spacer--md);
+  text-align: center;
 }
 
 /*
@@ -473,38 +473,38 @@ button.timeline-slot {
  * to act on -- the arm is under external control, the gripper is still moving.
  */
 .rg6-control-reason {
-    font-size: var(--pf-t--global--font--size--sm);
-    color: var(--pf-t--global--text--color--subtle);
-    margin-block-start: var(--pf-t--global--spacer--xs);
+  font-size: var(--pf-t--global--font--size--sm);
+  color: var(--pf-t--global--text--color--subtle);
+  margin-block-start: var(--pf-t--global--spacer--xs);
 }
 
 .rg6-control-failure {
-    margin-block-start: var(--pf-t--global--spacer--sm);
-    text-align: start;
+  margin-block-start: var(--pf-t--global--spacer--sm);
+  text-align: start;
 }
 
 /* End effector: readings beside the drawing ------------------------------- */
 
 .rg6-layout {
-    display: flex;
-    gap: var(--pf-t--global--spacer--lg);
-    align-items: flex-start;
-    flex-wrap: wrap;
+  display: flex;
+  gap: var(--pf-t--global--spacer--lg);
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .rg6-readings {
-    flex: 1 1 14rem;
-    min-inline-size: 0;
+  flex: 1 1 14rem;
+  min-inline-size: 0;
 }
 
 .rg6-visual {
-    flex: 0 1 15rem;
-    min-inline-size: 0;
+  flex: 0 1 15rem;
+  min-inline-size: 0;
 }
 
 /* Beside the readings the figure no longer needs a gap under it. */
 .rg6-visual .rg6-figure {
-    margin-block-end: var(--pf-t--global--spacer--sm);
+  margin-block-end: var(--pf-t--global--spacer--sm);
 }
 
 /*
@@ -517,7 +517,7 @@ button.timeline-slot {
  * pull puts it back -- measured at 0px offset on every row.
  */
 .workspace-secondary .pf-v6-c-table__toggle {
-    align-self: center;
+  align-self: center;
 }
 
 /*
@@ -529,7 +529,7 @@ button.timeline-slot {
  * a shorter one loses on specificity: this needs to beat three classes.
  */
 .workspace-secondary .pf-v6-c-table__tree-view-main > .pf-v6-c-table__toggle .pf-v6-c-button {
-    margin-block-start: 0;
+  margin-block-start: 0;
 }
 
 /*
@@ -541,7 +541,7 @@ button.timeline-slot {
  * at -1px after this, which is rounding.
  */
 .workspace-secondary tbody td {
-    vertical-align: middle;
+  vertical-align: middle;
 }
 
 /*
@@ -553,7 +553,7 @@ button.timeline-slot {
  * right would just be a stray gap.
  */
 .pf-v6-c-drawer.pf-m-expanded > .pf-v6-c-drawer__main > .pf-v6-c-drawer__content {
-    padding-inline-end: var(--pf-t--global--spacer--lg);
+  padding-inline-end: var(--pf-t--global--spacer--lg);
 }
 
 /*
@@ -567,9 +567,9 @@ button.timeline-slot {
  * name column needs the most room.
  */
 .diagnostics-tree {
-    table-layout: fixed;
+  table-layout: fixed;
 }
 
 .diagnostics-tree .tree-level {
-    inline-size: 2.25rem;
+  inline-size: 2.25rem;
 }
