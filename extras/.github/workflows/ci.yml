@@ -38,7 +38,7 @@ jobs:
 
       # CLAIRLAB_READ_TOKEN, not GITHUB_TOKEN: the default token is scoped to the repository the workflow runs in,
       # so against another PRIVATE repo of the same org the API answers "Not Found" rather than 403 -- it does not
-      # confirm the repo exists. The org secret is the same one robot-contract, plan-bridge, skill-tree, husky-sdk,
+      # confirm the repo exists. The org secret is the same one robot-contract, plan-bridge, skill-tree, robot-sdk,
       # onrobot-rg6, husky-custom-setup and husky-offboard use for their private siblings.
       - uses: actions/checkout@v5
         with:
