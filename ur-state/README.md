@@ -266,7 +266,7 @@ workspace formats with black and runs no other linter.
 
 - [husky-custom-setup](../husky-custom-setup/README.md) — the installer that
   ships this as `clearpath-custom-ur-state-manager`
-- [plan-bridge](../../sdk/plan-bridge/README.md) — translates `/twin/arm_cmd`
+- [plan-bridge](../../robot/motion-server/README.md) — translates `/twin/arm_cmd`
   into these services
 
 ## Versioning
