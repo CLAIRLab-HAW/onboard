@@ -351,7 +351,7 @@ sensors:
 #  # launch_enabled: false is therefore MANDATORY, not taste: otherwise Clearpath
 #  # starts the velodyne_driver_node against a device that is not a Velodyne --
 #  # the packet formats of the RS16 and the VLP16 are not compatible.  The driver
-#  # is rslidar_sdk and is started by robot/husky-navigation (configuration:
+#  # is rslidar_sdk and is started by onboard/husky-navigation (configuration:
 #  # config/rslidar_rs16.yaml, the same file for container and robot).  For the
 #  # same reason there is no ros_parameters block here.
 #  #

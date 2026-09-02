@@ -460,8 +460,8 @@ verify_deployments() {
     # behind the checkout (8252 B against 9534 B) and nothing said so -- the
     # page looked installed and was old (ROBOTER-TODO archive, R28).
     #
-    # The first candidate covers the workspace layout (robot/husky-custom-setup
-    # next to robot/cockpit-robot-tools), the second the robot, where the
+    # The first candidate covers the workspace layout (onboard/husky-custom-setup
+    # next to onboard/cockpit-robot-tools), the second the robot, where the
     # installer sits in ~/husky-custom-setup and both paths coincide.
     local crt_src="" crt_files="" crt_bad="" f
     for candidate in "$(dirname "$0")/../cockpit-robot-tools" "$CRT_WS"; do

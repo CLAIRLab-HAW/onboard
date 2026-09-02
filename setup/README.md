@@ -225,7 +225,7 @@ Three building blocks close the gap, all from the installer (optional steps):
 
 3. **Cockpit plugin fork**
    ([`CLAIRLab-HAW/cockpit-ros2-diagnostics`](https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics), locally
-   `robot/cockpit-ros2-diagnostics`): in addition to the generic tree, a **manipulator panel** (arm card with
+   `onboard/cockpit-ros2-diagnostics`): in addition to the generic tree, a **manipulator panel** (arm card with
    mode/safety/ExternalControl/motion-link badges, joint table and controller chips; gripper card with an opening bar,
    `grip_detected`, tool power, last command). The panel reads the same
    `diagnostics_agg` stream the extension subscribes to anyway — no extra topic subscription, so pause, history and
@@ -397,7 +397,7 @@ Off the robot both find no `/opt/ros/*/share` to work in and say so; point
 Its own suite runs from the workspace root, without a robot and without ROS:
 
 ```bash
-uv run pytest robot/husky-custom-setup/tests
+uv run pytest onboard/husky-custom-setup/tests
 ```
 
 The installer runs the same self-test resp. dry run before deploying a file, and discards a source that does not even
