@@ -14,8 +14,8 @@ requires-python = ">=3.12"
 dependencies = ["pyyaml>=6.0"]
 
 # Test-only, hence a group and not `dependencies`: this package runs onboard the robot, where neither the
-# contract nor a lock file is wanted.  `robot-contract[testing]` brings `filelock` along -- until 2026-08-24
-# the conftest imported it without anyone declaring it anywhere, which worked by transitive accident.
+# contract nor a lock file is wanted.  `robot-contract[testing]` brings `filelock` along -- the conftest
+# used to import it without anyone declaring it anywhere, which worked by transitive accident.
 [dependency-groups]
 dev = ["robot-contract[testing]"]
 
@@ -26,8 +26,8 @@ robot-contract = { workspace = true }
 where = ["src"]
 
 [tool.ruff]
-# Black ran until 2026-08-26 (no formatter before 2026-08-24); ruff format is compatible enough that the
-# 2026-08-30 switch is one reflow commit per repo, not a rewrite. Mirrors the workspace root ([tool.ruff] there),
+# ruff format is compatible enough with the black it replaced that the switch cost one reflow commit per
+# repo, not a rewrite. Mirrors the workspace root ([tool.ruff] there),
 # so formatting this repo on its own gives the same result as from the workspace.
 line-length = 120
 # Spelled out rather than inferred from `project.requires-python`: the virtual workspace root carries no
