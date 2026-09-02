@@ -50,7 +50,7 @@ def test_the_bridge_imports_nothing_the_robot_does_not_have():
         for line in BRIDGE.read_text(encoding="utf-8").splitlines()
         if line.startswith(("import ", "from ")) and not line.startswith("from __future__")
     ]
-    forbidden = {"robot_contract", "plan_bridge", "husky_sdk", "clearlog", "numpy", "yaml"}
+    forbidden = {"robot_contract", "plan_bridge", "robot_sdk", "clearlog", "numpy", "yaml"}
     assert not forbidden.intersection(imports), f"module-level imports the robot has no packages for: {imports}"
 
 
