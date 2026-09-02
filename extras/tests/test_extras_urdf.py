@@ -47,7 +47,9 @@ def _sibling(relpath: str) -> Path:
         pytest.skip("not inside the clearpath workspace (no workspace.repos above this repo)")
     path = root / relpath
     if not path.is_file():
-        pytest.fail(f"{relpath} is missing although the workspace root {root} is right there -- vcs import, or the file moved.")
+        pytest.fail(
+            f"{relpath} is missing although the workspace root {root} is right there -- vcs import, or the file moved."
+        )
     return path
 
 
@@ -72,7 +74,7 @@ def test_every_mesh_uri_names_a_file_this_package_ships(extras_text):
 
 def test_the_gripper_macro_is_included_from_the_package_that_owns_it(extras_text):
     """The one cross-package dependency, and it must run this way round: assembly includes component."""
-    assert '$(find rg6_description)/urdf/onrobot_rg_upstream.urdf.xacro' in extras_text
+    assert "$(find rg6_description)/urdf/onrobot_rg_upstream.urdf.xacro" in extras_text
     manifest = (REPO / "src" / PACKAGE / "package.xml").read_text(encoding="utf-8")
     assert "<exec_depend>rg6_description</exec_depend>" in manifest, (
         "the include is there but the dependency is not declared -- colcon and rosdep cannot see it"
@@ -105,7 +107,7 @@ def test_robot_yaml_addresses_this_file_and_sources_this_workspace():
     """The SSOT in husky-custom-setup, and the seam this move actually turns on."""
     import yaml
 
-    robot_yaml = yaml.safe_load(_sibling("robot/husky-custom-setup/config/robot.yaml").read_text(encoding="utf-8"))
+    robot_yaml = yaml.safe_load(_sibling("onboard/husky-custom-setup/config/robot.yaml").read_text(encoding="utf-8"))
     assert robot_yaml["platform"]["extras"]["urdf"]["path"] == ROBOT_EXTRAS_PATH
     workspaces = robot_yaml["system"]["ros2"]["workspaces"]
     assert ROBOT_WORKSPACE in workspaces, (

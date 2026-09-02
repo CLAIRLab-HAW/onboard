@@ -81,7 +81,7 @@ python3 ../onrobot-rg6/tools/derive_link_inertia.py --box-link \
 ## Running Tests
 
 ```bash
-uv run pytest robot/husky-extras/tests
+uv run pytest onboard/husky-extras/tests
 ```
 
 Ten checks, from the workspace root and without ROS: that the file is
