@@ -37,7 +37,7 @@ def sibling(relpath: str) -> Path:
 
     Once a workspace IS found, a missing file FAILS instead.  The difference matters most in CI, which is the one
     place where the checkouts are scripted: a mistyped path there would turn every cross-repo comparison into a skip
-    and report green having compared nothing.  Same rule as ``libs/clearlog``'s shell-parity test, and the same
+    and report green having compared nothing.  Same rule as ``log/console``'s shell-parity test, and the same
     reasoning as ``robot-contract``'s ``test_ssot_parity.py`` -- a parity guard that stops guarding without a word is
     worse than one that is absent.
     """
