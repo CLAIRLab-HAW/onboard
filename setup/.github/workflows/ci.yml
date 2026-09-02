@@ -35,7 +35,7 @@ jobs:
       # workspace root, so a checkout anywhere else would not find it.
       - uses: actions/checkout@v5
         with:
-          path: onboard/husky-custom-setup
+          path: onboard/setup
 
       # CLAIRLAB_READ_TOKEN, not GITHUB_TOKEN: the default token is scoped to the repository the workflow runs in,
       # so against another PRIVATE repo of the same org the API answers "Not Found" rather than 403 -- it does not
@@ -62,15 +62,15 @@ jobs:
 
       # The scripts import rclpy and the OnRobot XML-RPC endpoint, so they cannot be imported here -- E9/F63/F7/F82
       # are the checks that read the file rather than run it.
-      - run: cd onboard/husky-custom-setup && ruff check --select E9,F63,F7,F82 .
+      - run: cd onboard/setup && ruff check --select E9,F63,F7,F82 .
 
       - name: bash -n
-        working-directory: onboard/husky-custom-setup
+        working-directory: onboard/setup
         run: find . -name '*.sh' -print0 | xargs -0 -n1 bash -n
 
       # This repo's own suite: the physics patcher against copies of the real upstream files.
       - name: own tests
-        working-directory: onboard/husky-custom-setup
+        working-directory: onboard/setup
         run: python -m pytest tests -q
 
       # test_gripper_linkage.py is NOT run here any more: it compares the profile against a table that lives in

@@ -107,7 +107,7 @@ def test_robot_yaml_addresses_this_file_and_sources_this_workspace():
     """The SSOT in husky-custom-setup, and the seam this move actually turns on."""
     import yaml
 
-    robot_yaml = yaml.safe_load(_sibling("onboard/husky-custom-setup/config/robot.yaml").read_text(encoding="utf-8"))
+    robot_yaml = yaml.safe_load(_sibling("onboard/setup/config/robot.yaml").read_text(encoding="utf-8"))
     assert robot_yaml["platform"]["extras"]["urdf"]["path"] == ROBOT_EXTRAS_PATH
     workspaces = robot_yaml["system"]["ros2"]["workspaces"]
     assert ROBOT_WORKSPACE in workspaces, (

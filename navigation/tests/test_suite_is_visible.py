@@ -23,7 +23,7 @@ def _config() -> dict:
 def test_the_root_run_descends_into_onboard():
     norecurse = _config()["tool"]["pytest"]["ini_options"]["norecursedirs"]
     assert "onboard" not in norecurse, (
-        "norecursedirs excludes 'onboard' -- onboard/husky-navigation/tests is "
+        "norecursedirs excludes 'onboard' -- onboard/navigation/tests is "
         "then NOT collected in the root run, and silently at that."
     )
 
@@ -44,7 +44,7 @@ def test_the_default_run_deselects_nav_e2e():
 
 def test_this_package_is_a_workspace_member():
     members = _config()["tool"]["uv"]["workspace"]["members"]
-    assert "onboard/husky-navigation" in members, (
+    assert "onboard/navigation" in members, (
         "Without a member entry `uv sync` does not resolve the package and "
         "`import husky_navigation` fails in every test."
     )

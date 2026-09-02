@@ -277,7 +277,7 @@ they *fail* when a sibling is missing, rather than skipping: that is the case CI
 scripts, and a guard that stops guarding without a word is worse than none.
 
 ```bash
-uv run pytest onboard/onrobot-rg6        # from the workspace root
+uv run pytest onboard/rg6        # from the workspace root
 ```
 
 They also come along in the plain root run (`uv run pytest`), which collects

@@ -122,7 +122,7 @@ exactly as it lies here — on the robot it needs neither node nor npm.
 
 ```bash
 # from the workstation:
-rsync -a onboard/cockpit-robot-tools/ robot@10.42.42.159:~/cockpit-robot-tools/
+rsync -a onboard/cockpit-tools/ robot@10.42.42.159:~/cockpit-robot-tools/
 ssh robot@10.42.42.159 'sudo ~/cockpit-robot-tools/install.sh'
 ```
 

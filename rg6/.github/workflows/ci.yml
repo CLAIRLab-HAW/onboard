@@ -35,7 +35,7 @@ jobs:
       # relative to the workspace root, so a checkout anywhere else would not find them.
       - uses: actions/checkout@v5
         with:
-          path: onboard/onrobot-rg6
+          path: onboard/rg6
 
       # CLAIRLAB_READ_TOKEN, not GITHUB_TOKEN: the default token is scoped to the repository the workflow runs in,
       # so against another PRIVATE repo of the same org the API answers "Not Found" rather than 403 -- it does not
@@ -63,5 +63,5 @@ jobs:
       - run: pip install numpy pyyaml pytest 'ruff>=0.16.5,<0.17'
       - run: pip install ./robot/contract
 
-      - run: cd onboard/onrobot-rg6 && ruff check --select E9,F63,F7,F82 .
-      - run: cd onboard/onrobot-rg6 && python -m pytest tests -q
+      - run: cd onboard/rg6 && ruff check --select E9,F63,F7,F82 .
+      - run: cd onboard/rg6 && python -m pytest tests -q

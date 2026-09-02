@@ -253,7 +253,7 @@ next one comes on. They live in `readiness.py` and `switching.py`, which import 
 machine:
 
 ```bash
-uv run pytest onboard/ur-state-manager        # from the workspace root
+uv run pytest onboard/ur-state        # from the workspace root
 ```
 
 They also come along in the plain root run (`uv run pytest`), which collects them by path — this package is not a

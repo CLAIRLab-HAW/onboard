@@ -34,7 +34,7 @@ jobs:
       # workspace root, so a checkout anywhere else would not find it.
       - uses: actions/checkout@v5
         with:
-          path: onboard/husky-extras
+          path: onboard/extras
 
       # CLAIRLAB_READ_TOKEN, not GITHUB_TOKEN: the default token is scoped to the repository the workflow runs in,
       # so against another PRIVATE repo of the same org the API answers "Not Found" rather than 403 -- it does not
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           repository: CLAIRLab-HAW/husky-custom-setup
-          path: onboard/husky-custom-setup
+          path: onboard/setup
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
 
       # Root-finder marker, and it is load-bearing rather than cosmetic: the robot.yaml check walks up for
@@ -59,8 +59,8 @@ jobs:
       # install lets a ruff release stabilise new rules and turn this CI red with no commit.
       - run: pip install pytest pyyaml 'ruff>=0.16.5,<0.17'
 
-      - run: cd onboard/husky-extras && ruff check --select E9,F63,F7,F82 .
+      - run: cd onboard/extras && ruff check --select E9,F63,F7,F82 .
 
       - name: own tests
-        working-directory: onboard/husky-extras
+        working-directory: onboard/extras
         run: python -m pytest tests -q
