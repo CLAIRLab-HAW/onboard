@@ -1,0 +1,11 @@
+{
+    "name": "cockpit-robot-tools",
+    "version": "0.1.1",
+    "description": "Cockpit page for recurring manual steps on the robot (offboard-lite container, VNC)",
+    "type": "module",
+    "private": true,
+    "license": "LGPL-2.1",
+    "scripts": {
+        "test": "node --test test/*.test.mjs"
+    }
+}

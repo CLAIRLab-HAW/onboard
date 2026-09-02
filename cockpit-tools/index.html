@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+    <title>Robot tools</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Before the first paint and blocking: otherwise the page flashes bright
+         before the theme is settled. See the head of theme.js. -->
+    <script src="theme.js"></script>
+    <script src="../base1/cockpit.js"></script>
+    <script type="module" src="index.js"></script>
+</head>
+<body>
+    <!-- <main> is the tub that cockpit-ros2-diagnostics calls
+         .pf-v6-c-page__main-container: light ground, rounded corners, the page
+         ground beside it left and right. See style.css. -->
+    <main class="page">
+        <h1>Robot tools</h1>
+
+        <section class="card">
+            <header class="card-head">
+                <h2>Offboard lite</h2>
+                <p class="sub">RViz + MoveIt client against this robot's <code>move_group</code>.
+                   Container <code id="container-name">—</code>.</p>
+                <p class="sub" id="container-extra" hidden></p>
+            </header>
+
+            <div class="status-row">
+                <span id="ball" class="ball" role="img" aria-label="Status"></span>
+                <span id="status-label" class="status-label">checking…</span>
+                <span class="spacer"></span>
+                <button id="btn-start" type="button" class="btn btn-primary" disabled>Start</button>
+                <button id="btn-stop" type="button" class="btn" disabled>Stop</button>
+            </div>
+
+            <p id="status-detail" class="detail" hidden></p>
+        </section>
+
+        <section class="card">
+            <header class="card-head">
+                <h2>Watch over VNC</h2>
+            </header>
+
+            <div class="vnc-row">
+                <a id="vnc-link" class="vnc-url" href="#"><code id="vnc-url-text">vnc://…:5900</code></a>
+                <button id="btn-copy" type="button" class="btn">Copy address</button>
+                <span id="copy-note" class="copy-note" hidden>copied</span>
+            </div>
+
+            <p id="vnc-diagnose" class="detail detail-error" hidden></p>
+
+            <ul class="hints">
+                <li>On a Mac: open the address in <em>Screen Sharing</em>, or in the terminal
+                    <code id="open-cmd">open vnc://…:5900</code>. Other systems: the same address
+                    in a VNC viewer (Remmina, TigerVNC, RealVNC).</li>
+                <li id="hint-password"><strong>The viewer asks for a password.</strong> It is the
+                    container's <code>VNC_PASSWORD</code>, default <code>husky</code>
+                    (VNC passwords are limited to 8 characters by the protocol). The browser route
+                    over noVNC does not ask for it.</li>
+                <li><strong>RViz comes up with the container</strong>
+                    (<code>RVIZ_AUTOSTART=1</code>) — so after the start, simply watch.
+                    Closing the RViz window leaves the container up; in the
+                    <code>xterm</code>, <code>moveit-rviz</code> starts it again.</li>
+                <li class="warn"><strong>Execute moves the real arm.</strong> To only look, stop at
+                    <em>Plan</em>, and clear the workspace beforehand.</li>
+                <li class="warn">With host networking this desktop sits directly on the robot's IP,
+                    and from inside it the arm can be operated. The 8-character password
+                    is a hurdle, not a protection — start it only in a trusted network and
+                    stop it again afterwards.</li>
+            </ul>
+        </section>
+    </main>
+</body>
+</html>

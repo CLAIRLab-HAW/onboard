@@ -1,0 +1,29 @@
+# CI: node --check (hard errors only) + the package's own `npm test`. Standalone -- the package has no
+# dependencies at all (package.json declares none), so there is no install step and nothing is fetched
+# from npm.
+#
+# `node --check` is the JavaScript counterpart of the ruff hard-error gate the Python repos of this
+# workspace run: it parses every file and reports syntax errors only, without a linter config to keep in
+# step. `bash -n` does the same for the two shell scripts.
+#
+# `npm test` is `node --test test/*.test.mjs` -- 43 tests of the pure state mapping in status.js, without
+# a browser, without Cockpit, without Docker (2026-08-25 measured: 43 passed, 0 failed). Node 22 is the
+# LTS line; the tests use nothing beyond node:test and node:assert/strict, stable since Node 20.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: for f in *.js test/*.mjs test/preview/base1/*.js; do node --check "$f"; done
+      # `bash -n a b` checks only `a` -- the rest become the script's arguments (2026-08-25 measured).
+      - run: for f in install.sh test/preview/serve.sh; do bash -n "$f"; done
+      - run: npm test

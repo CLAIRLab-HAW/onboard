@@ -1,0 +1,352 @@
+/* Our own, terse CSS instead of PatternFly: this package is not built but
+   copied to /usr/local/share/cockpit exactly as it lies here. It should not
+   stand out beside Cockpit, but must not drag a library along either.
+
+   "Not stand out" means concretely: to be able to stand beside
+   cockpit-ros2-diagnostics, which brings real PatternFly 6. The numbers below
+   are therefore not estimates but PF 6 values measured against that package's
+   built index.css on 2026-08-24 -- the PF token name stands beside each one, so
+   they can be followed up later.
+
+   All measures in rem. PF 6 does the same; the root size belongs to the
+   viewer's browser, and a fixed px here would be exactly the deviation one
+   sees beside the neighbouring page. (For conversion: the notes in CLAUDE.md
+   reckon with a 12px root, where 1.5rem = 18px.) */
+
+/* --- colors ------------------------------------------------------------ */
+
+/* Light is the normal case and therefore stands on :root. Dark does NOT hang
+   on `prefers-color-scheme` but on the class theme.js sets -- Cockpit's choice
+   beats the operating system's, and only that way does this page stay light
+   when the shell is light. */
+:root {
+    --bg-page: #f2f2f2; /* background--color--secondary--default */
+    --bg-panel: #ffffff; /* background--color--primary--default   */
+    --fg: #151515; /* text--color--regular                  */
+    --muted: #4d4d4d; /* text--color--subtle                   */
+    --line: #c7c7c7; /* border--color--default                */
+    --accent: #0066cc; /* color--brand--default                 */
+    --accent-fg: #ffffff; /* text--color--on-brand--default        */
+    --link: #0066cc; /* text--color--link--default            */
+    --btn: #f2f2f2; /* background--color--secondary--default */
+    --warn: #dca614; /* text--color--status--warning--default */
+    --err: #b1380b; /* text--color--status--danger--default  */
+
+    --green: #3d7317; /* color--status--success--default       */
+    --grey: #e0e0e0; /* color--nonstatus--gray--default       */
+    --yellow: #dca614; /* icon--color--status--warning--default */
+    --red: #b1380b; /* icon--color--status--danger--default  */
+
+    /* Spacings are rem in PF and grow with the font. The 1.5rem is
+       `spacer--inset--page-chrome` and determines both the tub's distance from
+       the edge and its inner padding. */
+    --sp-xs: 0.25rem; /* spacer--xs  */
+    --sp-sm: 0.5rem; /* spacer--sm  */
+    --sp-md: 1rem; /* spacer--md  */
+    --sp-lg: 1.5rem; /* spacer--lg  */
+
+    /* Radii, by contrast, are ABSOLUTE in PF, and that is no oversight: a
+       corner is a corner, however large the font stands. A `1rem` here was, on
+       2026-08-24 in a browser with a 12px root, a 12px corner beside the
+       neighbouring page's 16px corner -- the same break again, only smaller. */
+    --radius-box: 16px; /* border--radius--medium */
+    --radius-small: 6px; /* border--radius--small  */
+    --radius-pill: 999px; /* border--radius--pill   */
+}
+
+.pf-v6-theme-dark {
+    --bg-page: #151515;
+    --bg-panel: #292929;
+    --fg: #ffffff;
+    --muted: #c7c7c7;
+    --line: #a3a3a3;
+    --accent: #92c5f9;
+    --accent-fg: #151515;
+    --link: #b9dafc;
+    --btn: #383838; /* background--color--control--default */
+    --warn: #ffcc17;
+    --err: #f89b78;
+
+    --green: #87bb62;
+    --grey: #4d4d4d;
+    --yellow: #ffcc17;
+    --red: #f0561d;
+}
+
+* {
+    box-sizing: border-box
+}
+
+/* --- root --------------------------------------------------------------- */
+
+/* The build-up is that of PF's `.pf-v6-c-page`: the page ground fills the
+   frame, and on it sits ONE light tub with rounded corners that hugs the top
+   and grows only as tall as its content. `align-content: start` is the
+   counterpart to PF's `align-self: start` on the tub. */
+html {
+    block-size: 100%;
+    background: var(--bg-page);
+}
+
+body {
+    /* One row, and namely `1fr` instead of `auto`: the tub below hangs its
+       height limit on a percentage, and that needs a fixed reference height.
+       With `auto` the row is measured by the content and the percentage by the
+       row -- Chrome resolved that on 2026-08-24 by making the tub 18px too
+       short and giving it a scrollbar, although everything fitted. */
+    display: grid;
+    grid-template-rows: 1fr;
+    block-size: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: var(--bg-page);
+    color: var(--fg);
+    /* The families are PF's stack; Cockpit serves the Red Hat fonts itself,
+       which is why they take here without a @font-face of our own. */
+    font-family: "Red Hat Text", "RedHatText", Helvetica, Arial, sans-serif;
+    font-size: 0.875rem; /* font--size--body--default */
+    line-height: 1.5; /* font--line-height--body   */
+}
+
+/*
+ * The tub.
+ *
+ * Measured against cockpit-ros2-diagnostics: ground `primary`, radius
+ * `border--radius--medium`, `spacer--inset--page-chrome` of distance left and
+ * right, flush at the top, the same air below as at the sides -- hence the
+ * height limit instead of a margin, since a margin would push the tub down
+ * rather than pull its end up.
+ *
+ * PF arrives at the same inner padding over a 4px border IN the color of the
+ * ground plus 14px of section padding. What is rebuilt is the result, not the
+ * detour: 1.5rem at the sides, 1rem at the top.
+ *
+ * It scrolls itself (`overflow-y`), so that the rounded corners stay at the
+ * frame edge even with long content -- just like next door.
+ */
+.page {
+    align-self: start;
+    max-block-size: calc(100% - var(--sp-lg));
+    overflow-x: hidden;
+    overflow-y: auto;
+    margin-inline: var(--sp-lg);
+    padding: var(--sp-md) var(--sp-lg) var(--sp-lg);
+    background: var(--bg-panel);
+    border-radius: var(--radius-box);
+}
+
+/* Cockpit's size for a bare <h1> (`page.scss`: 4xl, normal weight). */
+h1 {
+    font-size: 2.25rem;
+    font-weight: 400;
+    margin: 0 0 var(--sp-md);
+}
+
+/* Not a bare h2 at Cockpit scale (that would be 3xl) but PF's card title:
+   `font--size--heading--xs` with heading weight. */
+h2 {
+    font-size: 1rem;
+    font-weight: 500;
+    margin: 0;
+}
+
+code {
+    font-family: "Red Hat Mono", "RedHatMono", "Courier New", Courier, monospace;
+    font-size: 0.92em;
+    background: rgb(127 127 127 / 12%);
+    border-radius: var(--radius-small);
+    padding: 0.05em 0.3em;
+}
+
+/* --- cards -------------------------------------------------------------- */
+
+/* PF's card: the same ground as the tub, a hairline as its edge, radius and
+   padding as there. A smaller radius stands out at once in a tub with 1rem
+   corners -- that was the second half of the finding. */
+.card {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-box);
+    padding: var(--sp-lg);
+    margin-bottom: var(--sp-md);
+}
+
+.card-head {
+    margin-bottom: var(--sp-md)
+}
+
+.sub {
+    color: var(--muted);
+    margin: var(--sp-xs) 0 0;
+}
+
+/* Running text stays readable even when the tub is 1600px wide. Imposed on
+   the prose only, not on the card: a control row may grow along. `.detail`
+   belongs to it -- in the "not created" case it holds the longest sentence on
+   the page, and that ran across the full width. */
+.sub,
+.detail,
+.hints {
+    max-inline-size: 46rem;
+}
+
+/* --- status row --------------------------------------------------------- */
+
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-sm);
+    flex-wrap: wrap;
+}
+
+.spacer {
+    flex: 1 1 auto
+}
+
+.status-label {
+    font-weight: 600;
+    min-width: 9rem;
+}
+
+.ball {
+    display: inline-block;
+    width: 0.875rem;
+    height: 0.875rem;
+    border-radius: 50%;
+    background: var(--grey);
+    flex: 0 0 auto;
+}
+
+.ball-green {
+    background: var(--green)
+}
+
+.ball-grey {
+    background: var(--grey)
+}
+
+.ball-yellow {
+    background: var(--yellow)
+}
+
+.ball-red {
+    background: var(--red)
+}
+
+/* "Container not created": not a state but a blank -- hence hollow rather
+   than filled. */
+.ball-outline {
+    background: transparent;
+    border: 2px solid var(--grey);
+}
+
+.ball-pulse {
+    animation: pulse 1.2s ease-in-out infinite
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1
+    }
+    50% {
+        opacity: 0.3
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ball-pulse {
+        animation: none
+    }
+}
+
+.detail {
+    margin: var(--sp-md) 0 0;
+    color: var(--muted);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.detail-error {
+    color: var(--err)
+}
+
+/* --- buttons ------------------------------------------------------------ */
+
+/* PF 6 buttons are pills (`border--radius--pill`), with
+   `spacer--control--vertical` / `spacer--action--horizontal` as padding.
+   Square buttons in a round tub were the same break as the cards. */
+.btn {
+    font: inherit;
+    padding: var(--sp-sm) var(--sp-md);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background: var(--btn);
+    color: var(--fg);
+    cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+    filter: brightness(0.95)
+}
+
+.btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+}
+
+/* A blue button at 45 % opacity still looks like "press me". Disabled, it
+   therefore falls back to the neutral color entirely. */
+.btn-primary:disabled {
+    background: var(--btn);
+    border-color: var(--line);
+    color: var(--fg);
+}
+
+/* --- VNC --------------------------------------------------------------- */
+
+.vnc-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-md);
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-md);
+}
+
+.vnc-url {
+    color: var(--link);
+    text-decoration: none;
+}
+
+.vnc-url:hover {
+    text-decoration: underline
+}
+
+.copy-note {
+    color: var(--muted)
+}
+
+.hints {
+    margin: 0;
+    padding-left: var(--sp-md);
+    color: var(--muted);
+}
+
+.hints li {
+    margin-bottom: var(--sp-sm)
+}
+
+.hints .warn {
+    color: var(--warn)
+}
+
+.offscreen {
+    position: absolute;
+    left: -9999px;
+}

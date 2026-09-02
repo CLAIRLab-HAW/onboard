@@ -1,0 +1,17 @@
+{
+    "requires": {
+        "cockpit": "266"
+    },
+
+    "menu": {
+        "index": {
+            "label": "Robot tools",
+            "keywords": [
+                {
+                    "matches": ["offboard", "lite", "rviz", "moveit", "vnc", "container", "docker", "robot"]
+                }
+            ],
+            "order": 106
+        }
+    }
+}
