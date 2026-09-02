@@ -3,7 +3,7 @@
 # Beyond its own suite (tests/, the urdf_physics_patch patcher) this workflow guards the one file OTHER repos copy
 # from and check against:
 #
-#   config/robot.yaml                 -> contract/robot-contract/tests/test_ssot_parity.py     (arm poses)
+#   config/robot.yaml                 -> robot/contract/tests/test_ssot_parity.py     (arm poses)
 #
 # That guard lives in the OTHER repo, so it would only ever fire when THAT repo is touched -- a change to
 # robot.yaml here went unnoticed until someone happened to edit the far side. The direction that matters most is
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           repository: CLAIRLab-HAW/robot-contract
-          path: contract/robot-contract
+          path: robot/contract
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
 
       # Root-finder marker, and here it is load-bearing rather than cosmetic: both suites walk up for
@@ -76,5 +76,5 @@ jobs:
       # test_gripper_linkage.py is NOT run here any more: it compares the profile against a table that lives in
       # onrobot-rg6 now, so a change in this repo cannot break it.
       - name: robot.yaml vs. the a200_0553 profile
-        working-directory: contract/robot-contract
+        working-directory: robot/contract
         run: python -m pytest tests/test_ssot_parity.py -q
