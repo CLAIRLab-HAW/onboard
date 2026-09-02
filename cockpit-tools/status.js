@@ -5,7 +5,7 @@
 // checked here at the desk (test/status.test.mjs, `node --test test/`), while
 // the rest of the page is nothing but buttons and text.
 //
-// The colour agreement (deliberately not the usual traffic light):
+// The color agreement (deliberately not the usual traffic light):
 //   green  = running
 //   grey   = stopped -- that is the NORMAL CASE, not a fault
 //   yellow = transition (a start/stop under way, restarting)
@@ -23,7 +23,7 @@ const MISSING_RE = /no such (object|container)/i;
  * @returns {{color:string,label:string,detail:string,pulse:boolean,
  *            outline:boolean,missing:boolean,canStart:boolean,canStop:boolean}}
  */
-export function classify({ status = null, error = null, pending = null, missing = false } = {}) {
+export function classify({status = null, error = null, pending = null, missing = false} = {}) {
     const base = {
         color: 'grey',
         label: '',
@@ -38,9 +38,9 @@ export function classify({ status = null, error = null, pending = null, missing 
     // A command in flight beats everything else: while `docker start` works,
     // inspect keeps reporting the old state for minutes.
     if (pending === 'start')
-        return { ...base, color: 'yellow', pulse: true, label: 'starting…' };
+        return {...base, color: 'yellow', pulse: true, label: 'starting…'};
     if (pending === 'stop')
-        return { ...base, color: 'yellow', pulse: true, label: 'stopping…' };
+        return {...base, color: 'yellow', pulse: true, label: 'stopping…'};
 
     if (missing || (error && MISSING_RE.test(error))) {
         return {
@@ -52,41 +52,41 @@ export function classify({ status = null, error = null, pending = null, missing 
             // lives, and a wrong "cd" sends the reader into exactly the confusion
             // they are coming from.
             detail: 'There is no container from the image husky-offboard-lite on this '
-                  + 'machine (compose service moveit-rviz). Create it once, in the '
-                  + 'directory of the compose project: docker compose '
-                  + '-f docker-compose.yml -f docker-compose.robot.yml up -d',
+                + 'machine (compose service moveit-rviz). Create it once, in the '
+                + 'directory of the compose project: docker compose '
+                + '-f docker-compose.yml -f docker-compose.robot.yml up -d',
         };
     }
 
     if (error)
-        return { ...base, color: 'red', label: 'Docker unreachable', detail: error };
+        return {...base, color: 'red', label: 'Docker unreachable', detail: error};
 
     switch (status) {
-    case null:
-        return { ...base, label: 'checking…' };
-    case 'running':
-        return { ...base, color: 'green', label: 'running', canStop: true };
-    case 'exited':
-    case 'created':
-        return { ...base, label: 'stopped', canStart: true };
-    case 'paused':
-        // `docker start` fails on a paused container, `docker stop` does not --
-        // hence only the stop button here.
-        return { ...base, label: 'paused', canStop: true };
-    case 'restarting':
-        return { ...base, color: 'yellow', pulse: true, label: 'restarting…' };
-    case 'dead':
-        return {
-            ...base,
-            color: 'red',
-            label: 'broken (dead)',
-            detail: 'Docker cannot clean the container up any more. The only thing '
-                  + 'left: docker rm -f and create it again.',
-            canStop: true,
-        };
-    default:
-        // Better to show the unknown state verbatim than to guess it.
-        return { ...base, label: status };
+        case null:
+            return {...base, label: 'checking…'};
+        case 'running':
+            return {...base, color: 'green', label: 'running', canStop: true};
+        case 'exited':
+        case 'created':
+            return {...base, label: 'stopped', canStart: true};
+        case 'paused':
+            // `docker start` fails on a paused container, `docker stop` does not --
+            // hence only the stop button here.
+            return {...base, label: 'paused', canStop: true};
+        case 'restarting':
+            return {...base, color: 'yellow', pulse: true, label: 'restarting…'};
+        case 'dead':
+            return {
+                ...base,
+                color: 'red',
+                label: 'broken (dead)',
+                detail: 'Docker cannot clean the container up any more. The only thing '
+                    + 'left: docker rm -f and create it again.',
+                canStop: true,
+            };
+        default:
+            // Better to show the unknown state verbatim than to guess it.
+            return {...base, label: status};
     }
 }
 
@@ -102,7 +102,7 @@ export function classify({ status = null, error = null, pending = null, missing 
  * @param {{hidden:boolean, everFetched:boolean}} ctx
  * @returns {boolean}
  */
-export function shouldPoll({ hidden = false, everFetched = false } = {}) {
+export function shouldPoll({hidden = false, everFetched = false} = {}) {
     return !hidden || !everFetched;
 }
 
@@ -119,7 +119,7 @@ const LOCAL_HOSTS = ['', 'localhost', '127.0.0.1', '::1'];
  *   machine, otherwise "localhost"), locationHost = window.location.hostname.
  * @returns {string}
  */
-export function resolveHost({ transportHost = null, locationHost = '', fallback = '' } = {}) {
+export function resolveHost({transportHost = null, locationHost = '', fallback = ''} = {}) {
     const via = (transportHost || '').replace(/^.*@/, '');
     if (via && !LOCAL_HOSTS.includes(via))
         return via;
@@ -152,19 +152,19 @@ const IMAGE_HINT = 'offboard-lite';
  */
 export function parseContainers(text) {
     return (text || '')
-            .split('\n')
-            .map(line => line.trimEnd())
-            .filter(line => line.trim() !== '')
-            .map(line => {
-                const [name = '', image = '', state = '', service = ''] = line.split('\t');
-                return {
-                    name: name.trim(),
-                    image: image.trim(),
-                    state: state.trim(),
-                    service: service.trim(),
-                };
-            })
-            .filter(row => row.name !== '');
+        .split('\n')
+        .map(line => line.trimEnd())
+        .filter(line => line.trim() !== '')
+        .map(line => {
+            const [name = '', image = '', state = '', service = ''] = line.split('\t');
+            return {
+                name: name.trim(),
+                image: image.trim(),
+                state: state.trim(),
+                service: service.trim(),
+            };
+        })
+        .filter(row => row.name !== '');
 }
 
 /**
@@ -176,18 +176,18 @@ export function parseContainers(text) {
  *   from a renamed project stays behind), but the page then says which one it
  *   operates.
  */
-export function pickContainer(rows, { service = COMPOSE_SERVICE, imageHint = IMAGE_HINT } = {}) {
+export function pickContainer(rows, {service = COMPOSE_SERVICE, imageHint = IMAGE_HINT} = {}) {
     const hits = (rows || []).filter(r =>
         r.service === service || r.image.includes(imageHint));
 
     if (hits.length === 0)
-        return { container: null, others: [] };
+        return {container: null, others: []};
 
     // Running ones first: whoever has two containers means the one that works.
     const running = hits.filter(r => r.state === 'running');
     const chosen = running.length > 0 ? running[0] : hits[0];
 
-    return { container: chosen, others: hits.filter(r => r !== chosen) };
+    return {container: chosen, others: hits.filter(r => r !== chosen)};
 }
 
 // --- Why the VNC port is unreachable from outside -------------------------
@@ -209,7 +209,7 @@ export function parseInspect(text) {
     const lines = (text || '').split('\n').map(l => l.trim()).filter(l => l !== '');
     if (lines.length === 0)
         return null;
-    return { networkMode: lines[0], env: lines.slice(1) };
+    return {networkMode: lines[0], env: lines.slice(1)};
 }
 
 /**
@@ -218,7 +218,7 @@ export function parseInspect(text) {
  *   The code exists to mute other places on the page: as long as "no-password"
  *   holds, nothing beside it may claim the viewer asks for one.
  */
-export function diagnoseVnc(info, { probe = null } = {}) {
+export function diagnoseVnc(info, {probe = null} = {}) {
     if (!info)
         return [];
 
@@ -291,17 +291,17 @@ export function hasCode(notes, code) {
  * @param {{needed?:number}} [opts] how many "down" in a row are needed
  * @returns {{streak:number, value:'up'|'down'|null}}
  */
-export function settleProbe(previous, probe, { needed = 3 } = {}) {
+export function settleProbe(previous, probe, {needed = 3} = {}) {
     const streak = previous ? previous.streak : 0;
 
     if (probe === 'up')
-        return { streak: 0, value: 'up' };
+        return {streak: 0, value: 'up'};
 
     // Not measurable (no bash in the container, exec refused): claim nothing,
     // but forget nothing either.
     if (probe !== 'down')
-        return { streak, value: null };
+        return {streak, value: null};
 
     const next = streak + 1;
-    return { streak: next, value: next >= needed ? 'down' : null };
+    return {streak: next, value: next >= needed ? 'down' : null};
 }

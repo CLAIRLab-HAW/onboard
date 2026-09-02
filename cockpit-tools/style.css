@@ -13,45 +13,45 @@
    sees beside the neighbouring page. (For conversion: the notes in CLAUDE.md
    reckon with a 12px root, where 1.5rem = 18px.) */
 
-/* --- colours ------------------------------------------------------------ */
+/* --- colors ------------------------------------------------------------ */
 
 /* Light is the normal case and therefore stands on :root. Dark does NOT hang
    on `prefers-color-scheme` but on the class theme.js sets -- Cockpit's choice
    beats the operating system's, and only that way does this page stay light
    when the shell is light. */
 :root {
-    --bg-page: #f2f2f2;      /* background--color--secondary--default */
-    --bg-panel: #ffffff;     /* background--color--primary--default   */
-    --fg: #151515;           /* text--color--regular                  */
-    --muted: #4d4d4d;        /* text--color--subtle                   */
-    --line: #c7c7c7;         /* border--color--default                */
-    --accent: #0066cc;       /* color--brand--default                 */
-    --accent-fg: #ffffff;    /* text--color--on-brand--default        */
-    --link: #0066cc;         /* text--color--link--default            */
-    --btn: #f2f2f2;          /* background--color--secondary--default */
-    --warn: #dca614;         /* text--color--status--warning--default */
-    --err: #b1380b;          /* text--color--status--danger--default  */
+    --bg-page: #f2f2f2; /* background--color--secondary--default */
+    --bg-panel: #ffffff; /* background--color--primary--default   */
+    --fg: #151515; /* text--color--regular                  */
+    --muted: #4d4d4d; /* text--color--subtle                   */
+    --line: #c7c7c7; /* border--color--default                */
+    --accent: #0066cc; /* color--brand--default                 */
+    --accent-fg: #ffffff; /* text--color--on-brand--default        */
+    --link: #0066cc; /* text--color--link--default            */
+    --btn: #f2f2f2; /* background--color--secondary--default */
+    --warn: #dca614; /* text--color--status--warning--default */
+    --err: #b1380b; /* text--color--status--danger--default  */
 
-    --green: #3d7317;        /* color--status--success--default       */
-    --grey: #e0e0e0;         /* color--nonstatus--gray--default       */
-    --yellow: #dca614;       /* icon--color--status--warning--default */
-    --red: #b1380b;          /* icon--color--status--danger--default  */
+    --green: #3d7317; /* color--status--success--default       */
+    --grey: #e0e0e0; /* color--nonstatus--gray--default       */
+    --yellow: #dca614; /* icon--color--status--warning--default */
+    --red: #b1380b; /* icon--color--status--danger--default  */
 
     /* Spacings are rem in PF and grow with the font. The 1.5rem is
        `spacer--inset--page-chrome` and determines both the tub's distance from
        the edge and its inner padding. */
-    --sp-xs: 0.25rem;        /* spacer--xs  */
-    --sp-sm: 0.5rem;         /* spacer--sm  */
-    --sp-md: 1rem;           /* spacer--md  */
-    --sp-lg: 1.5rem;         /* spacer--lg  */
+    --sp-xs: 0.25rem; /* spacer--xs  */
+    --sp-sm: 0.5rem; /* spacer--sm  */
+    --sp-md: 1rem; /* spacer--md  */
+    --sp-lg: 1.5rem; /* spacer--lg  */
 
     /* Radii, by contrast, are ABSOLUTE in PF, and that is no oversight: a
        corner is a corner, however large the font stands. A `1rem` here was, on
        2026-08-24 in a browser with a 12px root, a 12px corner beside the
        neighbouring page's 16px corner -- the same break again, only smaller. */
-    --radius-box: 16px;      /* border--radius--medium */
-    --radius-small: 6px;     /* border--radius--small  */
-    --radius-pill: 999px;    /* border--radius--pill   */
+    --radius-box: 16px; /* border--radius--medium */
+    --radius-small: 6px; /* border--radius--small  */
+    --radius-pill: 999px; /* border--radius--pill   */
 }
 
 .pf-v6-theme-dark {
@@ -63,7 +63,7 @@
     --accent: #92c5f9;
     --accent-fg: #151515;
     --link: #b9dafc;
-    --btn: #383838;          /* background--color--control--default */
+    --btn: #383838; /* background--color--control--default */
     --warn: #ffcc17;
     --err: #f89b78;
 
@@ -73,7 +73,9 @@
     --red: #f0561d;
 }
 
-* { box-sizing: border-box }
+* {
+    box-sizing: border-box
+}
 
 /* --- root --------------------------------------------------------------- */
 
@@ -103,8 +105,8 @@ body {
     /* The families are PF's stack; Cockpit serves the Red Hat fonts itself,
        which is why they take here without a @font-face of our own. */
     font-family: "Red Hat Text", "RedHatText", Helvetica, Arial, sans-serif;
-    font-size: 0.875rem;     /* font--size--body--default */
-    line-height: 1.5;        /* font--line-height--body   */
+    font-size: 0.875rem; /* font--size--body--default */
+    line-height: 1.5; /* font--line-height--body   */
 }
 
 /*
@@ -116,7 +118,7 @@ body {
  * height limit instead of a margin, since a margin would push the tub down
  * rather than pull its end up.
  *
- * PF arrives at the same inner padding over a 4px border IN the colour of the
+ * PF arrives at the same inner padding over a 4px border IN the color of the
  * ground plus 14px of section padding. What is rebuilt is the result, not the
  * detour: 1.5rem at the sides, 1rem at the top.
  *
@@ -170,7 +172,9 @@ code {
     margin-bottom: var(--sp-md);
 }
 
-.card-head { margin-bottom: var(--sp-md) }
+.card-head {
+    margin-bottom: var(--sp-md)
+}
 
 .sub {
     color: var(--muted);
@@ -196,7 +200,9 @@ code {
     flex-wrap: wrap;
 }
 
-.spacer { flex: 1 1 auto }
+.spacer {
+    flex: 1 1 auto
+}
 
 .status-label {
     font-weight: 600;
@@ -212,10 +218,21 @@ code {
     flex: 0 0 auto;
 }
 
-.ball-green { background: var(--green) }
-.ball-grey { background: var(--grey) }
-.ball-yellow { background: var(--yellow) }
-.ball-red { background: var(--red) }
+.ball-green {
+    background: var(--green)
+}
+
+.ball-grey {
+    background: var(--grey)
+}
+
+.ball-yellow {
+    background: var(--yellow)
+}
+
+.ball-red {
+    background: var(--red)
+}
 
 /* "Container not created": not a state but a blank -- hence hollow rather
    than filled. */
@@ -224,15 +241,23 @@ code {
     border: 2px solid var(--grey);
 }
 
-.ball-pulse { animation: pulse 1.2s ease-in-out infinite }
+.ball-pulse {
+    animation: pulse 1.2s ease-in-out infinite
+}
 
 @keyframes pulse {
-    0%, 100% { opacity: 1 }
-    50% { opacity: 0.3 }
+    0%, 100% {
+        opacity: 1
+    }
+    50% {
+        opacity: 0.3
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .ball-pulse { animation: none }
+    .ball-pulse {
+        animation: none
+    }
 }
 
 .detail {
@@ -242,7 +267,9 @@ code {
     overflow-wrap: anywhere;
 }
 
-.detail-error { color: var(--err) }
+.detail-error {
+    color: var(--err)
+}
 
 /* --- buttons ------------------------------------------------------------ */
 
@@ -259,7 +286,9 @@ code {
     cursor: pointer;
 }
 
-.btn:hover:not(:disabled) { filter: brightness(0.95) }
+.btn:hover:not(:disabled) {
+    filter: brightness(0.95)
+}
 
 .btn:disabled {
     opacity: 0.45;
@@ -273,7 +302,7 @@ code {
 }
 
 /* A blue button at 45 % opacity still looks like "press me". Disabled, it
-   therefore falls back to the neutral colour entirely. */
+   therefore falls back to the neutral color entirely. */
 .btn-primary:disabled {
     background: var(--btn);
     border-color: var(--line);
@@ -295,9 +324,13 @@ code {
     text-decoration: none;
 }
 
-.vnc-url:hover { text-decoration: underline }
+.vnc-url:hover {
+    text-decoration: underline
+}
 
-.copy-note { color: var(--muted) }
+.copy-note {
+    color: var(--muted)
+}
 
 .hints {
     margin: 0;
@@ -305,8 +338,13 @@ code {
     color: var(--muted);
 }
 
-.hints li { margin-bottom: var(--sp-sm) }
-.hints .warn { color: var(--warn) }
+.hints li {
+    margin-bottom: var(--sp-sm)
+}
+
+.hints .warn {
+    color: var(--warn)
+}
 
 .offscreen {
     position: absolute;
