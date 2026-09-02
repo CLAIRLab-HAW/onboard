@@ -1,0 +1,190 @@
+/*
+ * This file is part of Cockpit ROS 2 Diagnostics.
+ *
+ * Copyright (C) 2025 Clearpath Robotics, Inc., a Rockwell Automation Company. All rights reserved.
+ *
+ * Cockpit ROS 2 Diagnostics is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation; either version 2.1 of the License, or
+ * (at your option) any later version.
+ *
+ * Cockpit ROS 2 Diagnostics is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import React, { useState, useEffect } from 'react';
+import { Alert, Button } from "@patternfly/react-core";
+
+import cockpit from 'cockpit';
+import { downloadFile } from './Download';
+
+const _ = cockpit.gettext;
+
+export interface CaptureState {
+    isCapturing: boolean;
+    errorMessage: string | null;
+    downloadPath: string | null;
+    adminAccess: boolean;
+    capture: () => Promise<void>;
+}
+
+export const useCapture = (namespace: string): CaptureState => {
+    const [isCapturing, setIsCapturing] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [downloadPath, setDownloadPath] = useState<string | null>(null);
+    const [adminAccess, setAdminAccess] = useState<boolean>(false);
+
+    useEffect(() => {
+        const permission = cockpit.permission({ admin: true });
+        const update = () => setAdminAccess(permission.allowed);
+        permission.addEventListener("changed", update);
+        update();
+        return () => {
+            permission.removeEventListener("changed", update);
+            permission.close();
+        };
+    }, []);
+
+    const runBash = async (command: string, options: { superuser?: string } = {}) => {
+        return await cockpit.spawn(["bash", "-c", command], options);
+    };
+
+    const handleCapture = async () => {
+        setIsCapturing(true);
+        setErrorMessage(null);
+        setDownloadPath(null);
+
+        let failedCommand = false;
+        let failedCommandMessage = _("Incomplete diagnostic capture: Failed to execute commands: ");
+
+        try {
+            const temp_folder = (await runBash("mktemp -d")).trim();
+
+            const commands_su = [
+                `dmesg -T >> ${temp_folder}/dmesg.log`,
+                `cp -r /etc/netplan ${temp_folder}/netplan`,
+                `sed -i 's/\\(\\s*password:\\s*\\).*/\\1<redacted>/' ${temp_folder}/netplan/* 2>/dev/null || true`, // Redact any passwords in netplan files
+                `journalctl -b 0 >> ${temp_folder}/journal.log`,
+            ];
+
+            const commands_usr = [
+                `lsusb -t -v >> ${temp_folder}/usb.log`,
+                `ls -lisah /dev/ >> ${temp_folder}/dev.log`,
+                `ip a >> ${temp_folder}/ip.log`,
+            ];
+
+            const commands_clearpath = [
+                `[ -f "/etc/clearpath/setup.bash" ] && source /etc/clearpath/setup.bash && ros2 daemon stop`,
+                `[ -f "/etc/clearpath/setup.bash" ] && source /etc/clearpath/setup.bash && export ROS_SUPER_CLIENT=True && ros2 daemon start`,
+                `mkdir -p ${temp_folder}/services`,
+                `journalctl -b 0 -u clearpath-platform >> ${temp_folder}/services/platform.log`,
+                `journalctl -b 0 -u clearpath-platform-extras >> ${temp_folder}/services/platform_extras.log`,
+                `journalctl -b 0 -u clearpath-sensors >> ${temp_folder}/services/sensors.log`,
+                `journalctl -b 0 -u clearpath-manipulators >> ${temp_folder}/services/manipulators.log`,
+                `journalctl -b 0 -u clearpath-vcan >> ${temp_folder}/services/vcan.log`,
+                `journalctl -b 0 -u clearpath-robot >> ${temp_folder}/services/robot.log`,
+                `journalctl -b 0 -u clearpath-discovery >> ${temp_folder}/services/discovery_server.log`,
+                `journalctl -b 0 -u clearpath-zenoh-router >> ${temp_folder}/services/zenoh_router.log`,
+                `[ -f "/etc/clearpath/robot.yaml" ] && cp /etc/clearpath/robot.yaml ${temp_folder}/robot.yaml`,
+                `[ -f "/etc/clearpath/setup.bash" ] && source /etc/clearpath/setup.bash && env | grep -e ROS -e RMW >> ${temp_folder}/env.log`,
+                `[ -f "/etc/clearpath/setup.bash" ] && source /etc/clearpath/setup.bash && ros2 doctor --report >> ${temp_folder}/ros2_doctor.log`,
+                `[ -f "/etc/clearpath/setup.bash" ] && source /etc/clearpath/setup.bash && ros2 topic echo --timeout 10 ${namespace}/diagnostics_agg >> ${temp_folder}/ros2_diagnostics.log`, // Timeout to avoid hanging if no messages are published
+            ];
+
+            for (const command of commands_su) {
+                try {
+                    const output = await runBash(command, { superuser: "require" });
+                    console.log("Command executed successfully:", command, ": ", output);
+                } catch (error) {
+                    console.error("Error executing command:", command, error);
+                    failedCommandMessage += command + "; ";
+                    failedCommand = true;
+                    continue; // Skip to the next command if one fails
+                }
+            }
+
+            for (const command of commands_usr) {
+                try {
+                    const output = await runBash(command);
+                    console.log("Command executed successfully:", command, ": ", output);
+                } catch (error) {
+                    console.error("Error executing command:", command, error);
+                    failedCommandMessage += command + "; ";
+                    failedCommand = true;
+                    continue; // Skip to the next command if one fails
+                }
+            }
+
+            if ((await runBash("[ -f /etc/clearpath/robot.yaml ] && echo 'yes' || echo 'no'")).trim() === "yes") {
+                for (const command of commands_clearpath) {
+                    try {
+                        const output = await runBash(command);
+                        console.log("Command executed successfully:", command, ": ", output);
+                    } catch (error) {
+                        console.error("Error executing command:", command, error);
+                        failedCommandMessage += command + "; ";
+                        failedCommand = true;
+                        continue; // Skip to the next command if one fails
+                    }
+                }
+            }
+
+            const hostname = (await runBash("hostname")).trim();
+            const home = (await runBash("echo $HOME")).trim();
+            const current_datetime = (await runBash("date +%Y-%m-%d_%H-%M-%S")).trim();
+            let archive_name = `${home}/diagnostic_captures/${hostname}_${current_datetime}`;
+            if (failedCommand) {
+                archive_name += "_incomplete";
+            }
+            archive_name += ".tar.gz";
+            console.log("Archive name:", archive_name);
+            await runBash(`mkdir -p ${home}/diagnostic_captures`);
+            await runBash(`cd ${temp_folder} && tar -czvf ${archive_name} .`, { superuser: "require" });
+            console.log("TAR archive created successfully");
+            await runBash(`rm -rf ${temp_folder}`, { superuser: "require" });
+            if (failedCommand) {
+                setErrorMessage(failedCommandMessage + _("View console log for details."));
+            }
+
+            setDownloadPath(archive_name);
+        } catch (error) {
+            console.error("Error capturing diagnostics:", error);
+            setErrorMessage(_("Failed to capture diagnostics. Please try again."));
+        } finally {
+            setIsCapturing(false);
+        }
+    };
+
+    return { isCapturing, errorMessage, downloadPath, adminAccess, capture: handleCapture };
+};
+
+export const CaptureAlerts = ({ state }: { state: CaptureState }) => (
+    <>
+        {state.isCapturing && (
+            <Alert
+                variant="info"
+                isInline
+                title={_("Diagnostic capture may take several minutes to generate.")}
+            />
+        )}
+        {!state.isCapturing && state.errorMessage && (
+            <Alert variant="danger" isInline title={state.errorMessage} />
+        )}
+        {!state.isCapturing && state.downloadPath && (
+            <Alert
+                variant="success"
+                isInline
+                title={cockpit.format(_("Diagnostics captured successfully ($0)."), state.downloadPath)}
+            >
+                <Button variant="link" isInline onClick={() => downloadFile(state.downloadPath as string)}>
+                    {_("Download Diagnostics File")}
+                </Button>
+            </Alert>
+        )}
+    </>
+);

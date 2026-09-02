@@ -1,0 +1,575 @@
+@use "page.scss";
+
+.diagnostics-title .pf-v6-c-alert__title, .pf-v6-c-card__title-text, .diagnostics-title.pf-v6-c-title {
+  font-size: var(--pf-t--global--font--size--xl);
+  font-weight: var(--pf-t--global--font--weight--heading--default);
+}
+
+.diagnostics-title .pf-v6-c-alert__icon {
+  font-size: var(--pf-t--global--font--size--xl);
+}
+
+.pf-v6-c-table thead th {
+  font-size: var(--pf-t--global--font--size--lg);
+  font-weight: var(--pf-t--global--font--weight--body--default);
+}
+
+.diagnostics-table-name {
+  font-size: var(--pf-t--global--font--size--md);
+  font-weight: var(--pf-t--global--font--weight--heading--default);
+}
+
+.diagnostics-no-margin {
+  margin-block-start: 0 !important;
+  margin-block-end: 0 !important;
+}
+
+/* Tree controls ----------------------------------------------------------- */
+
+.tree-controls {
+  display: flex;
+  gap: var(--pf-t--global--spacer--sm);
+  align-items: center;
+  margin-block-end: var(--pf-t--global--spacer--md);
+  flex-wrap: wrap;
+}
+
+.tree-controls .pf-v6-c-text-input-group {
+  flex: 1;
+  min-inline-size: 12rem;
+}
+
+/*
+ * The level column of both stacked tables.
+ *
+ * They sit in the same column of the workspace now -- issues above, the tree
+ * below -- so they have to line up. Both cells carry `fitContent`, which sizes
+ * them to the one icon they hold; without it on the tree its column came out
+ * 69px against the list's 41px and the two lists were visibly offset.
+ *
+ * The inline padding is PatternFly's `first-last-child` value (1.5rem, which is
+ * 18px at Cockpit's root size) -- generous for a column that holds a single
+ * 16px glyph. Both the variable and the longhand are set: the variable is the
+ * idiomatic lever, the longhand guarantees it regardless of which rule PF ends
+ * up applying.
+ */
+.tree-level,
+.issue-level {
+  --pf-v6-c-table--cell--first-last-child--PaddingInline: var(--pf-t--global--spacer--sm);
+
+  padding-inline-start: var(--pf-t--global--spacer--sm);
+  padding-inline-end: var(--pf-t--global--spacer--sm);
+}
+
+.pf-v6-c-progress-stepper__step-main {
+  margin-block-start: 0 !important;
+}
+
+/* Manipulator panel (arm + end effector) */
+
+/*
+ * Title and subtitle belong together and stay tight; the readings below are a
+ * separate thing and get room. Without this the description list started flush
+ * against "UR5 at ..." and the card read as one undifferentiated block.
+ */
+.manipulator-subtitle {
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+  font-weight: var(--pf-t--global--font--weight--body--default);
+  margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.manipulator-hint {
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+  margin-inline-start: var(--pf-t--global--spacer--xs);
+}
+
+.manipulator-alert {
+  margin-block-end: var(--pf-t--global--spacer--sm);
+}
+
+/*
+ * End effector drawing.
+ *
+ * Ink only -- no status color anywhere in here. Color on this page means
+ * severity, and an opening width is a measurement, not a severity. The whole
+ * figure inherits the card's dimming when the gripper is out of service,
+ * because a drawing of a jaw position nobody is measuring right now would be
+ * the most convincing wrong thing on the page.
+ */
+.rg6-figure {
+  margin: 0 0 var(--pf-t--global--spacer--md);
+  text-align: center;
+}
+
+.rg6-graphic {
+  inline-size: 100%;
+  max-inline-size: 15rem;
+  block-size: auto;
+  color: var(--pf-t--global--icon--color--subtle);
+}
+
+.rg6-body {
+  fill: var(--pf-t--global--background--color--secondary--default);
+  stroke: currentcolor;
+  stroke-width: 2;
+}
+
+.rg6-link {
+  stroke: currentcolor;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.rg6-pad {
+  fill: currentcolor;
+  opacity: 0.45;
+}
+
+.rg6-pivot {
+  fill: var(--pf-t--global--background--color--primary--default);
+  stroke: currentcolor;
+  stroke-width: 2;
+}
+
+.rg6-jaw {
+  fill: var(--pf-t--global--background--color--secondary--default);
+  stroke: currentcolor;
+  stroke-width: 2;
+}
+
+/*
+ * A held object is a shape, not a color -- "something is gripped" is not a
+ * severity, and color on this page means severity. A filled block with its
+ * own outline so it reads as an object between the jaws at a glance; at the
+ * previous 0.35 flat opacity it was easy to miss in a figure this small.
+ */
+.rg6-object {
+  fill: currentcolor;
+  fill-opacity: 0.45;
+  stroke: currentcolor;
+  stroke-width: 1.5;
+}
+
+.rg6-dim {
+  stroke: currentcolor;
+  stroke-width: 1.5;
+  opacity: 0.55;
+}
+
+.rg6-caption {
+  font-size: var(--pf-t--global--font--size--sm);
+  color: var(--pf-t--global--text--color--subtle);
+  font-variant-numeric: tabular-nums;
+  margin-block-start: var(--pf-t--global--spacer--xs);
+}
+
+.manipulator-joints,
+.manipulator-controllers {
+  margin-block-start: var(--pf-t--global--spacer--md);
+}
+
+/* Explanation line for an out-of-service subsystem: informative, not alarming. */
+.manipulator-note {
+  color: var(--pf-t--global--text--color--subtle);
+  margin-block-end: var(--pf-t--global--spacer--sm);
+}
+
+/*
+ * Readings of a subsystem that is switched off are last-known values, not live
+ * state. Dimming them keeps a joint angle from a powered-down arm from being
+ * read as current, without hiding it.
+ */
+.manipulator-out-of-service .pf-v6-c-description-list,
+.manipulator-out-of-service .pf-v6-c-table,
+.manipulator-out-of-service .rg6-figure {
+  opacity: 0.65;
+}
+
+/* State cards ------------------------------------------------------------- */
+
+.state-card {
+  border: 1px solid var(--pf-t--global--border--color--default);
+  border-inline-start: 3px solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  padding: var(--pf-t--global--spacer--md);
+}
+
+.state-card-warn {
+  border-inline-start-color: var(--pf-t--global--color--status--warning--default);
+}
+
+.state-card-error {
+  border-inline-start-color: var(--pf-t--global--color--status--danger--default);
+}
+
+.state-card-stale {
+  border-inline-start-color: var(--pf-t--global--color--status--info--default);
+}
+
+.state-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--pf-t--global--font--size--md);
+  margin: 0;
+}
+
+/* Readings line up so they can be compared down the column. */
+.manipulator-joints td,
+.state-card .pf-v6-c-description-list__description {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Room for the labels.
+ *
+ * PatternFly's horizontal term column is about 12ch, which at Cockpit's root
+ * size comes out as 83px -- enough for "Safety mode" but not for the German
+ * "Sicherheitsmodus", which wrapped onto a second line while the value column
+ * next to it sat on 584px of unused space. A fixed width rather than
+ * max-content so the labels of the arm and the end effector line up with each
+ * other instead of each card finding its own.
+ */
+.state-card .pf-v6-c-description-list {
+  --pf-v6-c-description-list--m-horizontal__term--width: 17ch;
+}
+
+/* Status band ------------------------------------------------------------- */
+
+/*
+ * Above the workspace, not under it.
+ *
+ * 200 rather than a modest 10 for a measured reason: PatternFly's
+ * `.pf-v6-c-drawer__content` carries `z-index: 100` while being
+ * `position: static`, which normally makes it inert -- except it is a flex item
+ * of `.pf-v6-c-drawer__main`, and z-index applies to flex items regardless of
+ * position. That puts the whole work surface in a stacking context at 100, and
+ * a band at 10 scrolled underneath its own cards.
+ */
+.status-band {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 200;
+  padding: var(--pf-t--global--spacer--md) var(--pf-t--global--spacer--lg) 0;
+  background: var(--pf-t--global--background--color--primary--default);
+  border-block-end: 1px solid var(--pf-t--global--border--color--default);
+}
+
+.status-headline {
+  font-size: var(--pf-t--global--font--size--lg);
+  font-weight: var(--pf-t--global--font--weight--heading--default);
+  margin: 0;
+}
+
+.status-headline-state {
+  font-weight: var(--pf-t--global--font--weight--body--default);
+}
+
+.status-facts {
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+  margin-block-start: var(--pf-t--global--spacer--xs);
+}
+
+.status-kpi {
+  text-align: end;
+  min-inline-size: 3.5rem;
+}
+
+.status-kpi-value {
+  display: block;
+  font-size: var(--pf-t--global--font--size--2xl);
+  font-weight: var(--pf-t--global--font--weight--body--default);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+/* Only a counter that is not zero earns emphasis. */
+.status-kpi-hit {
+  opacity: 1;
+  font-weight: var(--pf-t--global--font--weight--heading--default);
+}
+
+.status-kpi-label {
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+/* An out-of-service subsystem is not a fault; its symbol must not shout. */
+.severity-icon-inactive {
+  color: var(--pf-t--global--icon--color--subtle);
+}
+
+/* Timeline ---------------------------------------------------------------- */
+
+.timeline {
+  padding-block: var(--pf-t--global--spacer--sm) var(--pf-t--global--spacer--md);
+}
+
+.timeline-band {
+  display: flex;
+  gap: 2px;
+  block-size: 0.625rem;
+}
+
+.timeline-slot {
+  flex: 1;
+  border: none;
+  border-radius: 1px;
+  padding: 0;
+  background: var(--pf-t--global--color--nonstatus--gray--default);
+}
+
+/*
+ * Real snapshots are <button>s (unlike the empty placeholder <span>s, which
+ * are not clickable and must not look it) -- the timeline is the primary way
+ * to freeze the view, so it has to look clickable. The component this
+ * replaced set this inline.
+ */
+button.timeline-slot {
+  cursor: pointer;
+}
+
+.timeline-slot-empty {
+  opacity: 0.25;
+}
+
+.timeline-slot-ok {
+  opacity: 0.55;
+}
+
+.timeline-slot-warn {
+  background: var(--pf-t--global--color--status--warning--default);
+}
+
+.timeline-slot-error {
+  background: var(--pf-t--global--color--status--danger--default);
+}
+
+.timeline-slot-stale {
+  background: var(--pf-t--global--color--status--info--default);
+}
+
+.timeline-slot-selected {
+  outline: 1px solid var(--pf-t--global--border--color--default);
+  outline-offset: 1px;
+}
+
+.timeline-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  margin-block-start: var(--pf-t--global--spacer--xs);
+}
+
+/* Issue list -------------------------------------------------------------- */
+
+.issue-empty {
+  color: var(--pf-t--global--text--color--subtle);
+  padding-block: var(--pf-t--global--spacer--sm);
+}
+
+.issue-path {
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+/* Detail panel ------------------------------------------------------------ */
+
+.detail-path {
+  font-size: var(--pf-t--global--font--size--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  margin-block-end: var(--pf-t--global--spacer--sm);
+}
+
+.detail-message {
+  background: var(--pf-t--global--background--color--secondary--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  padding: var(--pf-t--global--spacer--sm);
+  margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.detail-values-title {
+  margin-block-start: var(--pf-t--global--spacer--md);
+  margin-block-end: var(--pf-t--global--spacer--sm);
+}
+
+.detail-values .pf-v6-c-description-list__description {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * On a narrow window a 28rem panel beside the content leaves neither of them
+ * usable. Below the same breakpoint at which the workspace stops being two
+ * columns, the panel covers the page instead.
+ *
+ * `inline-size`/`max-inline-size` do NOT do this: PatternFly's Drawer sizes
+ * the panel through `flex-basis` (driven by the
+ * --pf-v6-c-drawer__panel--md--FlexBasis custom property chain), and per the
+ * flexbox spec, `width`/`max-width` are not consulted for main-axis sizing
+ * once flex-basis is a definite (non-auto) value -- which it always is here.
+ * Verified empirically against the installed PatternFly 6.4.0 Drawer CSS: an
+ * `inline-size: 100%` rule left the panel unchanged at 28rem, while
+ * overriding the assembled --pf-v6-c-drawer__panel--FlexBasis variable
+ * directly resized it to 100% as expected. Overriding the *assembled*
+ * variable, not just the --md-- one, also means an in-progress resize drag
+ * (which only ever writes the --md-- variable) cannot fight this at a narrow
+ * width.
+ */
+@media (width <= 1200px) {
+  .pf-v6-c-drawer__panel {
+    --pf-v6-c-drawer__panel--FlexBasis: 100%;
+  }
+}
+
+/* Workspace --------------------------------------------------------------- */
+
+.workspace {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: var(--pf-t--global--spacer--lg);
+  align-items: start;
+}
+
+/*
+ * Both columns stack their cards the same way. The gap belongs to the column,
+ * not to the cards: a column that holds one card today and two tomorrow must
+ * not change how it spaces them -- which is exactly what went wrong when the
+ * issue list moved over and landed flush against the tree.
+ */
+.workspace-primary,
+.workspace-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pf-t--global--spacer--lg);
+  min-inline-size: 0;
+}
+
+
+/*
+ * Below this width two columns stop helping: the joint table and the tree both
+ * need room for a name plus a path. Stack them, order unchanged.
+ */
+@media (width <= 1200px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* End effector control ---------------------------------------------------- */
+
+.rg6-control {
+  margin-block-end: var(--pf-t--global--spacer--md);
+  text-align: center;
+}
+
+/*
+ * Why the button is unavailable, spelled out. A disabled control with no
+ * reason is a puzzle, and this one is disabled for reasons an operator needs
+ * to act on -- the arm is under external control, the gripper is still moving.
+ */
+.rg6-control-reason {
+  font-size: var(--pf-t--global--font--size--sm);
+  color: var(--pf-t--global--text--color--subtle);
+  margin-block-start: var(--pf-t--global--spacer--xs);
+}
+
+.rg6-control-failure {
+  margin-block-start: var(--pf-t--global--spacer--sm);
+  text-align: start;
+}
+
+/* End effector: readings beside the drawing ------------------------------- */
+
+.rg6-layout {
+  display: flex;
+  gap: var(--pf-t--global--spacer--lg);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.rg6-readings {
+  flex: 1 1 14rem;
+  min-inline-size: 0;
+}
+
+.rg6-visual {
+  flex: 0 1 15rem;
+  min-inline-size: 0;
+}
+
+/* Beside the readings the figure no longer needs a gap under it. */
+.rg6-visual .rg6-figure {
+  margin-block-end: var(--pf-t--global--spacer--sm);
+}
+
+/*
+ * The expand chevron, centred in a two-line row.
+ *
+ * PatternFly pulls the toggle button up with a negative block-start margin so
+ * the chevron sits on the first text line of a single-line row. These rows
+ * carry a name with its path underneath, so they are twice as tall and the
+ * chevron came out 9px above the middle. Centring the cell and dropping the
+ * pull puts it back -- measured at 0px offset on every row.
+ */
+.workspace-secondary .pf-v6-c-table__toggle {
+  align-self: center;
+}
+
+/*
+ * PatternFly pulls the chevron up with `margin-block-start: -50%` on
+ * `.pf-v6-c-table__tree-view-main > .pf-v6-c-table__toggle .pf-v6-c-button`.
+ * A percentage margin resolves against the containing block's *width*, so the
+ * pull is not even a fixed number -- it was -16.875px here and would move with
+ * the column. The selector mirrors PatternFly's own and adds one class, because
+ * a shorter one loses on specificity: this needs to beat three classes.
+ */
+.workspace-secondary .pf-v6-c-table__tree-view-main > .pf-v6-c-table__toggle .pf-v6-c-button {
+  margin-block-start: 0;
+}
+
+/*
+ * Cell contents centred in a two-line row.
+ *
+ * Both tables put a name over its path, so a row is about 45px tall, while
+ * PatternFly aligns cell content to the top. The severity symbol sat 9 to 15px
+ * above the middle of its own row and the message hung at the ceiling. Measured
+ * at -1px after this, which is rounding.
+ */
+.workspace-secondary tbody td {
+  vertical-align: middle;
+}
+
+/*
+ * Breathing room beside the detail panel's splitter.
+ *
+ * With the panel open the workspace ends exactly where the splitter begins --
+ * measured at 0px -- so the right-hand column ran flush into the divider. Only
+ * while expanded: closed, the panel takes no width and a permanent inset on the
+ * right would just be a stray gap.
+ */
+.pf-v6-c-drawer.pf-m-expanded > .pf-v6-c-drawer__main > .pf-v6-c-drawer__content {
+  padding-inline-end: var(--pf-t--global--spacer--lg);
+}
+
+/*
+ * Column widths that do not move.
+ *
+ * With `table-layout: auto` the browser re-measures every time a branch opens,
+ * so the Message column slid back and forth by 106px while reading -- 502px,
+ * then 543px, then 437px with everything expanded. Fixed layout plus a stated
+ * split takes the content out of that decision. The 60/40 matches what the
+ * automatic layout settled on when fully expanded, which is the case where the
+ * name column needs the most room.
+ */
+.diagnostics-tree {
+  table-layout: fixed;
+}
+
+.diagnostics-tree .tree-level {
+  inline-size: 2.25rem;
+}

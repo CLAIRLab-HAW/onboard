@@ -1,0 +1,38 @@
+# Please keep this file sorted (LC_COLLATE=C.UTF-8),
+# grouped into the 3 categories below:
+#  - general patterns (match in all directories)
+#  - patterns to match files at the toplevel
+#  - patterns to match files in subdirs
+
+# general patterns
+*.pyc
+*.rpm
+
+# toplevel (/...)
+/Test*.html
+/Test*.json
+/Test*.log
+/Test*.log.gz
+/Test*.png
+/*.whl
+/bots
+/cockpit-*.tar.xz
+/cockpit-ros2-diagnostics.spec
+/dist/
+/pkg/
+/node_modules/
+/tmp/
+/tools/
+
+# subdirs (/subdir/...)
+/debian/
+/packaging/debian/cockpit-ros2-diagnostics/
+/packaging/debian/.debhelper/
+/packaging/debian/cockpit-ros2-diagnostics.substvars
+/packaging/debian/debhelper*
+/packaging/debian/files
+/po/*.pot
+/po/LINGUAS
+/test/common/
+/test/images/
+/test/static-code

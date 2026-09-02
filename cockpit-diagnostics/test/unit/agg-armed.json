@@ -1,0 +1,830 @@
+[
+ {
+  "name": "/Clearpath Diagnostics/Manipulator/Arm",
+  "message": "OK",
+  "level": 0,
+  "hardware_id": "",
+  "values": [
+   {
+    "key": "manipulator_diagnostics: Arm Control",
+    "value": "ExternalControl aktiv, joint_state-Strom laeuft"
+   },
+   {
+    "key": "manipulator_diagnostics: Arm Controllers",
+    "value": "6/10 Controller aktiv"
+   },
+   {
+    "key": "manipulator_diagnostics: Arm Joints",
+    "value": "6 Gelenke, in Ruhe"
+   },
+   {
+    "key": "manipulator_diagnostics: Arm Mode",
+    "value": "RUNNING, Safety NORMAL"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Manipulator/Arm/manipulator_diagnostics: Arm Control",
+  "message": "ExternalControl aktiv, joint_state-Strom laeuft",
+  "level": 0,
+  "hardware_id": "UR5 CB3 @ 192.168.131.40",
+  "values": [
+   {
+    "key": "external_control",
+    "value": "running"
+   },
+   {
+    "key": "joint_state_rate_hz",
+    "value": "125.0"
+   },
+   {
+    "key": "joint_state_age_s",
+    "value": "0.01"
+   },
+   {
+    "key": "joint_state_timeout_s",
+    "value": "2.0"
+   },
+   {
+    "key": "motion_interface",
+    "value": "live"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Manipulator/Arm/manipulator_diagnostics: Arm Controllers",
+  "message": "6/10 Controller aktiv",
+  "level": 0,
+  "hardware_id": "UR5 CB3 @ 192.168.131.40",
+  "values": [
+   {
+    "key": "required",
+    "value": "joint_state_broadcaster, arm_0_joint_trajectory_controller, io_and_status_controller"
+   },
+   {
+    "key": "freedrive_mode_controller",
+    "value": "inactive"
+   },
+   {
+    "key": "speed_scaling_state_broadcaster",
+    "value": "active"
+   },
+   {
+    "key": "tcp_pose_broadcaster",
+    "value": "active"
+   },
+   {
+    "key": "force_torque_sensor_broadcaster",
+    "value": "active"
+   },
+   {
+    "key": "joint_state_broadcaster",
+    "value": "active"
+   },
+   {
+    "key": "forward_velocity_controller",
+    "value": "inactive"
+   },
+   {
+    "key": "io_and_status_controller",
+    "value": "active"
+   },
+   {
+    "key": "passthrough_trajectory_controller",
+    "value": "inactive"
+   },
+   {
+    "key": "forward_position_controller",
+    "value": "inactive"
+   },
+   {
+    "key": "arm_0_joint_trajectory_controller",
+    "value": "active"
+   },
+   {
+    "key": "active_optional",
+    "value": "force_torque_sensor_broadcaster, speed_scaling_state_broadcaster, tcp_pose_broadcaster"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Manipulator/Arm/manipulator_diagnostics: Arm Joints",
+  "message": "6 Gelenke, in Ruhe",
+  "level": 0,
+  "hardware_id": "UR5 CB3 @ 192.168.131.40",
+  "values": [
+   {
+    "key": "joints",
+    "value": "elbow_joint, shoulder_lift_joint, shoulder_pan_joint, wrist_1_joint, wrist_2_joint, wrist_3_joint"
+   },
+   {
+    "key": "elbow_joint_rad",
+    "value": "2.2991"
+   },
+   {
+    "key": "elbow_joint_deg",
+    "value": "131.7"
+   },
+   {
+    "key": "elbow_joint_vel_rad_s",
+    "value": "-0.0000"
+   },
+   {
+    "key": "elbow_joint_effort",
+    "value": "-1.95"
+   },
+   {
+    "key": "shoulder_lift_joint_rad",
+    "value": "-2.2607"
+   },
+   {
+    "key": "shoulder_lift_joint_deg",
+    "value": "-129.5"
+   },
+   {
+    "key": "shoulder_lift_joint_vel_rad_s",
+    "value": "0.0000"
+   },
+   {
+    "key": "shoulder_lift_joint_effort",
+    "value": "-0.14"
+   },
+   {
+    "key": "shoulder_pan_joint_rad",
+    "value": "-0.0053"
+   },
+   {
+    "key": "shoulder_pan_joint_deg",
+    "value": "-0.3"
+   },
+   {
+    "key": "shoulder_pan_joint_vel_rad_s",
+    "value": "0.0000"
+   },
+   {
+    "key": "shoulder_pan_joint_effort",
+    "value": "-0.44"
+   },
+   {
+    "key": "wrist_1_joint_rad",
+    "value": "-3.0914"
+   },
+   {
+    "key": "wrist_1_joint_deg",
+    "value": "-177.1"
+   },
+   {
+    "key": "wrist_1_joint_vel_rad_s",
+    "value": "0.0000"
+   },
+   {
+    "key": "wrist_1_joint_effort",
+    "value": "-0.37"
+   },
+   {
+    "key": "wrist_2_joint_rad",
+    "value": "-1.5579"
+   },
+   {
+    "key": "wrist_2_joint_deg",
+    "value": "-89.3"
+   },
+   {
+    "key": "wrist_2_joint_vel_rad_s",
+    "value": "0.0000"
+   },
+   {
+    "key": "wrist_2_joint_effort",
+    "value": "0.06"
+   },
+   {
+    "key": "wrist_3_joint_rad",
+    "value": "-0.0025"
+   },
+   {
+    "key": "wrist_3_joint_deg",
+    "value": "-0.1"
+   },
+   {
+    "key": "wrist_3_joint_vel_rad_s",
+    "value": "0.0000"
+   },
+   {
+    "key": "wrist_3_joint_effort",
+    "value": "0.16"
+   },
+   {
+    "key": "moving",
+    "value": "false"
+   },
+   {
+    "key": "rate_hz",
+    "value": "125.0"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Manipulator/Arm/manipulator_diagnostics: Arm Mode",
+  "message": "RUNNING, Safety NORMAL",
+  "level": 0,
+  "hardware_id": "UR5 CB3 @ 192.168.131.40",
+  "values": [
+   {
+    "key": "robot_mode",
+    "value": "RUNNING"
+   },
+   {
+    "key": "robot_mode_id",
+    "value": "7"
+   },
+   {
+    "key": "safety_mode",
+    "value": "NORMAL"
+   },
+   {
+    "key": "safety_mode_id",
+    "value": "1"
+   },
+   {
+    "key": "arm_powered",
+    "value": "true"
+   },
+   {
+    "key": "robot_ip",
+    "value": "192.168.131.40"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Manipulator/Gripper",
+  "message": "OK",
+  "level": 0,
+  "hardware_id": "",
+  "values": [
+   {
+    "key": "manipulator_diagnostics: Gripper",
+    "value": "offen, 154mm (96%)"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Manipulator/Gripper/manipulator_diagnostics: Gripper",
+  "message": "offen, 154mm (96%)",
+  "level": 0,
+  "hardware_id": "OnRobot RG6 @ UR Tool-I/O",
+  "values": [
+   {
+    "key": "width_m",
+    "value": "0.1542"
+   },
+   {
+    "key": "width_mm",
+    "value": "154.2"
+   },
+   {
+    "key": "width_percent",
+    "value": "96"
+   },
+   {
+    "key": "stroke_mm",
+    "value": "160"
+   },
+   {
+    "key": "width_raw_v",
+    "value": "9.730"
+   },
+   {
+    "key": "force_raw_v",
+    "value": "1.335"
+   },
+   {
+    "key": "signal_valid",
+    "value": "true"
+   },
+   {
+    "key": "dead_input_threshold_v",
+    "value": "0.20"
+   },
+   {
+    "key": "grip_detected",
+    "value": "false"
+   },
+   {
+    "key": "busy",
+    "value": "false"
+   },
+   {
+    "key": "device_status",
+    "value": "0"
+   },
+   {
+    "key": "safety_failed",
+    "value": "false"
+   },
+   {
+    "key": "last_command",
+    "value": "NONE"
+   },
+   {
+    "key": "tool_output_voltage_v",
+    "value": "24"
+   },
+   {
+    "key": "state_age_s",
+    "value": "0.02"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Manipulator",
+  "message": "OK",
+  "level": 0,
+  "hardware_id": "",
+  "values": [
+   {
+    "key": "Arm",
+    "value": "OK"
+   },
+   {
+    "key": "Gripper",
+    "value": "OK"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Platform/Drive System",
+  "message": "Error",
+  "level": 2,
+  "hardware_id": "",
+  "values": [
+   {
+    "key": "controller_manager: Controller Manager Activity",
+    "value": "Controller Manager is running"
+   },
+   {
+    "key": "controller_manager: Controllers Activity",
+    "value": "All controllers are active"
+   },
+   {
+    "key": "controller_manager: Hardware Components Activity",
+    "value": "\nHigh execution jitter or mean error : [ a200_hardware a200_hardware ]"
+   },
+   {
+    "key": "joy_node: Joystick Driver Status",
+    "value": "Joystick not open."
+   },
+   {
+    "key": "twist_mux: Twist mux status",
+    "value": "ok"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Platform/Drive System/controller_manager: Controller Manager Activity",
+  "message": "Controller Manager is running",
+  "level": 0,
+  "hardware_id": "ros2_control",
+  "values": [
+   {
+    "key": "update_rate",
+    "value": "10"
+   },
+   {
+    "key": "periodicity.average",
+    "value": "10.000005"
+   },
+   {
+    "key": "periodicity.standard_deviation",
+    "value": "0.007928"
+   },
+   {
+    "key": "periodicity.min",
+    "value": "9.654111"
+   },
+   {
+    "key": "periodicity.max",
+    "value": "10.372501"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Platform/Drive System/controller_manager: Controllers Activity",
+  "message": "All controllers are active",
+  "level": 0,
+  "hardware_id": "ros2_control",
+  "values": [
+   {
+    "key": "joint_state_broadcaster.state",
+    "value": "active"
+   },
+   {
+    "key": "joint_state_broadcaster.execution_time",
+    "value": "Avg: 13.27 [5.91 - 539.86] us, StdDev: 9.50"
+   },
+   {
+    "key": "platform_velocity_controller.state",
+    "value": "active"
+   },
+   {
+    "key": "platform_velocity_controller.execution_time",
+    "value": "Avg: 21.76 [7.30 - 890.40] us, StdDev: 15.25"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Platform/Drive System/controller_manager: Hardware Components Activity",
+  "message": "\nHigh execution jitter or mean error : [ a200_hardware a200_hardware ]",
+  "level": 2,
+  "hardware_id": "ros2_control",
+  "values": [
+   {
+    "key": "a200_hardware.state",
+    "value": "active"
+   },
+   {
+    "key": "a200_hardware.read_cycle.execution_time",
+    "value": "Avg: 31399.28 [20207.89 - 76890.58] us, StdDev: 8780.62"
+   },
+   {
+    "key": "a200_hardware.write_cycle.execution_time",
+    "value": "Avg: 9602.61 [4188.77 - 18002.21] us, StdDev: 5090.89"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Platform/Drive System/joy_node: Joystick Driver Status",
+  "message": "Joystick not open.",
+  "level": 2,
+  "hardware_id": "none",
+  "values": [
+   {
+    "key": "topic",
+    "value": "/a200_0553/joy_teleop/joy"
+   },
+   {
+    "key": "device",
+    "value": "/dev/input/js0"
+   },
+   {
+    "key": "device name",
+    "value": ""
+   },
+   {
+    "key": "dead zone",
+    "value": "0.1"
+   },
+   {
+    "key": "autorepeat rate (Hz)",
+    "value": "20"
+   },
+   {
+    "key": "coalesce interval (s)",
+    "value": "0.001"
+   },
+   {
+    "key": "recent joystick event rate (Hz)",
+    "value": "0"
+   },
+   {
+    "key": "recent publication rate (Hz)",
+    "value": "0"
+   },
+   {
+    "key": "subscribers",
+    "value": "1"
+   },
+   {
+    "key": "default trig val",
+    "value": "False"
+   },
+   {
+    "key": "sticky buttons",
+    "value": "False"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Platform/Drive System/twist_mux: Twist mux status",
+  "message": "ok",
+  "level": 0,
+  "hardware_id": "none",
+  "values": [
+   {
+    "key": "velocity topics.external",
+    "value": " masked (listening to cmd_vel @ 0.500000s with priority #1)"
+   },
+   {
+    "key": "velocity topics.interactive_marker",
+    "value": " masked (listening to twist_marker_server/cmd_vel @ 0.500000s with priority #8)"
+   },
+   {
+    "key": "velocity topics.joy",
+    "value": " masked (listening to joy_teleop/cmd_vel @ 0.500000s with priority #10)"
+   },
+   {
+    "key": "velocity topics.rc",
+    "value": " masked (listening to rc_teleop/cmd_vel @ 0.500000s with priority #12)"
+   },
+   {
+    "key": "lock locks.e_stop",
+    "value": " free (listening to platform/emergency_stop @ 0.000000s with priority #255)"
+   },
+   {
+    "key": "lock locks.safety_stop",
+    "value": " free (listening to platform/safety_stop @ 0.000000s with priority #254)"
+   },
+   {
+    "key": "current priority",
+    "value": "0"
+   },
+   {
+    "key": "loop time in [sec]",
+    "value": "0"
+   },
+   {
+    "key": "data age in [sec]",
+    "value": "0"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Sensors/Cameras",
+  "message": "OK",
+  "level": 0,
+  "hardware_id": "",
+  "values": [
+   {
+    "key": "clearpath_diagnostic_updater: sensors/camera_0/color/image topic status",
+    "value": ""
+   },
+   {
+    "key": "clearpath_diagnostic_updater: sensors/camera_0/depth/image topic status",
+    "value": ""
+   },
+   {
+    "key": "clearpath_diagnostic_updater: sensors/camera_0/points topic status",
+    "value": ""
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Sensors/Cameras/clearpath_diagnostic_updater: sensors camera_0 color image topic status",
+  "message": "",
+  "level": 0,
+  "hardware_id": "a200-0553",
+  "values": [
+   {
+    "key": "Events in window",
+    "value": "150"
+   },
+   {
+    "key": "Events since startup",
+    "value": "71208"
+   },
+   {
+    "key": "Duration of window (s)",
+    "value": "5.000039"
+   },
+   {
+    "key": "Actual frequency (Hz)",
+    "value": "29.999768"
+   },
+   {
+    "key": "Target frequency (Hz)",
+    "value": "30.000000"
+   },
+   {
+    "key": "Minimum acceptable frequency (Hz)",
+    "value": "27.000000"
+   },
+   {
+    "key": "Maximum acceptable frequency (Hz)",
+    "value": "33.000000"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Sensors/Cameras/clearpath_diagnostic_updater: sensors camera_0 depth image topic status",
+  "message": "",
+  "level": 0,
+  "hardware_id": "a200-0553",
+  "values": [
+   {
+    "key": "Events in window",
+    "value": "150"
+   },
+   {
+    "key": "Events since startup",
+    "value": "71184"
+   },
+   {
+    "key": "Duration of window (s)",
+    "value": "5.000041"
+   },
+   {
+    "key": "Actual frequency (Hz)",
+    "value": "29.999757"
+   },
+   {
+    "key": "Target frequency (Hz)",
+    "value": "30.000000"
+   },
+   {
+    "key": "Minimum acceptable frequency (Hz)",
+    "value": "27.000000"
+   },
+   {
+    "key": "Maximum acceptable frequency (Hz)",
+    "value": "33.000000"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Sensors/Cameras/clearpath_diagnostic_updater: sensors camera_0 points topic status",
+  "message": "",
+  "level": 0,
+  "hardware_id": "a200-0553",
+  "values": [
+   {
+    "key": "Events in window",
+    "value": "150"
+   },
+   {
+    "key": "Events since startup",
+    "value": "71166"
+   },
+   {
+    "key": "Duration of window (s)",
+    "value": "5.000042"
+   },
+   {
+    "key": "Actual frequency (Hz)",
+    "value": "29.999750"
+   },
+   {
+    "key": "Target frequency (Hz)",
+    "value": "30.000000"
+   },
+   {
+    "key": "Minimum acceptable frequency (Hz)",
+    "value": "27.000000"
+   },
+   {
+    "key": "Maximum acceptable frequency (Hz)",
+    "value": "33.000000"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Sensors/IMU",
+  "message": "OK",
+  "level": 0,
+  "hardware_id": "",
+  "values": [
+   {
+    "key": "clearpath_diagnostic_updater: sensors/imu_0/data topic status",
+    "value": ""
+   },
+   {
+    "key": "clearpath_diagnostic_updater: sensors/imu_0/mag topic status",
+    "value": ""
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Sensors/IMU/clearpath_diagnostic_updater: sensors imu_0 data topic status",
+  "message": "",
+  "level": 0,
+  "hardware_id": "a200-0553",
+  "values": [
+   {
+    "key": "Events in window",
+    "value": "98"
+   },
+   {
+    "key": "Events since startup",
+    "value": "46369"
+   },
+   {
+    "key": "Duration of window (s)",
+    "value": "5.000041"
+   },
+   {
+    "key": "Actual frequency (Hz)",
+    "value": "19.599838"
+   },
+   {
+    "key": "Target frequency (Hz)",
+    "value": "20.000000"
+   },
+   {
+    "key": "Minimum acceptable frequency (Hz)",
+    "value": "18.000000"
+   },
+   {
+    "key": "Maximum acceptable frequency (Hz)",
+    "value": "22.000000"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Sensors/IMU/clearpath_diagnostic_updater: sensors imu_0 mag topic status",
+  "message": "",
+  "level": 0,
+  "hardware_id": "a200-0553",
+  "values": [
+   {
+    "key": "Events in window",
+    "value": "98"
+   },
+   {
+    "key": "Events since startup",
+    "value": "46369"
+   },
+   {
+    "key": "Duration of window (s)",
+    "value": "5.000042"
+   },
+   {
+    "key": "Actual frequency (Hz)",
+    "value": "19.599836"
+   },
+   {
+    "key": "Target frequency (Hz)",
+    "value": "20.000000"
+   },
+   {
+    "key": "Minimum acceptable frequency (Hz)",
+    "value": "18.000000"
+   },
+   {
+    "key": "Maximum acceptable frequency (Hz)",
+    "value": "22.000000"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Sensors",
+  "message": "OK",
+  "level": 0,
+  "hardware_id": "",
+  "values": [
+   {
+    "key": "Cameras",
+    "value": "OK"
+   },
+   {
+    "key": "IMU",
+    "value": "OK"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics/Platform",
+  "message": "Error",
+  "level": 2,
+  "hardware_id": "",
+  "values": [
+   {
+    "key": "Drive System",
+    "value": "Error"
+   },
+   {
+    "key": "Networking",
+    "value": "OK"
+   },
+   {
+    "key": "Odometry",
+    "value": "OK"
+   },
+   {
+    "key": "Power",
+    "value": "Warning"
+   },
+   {
+    "key": "E-stop Status",
+    "value": "Warning"
+   }
+  ]
+ },
+ {
+  "name": "/Clearpath Diagnostics",
+  "message": "Error",
+  "level": 2,
+  "hardware_id": "",
+  "values": [
+   {
+    "key": "/Clearpath Diagnostics/Manipulator",
+    "value": "OK"
+   },
+   {
+    "key": "/Clearpath Diagnostics/Platform",
+    "value": "Error"
+   },
+   {
+    "key": "/Clearpath Diagnostics/Sensors",
+    "value": "OK"
+   }
+  ]
+ }
+]

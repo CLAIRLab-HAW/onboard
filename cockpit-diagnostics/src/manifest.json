@@ -1,0 +1,19 @@
+{
+    "requires": {
+        "cockpit": "336"
+    },
+
+    "menu": {
+        "index": {
+            "label": "ROS 2 diagnostics",
+            "keywords": [
+                {
+                    "matches": ["robot", "health", "status", "manipulator", "arm", "gripper"]
+                }
+            ],
+            "order": 105
+        }
+    },
+
+    "content-security-policy": "connect-src 'self' ws://*:8765"
+}
