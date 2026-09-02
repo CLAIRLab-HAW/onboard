@@ -1,6 +1,6 @@
 """This suite has to come along in the ROOT run, not only in the package run.
 
-``norecursedirs`` in the root pyproject.toml excluded ``robot`` as long as no tests lived there.  A test that ran only
+``norecursedirs`` in the root pyproject.toml excluded ``onboard`` as long as no tests lived there.  A test that ran only
 in the package run would fall silent exactly when someone needs it -- the same lesson ``deploy`` has cost once already.
 
 The marker ``nav_e2e`` has to be registered AND deselected by default: it needs a running container with a driving
@@ -20,10 +20,10 @@ def _config() -> dict:
     return tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
 
 
-def test_the_root_run_descends_into_robot():
+def test_the_root_run_descends_into_onboard():
     norecurse = _config()["tool"]["pytest"]["ini_options"]["norecursedirs"]
-    assert "robot" not in norecurse, (
-        "norecursedirs excludes 'robot' -- robot/husky-navigation/tests is "
+    assert "onboard" not in norecurse, (
+        "norecursedirs excludes 'onboard' -- onboard/husky-navigation/tests is "
         "then NOT collected in the root run, and silently at that."
     )
 
@@ -44,7 +44,7 @@ def test_the_default_run_deselects_nav_e2e():
 
 def test_this_package_is_a_workspace_member():
     members = _config()["tool"]["uv"]["workspace"]["members"]
-    assert "robot/husky-navigation" in members, (
+    assert "onboard/husky-navigation" in members, (
         "Without a member entry `uv sync` does not resolve the package and "
         "`import husky_navigation` fails in every test."
     )
