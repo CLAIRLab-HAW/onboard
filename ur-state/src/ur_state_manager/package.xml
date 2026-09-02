@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ur_state_manager</name>
+  <version>0.2.0</version>
+  <description>Manages the state of a connected UR5 (CB3): a Trigger adapter
+    (prepare/recover/ensure_ready/power_off) that delegates to the SetMode
+    action of the ur_robot_driver robot_state_helper.</description>
+  <maintainer email="hannes.voss@haw-hamburg.de">Hannes Voss</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>ur_dashboard_msgs</exec_depend>
+  <!-- supplies dashboard_client + robot_state_helper (the launch file starts both) -->
+  <exec_depend>ur_robot_driver</exec_depend>
+  <!-- controller_mode_manager: switch_controller/list_controllers + spawner -->
+  <exec_depend>controller_manager_msgs</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+
+  <!-- The suite in tests/ is plain pytest on the ROS-free decision modules (readiness, switching); the workspace
+       formats with black and runs no other linter, so the ament_copyright/flake8/pep257 boilerplate is not here. -->
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
