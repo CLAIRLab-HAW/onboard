@@ -288,7 +288,7 @@ What `rg6_control_sim` *does* is a different question, and one a unit test
 cannot answer; that is checked end-to-end against a running stack:
 
 ```bash
-uv run pytest sdk/plan-bridge/tests/test_offboard_gripper.py    # needs the container
+uv run pytest robot/motion-server/tests/test_offboard_gripper.py    # needs the container
 ```
 
 ## Related
@@ -296,7 +296,7 @@ uv run pytest sdk/plan-bridge/tests/test_offboard_gripper.py    # needs the cont
 - [husky-custom-setup](../husky-custom-setup/README.md) — `robot.yaml` (SSOT),
   and the installer + systemd unit that roll out and start `rg6_grip_bridge`
   from this workspace
-- [robot-contract](../../contract/robot-contract/README.md) — the profile that
+- [robot-contract](../../robot/contract/README.md) — the profile that
   names the action, the state topic and the gear table
 - [husky-offboard](../../deploy/husky-offboard/README.md) — the container that
   builds and runs the mock

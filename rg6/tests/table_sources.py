@@ -7,7 +7,7 @@ a missing attribute.  Test-helper module names are effectively global here -- gi
 pick.
 
 The linkage table is generated here but read in two other repos, so most tests in this directory have to reach across
-repo boundaries.  That is the point of them -- ``contract/robot-contract/tests/test_ssot_parity.py`` does the same for
+repo boundaries.  That is the point of them -- ``robot/contract/tests/test_ssot_parity.py`` does the same for
 the arm poses -- but the workspace convention is that every repo stays usable on its own, so a repo that is not
 checked out makes the test skip by name instead of failing.
 """

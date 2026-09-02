@@ -6,7 +6,7 @@ and so it was copied into three:
 
 * ``src/rg6_control/include/rg6_control/finger_kinematics.hpp`` -- the container mock, C++
 * ``src/rg6_control/scripts/rg6_finger_kinematics.json`` -- the gripper bridge on the robot, Python
-* ``contract/robot-contract`` profile, ``gripper.linkage.table`` -- the workstation code, Python
+* ``robot/contract`` profile, ``gripper.linkage.table`` -- the workstation code, Python
 
 Two of the three are generated, and since the bridge moved into this package they lie next to the generator that
 writes them; only the profile is a HAND copy, exactly like the arm poses were before ``test_ssot_parity.py`` -- and
@@ -33,7 +33,7 @@ import pytest
 import yaml
 from table_sources import sibling
 
-PROFILE_RELPATH = "contract/robot-contract/src/robot_contract/profiles/a200_0553.yaml"
+PROFILE_RELPATH = "robot/contract/src/robot_contract/profiles/a200_0553.yaml"
 
 #: The two copies of this repo, addressed locally -- only the profile still lives in a sibling.
 _HERE = pathlib.Path(__file__).resolve().parent.parent

@@ -17,7 +17,7 @@ The way out is not to type better numbers.  It is to compute them from the geome
   3. The result is cross-checked against the SECOND data sheet figure, the centre of gravity -- see ``--report``.
      A distribution that hits the mass and misses the CoG by a lot is telling you the homogeneity assumption broke.
 
-Both data sheet figures live in ``contract/robot-contract``'s profile (``gripper.datasheet.mass_kg`` /
+Both data sheet figures live in ``robot/contract``'s profile (``gripper.datasheet.mass_kg`` /
 ``cog_z_m``, OnRobot RG6 operating manual v6.6.2 §8.3.2).  They are handed in here rather than read, so that this
 script keeps working in a checkout that has only this repo.
 
