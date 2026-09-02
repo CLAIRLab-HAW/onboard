@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.DS_Store
+# ROS / colcon build
+install/
+log/
+*.pcd
+COLCON_IGNORE
+AMENT_IGNORE
