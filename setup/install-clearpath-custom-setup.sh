@@ -84,7 +84,7 @@ RG6_REPO_URL="https://github.com/CLAIRLab-HAW/onrobot-rg6.git"
 # The a200-0553's URDF extras (sensor arch, ArUco marker, and where the RG6 is bolted onto the UR5 flange).
 # robot.yaml addresses a file of this workspace under platform.extras.urdf and lists it under
 # system.ros2.workspaces -- so without it the generator run produces a robot WITHOUT extras, and the arm
-# comes up bare.  Its own repo since 2026-08-31: none of it is a gripper part.
+# comes up bare.  It has a repo of its own: none of it is a gripper part.
 EXTRAS_REPO_URL="https://github.com/CLAIRLab-HAW/husky-extras.git"
 USM_REPO_URL="https://github.com/CLAIRLab-HAW/ur-state-manager.git"
 # UR control box + manipulators namespace: ONE source for dashboard, watchdog
@@ -178,7 +178,7 @@ CKPT_REPO_URL="https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics.git"
 CKPT_PKG_DIR="/usr/local/share/cockpit/ros2-diagnostics"
 
 # Cockpit page "Roboter-Werkzeuge" (cockpit-robot-tools): starts and stops the
-# offboard-lite container, shows its state as a coloured ball and puts the VNC
+# offboard-lite container, shows its state as a colored ball and puts the VNC
 # address next to it.  Same /usr/local reasoning as the fork above, but a
 # DIFFERENT package name -- 'robot-tools' exists under no apt package, so this
 # one shadows nothing and is simply a menu entry of its own.
@@ -1574,7 +1574,7 @@ fi
 
 # --- Cockpit page "Roboter-Werkzeuge" (optional) ---------------------------
 # cockpit-robot-tools: starts and stops the offboard-lite container, shows its
-# state as a coloured ball and puts the VNC address next to it.  Unlike the fork
+# state as a colored ball and puts the VNC address next to it.  Unlike the fork
 # above this shadows nothing -- there is no apt package called 'robot-tools',
 # so it is simply an additional menu entry.
 #
