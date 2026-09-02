@@ -1,0 +1,370 @@
+serial_number: a200-0553
+version: 0
+system:
+  username: robot
+  hosts:
+    - hostname: cpr-a200-0553
+      ip: 192.168.131.10
+  ros2:
+    namespace: a200_0553
+    middleware:
+      implementation: rmw_zenoh_cpp # alternative: rmw_fastrtps_cpp
+    # Overlay workspaces.  The generator writes them into /etc/clearpath/setup.bash (and, in the offboard
+    # container, into /clearpath/setup.bash), so this list is what puts a package on AMENT_PREFIX_PATH for
+    # EVERYTHING that follows: the generator's own $(find ...), RViz and the foxglove_bridge resolving
+    # package:// meshes, and every helper that sources the chain.
+    #
+    # TWO of them, and the split is the same one the repos have: onrobot-rg6 describes the COMPONENT (the RG6
+    # model, its macro and the measured rg6_v2.yaml), husky-extras describes THIS ROBOT's assembly (sensor
+    # arch, ArUco marker, and where the hand is bolted onto the UR5 flange).  platform.extras.urdf.path below
+    # names a file from the second, which includes a macro from the first -- so both have to be listed, and a
+    # missing husky-extras is not a mesh that fails to draw but a generator run that dies on the include.
+    workspaces:
+      - /home/robot/onrobot-rg6/install/setup.bash  # rg6_description, rg6_control
+      - /home/robot/husky-extras/install/setup.bash # husky_extras_description (the file under extras.urdf below)
+platform:
+  mcu:
+    protocol: proton
+  enable_ekf: true
+  enable_foxglove_bridge: true
+  wireless:
+    enable_wireless_watcher: true
+  controller: logitech
+  extras:
+    urdf:
+      # The SOURCE tree, not the install space: the generator reads this file as a path and expands it, while the
+      # package:// meshes inside it resolve through the workspaces above.  Both halves of the pair have to move
+      # together when this path does.
+      path: /home/robot/husky-extras/src/husky_extras_description/urdf/clearpath_extras.urdf.xacro
+    ros_parameters:
+      joy_node:
+        dev: /dev/input/js0 # needed due to custom BT receiver
+      controller_manager:
+        update_rate: 10 # mcu is slow so we give more time
+        # cycle_time_error_threshold: 0.1
+      # Asset allowlist of the foxglove_bridge.
+      #
+      # WHY THIS HAS TO STAND HERE AT ALL: the foxglove_bridge ships a correct
+      # default (measured at the node: '^package://(?:[-\w%]+/)*
+      # [-\w%.]+\.(...)$'). It just never comes into play -- Clearpath's
+      # template clearpath_diagnostics/config/foxglove_bridge.yaml SETS the
+      # parameter, and a set parameter hides the node default. The generator
+      # writes it mangled while doing so (see below), so without this block the
+      # generated file carries an allowlist that matches NOTHING -- not even
+      # package://. Leaving it out would only work if the key were not generated
+      # at all; but ros_parameters can only override, not delete. So this block
+      # restores what would hold anyway without the writer bug.
+      #
+      # ATTENTION, THE REASON FOR THE UNUSUAL SPELLING: NO backslash may appear
+      # here. The generator's ParamWriter writes scalars correctly in single
+      # quotes, but LISTS through Python's repr -- and that doubles every
+      # backslash. YAML single quotes then read it back literally, '\w' becomes
+      # backslash-backslash-w, and the regex matches NOTHING any more. Measured:
+      # with \w the generated file is broken, patched or not.
+      #
+      # Hence the backslash-free, exactly equivalent version:
+      #   \w -> [A-Za-z0-9_]   (in std::regex/ECMAScript exactly what \w is)
+      #   \. -> [.]            (inside a character class, . is literal)
+      # foxglove_bridge keeps the patterns as std::vector<std::regex> and
+      # compares with std::regex_match (utils.hpp, isWhitelisted) -- against that
+      # engine both versions agree on a corpus of matches and non-matches,
+      # including non-ASCII.
+      #
+      # The value deliberately mirrors Clearpath's template, not the node
+      # default. The only difference would be a dot in the filename stem -- of
+      # 409 meshes under /opt/ros/jazzy/share, none has one.
+      foxglove_bridge:
+        asset_uri_allowlist:
+          - '^package://(?:[-A-Za-z0-9_%]+/)*[-A-Za-z0-9_%]+[.](?:dae|fbx|glb|gltf|jpeg|jpg|mtl|obj|png|stl|tif|tiff|urdf|webp|xacro)$'
+      # Analyzer group "Manipulator" for the diagnostic_aggregator. The
+      # Clearpath generator only knows platform and sensor analyzers; without
+      # this block the statuses of the manipulator_diagnostics node land in the
+      # catch-all and do not appear in Cockpit as their own group; the generator
+      # flattens the nesting onto the dotted keys ROS expects by itself.
+      #
+      # The block stands here unconditionally: if the diagnostics node does not
+      # run, Cockpit shows the group as STALE instead of letting it vanish. That
+      # is the more visible state; to undo it, remove this block.
+      diagnostic_aggregator:
+        manipulator:
+          type: diagnostic_aggregator/AnalyzerGroup
+          path: Manipulator
+          analyzers:
+            arm:
+              type: diagnostic_aggregator/GenericAnalyzer
+              path: Arm
+              startswith: ['manipulator_diagnostics: Arm']
+              # 'expected' matters: if a status is missing (node dead), the
+              # aggregator produces a STALE entry for it instead of letting it
+              # vanish silently.
+              expected:
+                - 'manipulator_diagnostics: Arm Mode'
+                - 'manipulator_diagnostics: Arm Control'
+                - 'manipulator_diagnostics: Arm Joints'
+                - 'manipulator_diagnostics: Arm Controllers'
+            gripper:
+              type: diagnostic_aggregator/GenericAnalyzer
+              path: Gripper
+              startswith: ['manipulator_diagnostics: Gripper']
+              expected: ['manipulator_diagnostics: Gripper']
+  battery:
+    model: HE2411
+    configuration: S1P4
+  drivetrain:
+    control: diff_4wd
+    wheels:
+      front: indoor
+      rear: indoor
+  attachments:
+    - name: front_bumper
+      type: a200.bumper
+      model: default
+      parent: front_bumper_mount
+      xyz: [0.0, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      enabled: true
+      extension: 0.0
+    - name: rear_bumper
+      type: a200.bumper
+      model: default
+      parent: rear_bumper_mount
+      xyz: [0.0, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      enabled: true
+      extension: 0.0
+    - name: top_plate
+      type: a200.top_plate
+      model: large
+      parent: default_mount
+      # The plate sits where it is bolted: the deck measuring ~330 mm above ground instead of the nominal 363 is
+      # TYRE SQUISH under the UR mass, and squish lowers the whole vehicle towards the ground rather than pulling
+      # the deck down onto the chassis. Carrying those 31 mm here instead drives the superstructure INTO the
+      # chassis and the wheels -- measured 2026-09-01, move_group then answers valid=False for every state
+      # (husky_top_assembly 25.78 mm inside base_link), so no plan starts at all. The ride height lives in
+      # ride_height_patch (scripts/ride_height_patch.py), which puts this vehicle's LOADED wheel radius into the
+      # a200 description, where clearpath_config has no lever.
+      xyz: [0.0, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      enabled: true
+#links:
+#  box:
+#    - name: user_bay_cover
+#      parent: top_plate_link
+#      xyz: [0.0, 0.0, 0.00735]
+#      rpy: [0.0, 0.0, 0.0]
+#      size: [0.4, 0.4, 0.002]
+#  cylinder: []
+#  frame: []
+#  mesh: []
+#  sphere: []
+#mounts:
+#  bracket:
+#    - parent: top_plate_mount_d1
+#      xyz: [0.0, 0.0, 0.0]
+#      rpy: [0.0, 0.0, 0.0]
+#      model: horizontal
+#  fath_pivot:
+#    - parent: sensor_arch_mount
+#      xyz: [0.0, 0.0, -0.021]
+#      rpy: [3.1415, 0.0, 0.0]
+#      angle: 0.0
+#  riser: []
+#  sick: []
+#  post: []
+#  disk: []
+manipulators:
+  moveit:
+    enable: true
+    ros_parameters:
+      move_group:
+        trajectory_execution:
+          allowed_goal_duration_margin: 6.0 # allows slow gripper opening/closing
+        # Occupancy map monitor -- the generator writes ros_parameters into
+        # moveit.yaml itself.  octomap_frame is deliberately base_link: odom is
+        # UTM-backed here and jumps.
+        octomap_frame: base_link
+        octomap_resolution: 0.025
+        sensors:
+          - wrist_depth_camera
+        wrist_depth_camera:
+          sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
+          point_cloud_topic: /a200_0553/sensors/camera_0/octomap_points
+          # Same value as the feed's max_depth (scripts/octomap_feed.py): the feed
+          # already cuts at 2.5 m, so a wider max_range here would never take effect.
+          # The driver's depth_module.clip_distance (3.0) stays wider on purpose -- it
+          # serves the other depth consumers, not the octomap.
+          max_range: 2.5
+          point_subsample: 1
+          padding_offset: 0.03
+          padding_scale: 1.0
+          max_update_rate: 5.0
+          filtered_cloud_topic: ""
+        # Self-filter robustness (2026-07-29): the shape mask TF lookup to the
+        # cloud stamp intermittently missed the wheel frames (default wait
+        # 0.05 s) -> "Missing transform for shape cylinder", wheel points were
+        # inserted as obstacle voxels and EVERY plan from a chassis-facing pose
+        # failed with START_STATE_IN_COLLISION. A 0.3 s wait lets the TF buffer
+        # catch up; deep-merged next to cartesian_limits/joint_limits (the
+        # generator merge verified empirically).
+        robot_description_planning:
+          shape_transform_cache_lookup_wait_time: 0.3
+          # Acceleration limit of the gripper driving joint. Without it the
+          # TOTG time parameterisation (AddTimeOptimalParameterization) fails for
+          # the gripper group. The generator deep-merges it next to the six arm
+          # joints here.
+          joint_limits:
+            rg6_finger_joint:
+              has_velocity_limits: true
+              max_velocity: 2.0
+              has_acceleration_limits: true
+              max_acceleration: 4.0
+        # GripperCommand controller for the OnRobot RG6. Clearpath does not know
+        # the RG6 -- Gripper.MODEL is a closed enum (franka_gripper,
+        # kinova_2f_lite, robotiq_2f_140, robotiq_2f_85), and a `gripper:` entry
+        # under arms would abort with a ValueError. But the generator writes a
+        # moveit_simple_controller_manager with the arm controller here on every
+        # boot, and our block is merged into it instead of replacing it.
+        # The action is served on the robot by rg6_grip_bridge, in the container
+        # mock by rg6_control_sim (both under the same name).
+        # ATTENTION: merge_dict EXTENDS lists, it does not replace them. So
+        # controller_names must NOT contain the arm controller the generator
+        # writes itself -- it would stand there twice.
+        moveit_simple_controller_manager:
+          controller_names:
+            - manipulators/rg6_gripper_controller
+          manipulators/rg6_gripper_controller:
+            action_ns: gripper_cmd
+            default: true
+            joints:
+              - rg6_finger_joint
+            type: GripperCommand
+            # Grip force of the MoveIt goals [N]; 0 would let the bridge fall
+            # back on its own default. It is clamped to 25...120 there.
+            max_effort: 60.0
+  arms:
+    - model: universal_robots
+      parent: top_plate_front_mount
+      # Measured 2026-09-01 against the real vehicle: the front-mount-to-arm-base
+      # offset reads 107 mm on the plate, not the 120 modelled. The arm bolts
+      # flat onto the plate, so z stays 0 here -- the ~31 mm the whole vehicle
+      # sits lower (tape measure ~330 mm vs. 363 modelled, tyre squish under the
+      # UR mass) is the RIDE HEIGHT and must not be hidden in this joint; it
+      # lives in ride_height_patch.
+      xyz: [-0.107, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      ur_type: ur5
+      robot_ip: 192.168.131.40
+      headless_mode: true
+      kinematics_parameters_file: "/home/robot/ur5_a200_0553_calibration.yaml" # "$(find ur_description)/config/ur5/default_kinematics.yaml"
+      # RTDE input recipe without tool_digital_output_mask/tool_digital_output.
+      # The OnRobot URCap is an RTDE client itself and occupies these two input
+      # variables; RTDE allows only ONE writing client per input variable. With
+      # the standard recipe the ur_robot_driver fails during setup ("Variable
+      # 'tool_digital_output_mask' is currently controlled by another RTDE
+      # client"), ros2_control_node dies with exit -6 and all controller
+      # spawners run into "Failed to acquire lock".
+      # Consequence of this line: ROS can no longer set a tool DO or the tool
+      # voltage -- the tool I/O belongs to the URCap, the arm belongs to ROS.
+      # To go back to a tool-DO driver: remove the line AND disable the URCap.
+      input_recipe_filename: "/home/robot/rtde_input_recipe_no_tool.txt"
+      poses:
+        - name: packed
+          joints: [-0.000695530568258107, -3.1283000151263636, 2.8355469703674316, -3.193974320088522, 1.5455983877182007, -8.374849428349762e-05]
+        - name: forward
+          joints: [-0.00532704988588506, -2.2551897207843226, 2.246230125427246, -3.1489999930011194, -1.569127384816305, -0.00013143221010381012]
+      ros_parameters:
+        controller_manager:
+          update_rate: 125 # CB3 RTDE max = 125 Hz; Clearpath-Default 500 -> FATAL
+          io_and_status_controller:
+            type: ur_controllers/GPIOController
+        io_and_status_controller:
+          tf_prefix: arm_0_
+sensors:
+  camera:
+    - model: intel_realsense
+      urdf_enabled: true
+      launch_enabled: true
+      parent: rg6_onrobot_rg6_base_link
+      xyz: [0.023, 0.0, 0.125]
+      rpy: [0.0, -1.5708, -3.14]
+      ros_parameters:
+        intel_realsense:
+          camera_name: camera_0
+          device_type: d435
+          serial_no: "011422072138"
+          enable_color: true
+          rgb_camera.color_profile: 640,480,30
+          enable_depth: true
+          # 30 fps requires TWO things (both fulfilled, details in
+          # docs/hrl-real-perception-plan.md):
+          #  1. the D435 on USB 3.2 (on USB 2, 15 fps is the limit at 640x480).
+          #  2. robot AND offboard workstation on the 5 GHz band (HAWAX5): on the
+          #     2.4 GHz band color@30 + depth@30 (~4.5 MB/s) saturate the radio
+          #     channel -- measured: 8.7/s at the client + 5.5 s of standing lag
+          #     in the foxglove send buffer. Check the band after a reboot
+          #     (netplan re-renders HAWAX and HAWAX5 with equal priority)!
+          # The resolution stays 640x480 (the HSV detector gates are tuned to it).
+          depth_module.depth_profile: 640,480,30
+          align_depth.enable: true
+          pointcloud.enable: true
+  gps: []
+  imu:
+    - model: redshift_um7
+      urdf_enabled: true
+      launch_enabled: true
+      parent: base_link
+      xyz: [0.0, 0.0, 0.0]
+      rpy: [0.0, 0.0, 0.0]
+      ros_parameters:
+        um7_driver:
+          port: /dev/clearpath/um7
+          frame_id: imu_0_link
+          tf_ned_to_enu: true
+#  lidar2d:
+#    - model: hokuyo_ust
+#      urdf_enabled: true
+#      launch_enabled: true
+#      parent: bracket_0_mount
+#      xyz: [0.0, 0.0, 0.0]
+#      rpy: [0.0, 0.0, 0.0]
+#      ros_parameters:
+#        urg_node:
+#          laser_frame_id: lidar2d_0_laser
+#          ip_address: 192.168.131.20
+#          ip_port: 10940
+#          angle_min: -2.356
+#          angle_max: 2.356
+#  # The device is a RoboSense RS-LiDAR-16, mounted since 2026-08.
+#  # NOT ACTIVE YET: parent/xyz/rpy are unmeasured (R33 in ROBOTER-TODO.md).
+#  # Uncomment only with real values -- a guessed mounting location produces a
+#  # TF that looks plausible and puts the obstacles in the wrong place.  You
+#  # cannot see that in the picture.
+#  #
+#  # WHY 'velodyne_lidar' for a RoboSense device: clearpath_config knows exactly
+#  # three lidar3d models -- velodyne_lidar, ouster_os1, seyond_lidar (checked
+#  # 2026-08-22 in clearpath_config/sensors/types/lidars_3d.py, lines
+#  # 162/247/359) and no robosense.  The entry serves here ONLY as a carrier for
+#  # the link and the mesh, so that the mounting pose stands in THIS file (SSOT)
+#  # and the frame is canonically called 'lidar3d_0_laser' -- the same name
+#  # rslidar_sdk writes into every PointCloud2.
+#  #
+#  # launch_enabled: false is therefore MANDATORY, not taste: otherwise Clearpath
+#  # starts the velodyne_driver_node against a device that is not a Velodyne --
+#  # the packet formats of the RS16 and the VLP16 are not compatible.  The driver
+#  # is rslidar_sdk and is started by onboard/husky-navigation (configuration:
+#  # config/rslidar_rs16.yaml, the same file for container and robot).  For the
+#  # same reason there is no ros_parameters block here.
+#  #
+#  # The mesh shows a VLP16 (Ø103x72 mm) instead of an RS16 (Ø109x80 mm).
+#  # Close enough for collision and visual checking; the model name stays wrong
+#  # nonetheless, and that is the price of this route.
+#  #
+#  # Design and reasoning:
+#  # docs/superpowers/specs/2026-08-22-nav2-rs16-design.md
+#  lidar3d:
+#    - model: velodyne_lidar
+#      urdf_enabled: true
+#      launch_enabled: false
+#      parent: top_plate_rear_mount     # R33: to be MEASURED, not guessed
+#      xyz: [0.0, 0.0, 0.0]             # R33
+#      rpy: [0.0, 0.0, 0.0]             # R33
