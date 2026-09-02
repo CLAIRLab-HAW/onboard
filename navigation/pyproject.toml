@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "husky-navigation"
+version = "0.1.0"
+description = "Navigation layer of the a200-0553: RoboSense RS16 sensor path and Nav2"
+readme = "README.md"
+authors = [
+    { name = "Hannes Philip Voss", email = "mail@hannesvoss.de" },
+]
+requires-python = ">=3.12"
+dependencies = ["pyyaml>=6.0"]
+
+# Test-only, hence a group and not `dependencies`: this package runs onboard the robot, where neither the
+# contract nor a lock file is wanted.  `robot-contract[testing]` brings `filelock` along -- the conftest
+# used to import it without anyone declaring it anywhere, which worked by transitive accident.
+[dependency-groups]
+dev = ["robot-contract[testing]"]
+
+[tool.uv.sources]
+robot-contract = { workspace = true }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+# ruff format is compatible enough with the black it replaced that the switch cost one reflow commit per
+# repo, not a rewrite. Mirrors the workspace root ([tool.ruff] there),
+# so formatting this repo on its own gives the same result as from the workspace.
+line-length = 120
+# Spelled out rather than inferred from `project.requires-python`: the virtual workspace root carries no
+# [project] table, so a run through the ROOT config resolved to 3.10 while a run inside a package resolved
+# to 3.11 (measured 2026-08-30, `ruff check --show-settings`). The pre-commit hook passes
+# --config <workspace-root>, so 3.10 was what every commit got checked against. Same class of trap as the
+# known-first-party split below: one stock, two verdicts, depending on where the run started.
+target-version = "py312"
+extend-exclude = [".venv", ".superpowers", ".idea", "urdf", "data", "node_modules", "build", "dist", "*.egg-info"]
+respect-gitignore = false
+
+[tool.ruff.format]
+# Ruff formats Python inside Markdown fences and notebook cells too, not only .py (measured 2026-08-30,
+# ruff@0.16.5: six repos went red on their README samples alone). Both are prose here -- the README blocks
+# align their trailing comments into a column that carries meaning, and the walkthrough notebook keeps the
+# semicolon-joined plot lines the lint side already exempts. Lint still reads both, only the formatter stays out.
+exclude = ["*.md", "**/*.ipynb"]
+
+[tool.ruff.lint]
+# The durable lint scope of this workspace, measured against the 2026-08-30 stock (ruff@0.16.5): deliberately out
+# are T20 (168 print hits in legitimate CLIs/scripts), N (197 hits, all existing convention rather than bugs) as
+# well as TD/FIX (demands TODO author and link -- R-numbers take that role here) and FLY (0 hits).
+select = ["E4", "E7", "E9", "E501", "F", "I", "UP", "B", "D100"]
+ignore = ["B905"]
+
+[tool.ruff.lint.isort]
+# The workspace decides first-party by name, not by CWD: without this, ruff classifies a run from the
+# workspace root and one from this repo differently -- and each direction I001-fails against the other.
+known-first-party = ["husky_navigation"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["E402", "E702"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "nav_e2e: end-to-end against a DRIVING base (mock platform:=true + Nav2); needs a running husky-offboard container, serialised by exclusive_base in conftest",
+]
