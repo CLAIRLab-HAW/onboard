@@ -1,0 +1,12 @@
+# Python build and import artifacts.  At the REPOSITORY root, not per package: the per-package .gitignore files
+# below only cover their own subtree, and the consolidation on 2026-09-03 moved several packages into trees that
+# had none -- 200 .pyc files were committed that way before anyone noticed.
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.coverage
+.coverage.*
