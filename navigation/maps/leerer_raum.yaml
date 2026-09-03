@@ -1,5 +1,5 @@
 # Synthetic empty room, 10.0 x 10.0 m.
-# Generated with husky_navigation.make_map.write_empty_room -- do
+# Generated with clair.navigation.make_map.write_empty_room -- do
 # not edit by hand, generate it anew.
 # origin puts the origin in the MIDDLE of the room, so that the
 # robot stands centred on (0,0) at map start.

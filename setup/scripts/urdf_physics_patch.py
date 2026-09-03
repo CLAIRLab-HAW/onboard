@@ -34,7 +34,7 @@ it and changes nothing.  That is not an unfinished state, it is the honest one: 
 damping or the Coulomb friction of this arm, and a joint damping invented to look plausible is indistinguishable
 from a measured one the next time somebody reads the file.
 
-The near miss worth writing down, because it will be proposed again: ``maniskill_robot.physics`` carries
+The near miss worth writing down, because it will be proposed again: ``clair.maniskill.robot.physics`` carries
 ``ARM_DAMPING = 100.0`` and looks like exactly the number wanted here.  It is not.  That is the derivative gain of a
 ``PDJointPosControllerConfig`` -- the drive's D term -- while ``<dynamics damping>`` is passive viscous drag inside
 the joint.  Writing the one into the other does not transfer a value, it ADDS 100 N*m*s/rad of drag underneath a

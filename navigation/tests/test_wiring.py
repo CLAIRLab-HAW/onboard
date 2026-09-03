@@ -8,7 +8,7 @@ mock once already (scripts/mock, comment at the robot_state_publisher).
 Needs neither ROS nor Docker.
 """
 
-from husky_navigation import wiring
+from clair.navigation import wiring
 
 
 def test_the_points_topic_follows_the_clearpath_convention():
@@ -23,7 +23,7 @@ def test_the_driver_template_publishes_on_the_wired_points_topic():
     """Driver template and wiring must not diverge."""
     import yaml
 
-    from husky_navigation import rslidar_config as rc
+    from clair.navigation import rslidar_config as rc
 
     template = yaml.safe_load(rc.TEMPLATE_PATH.read_text(encoding="utf-8"))
     assert template["lidar"][0]["ros"]["ros_send_point_cloud_topic"] == wiring.points_topic()
@@ -32,7 +32,7 @@ def test_the_driver_template_publishes_on_the_wired_points_topic():
 def test_the_driver_template_uses_the_wired_frame():
     import yaml
 
-    from husky_navigation import rslidar_config as rc
+    from clair.navigation import rslidar_config as rc
 
     template = yaml.safe_load(rc.TEMPLATE_PATH.read_text(encoding="utf-8"))
     assert template["lidar"][0]["ros"]["ros_frame_id"] == wiring.LIDAR_FRAME

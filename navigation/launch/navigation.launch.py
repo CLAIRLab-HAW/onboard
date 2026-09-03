@@ -7,7 +7,7 @@ localization:=slam    slam_toolbox maps and supplies map ─▶ odom itself
 The default is NONE, deliberately: as long as the sensor path delivers no scans, an AMCL in the graph publishes NO
 transform at all, the TF chain would stand still, and one would look for the fault in the costmaps.
 
-All topic and frame names come from husky_navigation.wiring.
+All topic and frame names come from clair.navigation.wiring.
 """
 
 import os
@@ -16,7 +16,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from husky_navigation import wiring
+from clair.navigation import wiring
 from launch import LaunchDescription
 
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

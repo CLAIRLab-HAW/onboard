@@ -25,7 +25,7 @@ MSG_SOURCE_PCAP = 3
 #: seconds, not in frames.
 PCAP_RATE = 1
 
-TEMPLATE_PATH = Path(__file__).resolve().parents[2] / "config" / "rslidar_rs16.yaml"
+TEMPLATE_PATH = Path(__file__).resolve().parents[3] / "config" / "rslidar_rs16.yaml"
 
 
 def render(template: dict, *, pcap_path: str | None = None) -> dict:

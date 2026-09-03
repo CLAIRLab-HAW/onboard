@@ -14,6 +14,7 @@ fixture below is only the local name for it.
 """
 
 import pytest
+
 from clair.robot.contract.base_testing import exclusive_base as _exclusive_base
 
 

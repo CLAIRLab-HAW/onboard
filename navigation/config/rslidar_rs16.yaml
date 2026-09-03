@@ -1,7 +1,7 @@
 # rslidar_sdk configuration for the RoboSense RS-LiDAR-16 of the a200-0553.
 #
 # THIS FILE IS THE SHARED SOURCE FOR MOCK AND ROBOT.  It is never handed to
-# the node directly -- husky_navigation.rslidar_config.render() produces the
+# the node directly -- clair.navigation.rslidar_config.render() produces the
 # resolved version from it, and the ONLY difference between container mock
 # and real device is common.msg_source.
 #

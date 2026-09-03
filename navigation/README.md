@@ -64,7 +64,7 @@ Two places where it does count after all:
 - **Height bands are measured from `base_link`, not from the ground.**
   `pointcloud_to_laserscan` filters with `min_height: -0.10`; that is 3.2 cm
   above the ground, not 10 cm below it. It is written down in
-  `husky_navigation.wiring` together with this calculation.
+  `clair.navigation.wiring` together with this calculation.
 - **A ground plane as a collision object at `map` z = 0 would sit 13.2 cm too
   high** — in the middle of the robot. Anyone adding one for the arm puts it
   on `base_footprint`.

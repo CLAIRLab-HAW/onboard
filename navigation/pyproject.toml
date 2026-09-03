@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "husky-navigation"
+name = "clair-navigation"
 version = "0.1.0"
 description = "Navigation layer of the a200-0553: RoboSense RS16 sensor path and Nav2"
 readme = "README.md"
@@ -22,8 +22,10 @@ dev = ["clair-robot[testing]"]
 [tool.uv.sources]
 clair-robot = { workspace = true }
 
+# `clair` is a PEP 420 namespace and carries NO __init__.py.
 [tool.setuptools.packages.find]
 where = ["src"]
+namespaces = true
 
 [tool.ruff]
 # ruff format is compatible enough with the black it replaced that the switch cost one reflow commit per
@@ -56,7 +58,7 @@ ignore = ["B905"]
 [tool.ruff.lint.isort]
 # The workspace decides first-party by name, not by CWD: without this, ruff classifies a run from the
 # workspace root and one from this repo differently -- and each direction I001-fails against the other.
-known-first-party = ["husky_navigation"]
+known-first-party = ["clair"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["E402", "E702"]

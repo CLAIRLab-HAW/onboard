@@ -9,7 +9,7 @@ Invocation inside the container:
     ros2 launch /opt/spact/husky-navigation/launch/lidar.launch.py
                                                    # device (no pcap arg)
 
-Every name comes from husky_navigation.wiring -- none of them is stated a second time here
+Every name comes from clair.navigation.wiring -- none of them is stated a second time here
 (tests/test_launch_files_do_not_restate_the_wiring.py).
 """
 
@@ -17,7 +17,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from husky_navigation import rslidar_config, wiring
+from clair.navigation import rslidar_config, wiring
 from launch import LaunchDescription
 
 
