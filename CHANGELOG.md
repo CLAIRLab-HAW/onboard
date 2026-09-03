@@ -6,6 +6,19 @@ next to its README, and those entries are not repeated here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the
 versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-09-03 (one workflow at the repository root)
+
+- **`.github/workflows/ci.yml` at the root replaces the six under setup/, extras/, rg6/, ur-state/, cockpit-tools/ and
+  cockpit-diagnostics/.** GitHub Actions never reads a workflow from a subdirectory, so none of them had started once
+  since the consolidation, and each still checked out the pre-consolidation repositories. The new file carries three
+  jobs by toolchain: `python` (the five suites, `bash -n` over the installer scripts, a syntax-level ruff pass, and
+  clair.robot's SSOT parity test), `cockpit-tools` and `cockpit-diagnostics` (eslint, stylelint). Every job that runs
+  Python synthesizes a root `pyproject.toml` with exactly the workspace members it needs and lets `uv sync
+  --all-packages` resolve from there -- the same `clair-*` workspace sources the checkout uses, without pulling all
+  eight repositories. Measured locally with the same commands before committing. The upstream's two bot workflows of
+  cockpit-diagnostics (`cockpit-lib-update`, `tasks-container-update`) are not carried over: they open pull requests
+  against the upstream repository from a Cockpit-project identity.
+
 ## 2026-09-03 (following deploy/offboard)
 
 - Paths and prose that said `deploy/husky-offboard` / `husky-offboard` say `deploy/offboard` / `offboard`.

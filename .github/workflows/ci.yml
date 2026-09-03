@@ -1,0 +1,140 @@
+name: ci
+
+# The seven onboard checkouts, checked the way each one was checked before the consolidation -- in one file at
+# the root of the repository, because GitHub Actions never reads a workflow from a subdirectory: the six under
+# setup/, extras/, rg6/, ur-state/, cockpit-tools/ and cockpit-diagnostics/ never started once after the
+# consolidation, and four of them still checked out the pre-consolidation repositories.
+#
+# Three jobs, by toolchain:
+#
+#   python              setup, extras, rg6, ur-state, navigation -- their own suites, `bash -n` over the
+#                       installer scripts, a syntax-level ruff pass, and the SSOT parity test in clair.robot
+#                       (robot.yaml against the a200_0553 profile), which is the one test outside this
+#                       repository that pins a file inside it.
+#   cockpit-tools       the Cockpit page: `node --check`, `bash -n`, `npm test`.
+#   cockpit-diagnostics the upstream-derived plugin: `npm ci`, eslint, stylelint. The upstream's two bot
+#                       workflows (cockpit-lib-update, tasks-container-update) are NOT carried over: they open
+#                       pull requests against the upstream repository from a Cockpit-project identity, which
+#                       has no place in this one.
+#
+# WHY A SYNTHESIZED ROOT. rg6, setup and navigation import clair.robot, and clair.robot resolves its own
+# `clair-*` dependencies as workspace members; the root that lists them is the `clearpath` repository. So the
+# job writes a root `pyproject.toml` with exactly the members it needs and lets uv resolve from there.
+# `touch workspace.repos` is what the `_bootstrap` modules look for to find the root.
+#
+# `CLAIRLAB_READ_TOKEN`, not `GITHUB_TOKEN`: the default token is scoped to the repository the workflow runs
+# in, so against another PRIVATE repository of the same organization the checkout answers "Not Found" rather
+# than 403. The org secret is the one every cross-repository checkout here has used since 2026-08-26.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: onboard
+
+      - uses: actions/checkout@v5
+        with:
+          repository: CLAIRLab-HAW/robot
+          path: robot
+          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
+
+      - uses: actions/checkout@v5
+        with:
+          repository: CLAIRLab-HAW/log
+          path: log
+          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
+
+      - uses: actions/checkout@v5
+        with:
+          repository: CLAIRLab-HAW/twin
+          path: twin
+          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
+
+      - name: Synthesize the workspace root
+        run: |
+          touch workspace.repos
+          cat > pyproject.toml <<'EOF'
+          [tool.uv.workspace]
+          members = ["log", "twin/twinlink", "twin/perception", "robot/core", "onboard/navigation"]
+
+          [tool.uv]
+          package = false
+
+          [dependency-groups]
+          dev = ["pytest", "pytest-xdist", "pyyaml", "numpy", "ruff>=0.16.5,<0.17"]
+
+          [tool.ruff]
+          line-length = 120
+          target-version = "py312"
+
+          [tool.pytest.ini_options]
+          addopts = "--import-mode=importlib"
+          markers = [
+              "e2e_mock: end-to-end against the Python mock",
+              "e2e_container: end-to-end against a running container",
+              "e2e_container_nav: end-to-end against a running container with a driving base",
+              "e2e_container_maniskill: end-to-end against a running container and a ManiSkill world",
+              "needs_recording: needs an MCAP recording under data/recordings/",
+              "slow_sim: builds a real MuJoCo scene (minutes)",
+          ]
+          EOF
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+
+      - run: uv sync --all-packages
+
+      - name: bash -n over the installer and boot scripts
+        working-directory: onboard/setup
+        run: find . -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+      # Syntax-level only for the four checkouts without a pyproject.toml of their own (deliberately none:
+      # `uv` would take such a directory for the workspace root). navigation has one and gets the full set.
+      - run: uv run ruff check --select E9,F63,F7,F82 onboard/setup onboard/extras onboard/rg6 onboard/ur-state
+      - run: uv run ruff check onboard/navigation
+      - run: uv run ruff format --check onboard/navigation
+
+      - name: own suites
+        run: >
+          uv run pytest onboard/setup onboard/extras onboard/rg6 onboard/ur-state onboard/navigation -q -n 4
+          -m 'not e2e_container and not e2e_container_nav'
+
+      - name: robot.yaml against the a200_0553 profile
+        run: uv run pytest robot/core/tests/contract/test_ssot_parity.py -q
+
+  cockpit-tools:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cockpit-tools
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: for f in *.js test/*.mjs test/preview/base1/*.js; do node --check "$f"; done
+      - run: for f in install.sh test/preview/serve.sh; do bash -n "$f"; done
+      - run: npm test
+
+  cockpit-diagnostics:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cockpit-diagnostics
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run eslint
+      - run: npm run stylelint
