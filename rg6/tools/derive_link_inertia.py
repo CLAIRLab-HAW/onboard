@@ -311,7 +311,7 @@ def box_assembly(xacro: Path, link_name: str, mass_kg: float) -> tuple[np.ndarra
 
     The second shape of the same job.  ``husky_top_assembly`` is not a mesh with a density but a hand-authored
     envelope of six boxes around a portal frame, and it reaches the model with collision geometry and no
-    ``<inertial>`` at all -- whereupon ``twinlink.urdf_mujoco._ensure_inertial`` silently substitutes 0,1 kg for a
+    ``<inertial>`` at all -- whereupon ``clair.twin.urdf_mujoco._ensure_inertial`` silently substitutes 0,1 kg for a
     structure that stands over half a metre tall.  Distributing a mass over the boxes BY VOLUME is not the true
     distribution either, but it is one anybody can check against the numbers in the file.
 

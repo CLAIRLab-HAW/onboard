@@ -148,7 +148,7 @@ TARGETS += [
 ]
 
 TARGETS.append(
-    #: ``top_plate_link`` carries a collision mesh and no mass.  ``twinlink.urdf_mujoco._ensure_inertial`` substitutes
+    #: ``top_plate_link`` carries a collision mesh and no mass.  ``clair.twin.urdf_mujoco._ensure_inertial`` substitutes
     #: 0,1 kg for it, the same silent stand-in that husky_top_assembly got until its own inertial was derived.  Here
     #: the geometry alone does not settle it: the plate is sheet metal, and a solid mesh at any density overstates it.
     Target(
