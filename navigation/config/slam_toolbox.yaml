@@ -2,7 +2,7 @@
 #
 # For MAPPING, not for driving: `nav localization:=slam`.  Afterwards save
 # the map and in normal operation drive against it with localization:=amcl:
-#   ros2 run nav2_map_server map_saver_cli -f /opt/spact/husky-navigation/maps/labor
+#   ros2 run nav2_map_server map_saver_cli -f /opt/clair/navigation/maps/labor
 a200_0553:
   slam_toolbox:
     ros__parameters:

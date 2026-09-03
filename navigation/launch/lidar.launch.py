@@ -4,9 +4,9 @@ READ-ONLY.  This launch commands nothing and may therefore also run on the graph
 navigation.launch.py, because its controller_server writes to cmd_vel.
 
 Invocation inside the container:
-    ros2 launch /opt/spact/husky-navigation/launch/lidar.launch.py \
+    ros2 launch /opt/clair/navigation/launch/lidar.launch.py \
         pcap:=/data/recordings/rs16_labor.pcap     # mock
-    ros2 launch /opt/spact/husky-navigation/launch/lidar.launch.py
+    ros2 launch /opt/clair/navigation/launch/lidar.launch.py
                                                    # device (no pcap arg)
 
 Every name comes from clair.navigation.wiring -- none of them is stated a second time here

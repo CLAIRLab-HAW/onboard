@@ -37,7 +37,7 @@ def replay():
     _exec("pkill -f rslidar_sdk_node || true; sleep 2")
     _exec(
         f"source ros-env; nohup ros2 launch "
-        f"/opt/spact/husky-navigation/launch/lidar.launch.py "
+        f"/opt/clair/navigation/launch/lidar.launch.py "
         f"pcap:={PCAP_CONTAINER} > /tmp/lidar.log 2>&1 & sleep 15; echo ok"
     )
     return PCAP_CONTAINER
