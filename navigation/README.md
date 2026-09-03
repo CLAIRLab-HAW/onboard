@@ -95,7 +95,7 @@ See `deploy/husky-offboard/scripts/nav` in the container.
 
 ```bash
 uv run pytest onboard/navigation          # without ROS, without container
-uv run pytest -m nav_e2e                      # needs a running container
+uv run pytest -m e2e_container_nav                      # needs a running container
 ```
 
 ## Related

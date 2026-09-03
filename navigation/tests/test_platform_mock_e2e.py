@@ -12,7 +12,7 @@ import subprocess
 
 import pytest
 
-pytestmark = pytest.mark.nav_e2e
+pytestmark = pytest.mark.e2e_container_nav
 
 CONTAINER = "husky-offboard-mock-robot-1"
 

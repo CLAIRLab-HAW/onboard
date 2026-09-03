@@ -23,10 +23,10 @@ nothing to do with this layer. What the consolidation changes for the robot is f
 
 ```bash
 uv run pytest onboard                     # what runs without ROS
-uv run pytest -m nav_e2e onboard/navigation   # needs a driving base and Nav2
+uv run pytest -m e2e_container_nav onboard/navigation   # needs a driving base and Nav2
 ```
 
-`nav_e2e` is deselected by the root run. Inside `navigation/` a file lock (`tests/conftest.py`,
+`e2e_container_nav` is deselected by the root run. Inside `navigation/` a file lock (`tests/conftest.py`,
 `exclusive_base`) serializes the driving tests — without it two xdist workers measure each other's drive.
 
 ## Versioning

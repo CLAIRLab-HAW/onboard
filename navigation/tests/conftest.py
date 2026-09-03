@@ -5,7 +5,7 @@ test_platform_mock_e2e.py and test_navigation_e2e.py therefore land on different
 Both command the same base and read the same odometry.
 
 Measured on 2026-08-22: both reported exactly the same values (3,878 ─▶ 4,058) and both failed.  Each had measured the
-other one's motion.  That is the same fault CLAUDE.md describes for the three offboard_e2e packages -- "they share
+other one's motion.  That is the same fault CLAUDE.md describes for the three e2e_container packages -- "they share
 server and arm".
 
 The lock itself lives in ``clair.robot.contract.base_testing``, not here: a conftest is directory-scoped, so a lock

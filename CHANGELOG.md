@@ -6,6 +6,12 @@ next to its README, and those entries are not repeated here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the
 versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-09-03 (following the E2E marker rename)
+
+- **`mock_e2e`, `offboard_e2e`, `nav_e2e`, `maniskill_e2e` are `e2e_mock`, `e2e_container`, `e2e_container_nav`,
+  `e2e_container_maniskill`** — the markers spell the stage token (C2 of the naming plan, root `pyproject.toml`).
+  Marks, the member `pyproject.toml` registrations and the prose follow; no test moved and no behavior changed.
+
 ## 2026-09-03 (following the motion protocol rename)
 
 - **`/twin/*` is `/motion/*` and `twin_protocol` is `clair.robot.contract.motion`.** Imports, topic names and the
