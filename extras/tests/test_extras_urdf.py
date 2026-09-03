@@ -1,7 +1,7 @@
 """The a200-0553's URDF extras: does the file still say what the rest of the workspace assumes it says?
 
-There is nothing to execute here -- the package is data -- so what the tests guard is the seam, and a seam is
-exactly what a move breaks:
+There is nothing to execute here -- the package is data -- so what the tests guard is the seam, and a seam is exactly
+what a move breaks:
 
 * an XML comment cannot contain ``--``, and a file that is not well-formed takes the WHOLE stack down with it
   (``mock`` dies in ``_process_urdf``, ``move_group`` never comes up).  That has happened once already, in
@@ -11,9 +11,9 @@ exactly what a move breaks:
 * ``robot.yaml`` addresses this file by ABSOLUTE path and lists the workspace it is installed from.  Two numbers
   in a foreign repo, and if either stops matching, the next boot generates a robot without extras.
 
-The last one reaches into ``husky-custom-setup``.  That is deliberate and follows the workspace convention: a
-repo checked out on its own cannot know where its siblings are and skips, but inside a workspace a missing file
-FAILS rather than skipping quietly.
+The last one reaches into ``husky-custom-setup``.  That is deliberate and follows the workspace convention: a repo
+checked out on its own cannot know where its siblings are and skips, but inside a workspace a missing file FAILS rather
+than skipping quietly.
 """
 
 from __future__ import annotations
@@ -91,7 +91,8 @@ def test_the_move_kept_every_link_the_stack_addresses_by_name(extras_text, name)
 
 
 def test_the_arch_carries_collision_geometry_and_a_mass(extras_text):
-    """R15 and R47 in one link: without the boxes move_group plans through the arch, without the mass it weighs 0.1 kg."""
+    """R15 and R47 in one link: without the boxes move_group plans through the arch, without the mass it weighs 0.1
+    kg."""
     arch = extras_text.split('<link name="husky_top_assembly">', 1)[1].split("</link>", 1)[0]
     assert arch.count("<collision>") == 6, "the six boxes along the real structure"
     assert "<inertial>" in arch and 'value="6.21"' in arch
@@ -100,7 +101,7 @@ def test_the_arch_carries_collision_geometry_and_a_mass(extras_text):
 def test_the_package_installs_the_two_directories_the_uris_resolve_through():
     cmake = (REPO / "src" / PACKAGE / "CMakeLists.txt").read_text(encoding="utf-8")
     assert "DIRECTORY urdf meshes" in cmake
-    assert f"DESTINATION share/${{PROJECT_NAME}}" in cmake
+    assert "DESTINATION share/${PROJECT_NAME}" in cmake
 
 
 def test_robot_yaml_addresses_this_file_and_sources_this_workspace():

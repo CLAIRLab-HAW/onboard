@@ -3,7 +3,7 @@
 # Beyond its own suite (tests/, the urdf_physics_patch patcher) this workflow guards the one file OTHER repos copy
 # from and check against:
 #
-#   config/robot.yaml                 -> robot/contract/tests/test_ssot_parity.py     (arm poses)
+#   config/robot.yaml                 -> robot/core/tests/contract/test_ssot_parity.py     (arm poses)
 #
 # That guard lives in the OTHER repo, so it would only ever fire when THAT repo is touched -- a change to
 # robot.yaml here went unnoticed until someone happened to edit the far side. The direction that matters most is

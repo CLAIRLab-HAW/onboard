@@ -17,10 +17,10 @@ dependencies = ["pyyaml>=6.0"]
 # contract nor a lock file is wanted.  `robot-contract[testing]` brings `filelock` along -- the conftest
 # used to import it without anyone declaring it anywhere, which worked by transitive accident.
 [dependency-groups]
-dev = ["robot-contract[testing]"]
+dev = ["clair-robot[testing]"]
 
 [tool.uv.sources]
-robot-contract = { workspace = true }
+clair-robot = { workspace = true }
 
 [tool.setuptools.packages.find]
 where = ["src"]

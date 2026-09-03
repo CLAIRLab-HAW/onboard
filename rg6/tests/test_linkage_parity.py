@@ -33,7 +33,7 @@ import pytest
 import yaml
 from table_sources import sibling
 
-PROFILE_RELPATH = "robot/contract/src/robot_contract/profiles/a200_0553.yaml"
+PROFILE_RELPATH = "robot/core/src/clair/robot/contract/profiles/a200_0553.yaml"
 
 #: The two copies of this repo, addressed locally -- only the profile still lives in a sibling.
 _HERE = pathlib.Path(__file__).resolve().parent.parent
@@ -143,7 +143,7 @@ def cpp_probe(repo_root, tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def profile_linkage():
-    from robot_contract import RobotProfile
+    from clair.robot.contract import RobotProfile
 
     return RobotProfile.load("a200_0553").gripper.linkage
 
