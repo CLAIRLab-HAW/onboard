@@ -6,6 +6,12 @@ next to its README, and those entries are not repeated here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the
 versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-09-03 (following the motion protocol rename)
+
+- **`/twin/*` is `/motion/*` and `twin_protocol` is `clair.robot.contract.motion`.** Imports, topic names and the
+  `MOTION_DIRECT_EXECUTE` / `MOTION_SOURCE` variables follow the contract, which carries the `PROTOCOL_VERSION`
+  bump from 9 to 10. No behavior changed here.
+
 ## [1.0.0] - 2026-09-03
 
 The repository comes into being out of seven, and the subdirectories drop the platform from their names --
