@@ -28,14 +28,14 @@ def test_the_root_run_descends_into_onboard():
     )
 
 
-def test_the_nav_e2e_marker_is_registered():
+def test_the_e2e_container_nav_marker_is_registered():
     markers = _config()["tool"]["pytest"]["ini_options"]["markers"]
     assert any(m.startswith("e2e_container_nav:") for m in markers), (
         "Marker 'e2e_container_nav' is not registered -- pytest then warns about an unknown marker on every run."
     )
 
 
-def test_the_default_run_deselects_nav_e2e():
+def test_the_default_run_deselects_e2e_container_nav():
     addopts = _config()["tool"]["pytest"]["ini_options"]["addopts"]
     assert "not e2e_container_nav" in addopts, (
         "The root run does not deselect e2e_container_nav -- it would presuppose a container with a driving base."
