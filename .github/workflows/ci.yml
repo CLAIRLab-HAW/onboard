@@ -65,6 +65,13 @@ jobs:
           [tool.uv.workspace]
           members = ["log", "twin/twinlink", "twin/perception", "robot/core", "onboard/navigation"]
 
+          [tool.uv.sources]
+          clair-log = { workspace = true }
+          clair-twin = { workspace = true }
+          clair-perception = { workspace = true }
+          clair-robot = { workspace = true }
+          clair-navigation = { workspace = true }
+
           [tool.uv]
           package = false
 
