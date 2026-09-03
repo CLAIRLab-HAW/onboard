@@ -37,7 +37,7 @@ The container is **looked up, not guessed**: compose forms the name as
 `<project>-moveit-rviz-1`, and by default the project is named after the
 directory — so a hard-wired name is a bet on where the files happen to live.
 Detection goes by the compose service (`moveit-rviz`) or by the image
-(`*offboard-lite*`); the large `husky-offboard` container is not swept up in
+(`*offboard-lite*`); the large `offboard-viewer` container is not swept up in
 that. Which container is being operated is stated in the card, and if there
 are several matches it names the others too.
 
@@ -191,7 +191,7 @@ node --test test/*.test.mjs
 ## Related
 
 - [husky-offboard](../../deploy/husky-offboard/README.md) — its `lite` stage builds
-  `husky-offboard-lite:jazzy`, the container this page operates
+  `offboard-lite:jazzy`, the container this page operates
 - [cockpit-ros2-diagnostics](../cockpit-diagnostics/README.md) — the diagnostics plugin next to it
 
 ## Versioning

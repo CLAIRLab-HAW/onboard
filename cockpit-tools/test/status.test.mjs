@@ -151,8 +151,8 @@ test('localhost is no VNC target and falls back to the robot address', () => {
 // '{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Label "com.docker.compose.service"}}'`
 // delivers them.
 const PS = [
-    'offboard-lite-moveit-rviz-1\thusky-offboard-lite:jazzy\texited\tmoveit-rviz',
-    'husky-offboard-offboard-1\tclearpath-offboard:jazzy\trunning\toffboard',
+    'offboard-lite-moveit-rviz-1\toffboard-lite:jazzy\texited\tmoveit-rviz',
+    'offboard-viewer-1\toffboard-viewer:jazzy\trunning\toffboard',
 ].join('\n');
 
 test('the output of docker ps is split into fields', () => {
@@ -160,7 +160,7 @@ test('the output of docker ps is split into fields', () => {
     assert.equal(rows.length, 2);
     assert.deepEqual(rows[0], {
         name: 'offboard-lite-moveit-rviz-1',
-        image: 'husky-offboard-lite:jazzy',
+        image: 'offboard-lite:jazzy',
         state: 'exited',
         service: 'moveit-rviz',
     });
@@ -174,26 +174,26 @@ test('blank lines and junk fly out', () => {
 test('the container is recognised by the compose service, not the directory name', () => {
     // Exactly the case of 2026-08-20: the project lies elsewhere, so the
     // container is named differently -- the page has to find it all the same.
-    const rows = parseContainers('husky-offboard-lite-moveit-rviz-1\tanything:new\trunning\tmoveit-rviz');
+    const rows = parseContainers('offboard-lite-moveit-rviz-1\tanything:new\trunning\tmoveit-rviz');
     const hit = pickContainer(rows);
-    assert.equal(hit.container.name, 'husky-offboard-lite-moveit-rviz-1');
+    assert.equal(hit.container.name, 'offboard-lite-moveit-rviz-1');
     assert.equal(hit.container.state, 'running');
 });
 
 test('without a compose label the image suffices as the mark', () => {
-    const rows = parseContainers('lite\tghcr.io/clairlab-haw/husky-offboard-lite:jazzy\texited\t');
+    const rows = parseContainers('lite\tghcr.io/clairlab-haw/offboard-lite:jazzy\texited\t');
     assert.equal(pickContainer(rows).container.name, 'lite');
 });
 
-test('the big husky-offboard container is not taken along', () => {
-    const rows = parseContainers('husky-offboard-offboard-1\tclearpath-offboard:jazzy\trunning\toffboard');
+test('the big offboard-viewer container is not taken along', () => {
+    const rows = parseContainers('offboard-viewer-1\toffboard-viewer:jazzy\trunning\toffboard');
     assert.equal(pickContainer(rows).container, null);
 });
 
 test('among several hits the running one wins', () => {
     const rows = parseContainers([
-        'old-moveit-rviz-1\thusky-offboard-lite:jazzy\texited\tmoveit-rviz',
-        'new-moveit-rviz-1\thusky-offboard-lite:jazzy\trunning\tmoveit-rviz',
+        'old-moveit-rviz-1\toffboard-lite:jazzy\texited\tmoveit-rviz',
+        'new-moveit-rviz-1\toffboard-lite:jazzy\trunning\tmoveit-rviz',
     ].join('\n'));
     const hit = pickContainer(rows);
     assert.equal(hit.container.name, 'new-moveit-rviz-1');

@@ -30,13 +30,13 @@
     }
 
     function psLines() {
-        // The big husky-offboard container always stands in the list too -- the
+        // The big offboard-viewer container always stands in the list too -- the
         // page must not take it along.
-        const foreign = 'husky-offboard-offboard-1\tclearpath-offboard:jazzy\trunning\toffboard';
+        const foreign = 'offboard-viewer-1\toffboard-viewer:jazzy\trunning\toffboard';
         if (status === 'missing')
             return foreign + '\n';
         return [
-            name + '\thusky-offboard-lite:jazzy\t' + status + '\tmoveit-rviz',
+            name + '\toffboard-lite:jazzy\t' + status + '\tmoveit-rviz',
             foreign,
         ].join('\n') + '\n';
     }

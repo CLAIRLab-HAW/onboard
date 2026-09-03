@@ -6,6 +6,11 @@ next to its README, and those entries are not repeated here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the
 versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-09-03 (following the stack names)
+
+- `cockpit-tools` matches the image `offboard-lite` (was `husky-offboard-lite`) — the copy under
+  `/usr/local/share/cockpit` on the robot is R59 until redeployed.
+
 ## 2026-09-03 (following the E2E marker rename)
 
 - **`mock_e2e`, `offboard_e2e`, `nav_e2e`, `maniskill_e2e` are `e2e_mock`, `e2e_container`, `e2e_container_nav`,

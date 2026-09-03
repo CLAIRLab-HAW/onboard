@@ -51,7 +51,7 @@ export function classify({status = null, error = null, pending = null, missing =
             // No guessed path: the page does not know where the compose project
             // lives, and a wrong "cd" sends the reader into exactly the confusion
             // they are coming from.
-            detail: 'There is no container from the image husky-offboard-lite on this '
+            detail: 'There is no container from the image offboard-lite on this '
                 + 'machine (compose service moveit-rviz). Create it once, in the '
                 + 'directory of the compose project: docker compose '
                 + '-f docker-compose.yml -f docker-compose.robot.yml up -d',

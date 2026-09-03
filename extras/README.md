@@ -67,7 +67,7 @@ resolve there as well.
 Nothing here is started. The file is read by
 
 - `clearpath_generator_common generate_description` (per boot, on the robot and
-  in the `mock-robot` container),
+  in the `plant-mock` container),
 - RViz and the `foxglove_bridge`, which resolve the arch mesh through the
   ament index of their own container,
 - and `tools/derive_link_inertia.py` in `onrobot-rg6`, whose box mode recomputes

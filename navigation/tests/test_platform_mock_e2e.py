@@ -14,7 +14,7 @@ import pytest
 
 pytestmark = pytest.mark.e2e_container_nav
 
-CONTAINER = "husky-offboard-mock-robot-1"
+CONTAINER = "offboard-plant-mock-1"
 
 
 def _exec(script: str, timeout: int = 90) -> str:
