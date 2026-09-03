@@ -69,7 +69,7 @@ ExternalControl start → the driver syncs `Command=actual` → **no position ju
 stop**, unlike a mere `prepare`/`play` that resumes the paused state with a stale command.
 That restores the arm's motion link; the **gripper** is not part of it — the RG6 hangs off
 the OnRobot URCap, and no ROS service can power its tool connector (see
-[`onrobot-rg6`](../onrobot-rg6/README.md)). Only powered states are touched;
+[`onrobot-rg6`](../rg6/README.md)). Only powered states are touched;
 `POWER_OFF`/`BOOTING`/`BACKDRIVE` are left untouched. Disable with `auto_recover:=false`.
 
 > **CB3 special case:** `robot_state_helper` clears a protective stop *immediately*, but the
@@ -135,7 +135,7 @@ The complete safety handling now lives in `robot_state_helper` (called from
 ### Prerequisites
 
 - The `ur_robot_driver` is running and connected to the UR5.
-- The `io_and_status_controller` is loaded/active — needed by the `robot_state_helper`, not by the gripper: since the URCap switch the RG6 is commanded over XML-RPC and no longer rides on a tool digital output (see [`onrobot-rg6`](../onrobot-rg6/README.md)).
+- The `io_and_status_controller` is loaded/active — needed by the `robot_state_helper`, not by the gripper: since the URCap switch the RG6 is commanded over XML-RPC and no longer rides on a tool digital output (see [`onrobot-rg6`](../rg6/README.md)).
   The `robot_state_helper` subscribes to `robot_mode`/`safety_mode`/`robot_program_running`
   from it and calls `resend_robot_program`.
 - **The `robot_state_helper` node is running.** Clearpath does **not** start it; this launch
@@ -264,7 +264,7 @@ workspace formats with black and runs no other linter.
 
 ## Related
 
-- [husky-custom-setup](../husky-custom-setup/README.md) — the installer that
+- [husky-custom-setup](../setup/README.md) — the installer that
   ships this as `clearpath-custom-ur-state-manager`
 - [plan-bridge](../../robot/motion-server/README.md) — translates `/twin/arm_cmd`
   into these services

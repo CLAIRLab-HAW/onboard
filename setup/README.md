@@ -24,7 +24,7 @@ in the `--verify` manifest it belongs in `scripts/`; if it is not, somebody star
 - **A watchdog for a late arm power-up** and for a motion link that died while ExternalControl kept reporting it was
   "running".
 - **The RG6 gripper service** — `clearpath-custom-rg6-grip-bridge`, unit and wrapper. The node itself
-  (`rg6_grip_bridge`, XML-RPC against the OnRobot URCap) belongs to [onrobot-rg6](../onrobot-rg6/README.md), where its
+  (`rg6_grip_bridge`, XML-RPC against the OnRobot URCap) belongs to [onrobot-rg6](../rg6/README.md), where its
   mock counterpart already sat; the installer rolls it out from that workspace as a root-owned copy, together with its
   linkage table.
 - **Manipulator diagnostics in Cockpit**: arm mode, control, joints, controllers and gripper as `diagnostic_msgs`, with
@@ -288,10 +288,10 @@ Three building blocks close the gap, all from the installer (optional steps):
 Both live under `/usr/local/share/cockpit`, which Cockpit searches before
 `/usr/share` — and both are optional steps of the installer, not services.
 
-- The [`cockpit-ros2-diagnostics`](../cockpit-ros2-diagnostics/README.md) fork goes to `ros2-diagnostics/` and adds the
+- The [`cockpit-ros2-diagnostics`](../cockpit-diagnostics/README.md) fork goes to `ros2-diagnostics/` and adds the
   manipulator panel to the diagnostics tree. It **shadows** the apt plugin under `/usr/share`, which is why the
   directory name has to be exactly that one.
-- [`cockpit-robot-tools`](../cockpit-robot-tools/README.md) goes to
+- [`cockpit-robot-tools`](../cockpit-tools/README.md) goes to
   `robot-tools/` and is the page *Roboter-Werkzeuge*: the offboard-lite container plus the VNC address. It shadows
   **nothing** — no apt package carries that name, so it is simply a menu entry of its own.
 
@@ -379,7 +379,7 @@ python3 scripts/octomap_feed.py --selftest
 ```
 
 The fourth, `rg6_grip_bridge --selftest`, moved with the node into
-[onrobot-rg6](../onrobot-rg6/README.md) and runs there; the installer still executes it against the copy it has just
+[onrobot-rg6](../rg6/README.md) and runs there; the installer still executes it against the copy it has just
 deployed.
 
 The two patch tools have a dry run instead, which writes nothing —
@@ -406,15 +406,15 @@ compile.
 
 ## Related
 
-- [onrobot-rg6](../onrobot-rg6/README.md) — gripper model, MoveIt patch, and the gripper on both stages
+- [onrobot-rg6](../rg6/README.md) — gripper model, MoveIt patch, and the gripper on both stages
   (`rg6_grip_bridge`, `rg6_control_sim`); one of the two workspaces `robot.yaml` lists, and the source of three files
   this installer deploys
-- [husky-extras](../husky-extras/README.md) — the a200-0553's URDF extras (sensor arch, ArUco marker, RG6 mounting), the
+- [husky-extras](../extras/README.md) — the a200-0553's URDF extras (sensor arch, ArUco marker, RG6 mounting), the
   other one; `robot.yaml`
   addresses its file under `platform.extras.urdf`
-- [ur-state-manager](../ur-state-manager/README.md) — arm state and controller modes
-- [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — the panel that displays these diagnostics
-- [cockpit-robot-tools](../cockpit-robot-tools/README.md) — the Cockpit page *Roboter-Werkzeuge*, deployed by the same
+- [ur-state-manager](../ur-state/README.md) — arm state and controller modes
+- [cockpit-ros2-diagnostics](../cockpit-diagnostics/README.md) — the panel that displays these diagnostics
+- [cockpit-robot-tools](../cockpit-tools/README.md) — the Cockpit page *Roboter-Werkzeuge*, deployed by the same
   installer
 
 ## Versioning

@@ -14,7 +14,7 @@ mock that offers the same surface without hardware.
 
 - **The measured rg6_v2 model** (`rg6_description`): URDF/Xacro, visual and
   collision meshes. Where the hand is mounted on the a200-0553 is not here but
-  in [husky-extras](../husky-extras/README.md).
+  in [husky-extras](../extras/README.md).
 - **One interface on both stages** — `rg6_gripper_controller/gripper_cmd` and
   `rg6/bridge_state`, whether the real bridge or the container mock answers.
 - **MoveIt wiring that survives a reboot**: `rg6_moveit_patch` writes the SRDF
@@ -139,7 +139,7 @@ marked as non-hardware truth through the `source` field in `/twin/result`.
 The node lives here, the service that starts it does not. `rg6_grip_bridge`
 runs as `clearpath-custom-rg6-grip-bridge` — unit, wrapper and the root-owned
 copy under `/usr/local/bin` come from
-[`husky-custom-setup`](../husky-custom-setup/), which deploys the file out of
+[`husky-custom-setup`](../setup/), which deploys the file out of
 this workspace. Command it through the action above; nothing here is launched
 by hand.
 
@@ -247,7 +247,7 @@ up to 17 mm and is not a second opinion.
 Workspace in `system.ros2.workspaces`, `io_and_status_controller` via
 `robot.yaml` `ros_parameters`. Into the robot's URDF the gripper comes through
 `platform.extras.urdf`, which addresses a file in
-[husky-extras](../husky-extras/README.md): that one instantiates the macro from
+[husky-extras](../extras/README.md): that one instantiates the macro from
 this package at `arm_0_tool0`. Both workspaces have to be listed, the second one
 expands `$(find rg6_description)`. The gripper publishes joint states on
 `manipulators/endeffectors/joint_states`.
@@ -293,10 +293,10 @@ uv run pytest robot/motion-server/tests/test_offboard_gripper.py    # needs the 
 
 ## Related
 
-- [husky-custom-setup](../husky-custom-setup/README.md) — `robot.yaml` (SSOT),
+- [husky-custom-setup](../setup/README.md) — `robot.yaml` (SSOT),
   and the installer + systemd unit that roll out and start `rg6_grip_bridge`
   from this workspace
-- [robot-contract](../../robot/contract/README.md) — the profile that
+- [robot-contract](../../robot/core/README-contract.md) — the profile that
   names the action, the state topic and the gear table
 - [husky-offboard](../../deploy/husky-offboard/README.md) — the container that
   builds and runs the mock

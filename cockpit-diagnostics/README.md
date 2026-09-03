@@ -364,7 +364,7 @@ You can also run the test against a different Cockpit image, for example:
 
 ## Related
 
-- [husky-custom-setup](../husky-custom-setup/README.md) — the node that publishes the manipulator diagnostics this panel
+- [husky-custom-setup](../setup/README.md) — the node that publishes the manipulator diagnostics this panel
   renders
 
 ## Versioning

@@ -127,7 +127,7 @@ ssh robot@10.42.42.159 'sudo ~/cockpit-robot-tools/install.sh'
 ```
 
 The target is `/usr/local/share/cockpit/robot-tools` — the same level as the
-[cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) fork; the two
+[cockpit-ros2-diagnostics](../cockpit-diagnostics/README.md) fork; the two
 packages do not interfere with each other. Afterwards reload
 `http://<robot>:9090` in the browser; the menu entry is called
 **Robot tools**.
@@ -157,7 +157,7 @@ it (see `test/preview/`) and serving the directory with any static server.
 
 No PatternFly in the package, but PatternFly 6 values: `style.css` rebuilds the
 root layout of
-[cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — light page
+[cockpit-ros2-diagnostics](../cockpit-diagnostics/README.md) — light page
 background, on it a tub with rounded corners and 1.5rem of spacing to the left,
 right and bottom. Colors, spacings, radii and sizes sit as tokens in `:root`
 and carry the PF name as a comment; anyone wanting to bring them up to date
@@ -192,7 +192,7 @@ node --test test/*.test.mjs
 
 - [husky-offboard](../../deploy/husky-offboard/README.md) — its `lite` stage builds
   `husky-offboard-lite:jazzy`, the container this page operates
-- [cockpit-ros2-diagnostics](../cockpit-ros2-diagnostics/README.md) — the diagnostics plugin next to it
+- [cockpit-ros2-diagnostics](../cockpit-diagnostics/README.md) — the diagnostics plugin next to it
 
 ## Versioning
 

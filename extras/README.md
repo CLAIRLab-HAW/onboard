@@ -49,7 +49,7 @@ macro, the gripper package includes nothing from here.
 ## Installation
 
 The robot clones and builds it like the gripper workspace; the installer of
-[husky-custom-setup](../husky-custom-setup/README.md) does that, and
+[husky-custom-setup](../setup/README.md) does that, and
 `robot.yaml` lists the result under `system.ros2.workspaces`.
 
 ```bash
@@ -99,10 +99,10 @@ compared nothing.
 
 ## Related
 
-- [onrobot-rg6](../onrobot-rg6/README.md) — the RG6 model whose macro this file
+- [onrobot-rg6](../rg6/README.md) — the RG6 model whose macro this file
   instantiates, and `rg6_moveit_patch`, which puts the gripper into the
   generated SRDF
-- [husky-custom-setup](../husky-custom-setup/README.md) — `robot.yaml` (SSOT),
+- [husky-custom-setup](../setup/README.md) — `robot.yaml` (SSOT),
   the boot patcher and the installer that rolls this workspace out
 - [husky-offboard](../../deploy/husky-offboard/README.md) — the container that
   reconstructs the same setup without a robot

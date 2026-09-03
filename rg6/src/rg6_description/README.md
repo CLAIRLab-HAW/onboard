@@ -15,5 +15,5 @@ This package describes the HAND and nothing else. Where the hand is bolted onto
 one particular robot — the mounting at `arm_0_tool0`, the alias link
 `rg6_onrobot_rg6_base_link` that `robot.yaml` hangs the camera on, and the
 `rg6_hand_tcp` frame — lives in
-[husky-extras](../../../husky-extras/README.md), which instantiates the macro
+[husky-extras](../../../extras/README.md), which instantiates the macro
 above. Nothing here names a frame of the a200.
