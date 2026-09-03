@@ -298,7 +298,7 @@ uv run pytest robot/motion-server/tests/test_offboard_gripper.py    # needs the 
   from this workspace
 - [robot-contract](../../robot/core/README-contract.md) — the profile that
   names the action, the state topic and the gear table
-- [husky-offboard](../../deploy/husky-offboard/README.md) — the container that
+- [offboard](../../deploy/offboard/README.md) — the container that
   builds and runs the mock
 
 ## Versioning

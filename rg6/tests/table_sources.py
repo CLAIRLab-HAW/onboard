@@ -1,7 +1,7 @@
 """Files in the neighbouring repos, and the workspace root above them.
 
 Named for this repo's subject rather than the generic ``siblings``: the conftest here puts its own directory on
-``sys.path``, and so does ``deploy/husky-offboard/tests``, which carries a helper of exactly that generic name.  In
+``sys.path``, and so does ``deploy/offboard/tests``, which carries a helper of exactly that generic name.  In
 the shared root run whichever landed on the path first wins for BOTH trees, and the loser's tests die at import with
 a missing attribute.  Test-helper module names are effectively global here -- give them a name no other tree would
 pick.

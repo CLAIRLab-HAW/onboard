@@ -104,7 +104,7 @@ compared nothing.
   generated SRDF
 - [husky-custom-setup](../setup/README.md) — `robot.yaml` (SSOT),
   the boot patcher and the installer that rolls this workspace out
-- [husky-offboard](../../deploy/husky-offboard/README.md) — the container that
+- [offboard](../../deploy/offboard/README.md) — the container that
   reconstructs the same setup without a robot
 
 ## Versioning

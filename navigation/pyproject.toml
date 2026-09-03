@@ -67,5 +67,5 @@ known-first-party = ["clair"]
 pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
-    "e2e_container_nav: end-to-end against a DRIVING base (mock platform:=true + Nav2); needs a running husky-offboard container, serialised by exclusive_base in conftest",
+    "e2e_container_nav: end-to-end against a DRIVING base (mock platform:=true + Nav2); needs a running offboard container, serialised by exclusive_base in conftest",
 ]

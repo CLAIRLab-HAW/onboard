@@ -3,7 +3,7 @@
 This repo builds with colcon (``ament_cmake``) and carries no Python package: the only Python here is
 ``tools/derive_finger_kinematics.py``, a script.  There is no ``pyproject.toml`` and no entry in
 ``[tool.uv.workspace].members`` -- deliberately, see the "seven remaining repos" paragraph in CLAUDE.md -- so the root
-pytest run collects these files by path, the same arrangement as ``deploy/husky-offboard/tests``.
+pytest run collects these files by path, the same arrangement as ``deploy/offboard/tests``.
 
 Both entries are needed because the root run uses ``--import-mode=importlib``: under that mode pytest does NOT prepend
 a test file's directory the way the classic ``prepend`` mode does, so neither ``import table_sources`` nor

@@ -53,7 +53,7 @@ clearpath-custom-setup.py):
 
 Invocations:
   Robot:    from clearpath-custom-setup.py (per boot, before clearpath-manipulators)
-  Offboard: husky-offboard entrypoint.sh after the generate_* runs
+  Offboard: offboard entrypoint.sh after the generate_* runs
   Manual:   rg6_moveit_patch --setup-path /etc/clearpath
 
 Self-contained: needs only python3 + PyYAML (no ROS environment).

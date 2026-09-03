@@ -45,7 +45,7 @@ our build, not of the product, so upstream has no reason to ever carry it.
 
 Invocations:
   Robot:    from clearpath_custom_setup.py (per boot, before clearpath-robot-generate)
-  Offboard: husky-offboard entrypoint.sh, before the generate_* runs
+  Offboard: offboard entrypoint.sh, before the generate_* runs
   Manual:   ride-height-patch --dry-run
 
 Self-contained: needs only python3 (no ROS environment, no PyYAML) -- the robot runs it as a root-owned copy in

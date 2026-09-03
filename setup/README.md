@@ -36,7 +36,7 @@ in the `--verify` manifest it belongs in `scripts/`; if it is not, somebody star
   under
   `/usr/local/bin`, so the boot service never runs code out of a directory a user can write to.
 - **Two of those patchers are shared with the offboard container.**
-  `sensor_mesh_uri_patch` and `urdf_physics_patch` are self-contained scripts of this repo, and `deploy/husky-offboard`
+  `sensor_mesh_uri_patch` and `urdf_physics_patch` are self-contained scripts of this repo, and `deploy/offboard`
   copies the same files out of it. The robot and the container each generate a URDF of their own; a difference between
   the two must never be explainable by a fix having run on one side only.
 - **Both Cockpit packages are deployed and measured** — the diagnostics fork and the page *Roboter-Werkzeuge*.

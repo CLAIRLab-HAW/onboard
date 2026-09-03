@@ -170,7 +170,7 @@ def test_already_patched_is_not_a_warning(tmp_path, capsys):
 
 
 def test_the_boot_service_delegates_instead_of_restating_the_swap():
-    """The counterpart to ``test_mesh_uri_single_source.py`` in husky-offboard, which guards the container's half.
+    """The counterpart to ``test_mesh_uri_single_source.py`` in offboard, which guards the container's half.
 
     The boot service used to carry the swap as a function of its own, and the offboard Dockerfile a heredoc; this
     tool is what replaced both.  A copy reintroduced HERE would be just as silent as one reintroduced there.

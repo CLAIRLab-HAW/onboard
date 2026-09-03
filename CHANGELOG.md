@@ -6,6 +6,10 @@ next to its README, and those entries are not repeated here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the
 versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-09-03 (following deploy/offboard)
+
+- Paths and prose that said `deploy/husky-offboard` / `husky-offboard` say `deploy/offboard` / `offboard`.
+
 ## 2026-09-03 (following the stack names)
 
 - `cockpit-tools` matches the image `offboard-lite` (was `husky-offboard-lite`) — the copy under

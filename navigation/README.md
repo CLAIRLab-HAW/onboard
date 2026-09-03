@@ -1,7 +1,7 @@
 # husky-navigation
 
 Navigation layer of the Husky **a200-0553**: the sensor path of the RoboSense
-RS-LiDAR-16, and Nav2. Runs in the husky-offboard container against the mock
+RS-LiDAR-16, and Nav2. Runs in the offboard container against the mock
 platform **and** onboard on the real robot — same configuration, same driver.
 
 ## Features
@@ -89,7 +89,7 @@ the offboard image via `additional_contexts` during `docker compose build`.
 
 ## Usage
 
-See `deploy/husky-offboard/scripts/nav` in the container.
+See `deploy/offboard/scripts/nav` in the container.
 
 ## Running Tests
 

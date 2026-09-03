@@ -32,12 +32,12 @@ WHY THE TWO DEPLOYMENTS NEED THE SAME FILE, which is what put this in a script o
 URDF at every boot from apt packages that an update can roll back, so it re-applies the fix per boot; the offboard
 container generates one of its own from a robot.yaml fetched off the same repo.  A difference between any two of
 those generated URDFs must never be explainable by "the fix ran on one side and not the other" -- and while the
-logic lived twice (a function in ``clearpath_custom_setup.py``, a heredoc in the husky-offboard Dockerfile), the
+logic lived twice (a function in ``clearpath_custom_setup.py``, a heredoc in the offboard Dockerfile), the
 only way to know they still agreed was to read both.
 
 Invocations:
   Robot:    from clearpath_custom_setup.py (per boot, after clearpath-robot-generate, before the consumers start)
-  Offboard: husky-offboard Dockerfile, at BUILD time -- apt does not run again afterwards, so once is enough
+  Offboard: offboard Dockerfile, at BUILD time -- apt does not run again afterwards, so once is enough
   Manual:   sensor-mesh-uri-patch --dry-run
 
 Self-contained: needs only python3 (no ROS environment, no PyYAML) -- the robot runs it as a root-owned copy in

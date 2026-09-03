@@ -4,7 +4,7 @@ This package is built by colcon (``ament_python``), not by ``uv``: it has no ``p
 ``[tool.uv.workspace].members`` -- deliberately, see the "seven remaining repos" paragraph in CLAUDE.md, where a
 ``pyproject.toml`` here would make ``uv`` take the sub-repo for the project root.  So nothing installs
 ``ur_state_manager`` into the workspace venv, and an import would fail even though the root run collects these
-files by path (the same arrangement as ``deploy/husky-offboard/tests``, which is likewise not a member).
+files by path (the same arrangement as ``deploy/offboard/tests``, which is likewise not a member).
 
 Only the ROS-free modules are importable this way.  ``state_manager`` and ``controller_mode_manager`` pull in
 ``rclpy`` and ``ur_dashboard_msgs``, which exist in neither the Mac venv nor the offboard images -- that is exactly

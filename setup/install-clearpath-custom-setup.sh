@@ -115,13 +115,13 @@ RG6_MOVEIT_PATCH_BIN="${BIN_DIR}/rg6-moveit-patch"
 # inertial), where rg6-moveit-patch edits what the generator writes.
 URDF_PHYSICS_PATCH_BIN="${BIN_DIR}/urdf-physics-patch"
 # sensor-mesh-uri-patch turns the Realsense mesh URIs from file:// into package://, which is the only form the
-# foxglove_bridge's asset_uri_allowlist serves.  The husky-offboard container copies the SAME file out of this
+# foxglove_bridge's asset_uri_allowlist serves.  The offboard container copies the SAME file out of this
 # repo at build time -- so that a difference between the robot's URDF and the container's can never be explained
 # by the fix having run on one side only.
 SENSOR_MESH_URI_PATCH_BIN="${BIN_DIR}/sensor-mesh-uri-patch"
 # ride-height-patch puts this vehicle's LOADED wheel radius into the a200 description, so that base_footprint --
 # the ground reference every calibrated height is measured against -- sits where the squashed tyres put it.  Also
-# copied into the husky-offboard container from this repo, for the same reason as the mesh URI fix.
+# copied into the offboard container from this repo, for the same reason as the mesh URI fix.
 RIDE_HEIGHT_PATCH_BIN="${BIN_DIR}/ride-height-patch"
 
 # THREE files live in onrobot-rg6, not in this repo, and each can be taken either from a built workspace or
@@ -1690,7 +1690,7 @@ echo "  ${RG6_MOVEIT_PATCH_BIN}     : root-owned copy of rg6_moveit_patch (used 
 [ -f "$URDF_PHYSICS_PATCH_BIN" ] && \
 echo "  ${URDF_PHYSICS_PATCH_BIN}   : root-owned copy of scripts/urdf_physics_patch.py (used by the boot service, updated only by the installer)"
 [ -f "$SENSOR_MESH_URI_PATCH_BIN" ] && \
-echo "  ${SENSOR_MESH_URI_PATCH_BIN}: root-owned copy of scripts/sensor_mesh_uri_patch.py (same; husky-offboard too)"
+echo "  ${SENSOR_MESH_URI_PATCH_BIN}: root-owned copy of scripts/sensor_mesh_uri_patch.py (same; offboard too)"
 [ -f "$OCTO_UNIT_PATH" ] && \
 echo "  ${OCTO_UNIT}   : depth─▶PointCloud2 for MoveIt's octomap (the move_group sensor parameters come from robot.yaml)"
 [ -f "$MD_UNIT_PATH" ] && \

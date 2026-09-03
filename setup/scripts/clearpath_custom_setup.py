@@ -153,7 +153,7 @@ def run_sensor_mesh_uri_patch(label):
     what upstream ships, why neither "the URDF builds" nor "Foxglove shows it" settles the question, and what the
     bridge's ``asset_uri_allowlist`` does with a ``file://``.
 
-    It is a script of its own rather than a function here because the husky-offboard container needs the SAME
+    It is a script of its own rather than a function here because the offboard container needs the SAME
     patch on its OWN copy of those apt xacros: the robot and the container each generate a URDF, and a difference
     between the two must never be explainable by the fix having run on one side only.  A copy in the image is the
     one thing an fetch of robot.yaml cannot deliver.

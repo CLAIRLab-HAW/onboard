@@ -45,7 +45,7 @@ confirms the state below rather than changing it.  R47 carries the measurement.
 
 Invocations:
   Robot:    from clearpath_custom_setup.py (per boot, before clearpath-robot-generate)
-  Offboard: husky-offboard entrypoint.sh, before the generate_* runs
+  Offboard: offboard entrypoint.sh, before the generate_* runs
   Manual:   urdf_physics_patch --dry-run
 
 Self-contained: needs only python3 (no ROS environment, no PyYAML) -- the robot runs it as a root-owned copy in

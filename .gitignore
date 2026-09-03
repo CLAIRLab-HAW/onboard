@@ -13,6 +13,6 @@ dist/
 
 # Secrets.  A .env holds real credentials -- NB_SETUP_KEY for the netbird overlay, the endpoint of a running
 # robot -- and belongs beside a committed .env.example, never in the history.  At the REPOSITORY root for the
-# same reason as the artifacts above: until 2026-09-03 only deploy/husky-offboard and husky-offboard-base
+# same reason as the artifacts above: until 2026-09-03 only deploy/offboard and offboard-base
 # ignored the name, so any other tree that grew a .env would have committed it.
 .env
