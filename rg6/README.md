@@ -132,7 +132,7 @@ ros2 run rg6_control rg6_control_sim --ros-args -r __ns:=/a200_0553/manipulators
 
 Motion model: the width travels to the target at constant speed. What this
 does *not* reproduce are the real RG6 pathologies — a success from this node is
-marked as non-hardware truth through the `source` field in `/twin/result`.
+marked as non-hardware truth through the `source` field in `/motion/result`.
 
 ### Real robot
 

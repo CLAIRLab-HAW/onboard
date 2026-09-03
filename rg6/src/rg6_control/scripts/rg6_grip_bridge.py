@@ -17,7 +17,7 @@ The endpoint offers more than ``rg_grip``: a complete status path back (``rg_get
 ``rg_get_grip_detected``, ``rg_get_status``, ``rg_get_safety_failed``).  That makes the voltage approximation over AI2
 unnecessary -- and AI2 has turned out to be mis-calibrated by ~17 mm, measured against exactly these getters.
 
-What this node does NOT do:  it does not speak the ``/twin/*`` JSON
+What this node does NOT do:  it does not speak the ``/motion/*`` JSON
 protocol.  That is ``plan_server`` in the offboard container, and it does so
 identically on ``mock`` and ``real`` -- one code path instead of two.  Here
 there are exclusively standard ROS interfaces::
@@ -99,7 +99,8 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 class Rg6Client:
     """XML-RPC interface to the OnRobot URCap.
 
-    The ONLY place where units change: the profile and the ``/twin/*`` wire work in metres, the endpoint in millimetres.
+    The ONLY place where units change: the profile and the ``/motion/*`` wire work in meters, the endpoint in
+    millimeters.
     """
 
     def __init__(self, url: str = DEFAULT_URL, tool_index: int = 0, timeout_s: float = 3.0) -> None:
@@ -338,7 +339,7 @@ def _spawn_fake_urcap():
     """Local XML-RPC stand-in; returns ``(server, thread, url, log)``.
 
     It reproduces the two quirks of the real endpoint that hide a bug: int arguments are a fault -501, and the width
-    comes back in millimetres.
+    comes back in millimeters.
     """
     from xmlrpc.server import SimpleXMLRPCServer
 
@@ -349,7 +350,7 @@ def _spawn_fake_urcap():
         if not isinstance(width, float) or not isinstance(force, float):
             raise xmlrpc.client.Fault(-501, "expected double")
         log.append(("grip", tool, width, force))
-        # Modelled on the measurement from 2026-08-19 (65 ─▶ 20 mm): after the command ``busy`` stays false for about
+        # Modeled on the measurement from 2026-08-19 (65 ─▶ 20 mm): after the command ``busy`` stays false for about
         # 0.4 s, THEN the hand moves for about 1.2 s, and only at the end does the new width stand. ``rg_grip`` itself
         # returns immediately -- it acknowledges the acceptance, not the result.
         state["target_mm"] = width
@@ -387,7 +388,7 @@ def selftest() -> int:
     try:
         cli = Rg6Client(url)
 
-        # 1. The width goes out in millimetres and comes back in metres.
+        # 1. The width goes out in millimeters and comes back in meters.
         #    It is read AFTER the travel -- why, see 5a.
         cli.grip(0.100, 60.0)
         assert log[-1][2] == 100.0, log[-1]
@@ -748,7 +749,7 @@ def run(argv) -> int:
 
     log.info(f"rg6_grip_bridge ready: {client.url} ◀─ {action_name}")
     # MultiThreaded because on_action blocks until the hand stands still (about 1.3 s).  Single threaded, that one call
-    # would stall /twin/gripper_cmd and every further delivery for the same time.
+    # would stall /motion/gripper_cmd and every further delivery for the same time.
     from rclpy.executors import MultiThreadedExecutor
 
     executor = MultiThreadedExecutor(num_threads=3)

@@ -310,7 +310,7 @@ commits behind the checkout and nothing said so. A `--verify` run needs no root.
 
 ### `clearpath-custom-octomap-feed.service` (MoveIt octomap: dense obstacle layer)
 
-Step 2 of the HRL obstacle architecture (step 1 = object-based boxes from the offboard client via `/twin/scene_update`):
+Step 2 of the HRL obstacle architecture (step 1 = object-based boxes from the offboard client via `/motion/scene_update`):
 through its **occupancy map monitor**
 (`PointCloudOctomapUpdater`), `move_group` maintains a probabilistic voxel octree from the wrist D435 and thereby also
 avoids obstacles the object tracker does not know (or does not know yet). Raycasts clear space that has become free
