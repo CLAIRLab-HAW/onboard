@@ -33,7 +33,7 @@ import pytest
 import yaml
 from table_sources import sibling
 
-PROFILE_RELPATH = "robot/core/src/clair/robot/contract/profiles/a200_0553.yaml"
+PROFILE_RELPATH = "robot/contract/src/clair/robot/contract/profiles/a200_0553.yaml"
 
 #: The two copies of this repo, addressed locally -- only the profile still lives in a sibling.
 _HERE = pathlib.Path(__file__).resolve().parent.parent

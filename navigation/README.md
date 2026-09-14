@@ -1,5 +1,8 @@
 # husky-navigation
 
+Provides the mobile-base capability; locomotion remains outside the first manipulation milestone.
+See the [physical-intelligence architecture](../../docs/COGNITIVE-ARCHITECTURE.md).
+
 Navigation layer of the Husky **a200-0553**: the sensor path of the RoboSense
 RS-LiDAR-16, and Nav2. Runs in the offboard container against the mock
 platform **and** onboard on the real robot — same configuration, same driver.
@@ -101,7 +104,7 @@ uv run pytest -m e2e_container_nav                      # needs a running contai
 ## Related
 
 - [Design spec](../../docs/superpowers/specs/2026-08-22-nav2-rs16-design.md)
-- [robot-contract profile](../../robot/core/src/clair/robot/contract/profiles/a200_0553.yaml)
+- [robot-contract profile](../../robot/contract/src/clair/robot/contract/profiles/a200_0553.yaml)
 
 ## Versioning
 
