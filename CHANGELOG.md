@@ -6,6 +6,13 @@ next to its README, and those entries are not repeated here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the
 versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-09-17 (the SSOT parity test runs from robot/contract/tests)
+
+- **`.github/workflows/ci.yml` runs `robot/contract/tests/test_ssot_parity.py`.** The contract tests moved out of
+  `robot/core/tests/contract/`, and the old path would have made the step fail on a missing file.
+- `rg6/README.md` links the contract at `robot/contract/README.md`, and the `rg6/tests/table_sources.py` docstring
+  names the parity test at its new path.
+
 ## 2026-09-03 (one workflow at the repository root)
 
 - **`.github/workflows/ci.yml` at the root replaces the six under setup/, extras/, rg6/, ur-state/, cockpit-tools/ and

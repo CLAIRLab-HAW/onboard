@@ -116,7 +116,7 @@ jobs:
           -m 'not e2e_container and not e2e_container_nav'
 
       - name: robot.yaml against the a200_0553 profile
-        run: uv run pytest robot/core/tests/contract/test_ssot_parity.py -q
+        run: uv run pytest robot/contract/tests/test_ssot_parity.py -q
 
   cockpit-tools:
     runs-on: ubuntu-latest

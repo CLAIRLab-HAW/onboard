@@ -296,7 +296,7 @@ uv run pytest robot/motion-server/tests/test_offboard_gripper.py    # needs the 
 - [husky-custom-setup](../setup/README.md) — `robot.yaml` (SSOT),
   and the installer + systemd unit that roll out and start `rg6_grip_bridge`
   from this workspace
-- [robot-contract](../../robot/core/README-contract.md) — the profile that
+- [robot-contract](../../robot/contract/README.md) — the profile that
   names the action, the state topic and the gear table
 - [offboard](../../deploy/offboard/README.md) — the container that
   builds and runs the mock
