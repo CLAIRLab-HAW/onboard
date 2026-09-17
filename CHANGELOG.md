@@ -6,6 +6,13 @@ next to its README, and those entries are not repeated here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the
 versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-09-17 (the workflow runs on dev, from the real workspace root)
+
+- `.github/workflows/ci.yml` triggers on `dev` as well as `main`. Its `python` job checks out the root repository and the other six at the branch the run is for and runs `uv sync` from the one
+lock, instead of synthesizing a workspace root of its own: navigation's
+  `test_suite_is_visible` reads the root pytest options, which the synthesized root did not carry, and the job was
+  red since 2026-09-03. The two Cockpit jobs are unchanged.
+
 ## 2026-09-17 (the SSOT parity test runs from robot/contract/tests)
 
 - **`.github/workflows/ci.yml` runs `robot/contract/tests/test_ssot_parity.py`.** The contract tests moved out of

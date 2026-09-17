@@ -1,14 +1,12 @@
 name: ci
 
 # The seven onboard checkouts, checked the way each one was checked before the consolidation -- in one file at
-# the root of the repository, because GitHub Actions never reads a workflow from a subdirectory: the six under
-# setup/, extras/, rg6/, ur-state/, cockpit-tools/ and cockpit-diagnostics/ never started once after the
-# consolidation, and four of them still checked out the pre-consolidation repositories.
+# the root of the repository, because GitHub Actions never reads a workflow from a subdirectory.
 #
 # Three jobs, by toolchain:
 #
 #   python              setup, extras, rg6, ur-state, navigation -- their own suites, `bash -n` over the
-#                       installer scripts, a syntax-level ruff pass, and the SSOT parity test in clair.robot
+#                       installer scripts, a syntax-level ruff pass, and the SSOT parity test in clair-contract
 #                       (robot.yaml against the a200_0553 profile), which is the one test outside this
 #                       repository that pins a file inside it.
 #   cockpit-tools       the Cockpit page: `node --check`, `bash -n`, `npm test`.
@@ -17,88 +15,89 @@ name: ci
 #                       pull requests against the upstream repository from a Cockpit-project identity, which
 #                       has no place in this one.
 #
-# WHY A SYNTHESIZED ROOT. rg6, setup and navigation import clair.robot, and clair.robot resolves its own
-# `clair-*` dependencies as workspace members; the root that lists them is the `clearpath` repository. So the
-# job writes a root `pyproject.toml` with exactly the members it needs and lets uv resolve from there.
-# `touch workspace.repos` is what the `_bootstrap` modules look for to find the root.
+# WHY THE WHOLE WORKSPACE. The root repository `clearpath` owns pyproject.toml, uv.lock, conftest.py and
+# workspace.repos, and navigation's `test_suite_is_visible` reads the ROOT pytest options to prove the root run
+# descends into onboard/ and deselects the driving-base marker. The synthesized root this workflow carried
+# until 2026-09-17 had neither `norecursedirs` nor those options, and was red for exactly that on 2026-09-03.
+# So every workflow of the eight repositories checks out the root and the seven repositories at the branch the
+# run is for and runs `uv sync` from the one lock; the uv cache keeps the full venv to the first run.
 #
-# `CLAIRLAB_READ_TOKEN`, not `GITHUB_TOKEN`: the default token is scoped to the repository the workflow runs
-# in, so against another PRIVATE repository of the same organization the checkout answers "Not Found" rather
-# than 403. The org secret is the one every cross-repository checkout here has used since 2026-08-26.
+# `CLAIRLAB_READ_TOKEN`, not `GITHUB_TOKEN`: the default token is scoped to the repository the workflow runs in,
+# so against another PRIVATE repository of the same organization the checkout answers "Not Found" rather than
+# 403. The org secret is the one every cross-repository checkout here has used since 2026-08-26.
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WORKSPACE_REF: ${{ github.head_ref || github.ref_name }}
 
 jobs:
   python:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: CLAIRLab-HAW/clearpath
+          ref: ${{ env.WORKSPACE_REF }}
+          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
+
       - uses: actions/checkout@v5
         with:
           path: onboard
 
       - uses: actions/checkout@v5
         with:
-          repository: CLAIRLab-HAW/robot
-          path: robot
-          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
-
-      - uses: actions/checkout@v5
-        with:
           repository: CLAIRLab-HAW/log
           path: log
+          ref: ${{ env.WORKSPACE_REF }}
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
-
       - uses: actions/checkout@v5
         with:
           repository: CLAIRLab-HAW/twin
           path: twin
+          ref: ${{ env.WORKSPACE_REF }}
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
-
-      - name: Synthesize the workspace root
-        run: |
-          touch workspace.repos
-          cat > pyproject.toml <<'EOF'
-          [tool.uv.workspace]
-          members = ["log", "twin/twinlink", "twin/perception", "robot/core", "onboard/navigation"]
-
-          [tool.uv.sources]
-          clair-log = { workspace = true }
-          clair-twin = { workspace = true }
-          clair-perception = { workspace = true }
-          clair-robot = { workspace = true }
-          clair-navigation = { workspace = true }
-
-          [tool.uv]
-          package = false
-
-          [dependency-groups]
-          dev = ["pytest", "pytest-xdist", "pyyaml", "numpy", "ruff>=0.16.5,<0.17"]
-
-          [tool.ruff]
-          line-length = 120
-          target-version = "py312"
-
-          [tool.pytest.ini_options]
-          addopts = "--import-mode=importlib"
-          markers = [
-              "e2e_mock: end-to-end against the Python mock",
-              "e2e_container: end-to-end against a running container",
-              "e2e_container_nav: end-to-end against a running container with a driving base",
-              "e2e_container_maniskill: end-to-end against a running container and a ManiSkill world",
-              "needs_recording: needs an MCAP recording under data/recordings/",
-              "slow_sim: builds a real MuJoCo scene (minutes)",
-          ]
-          EOF
+      - uses: actions/checkout@v5
+        with:
+          repository: CLAIRLab-HAW/robot
+          path: robot
+          ref: ${{ env.WORKSPACE_REF }}
+          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
+      - uses: actions/checkout@v5
+        with:
+          repository: CLAIRLab-HAW/maniskill
+          path: maniskill
+          ref: ${{ env.WORKSPACE_REF }}
+          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
+      - uses: actions/checkout@v5
+        with:
+          repository: CLAIRLab-HAW/apps
+          path: apps
+          ref: ${{ env.WORKSPACE_REF }}
+          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
+      - uses: actions/checkout@v5
+        with:
+          repository: CLAIRLab-HAW/deploy
+          path: deploy
+          ref: ${{ env.WORKSPACE_REF }}
+          token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
 
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
 
-      - run: uv sync --all-packages
+      - run: uv sync
 
       - name: bash -n over the installer and boot scripts
         working-directory: onboard/setup
@@ -112,8 +111,9 @@ jobs:
 
       - name: own suites
         run: >
-          uv run pytest onboard/setup onboard/extras onboard/rg6 onboard/ur-state onboard/navigation -q -n 4
-          -m 'not e2e_container and not e2e_container_nav'
+          uv run pytest onboard/setup onboard/extras onboard/rg6 onboard/ur-state onboard/navigation -q
+          -m 'not e2e_mock and not e2e_container and not e2e_container_nav and not e2e_container_maniskill
+          and not needs_recording and not slow_sim'
 
       - name: robot.yaml against the a200_0553 profile
         run: uv run pytest robot/contract/tests/test_ssot_parity.py -q
