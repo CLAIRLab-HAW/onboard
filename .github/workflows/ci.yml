@@ -44,47 +44,47 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: CLAIRLab-HAW/clearpath
           ref: ${{ env.WORKSPACE_REF }}
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           path: onboard
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: CLAIRLab-HAW/log
           path: log
           ref: ${{ env.WORKSPACE_REF }}
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: CLAIRLab-HAW/twin
           path: twin
           ref: ${{ env.WORKSPACE_REF }}
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: CLAIRLab-HAW/robot
           path: robot
           ref: ${{ env.WORKSPACE_REF }}
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: CLAIRLab-HAW/maniskill
           path: maniskill
           ref: ${{ env.WORKSPACE_REF }}
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: CLAIRLab-HAW/apps
           path: apps
           ref: ${{ env.WORKSPACE_REF }}
           token: ${{ secrets.CLAIRLAB_READ_TOKEN }}
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: CLAIRLab-HAW/deploy
           path: deploy
@@ -124,7 +124,7 @@ jobs:
       run:
         working-directory: cockpit-tools
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
@@ -138,7 +138,7 @@ jobs:
       run:
         working-directory: cockpit-diagnostics
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
