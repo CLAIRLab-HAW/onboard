@@ -14,7 +14,7 @@ platform **and** onboard on the real robot — same configuration, same driver.
   difference: `common.msg_source`.
 - **Nav2** with switchable localization: `slam_toolbox` for mapping, AMCL for
   driving against a stored map.
-- **ROS-free core.** The decisions live in `src/husky_navigation/` and are
+- **ROS-free core.** The decisions live in `src/clair/navigation/` and are
   testable without ROS; the launch files import them.
 
 ## Status

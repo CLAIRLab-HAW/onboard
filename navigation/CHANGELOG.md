@@ -3,6 +3,10 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-09-20 (the README names the package directory)
+
+- `README.md`: the ROS-free core lives in `src/clair/navigation/`, not `src/husky_navigation/`.
+
 ## 2026-08-30 (ruff resolves the same settings from anywhere)
 
 - **`target-version = "py311"` now stands in `[tool.ruff]`.** Ruff infers it from `project.requires-python`
