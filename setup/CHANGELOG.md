@@ -7,6 +7,14 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-22 (octomap_feed publishes no empty cloud)
+
+- **`octomap_feed` skips a frame with no point in its depth band** instead of publishing a cloud of width 0.
+  move_group's octomap updater turns such a cloud into an EMPTY octree in the planning scene, and with one every plan
+  took 36-90 s instead of 0.2-0.9 s, far past `allowed_planning_time` (measured 2026-09-22 on the offboard MuJoCo
+  stack, whose start pose sees nothing in 0.30-2.50 m). An empty cloud carries no rays either, so nothing that was
+  cleared before is cleared less now. The robot runs the same MoveIt, so the same holds there.
+
 ## 2026-09-02 (one shape for the `__main__` block)
 
 - **`if __name__ == "__main__":` now ends in `raise SystemExit(main())`** -- the single form the workspace

@@ -194,6 +194,13 @@ def main(argv=None) -> int:
                 )
                 return
             pts = depth_to_cloud(depth, K, self.stride, self.min_depth, self.max_depth)
+            if not len(pts):
+                # An empty cloud is not a no-op for move_group: the updater hands its (still empty) octree to the
+                # planning scene, and an EMPTY octree object makes every plan slow -- measured 2026-09-22 on the MuJoCo
+                # stack, 36-90 s per joint goal against 0.2-0.9 s with no octree and ~1 s with a full one, past
+                # allowed_planning_time.  It also carries no rays, so skipping it clears nothing less.
+                self._published_stamp = stamp
+                return
             cloud = PointCloud2()
             cloud.header = msg.header  # pass the camera frame + stamp through
             cloud.height = 1
