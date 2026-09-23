@@ -130,6 +130,18 @@ ros2 run rg6_control rg6_control_sim --ros-args -r __ns:=/a200_0553/manipulators
 #   closing stops at that width ─▶ grip_detected=true (as the real bridge reports it)
 ```
 
+With a physics simulator behind the jaws it runs in **plant mode**: the same
+surface, but the ramp becomes the command of a position controller of the driver
+joint, and the width is what the plant measures. A motion settles when the jaws
+stand still after the command arrived; stopping short of a closing target is
+`grip_detected`. MARWIN 5's MuJoCo plant runs it so (deploy/marwin).
+
+```bash
+ros2 run rg6_control rg6_control_sim --ros-args \
+  -p plant_command_topic:=/rg6_finger_position_controller/commands   # JointGroupPositionController
+# the width from -p plant_state_topic:=/joint_states (default)
+```
+
 Motion model: the width travels to the target at constant speed. What this
 does *not* reproduce are the real RG6 pathologies — a success from this node is
 marked as non-hardware truth through the `source` field in `/motion/result`.

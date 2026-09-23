@@ -18,6 +18,17 @@
 // With sim_object_width_m > 0 the closing stops at the object width ->
 // grip_detected=true (like the tool DI0 signal of the real hardware).
 //
+// Plant mode (plant_command_topic set): a physics simulator moves the jaws, not
+// this node.  The same ramp becomes the COMMAND, sent to a position controller
+// of the driver joint (std_msgs/Float64MultiArray, position_controllers'
+// JointGroupPositionController), and the width is what the plant measures on
+// plant_state_topic.  A motion settles when the command has arrived and the
+// measured joint has stood still for plant_settle_s; it stalled on something
+// -- grip_detected -- when that happens short of a closing target by more than
+// plant_grip_margin_m.  The plant publishes the driver joint itself, so this
+// node does not.  Written for MARWIN 5's MuJoCo plant (deploy/marwin), whose
+// RG6 is a force-limited servo in the physics.
+//
 // The limit: this makes the gripper usable in the container, no more.  The real
 // RG6 pathologies stay uncovered (AI2 sticks at 10 V on closed jaws, an injected
 // grip tears ExternalControl off).  A success out of this node is marked as a
@@ -42,6 +53,7 @@
 #include "control_msgs/action/gripper_command.hpp"
 #include "rg6_control/finger_kinematics.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
 #include "std_msgs/msg/string.hpp"
 
 using namespace std::chrono_literals;
@@ -69,6 +81,11 @@ public:
     declare_parameter<double>("state_rate", 20.0);
     declare_parameter<double>("action_goal_angle_tol", 0.08);
     declare_parameter<std::string>("joint_prefix", "rg6_");
+    declare_parameter<std::string>("plant_command_topic", "");   // "" = the kinematic model above
+    declare_parameter<std::string>("plant_state_topic", "/joint_states");
+    declare_parameter<double>("plant_settle_s", 0.2);
+    declare_parameter<double>("plant_still_rad", 0.002);
+    declare_parameter<double>("plant_grip_margin_m", 0.003);
 
 
     width_ = get_parameter("width_open_m").as_double();
@@ -84,6 +101,26 @@ public:
     // 'joint_states' is relative -> put it on the wanted topic by a launch remap
     // (a200-0553: manipulators/endeffectors/joint_states).
     joint_pub_ = create_publisher<sensor_msgs::msg::JointState>("joint_states", rclcpp::QoS(10));
+
+    const auto plant_command_topic = get_parameter("plant_command_topic").as_string();
+    if (!plant_command_topic.empty()) {
+      plant_ = true;
+      command_width_ = width_;
+      command_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(plant_command_topic, rclcpp::QoS(10));
+      const auto driver = get_parameter("joint_prefix").as_string() + "finger_joint";
+      state_sub_ = create_subscription<sensor_msgs::msg::JointState>(
+        get_parameter("plant_state_topic").as_string(), rclcpp::QoS(50),
+        [this, driver](const sensor_msgs::msg::JointState & msg) {
+          for (size_t i = 0; i < msg.name.size() && i < msg.position.size(); ++i) {
+            if (msg.name[i] == driver) {
+              std::lock_guard<std::mutex> lk(mutex_);
+              measured_angle_ = msg.position[i];
+            }
+          }
+        });
+      RCLCPP_INFO(get_logger(), "RG6 SIM in plant mode: commands on %s, width from %s",
+        plant_command_topic.c_str(), get_parameter("plant_state_topic").as_string().c_str());
+    }
 
     tick_timer_ = create_wall_timer(20ms, [this]() { tick(); });
     const double state_rate = get_parameter("state_rate").as_double();
@@ -113,6 +150,10 @@ private:
   // --------- motion model (50 Hz tick) -------------------------------------
   void tick()
   {
+    if (plant_) {
+      plant_tick();
+      return;
+    }
     const double dt = 0.02;
     const double speed = get_parameter("sim_speed_m_s").as_double();
     const double object_w = get_parameter("sim_object_width_m").as_double();
@@ -135,6 +176,31 @@ private:
       moving_ = true;
     }
     publish_joints_locked();
+  }
+
+  // Plant mode: ramp the COMMAND at the RG6's speed, read the width off the plant.
+  void plant_tick()
+  {
+    const double dt = 0.02;
+    const double speed = get_parameter("sim_speed_m_s").as_double();
+    std::lock_guard<std::mutex> lk(mutex_);
+    const double delta = target_width_ - command_width_;
+    command_width_ = std::abs(delta) <= speed * dt ? target_width_ :
+      command_width_ + (delta > 0 ? 1.0 : -1.0) * speed * dt;
+    std_msgs::msg::Float64MultiArray command;
+    command.data = {angle_from_width(command_width_)};
+    command_pub_->publish(command);
+    if (!std::isfinite(measured_angle_)) {
+      return;
+    }
+    width_ = width_from_angle(measured_angle_);
+    const bool still = std::abs(measured_angle_ - last_angle_) < get_parameter("plant_still_rad").as_double();
+    last_angle_ = measured_angle_;
+    still_s_ = still ? still_s_ + dt : 0.0;
+    if (moving_ && command_width_ == target_width_ && still_s_ >= get_parameter("plant_settle_s").as_double()) {
+      moving_ = false;
+      grip_detected_ = target_width_ < width_ - get_parameter("plant_grip_margin_m").as_double();
+    }
   }
 
   void publish_joints_locked()
@@ -195,6 +261,7 @@ private:
           get_parameter("width_open_m").as_double()));
       grip_detected_ = false;
       moving_ = true;
+      still_s_ = 0.0;  // plant mode: stillness counts from this command on
     }
     const auto timeout = rclcpp::Duration::from_seconds(
       get_parameter("motion_timeout_s").as_double());
@@ -308,6 +375,13 @@ private:
   rclcpp_action::Server<GripperCommand>::SharedPtr action_server_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr bridge_state_pub_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr command_pub_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr state_sub_;
+  bool plant_{false};
+  double command_width_{0.16};
+  double measured_angle_{kNaN};
+  double last_angle_{kNaN};
+  double still_s_{0.0};
   rclcpp::TimerBase::SharedPtr tick_timer_, state_timer_;
 
   std::mutex mutex_;

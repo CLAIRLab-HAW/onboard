@@ -8,6 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-23 (rg6_control_sim drives a physics plant)
+
+- **Plant mode** of `rg6_control_sim` (`plant_command_topic`): the action and
+  `rg6/bridge_state` stay as they are, but the jaws are a simulator's. The
+  speed-limited ramp is sent as the command of a position controller of
+  `rg6_finger_joint` (std_msgs/Float64MultiArray), the width is read back off
+  `plant_state_topic`, and a stop short of a closing target is
+  `grip_detected`. The node then publishes no joint state of its own. Why:
+  MARWIN 5's MuJoCo plant has to grip the cabinet door physically, behind the
+  same surface the a200 mock and the robot offer.
+
 ## 2026-09-02 (one shape for the `__main__` block)
 
 - **`if __name__ == "__main__":` now ends in `raise SystemExit(main())`** -- the single form the workspace
