@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-23 (MARWIN 5's tooled arm)
+
+- **`marwin_extras_description`**, a second package: MARWIN 5 with the
+  SmartShift tool changer on `ur5e_tool0` and one of its two tools,
+  `tool:=rg6|key_holder|none` (default `rg6`), on top of marwin_control's
+  controlled description. The changer is modeled from the vendor's figures
+  (65 mm coupled stack, Ø 63 mm, electric master 180 g and holder 310 g) with
+  one collision cylinder over the whole stack, because the manual does not say
+  how the 65 mm split. TCPs: `rg6_hand_tcp` 0.275 m, `key_tip` 0.1728 m past
+  `ur5e_tool0`. An unknown tool name is refused.
+
 ## 2026-09-23 (the tools are macros)
 
 - **`rg6.macro.xacro` and `key_holder.macro.xacro`**: each tool as a macro with

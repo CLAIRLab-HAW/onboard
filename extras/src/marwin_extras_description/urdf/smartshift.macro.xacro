@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<!--
+  The SmartShift automatic tool changer (Smartshift Robotics AS), electric variant, on a flange.  Every number is the
+  vendor's ("Technical Instructions: Tool Change system", read 2026-09-23), none is measured on MARWIN 5.
+
+  The coupling is PURELY MECHANICAL: no joint, no actuator, nothing on the ROS graph.  A change is an arm motion
+  through a spring-loaded tool pocket, so the description has only two states, and coupled says which.
+
+    smartshift_master       on parent (the flange), always there.  Robot master electric, 180 g.
+    smartshift_tool_flange  65 mm out along +z, the face a tool is screwed onto ("TCP setup": master + holder stack
+                            65 mm when connected).  Only when coupled; the tool holder electric weighs 310 g.
+
+  The 65 mm is the COUPLED stack; how it splits between master and holder the manual does not say.  The collision is
+  therefore one cylinder over the whole 65 mm, outer diameter 63 mm, coupled or not: with no holder on, that is up to
+  one holder's height too long, and a collision model errs on the side of too big.
+-->
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:macro name="smartshift" params="parent coupled">
+    <xacro:property name="stack_m" value="0.065"/>
+    <xacro:property name="radius_m" value="0.0315"/>
+    <xacro:property name="mass_kg" value="${0.180 + (0.310 if coupled else 0.0)}"/>
+
+    <link name="smartshift_master">
+      <inertial>
+        <origin xyz="0 0 ${stack_m / 2}" rpy="0 0 0"/>
+        <mass value="${mass_kg}"/>
+        <inertia ixx="${mass_kg * (3 * radius_m**2 + stack_m**2) / 12}" ixy="0" ixz="0"
+                 iyy="${mass_kg * (3 * radius_m**2 + stack_m**2) / 12}" iyz="0"
+                 izz="${mass_kg * radius_m**2 / 2}"/>
+      </inertial>
+      <visual>
+        <origin xyz="0 0 ${stack_m / 2}" rpy="0 0 0"/>
+        <geometry><cylinder radius="${radius_m}" length="${stack_m}"/></geometry>
+        <material name="smartshift_anodized"><color rgba="0.35 0.36 0.38 1"/></material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${stack_m / 2}" rpy="0 0 0"/>
+        <geometry><cylinder radius="${radius_m}" length="${stack_m}"/></geometry>
+      </collision>
+    </link>
+    <joint name="smartshift_master_joint" type="fixed">
+      <parent link="${parent}"/><child link="smartshift_master"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <xacro:if value="${coupled}">
+      <link name="smartshift_tool_flange"/>
+      <joint name="smartshift_tool_flange_joint" type="fixed">
+        <parent link="smartshift_master"/><child link="smartshift_tool_flange"/>
+        <origin xyz="0 0 ${stack_m}" rpy="0 0 0"/>
+      </joint>
+    </xacro:if>
+
+  </xacro:macro>
+</robot>

@@ -143,3 +143,15 @@ def test_robot_yaml_addresses_this_file_and_sources_this_workspace():
         f"{ROBOT_WORKSPACE} is not in system.ros2.workspaces -- the generator would find the file and then fail "
         f"on $(find rg6_description) resp. leave package://{PACKAGE} unresolvable"
     )
+
+
+MARWIN_TOOLED = REPO / "src" / "marwin_extras_description" / "urdf" / "marwin5_tooled.urdf.xacro"
+
+
+@pytest.mark.parametrize(("tool", "tcp"), [("rg6", "rg6_hand_tcp"), ("key_holder", "key_tip")])
+def test_every_tool_the_changer_offers_is_a_macro_with_its_tcp(tool, tcp):
+    """MARWIN 5's changer calls the same macro the a200 does, and names the TCP that macro defines."""
+    tooled = MARWIN_TOOLED.read_text(encoding="utf-8")
+    assert f"$(find {PACKAGE})/urdf/{tool}.macro.xacro" in tooled
+    assert f"{tool}='{tcp}'" in tooled, f"the tool map names another TCP for {tool}"
+    assert f'<link name="{tcp}"' in _macro(tool)

@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<!--
+  MARWIN 5 with its tool: marwin_control's controlled description (base, sensors, UR5e with ros2_control) plus the
+  SmartShift changer on ur5e_tool0 and the tool coupled to it.
+
+    tool:=rg6         the OnRobot RG6 (husky_extras_description rg6.macro.xacro), TCP rg6_hand_tcp; the default
+    tool:=key_holder  the Rittal key holder (key_holder.macro.xacro), TCP key_tip
+    tool:=none        the bare changer, both tools in their pockets; TCP ur5e_tool0
+
+  The two tools are the two the owner mounts on the changer's two holders (2026-09-23).  Which one is on the arm is a
+  start-time choice: the changer has no sensor this description could read, and a change is a motion, not a joint.
+
+  Each tool is mounted exactly as on the a200-0553's flange, turned the same way; how the holder is clocked against
+  the master on MARWIN 5 is not measured.  Every other argument passes through to marwin5_controlled.urdf.xacro
+  (use_mock_hardware, robot_ip, ...).
+-->
+<robot name="marwin5" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:arg name="tool" default="rg6"/>
+  <xacro:property name="tool" value="$(arg tool)"/>
+  <!-- An unknown name fails here, by name, instead of silently yielding a bare changer; evaluated eagerly, because
+       xacro evaluates a property only where it is used, and this one is used nowhere else. -->
+  <xacro:property name="tool_tcp" lazy_eval="false"
+                  value="${dict(rg6='rg6_hand_tcp', key_holder='key_tip', none='ur5e_tool0')[tool]}"/>
+
+  <xacro:include filename="$(find marwin_control)/urdf/marwin5_controlled.urdf.xacro"/>
+
+  <xacro:include filename="smartshift.macro.xacro"/>
+  <xacro:smartshift parent="ur5e_tool0" coupled="${tool != 'none'}"/>
+
+  <xacro:if value="${tool == 'rg6'}">
+    <xacro:include filename="$(find husky_extras_description)/urdf/rg6.macro.xacro"/>
+    <xacro:rg6_tool parent="smartshift_tool_flange"/>
+  </xacro:if>
+  <xacro:if value="${tool == 'key_holder'}">
+    <xacro:include filename="$(find husky_extras_description)/urdf/key_holder.macro.xacro"/>
+    <xacro:key_holder parent="smartshift_tool_flange"/>
+  </xacro:if>
+
+</robot>
