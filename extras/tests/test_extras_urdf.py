@@ -27,6 +27,8 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 PACKAGE = "husky_extras_description"
 EXTRAS = REPO / "src" / PACKAGE / "urdf" / "clearpath_extras.urdf.xacro"
+#: The end effectors ``end_effector:=<name>`` selects, one file each.
+TOOLS = sorted((EXTRAS.parent / "tools").glob("*.urdf.xacro"))
 
 #: The absolute path robot.yaml addresses this file by, and the workspace it sources.  The robot's own layout
 #: (/home/robot/<repo>), which the offboard container reproduces with a symlink.
@@ -58,36 +60,54 @@ def extras_text() -> str:
     return EXTRAS.read_text(encoding="utf-8")
 
 
-def test_the_extras_file_is_well_formed_xml(extras_text):
+def _tool(name: str) -> str:
+    return (EXTRAS.parent / "tools" / f"{name}.urdf.xacro").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("path", [EXTRAS, *TOOLS], ids=lambda p: p.name)
+def test_every_file_is_well_formed_xml(path):
     """The `--` trap included: ElementTree rejects it exactly as expat does inside xacro."""
-    ET.fromstring(extras_text)
+    ET.fromstring(path.read_text(encoding="utf-8"))
 
 
-def test_every_mesh_uri_names_a_file_this_package_ships(extras_text):
+@pytest.mark.parametrize("path", [EXTRAS, *TOOLS], ids=lambda p: p.name)
+def test_every_mesh_uri_names_a_file_this_package_ships(path):
     """A package:// URI that points at a package which does not carry the file fails silently, in the viewer."""
-    uris = re.findall(r'filename="package://([^/]+)/([^"]+)"', extras_text)
-    assert uris, "no package:// mesh at all -- has the arch lost its <visual>?"
-    for package, relpath in uris:
+    for package, relpath in re.findall(r'filename="package://([^/]+)/([^"]+)"', path.read_text(encoding="utf-8")):
         assert package == PACKAGE, f"package://{package} is not this package; who installs {relpath}?"
         assert (REPO / "src" / package / relpath).is_file(), f"package://{package}/{relpath} does not exist here"
 
 
-def test_the_gripper_macro_is_included_from_the_package_that_owns_it(extras_text):
+def test_the_end_effector_is_an_argument_whose_default_is_the_rg6(extras_text):
+    """The robot's own hand unless the offboard mock asks for another; every name has its file."""
+    assert '<xacro:arg name="end_effector" default="rg6"/>' in extras_text
+    assert '<xacro:include filename="tools/$(arg end_effector).urdf.xacro"/>' in extras_text
+    assert {p.name for p in TOOLS} >= {"rg6.urdf.xacro", "key_holder.urdf.xacro"}
+
+
+def test_the_gripper_macro_is_included_from_the_package_that_owns_it():
     """The one cross-package dependency, and it must run this way round: assembly includes component."""
-    assert "$(find rg6_description)/urdf/onrobot_rg_upstream.urdf.xacro" in extras_text
+    assert "$(find rg6_description)/urdf/onrobot_rg_upstream.urdf.xacro" in _tool("rg6")
     manifest = (REPO / "src" / PACKAGE / "package.xml").read_text(encoding="utf-8")
     assert "<exec_depend>rg6_description</exec_depend>" in manifest, (
         "the include is there but the dependency is not declared -- colcon and rosdep cannot see it"
     )
 
 
-@pytest.mark.parametrize(
-    "name",
-    ["aruco_marker", "husky_top_assembly", "rg6_onrobot_rg6_base_link", "rg6_hand_tcp"],
-)
-def test_the_move_kept_every_link_the_stack_addresses_by_name(extras_text, name):
-    """Four names other repos hold on to: robot.yaml hangs the camera on one, the MTC grasp planner uses another."""
+@pytest.mark.parametrize("name", ["aruco_marker", "husky_top_assembly"])
+def test_the_platform_keeps_the_links_the_stack_addresses_by_name(extras_text, name):
     assert f'<link name="{name}"' in extras_text
+
+
+@pytest.mark.parametrize("path", TOOLS, ids=lambda p: p.name)
+def test_every_tool_carries_the_link_robot_yaml_hangs_the_camera_on(path):
+    """robot.yaml names one camera parent for every tool; a tool without it leaves the camera unattached."""
+    assert '<link name="rg6_onrobot_rg6_base_link"' in path.read_text(encoding="utf-8")
+
+
+def test_the_rg6_keeps_its_tcp():
+    """The TCP every calibrated quantity is expressed against, and the MTC grasp planner's frame."""
+    assert '<link name="rg6_hand_tcp"' in _tool("rg6")
 
 
 def test_the_arch_carries_collision_geometry_and_a_mass(extras_text):

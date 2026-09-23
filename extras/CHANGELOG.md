@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-23 (the end effector is an argument)
+
+- **`end_effector` selects the tool** (xacro argument, default `rg6`):
+  `clearpath_extras.urdf.xacro` includes `urdf/tools/<name>.urdf.xacro`. The
+  RG6 block moved unchanged into `tools/rg6.urdf.xacro`; with the default the
+  expanded description is the same as before. `robot.yaml` passes no argument.
+- **`tools/key_holder.urdf.xacro`**: the Rittal key holder of the cabinet task,
+  meshes from mujoco-mia under `meshes/key_holder/`, primitive collisions, TCP
+  `key_tip`, and `rg6_onrobot_rg6_base_link` as an alias that puts the D435 on
+  the holder, upright, on the flange's +y side. The holder sits turned half a
+  turn on the flange. R61: placed, not measured.
+- **The tests read every file**: well-formed XML and `package://` URIs per
+  tool, the camera's parent in each; the RG6's own checks read its tool file.
+
 ## 2026-08-31 (the robot's own assembly gets a repo)
 
 - **New repo, one package: `husky_extras_description`.** It holds

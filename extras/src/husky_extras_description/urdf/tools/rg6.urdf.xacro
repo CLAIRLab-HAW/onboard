@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<!--
+  The OnRobot RG6 on the UR5's flange: the a200-0553's end effector unless clearpath_extras.urdf.xacro is given
+  another one (end_effector:=<name>).  Every tool file under tools/ provides the same two frames the rest of the
+  robot relies on: its hand hangs on arm_0_tool0, and rg6_onrobot_rg6_base_link is where robot.yaml mounts the
+  wrist camera (sensors.camera.parent, xyz 0.023/0/0.125, rpy 0/-1.5708/-3.14).
+
+  GRIPPER MODEL:
+    A cleanly articulated RG6 from package 'rg6_description' (Robotiq style:
+    outer_knuckle/inner_knuckle/inner_finger per side). Driver joint =
+    'rg6_finger_joint' (prefix 'rg6_'): 0 = open, positive = closed. The 5
+    dependent joints hang on the driver joint via <mimic> (the official OnRobot
+    multipliers) -> MoveIt animates them in the planning preview, the ROS 2
+    robot_state_publisher computes them for /tf (Foxglove). The
+    rg6_joint_state_broadcaster additionally publishes all 6 joints explicitly
+    (fallback / live tuning of the AI2 mapping); the values match <mimic>.
+    Collision = one coarse box at the base_link (no self-collision in MoveIt).
+-->
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- ===================== RG6 gripper at arm_0_tool0 =================== -->
+  <!-- The model itself is vendored in the OTHER repo: rg6_description
+       (onrobot-rg6) carries the meshes, the macro and the measured rg6_v2.yaml,
+       and its LICENSE-THIRD-PARTY.md carries origin and changes of the
+       onrobot_description model (rg6_v2, MIT, INRIA).  What stands here is only
+       where the hand is bolted on.
+
+       NO mounting offset: the single_bracket screws straight onto the UR
+       flange (looked at on the device on 2026-08-19).  Its foot IS the coupling
+       face, 71 mm in diameter.  Between them lies only the 0.4 mm centring ring
+       of the flange, and that is a recess.
+
+       driver_joint pins the name the whole workspace knows:
+       rg6_finger_joint, 0 = open, positive = closed.  The dependent joints hang
+       on it by mimic.
+
+       NO rotation.  The OLD model needed rpy="0 0 -1.5708" here, and its own
+       comment said that was found by trial ("if still twisted, vary in steps of
+       90 degrees").  That number belonged to that mesh; carried over, the
+       gripper stood visibly twisted by 90 degrees on 2026-08-19.  Measured as
+       the opening direction of the fingers in the flange frame:
+         old model, rpy 0 0 -1.5708 -> [-1  0  0]   (this is how it looked right)
+         new model, rpy 0 0  0      -> [-1  0  0]   congruent
+         new model, rpy 0 0 -1.5708 -> [ 0 +1  0]   the 90 degrees
+       The opening axis alone does NOT decide this: it is a straight line,
+       [-1 0 0] and [+1 0 0] are the same one, and which finger is called "1" in
+       either model is arbitrary.  0 and 180 degrees are therefore not
+       distinguishable by it.  The owner saw on 2026-08-19 that 180 degrees are
+       missing without the rotation; hence pi.  Whoever wants it more precisely
+       measures at an ASYMMETRIC feature (cable outlet, safety switch). -->
+  <xacro:include filename="$(find rg6_description)/urdf/onrobot_rg_upstream.urdf.xacro"/>
+  <xacro:onrobot_rg parent="arm_0_tool0" prefix="rg6_" model="rg6_v2"
+                    driver_joint="rg6_finger_joint">
+    <origin xyz="0 0 0" rpy="0 0 3.14159"/>
+  </xacro:onrobot_rg>
+
+  <!-- The old name, EXACTLY the old place.  rg6_onrobot_rg6_base_link is more
+       than a reference point for the SRDF patch and the MuJoCo scenes: robot.yaml
+       hangs the CAMERA on it (camera_0_joint, xyz 0.023/0/0.125,
+       rpy 0/-1.5708/-3.14).  Everything that moves or turns this link moves the
+       camera with it.
+
+       The first version hung it on rg6_gripper_body; that sits 56.1 mm above the
+       flange, which put the camera 56 mm too high AND turned along.  It therefore
+       hangs directly on arm_0_tool0 and reproduces the old rg6_tool0_to_base
+       exactly: origin at the flange, rpy 0 0 -1.5708.  That DECOUPLES it from the
+       gripper model; how the latter's mesh is turned is a separate question and
+       must not touch the camera any more. -->
+  <link name="rg6_onrobot_rg6_base_link"/>
+  <joint name="rg6_base_link_alias" type="fixed">
+    <parent link="arm_0_tool0"/><child link="rg6_onrobot_rg6_base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 -1.5708"/>
+  </joint>
+
+  <!-- Gripper TCP.  THE SAME physical point as in the old model: 210 mm above
+       the coupling face, at the start of the pad surface.  The new model puts its
+       grasp_frame 58.1 mm further forward (near the END of the pad); taking that
+       over would have moved the TCP silently and devalued every calibrated
+       quantity (descend_offset, floor_height, camera_xy_offset).  Deliberately
+       decided that way on 2026-08-19; where the TCP physically belongs is a
+       question of its own (ROBOTER-TODO R19/R23).
+       Expressed against grasp_frame, so that it hangs on the model geometry and
+       not on a free number again. -->
+  <link name="rg6_hand_tcp"/>
+  <joint name="rg6_hand_tcp_joint" type="fixed">
+    <parent link="rg6_gripper_grasp_frame"/><child link="rg6_hand_tcp"/>
+    <origin xyz="0 0 -0.0581" rpy="0 0 0"/>
+  </joint>
+
+</robot>
