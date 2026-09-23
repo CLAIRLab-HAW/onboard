@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-23 (the tools are macros)
+
+- **`rg6.macro.xacro` and `key_holder.macro.xacro`**: each tool as a macro with
+  a `parent` -- the face it is screwed onto. `tools/rg6.urdf.xacro` and
+  `tools/key_holder.urdf.xacro` call it on `arm_0_tool0` and keep the a200's
+  camera alias beside it; their expanded links and joints are identical to
+  before (compared element by element). A robot with another flange -- MARWIN 5
+  behind its tool changer -- calls the same macro.
+- **The file tests read every xacro under `src/`**, the macros included; a
+  `package://` URI must name the file's own package.
+
 ## 2026-09-23 (the end effector is an argument)
 
 - **`end_effector` selects the tool** (xacro argument, default `rg6`):

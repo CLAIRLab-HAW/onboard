@@ -1,14 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  A printed key holder on the UR5's flange (ISO 9409-1-50, 63 mm) carrying a Rittal double-bit key, for opening
-  control cabinets: end_effector:=key_holder.  Meshes from mujoco-mia (scenes/endeffector), in the holder frame:
-  +z out of the flange, the holder 0..50 mm, the key's tip at 107.8 mm, its bit across y.
-
-  The meshes are drawn; primitives collide, sized off the meshes (2026-09-22): the holder a cylinder, the shank a thin
-  cylinder, the bit a box 16 x 4 x 6 mm.  The holder is turned half a turn on the flange, with the camera clamped to it;
-  holder and key are point-symmetric about the flange axis (the key within 3 mm), so only the camera shows it.  key_tip
-  is the tool's TCP: the point that enters a lock, with the flange's axes.  The key holder has no joints: nothing
-  drives it, so the offboard mock starts no gripper for it.
+  The key holder (key_holder.macro.xacro) on the UR5's flange, for opening control cabinets: end_effector:=key_holder.
 
   rg6_onrobot_rg6_base_link keeps the name robot.yaml hangs the wrist camera on, and stands where that puts the camera
   on THIS tool: on the RG6 the D435 sits 136 mm out along the flange axis, past this key's tip, and would meet a door
@@ -19,43 +11,8 @@
 -->
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <link name="key_holder">
-    <inertial>
-      <origin xyz="0 0 0.04" rpy="0 0 0"/>
-      <mass value="0.12"/>
-      <inertia ixx="8e-5" iyy="8e-5" izz="5e-5" ixy="0" ixz="0" iyz="0"/>
-    </inertial>
-    <visual>
-      <geometry><mesh filename="package://husky_extras_description/meshes/key_holder/key_holder.obj"/></geometry>
-      <material name="key_holder_blue"><color rgba="0.6157 0.8118 0.9294 1"/></material>
-    </visual>
-    <visual>
-      <geometry><mesh filename="package://husky_extras_description/meshes/key_holder/key.obj"/></geometry>
-      <material name="key_metal"><color rgba="0.62 0.62 0.6 1"/></material>
-    </visual>
-    <collision>  <!-- holder -->
-      <origin xyz="0 0 0.025" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.0315" length="0.05"/></geometry>
-    </collision>
-    <collision>  <!-- shank -->
-      <origin xyz="0 0 0.0745" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.003" length="0.049"/></geometry>
-    </collision>
-    <collision>  <!-- bit: passes a 10 x 22 mm keyhole upright, is caught across it -->
-      <origin xyz="0 0 0.1048" rpy="0 0 0"/>
-      <geometry><box size="0.004 0.016 0.006"/></geometry>
-    </collision>
-  </link>
-  <joint name="key_holder_joint" type="fixed">
-    <parent link="arm_0_tool0"/><child link="key_holder"/>
-    <origin xyz="0 0 0" rpy="0 0 3.14159"/>
-  </joint>
-
-  <link name="key_tip"/>
-  <joint name="key_tip_joint" type="fixed">
-    <parent link="arm_0_tool0"/><child link="key_tip"/>
-    <origin xyz="0 0 0.1078" rpy="0 0 0"/>
-  </joint>
+  <xacro:include filename="../key_holder.macro.xacro"/>
+  <xacro:key_holder parent="arm_0_tool0"/>
 
   <link name="rg6_onrobot_rg6_base_link"/>
   <joint name="rg6_base_link_alias" type="fixed">
