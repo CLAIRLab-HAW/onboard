@@ -54,7 +54,8 @@ macro, the gripper package includes nothing from here.
 - **MARWIN 5's tooled arm**, a second package, `marwin_extras_description`:
   `urdf/marwin5_tooled.urdf.xacro` is marwin_control's controlled description
   plus the SmartShift changer on `ur5e_tool0` (`urdf/smartshift.macro.xacro`,
-  vendor figures: 65 mm coupled stack, Ø 63 mm, 180 g + 310 g electric) and the
+  vendor figures: 65 mm coupled stack, Ø 63 mm, 180 g + 310 g electric; the
+  split into 35 mm master and 30 mm holder is assumed) and the
   tool on it: `tool:=rg6` (default, TCP `rg6_hand_tcp` 0.275 m out),
   `tool:=key_holder` (TCP `key_tip` 0.1728 m out) or `tool:=none`. An unknown
   name is refused. The changer is mechanical, so which tool is on is a

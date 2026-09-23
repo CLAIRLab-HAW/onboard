@@ -5,7 +5,10 @@
 
     tool:=rg6         the OnRobot RG6 (husky_extras_description rg6.macro.xacro), TCP rg6_hand_tcp; the default
     tool:=key_holder  the Rittal key holder (key_holder.macro.xacro), TCP key_tip
-    tool:=none        the bare changer, both tools in their pockets; TCP ur5e_tool0
+    tool:=none        the bare changer; TCP ur5e_tool0
+
+  The tool that is not on the arm hangs in its pocket, part of the same description: robot_state_publisher draws it
+  there, move_group plans around it, and a MuJoCo scene built from this file holds it as a body.
 
   The two tools are the two the owner mounts on the changer's two holders (2026-09-23).  Which one is on the arm is a
   start-time choice: the changer has no sensor this description could read, and a change is a motion, not a joint.
@@ -26,15 +29,40 @@
   <xacro:include filename="$(find marwin_control)/urdf/marwin5_controlled.urdf.xacro"/>
 
   <xacro:include filename="smartshift.macro.xacro"/>
+  <xacro:include filename="$(find husky_extras_description)/urdf/rg6.macro.xacro"/>
+  <xacro:include filename="$(find husky_extras_description)/urdf/key_holder.macro.xacro"/>
   <xacro:smartshift parent="ur5e_tool0" coupled="${tool != 'none'}"/>
 
+  <!-- The two pockets: the fork-shaped brackets on top of the left superstructure, read off base.stl (2026-09-23).
+       Each frame is the flange pose at the seat; slot center x = +-0.2215, the holder against the closed end at
+       y = 0.165, the flange 0.904 up (3 mm over the 0.866 cover plate plus the master's 35 mm), z down, y toward the
+       closed end.  deploy/marwin/toolchange/tools.yaml states the same poses in UR base coordinates, and a test there
+       holds the two together. -->
+  <link name="smartshift_pocket_rg6"/>
+  <joint name="smartshift_pocket_rg6_joint" type="fixed">
+    <parent link="base_link"/><child link="smartshift_pocket_rg6"/>
+    <origin xyz="0.2215 0.165 0.904" rpy="0 3.14159265 0"/>
+  </joint>
+  <link name="smartshift_pocket_key_holder"/>
+  <joint name="smartshift_pocket_key_holder_joint" type="fixed">
+    <parent link="base_link"/><child link="smartshift_pocket_key_holder"/>
+    <origin xyz="-0.2215 0.165 0.904" rpy="0 3.14159265 0"/>
+  </joint>
+
+  <!-- Each tool hangs where it is: on the arm, or in its pocket with its holder; never both, never neither. -->
   <xacro:if value="${tool == 'rg6'}">
-    <xacro:include filename="$(find husky_extras_description)/urdf/rg6.macro.xacro"/>
     <xacro:rg6_tool parent="smartshift_tool_flange"/>
   </xacro:if>
+  <xacro:unless value="${tool == 'rg6'}">
+    <xacro:smartshift_parked pocket="smartshift_pocket_rg6" tool="rg6"/>
+    <xacro:rg6_tool parent="smartshift_tool_flange_parked_rg6"/>
+  </xacro:unless>
   <xacro:if value="${tool == 'key_holder'}">
-    <xacro:include filename="$(find husky_extras_description)/urdf/key_holder.macro.xacro"/>
     <xacro:key_holder parent="smartshift_tool_flange"/>
   </xacro:if>
+  <xacro:unless value="${tool == 'key_holder'}">
+    <xacro:smartshift_parked pocket="smartshift_pocket_key_holder" tool="key_holder"/>
+    <xacro:key_holder parent="smartshift_tool_flange_parked_key_holder"/>
+  </xacro:unless>
 
 </robot>

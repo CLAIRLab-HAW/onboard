@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-23 (the changer's holder is a link of its own)
+
+- **`smartshift_holder`**: the tool holder is a 30 mm link below a 35 mm
+  master, present only while a tool is coupled, instead of one 65 mm cylinder
+  on the master. The master comes for a tool 3 mm over a pocket's cover plate,
+  and the 65 mm cylinder stood deep in MARWIN's superstructure there. The
+  35/30 split is assumed; the manual gives only the sum. The TCPs are unchanged.
+
 ## 2026-09-23 (MARWIN 5's tooled arm)
 
 - **`marwin_extras_description`**, a second package: MARWIN 5 with the

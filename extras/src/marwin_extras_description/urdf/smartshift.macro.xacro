@@ -1,55 +1,83 @@
 <?xml version="1.0"?>
 <!--
-  The SmartShift automatic tool changer (Smartshift Robotics AS), electric variant, on a flange.  Every number is the
+  The SmartShift automatic tool changer (Smartshift Robotics AS), electric variant, on a flange.  The figures are the
   vendor's ("Technical Instructions: Tool Change system", read 2026-09-23), none is measured on MARWIN 5.
 
   The coupling is PURELY MECHANICAL: no joint, no actuator, nothing on the ROS graph.  A change is an arm motion
   through a spring-loaded tool pocket, so the description has only two states, and coupled says which.
 
     smartshift_master       on parent (the flange), always there.  Robot master electric, 180 g.
+    smartshift_holder       below the master, only when coupled: the tool holder, electric, 310 g; it leaves with
+                            its tool.
     smartshift_tool_flange  65 mm out along +z, the face a tool is screwed onto ("TCP setup": master + holder stack
-                            65 mm when connected).  Only when coupled; the tool holder electric weighs 310 g.
+                            65 mm when connected).  Only when coupled.
 
-  The 65 mm is the COUPLED stack; how it splits between master and holder the manual does not say.  The collision is
-  therefore one cylinder over the whole 65 mm, outer diameter 63 mm, coupled or not: with no holder on, that is up to
-  one holder's height too long, and a collision model errs on the side of too big.
+  The manual gives the 65 mm only as the coupled stack.  The split is ASSUMED as 35 mm master + 30 mm holder: the
+  holder hangs through MARWIN's pocket forks, whose plate is 24 mm thick (base.stl), so it is at least that tall.  It
+  matters: the master alone passes 3 mm over a pocket's cover plate when it comes for a tool, and a master modeled
+  over the whole 65 mm stood 3 cm deep in the superstructure there (2026-09-23).
 -->
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
-  <xacro:macro name="smartshift" params="parent coupled">
-    <xacro:property name="stack_m" value="0.065"/>
-    <xacro:property name="radius_m" value="0.0315"/>
-    <xacro:property name="mass_kg" value="${0.180 + (0.310 if coupled else 0.0)}"/>
-
-    <link name="smartshift_master">
+  <xacro:macro name="smartshift_disc" params="name length mass radius_m">
+    <link name="${name}">
       <inertial>
-        <origin xyz="0 0 ${stack_m / 2}" rpy="0 0 0"/>
-        <mass value="${mass_kg}"/>
-        <inertia ixx="${mass_kg * (3 * radius_m**2 + stack_m**2) / 12}" ixy="0" ixz="0"
-                 iyy="${mass_kg * (3 * radius_m**2 + stack_m**2) / 12}" iyz="0"
-                 izz="${mass_kg * radius_m**2 / 2}"/>
+        <origin xyz="0 0 ${length / 2}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${mass * (3 * radius_m**2 + length**2) / 12}" ixy="0" ixz="0"
+                 iyy="${mass * (3 * radius_m**2 + length**2) / 12}" iyz="0"
+                 izz="${mass * radius_m**2 / 2}"/>
       </inertial>
       <visual>
-        <origin xyz="0 0 ${stack_m / 2}" rpy="0 0 0"/>
-        <geometry><cylinder radius="${radius_m}" length="${stack_m}"/></geometry>
+        <origin xyz="0 0 ${length / 2}" rpy="0 0 0"/>
+        <geometry><cylinder radius="${radius_m}" length="${length}"/></geometry>
         <material name="smartshift_anodized"><color rgba="0.35 0.36 0.38 1"/></material>
       </visual>
       <collision>
-        <origin xyz="0 0 ${stack_m / 2}" rpy="0 0 0"/>
-        <geometry><cylinder radius="${radius_m}" length="${stack_m}"/></geometry>
+        <origin xyz="0 0 ${length / 2}" rpy="0 0 0"/>
+        <geometry><cylinder radius="${radius_m}" length="${length}"/></geometry>
       </collision>
     </link>
+  </xacro:macro>
+
+  <xacro:macro name="smartshift" params="parent coupled">
+    <xacro:property name="radius_m" value="0.0315"/>
+    <xacro:property name="master_m" value="0.035"/>
+    <xacro:property name="holder_m" value="0.030"/>
+
+    <xacro:smartshift_disc name="smartshift_master" length="${master_m}" mass="0.180" radius_m="${radius_m}"/>
     <joint name="smartshift_master_joint" type="fixed">
       <parent link="${parent}"/><child link="smartshift_master"/>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </joint>
 
     <xacro:if value="${coupled}">
+      <xacro:smartshift_disc name="smartshift_holder" length="${holder_m}" mass="0.310" radius_m="${radius_m}"/>
+      <joint name="smartshift_holder_joint" type="fixed">
+        <parent link="smartshift_master"/><child link="smartshift_holder"/>
+        <origin xyz="0 0 ${master_m}" rpy="0 0 0"/>
+      </joint>
       <link name="smartshift_tool_flange"/>
       <joint name="smartshift_tool_flange_joint" type="fixed">
-        <parent link="smartshift_master"/><child link="smartshift_tool_flange"/>
-        <origin xyz="0 0 ${stack_m}" rpy="0 0 0"/>
+        <parent link="smartshift_holder"/><child link="smartshift_tool_flange"/>
+        <origin xyz="0 0 ${holder_m}" rpy="0 0 0"/>
       </joint>
     </xacro:if>
 
+  </xacro:macro>
+
+  <!-- A holder seated in a pocket, for the tool hung from it there: the pocket frame is the FLANGE pose the UR-Cap
+       takes at the seat (z down, TCP zero), so the holder sits where it sits on the arm, below the master's 35 mm.
+       Its links carry the tool's name: the arm's own holder may be coupled at the same time. -->
+  <xacro:macro name="smartshift_parked" params="pocket tool">
+    <xacro:smartshift_disc name="smartshift_holder_parked_${tool}" length="0.030" mass="0.310" radius_m="0.0315"/>
+    <joint name="smartshift_holder_parked_${tool}_joint" type="fixed">
+      <parent link="${pocket}"/><child link="smartshift_holder_parked_${tool}"/>
+      <origin xyz="0 0 0.035" rpy="0 0 0"/>
+    </joint>
+    <link name="smartshift_tool_flange_parked_${tool}"/>
+    <joint name="smartshift_tool_flange_parked_${tool}_joint" type="fixed">
+      <parent link="smartshift_holder_parked_${tool}"/><child link="smartshift_tool_flange_parked_${tool}"/>
+      <origin xyz="0 0 0.030" rpy="0 0 0"/>
+    </joint>
   </xacro:macro>
 </robot>
