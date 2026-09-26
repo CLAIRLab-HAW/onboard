@@ -7,6 +7,13 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-26 (the base's two teleop speeds stand in robot.yaml)
+
+`platform.extras.ros_parameters.teleop_twist_joy_node` states the joystick's normal and turbo speeds (0.4 m/s,
+0.6 rad/s; turbo 1.0 m/s, 1.2 rad/s), the same values the generator writes without them. The workstation reads them
+from here: the contract profile copies them and the plan server offers them to every client that drives the base.
+Nothing changes on the robot until the file is rolled out, and then nothing moves differently.
+
 ## 2026-09-22 (octomap_feed publishes no empty cloud)
 
 - **`octomap_feed` skips a frame with no point in its depth band** instead of publishing a cloud of width 0.

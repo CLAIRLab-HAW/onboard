@@ -39,6 +39,15 @@ platform:
     ros_parameters:
       joy_node:
         dev: /dev/input/js0 # needed due to custom BT receiver
+      # The base's two teleop speeds, LB normal and RB turbo. The same values the generator writes without this block
+      # (measured in /etc/clearpath/platform/config/teleop_joy.yaml, 2026-09-26) -- stated here because the workstation
+      # reads them from this file: the profile copies them (base.drive_speeds, test_ssot_parity) and the plan server
+      # offers them to every client that drives the base.
+      teleop_twist_joy_node:
+        scale_linear.x: 0.4
+        scale_angular.yaw: 0.6
+        scale_linear_turbo.x: 1.0
+        scale_angular_turbo.yaw: 1.2
       controller_manager:
         update_rate: 10 # mcu is slow so we give more time
         # cycle_time_error_threshold: 0.1
