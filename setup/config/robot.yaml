@@ -203,8 +203,12 @@ manipulators:
         trajectory_execution:
           allowed_goal_duration_margin: 6.0 # allows slow gripper opening/closing
         # Occupancy map monitor -- the generator writes ros_parameters into
-        # moveit.yaml itself.  octomap_frame is deliberately base_link: odom is
-        # UTM-backed here and jumps.
+        # moveit.yaml itself.  octomap_frame is base_link because that is what
+        # move_group uses whatever stands here: Jazzy's PlanningSceneMonitor
+        # hands the occupancy map monitor the planning frame, and the parameter
+        # is read only without one (odom here, 2026-09-27: the updater still
+        # filtered into base_link).  The voxels ride along with the base, so
+        # plan_server clears the octomap after every drive.
         octomap_frame: base_link
         octomap_resolution: 0.025
         sensors:

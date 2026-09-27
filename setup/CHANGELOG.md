@@ -7,6 +7,12 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-27 (why the octomap stands in base_link)
+
+- The comment on `octomap_frame` and the README give the actual reason: Jazzy's `move_group` builds the occupancy map in
+  the planning frame, and the parameter is read only without one -- set to `odom`, the updater still filtered into
+  `base_link`. The value stays `base_link`; `plan_server` clears the octomap after every drive of the base.
+
 ## 2026-09-27 (the base's pose no longer steps at the MCU's 10 Hz)
 
 - The EKF fuses the wheel odometry's velocities (`vx`, `vy`, `vyaw`) and no longer its pose, and the diff drive

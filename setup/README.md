@@ -326,8 +326,9 @@ Two building blocks, both from the installer (optional step):
 2. **Sensor parameters in `robot.yaml`**: under
    `manipulators.moveit.ros_parameters.move_group` sit `octomap_frame`,
    `octomap_resolution`, `sensors` and the `wrist_depth_camera` block — the Clearpath generator writes them into
-   `/etc/clearpath/manipulators/config/moveit.yaml` itself. `octomap_frame` is deliberately `base_link` (odom is
-   UTM-backed on this robot and jumps),
+   `/etc/clearpath/manipulators/config/moveit.yaml` itself. `octomap_frame` is `base_link`, the planning frame
+   `move_group` uses whatever the parameter says; the voxels ride along with the base, and `plan_server` clears the
+   octomap after every drive,
    `octomap_resolution` 0.025, `max_range` 2.5 (the same value the feed cuts at, so one number bounds the dense layer).
    **Careful:** there is no gate "only if `moveit_ros_perception` is installed". If the package is missing, `move_group`
    acknowledges that with a plugin load error per boot. On a200-0553 it is installed.
