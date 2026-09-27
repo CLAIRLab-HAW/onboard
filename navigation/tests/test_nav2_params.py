@@ -138,22 +138,23 @@ def test_a_mark_the_lidar_no_longer_sees_decays(params):
         assert clear["horizontal_fov_angle"] >= 6.28, "all the way around"
 
 
-def test_the_skid_steer_never_turns_on_the_spot_and_may_back_out(params):
-    """The a200 drives arcs forward and backward and does not spin in place: the planner is kinematic (Reeds-Shepp),
-    the controller reverses and never rotates to a heading, and no recovery spins."""
+def test_the_base_turns_on_the_spot_and_counts_it_as_progress(params):
+    """The a200 turns in place before it follows a path: the planner's primitives are differential-drive ones, the
+    shim turns the base, the progress checker counts the turn, and a recovery spins."""
     import xml.etree.ElementTree as ET
     from pathlib import Path
 
     ns = params[wiring.NAMESPACE]
     planner = ns["planner_server"]["ros__parameters"]["GridBased"]
-    assert planner["plugin"] == "nav2_smac_planner::SmacPlannerHybrid"
-    assert planner["motion_model_for_search"] == "REEDS_SHEPP"
-    follow = ns["controller_server"]["ros__parameters"]["FollowPath"]
-    assert follow["plugin"] == "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-    assert follow["allow_reversing"] is True and follow["use_rotate_to_heading"] is False
-    # The planner's tightest arc is one the controller can drive at its desired speed.
-    assert planner["minimum_turning_radius"] >= follow["desired_linear_vel"] / follow["max_vel_theta"] - 1e-9
+    assert planner["plugin"] == "nav2_smac_planner::SmacPlannerLattice"
+    assert "/diff/" in planner["lattice_filepath"]
+    ctrl = ns["controller_server"]["ros__parameters"]
+    follow = ctrl["FollowPath"]
+    assert follow["plugin"] == "nav2_rotation_shim_controller::RotationShimController"
+    # The Jazzy shim does not follow a reversing path, so the planner must not plan one.
+    assert follow["allow_reversing"] is False and planner["allow_reverse_expansion"] is False
+    assert ctrl["progress_checker"]["plugin"] == "nav2_controller::PoseProgressChecker"
     trees = sorted((Path(__file__).resolve().parents[1] / "config" / "behavior_trees").glob("*.xml"))
     assert len(trees) == 2
     for tree in trees:
-        assert not [e for e in ET.parse(tree).getroot().iter() if e.tag == "Spin"], tree.name
+        assert [e for e in ET.parse(tree).getroot().iter() if e.tag == "Spin"], tree.name

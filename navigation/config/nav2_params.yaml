@@ -79,36 +79,23 @@ a200_0553:
       progress_checker_plugins: ["progress_checker"]
       goal_checker_plugins: ["goal_checker"]
       controller_plugins: ["FollowPath"]
+      # The pose checker, not the simple one: a turn on the spot counts as progress.  The simple checker counts only
+      # distance, and every turn in the ArchitecTHOR start corridor ran into its 10 s -- five "Failed to make
+      # progress" and five recoveries on one 1,1 m drive (2026-09-28, MPPI).
       progress_checker:
-        plugin: "nav2_controller::SimpleProgressChecker"
+        plugin: "nav2_controller::PoseProgressChecker"
         required_movement_radius: 0.5
+        required_movement_angle: 0.5
         movement_time_allowance: 10.0
       goal_checker:
         plugin: "nav2_controller::SimpleGoalChecker"
         xy_goal_tolerance: 0.25
         # The goal orientation is DELIBERATELY not enforced (3.15 > pi covers
-        # every angle).  Two reasons, both measured:
-        #
-        # 1. RegulatedPurePursuit is a pure POSITION follower and does not
-        #    turn into place at the goal -- the controller does not even have
-        #    a parameter for it (queried on the running controller_server on
-        #    2026-08-22: there is `use_rotate_to_heading` and
-        #    `rotate_to_heading_min_angle` for path following, not a single
-        #    one for the goal pose).  With a tight tolerance the Husky stood
-        #    on the goal position, twisted by 155 degrees, and never got
-        #    inside it: measured goal yaw 0, final yaw -2,709 rad at a
-        #    position deviation of only 0,237 m.  The goal ran until the
-        #    timeout, and the progress checker triggered recoveries every 10
-        #    seconds that turned the robot on at random until it happened to
-        #    fit -- 12 recoveries and 121 s for 2 m.
-        #
-        # 2. Even if the controller could do it, the number would not be
-        #    dependable in this state: as long as R34 is open there are no
-        #    scans, localization rests on wheel odometry alone, and the
-        #    skid-steer factor is unmeasured on the real robot (R37).
-        #    Prescribing a 14 degree final tolerance after several metres of
-        #    driving would mean claiming an accuracy the sensors do not
-        #    deliver.
+        # every angle): the number would not be dependable in this state.  As
+        # long as R34 is open, localization rests on wheel odometry alone, and
+        # the skid-steer factor is unmeasured on the real robot (R37).
+        # Prescribing a 14 degree final tolerance after several meters of
+        # driving would mean claiming an accuracy the sensors do not deliver.
         #
         # If a grasping operation later needs an aligned final pose, that
         # belongs in as a step of its own WITH a sensor reference -- not as a
@@ -116,14 +103,20 @@ a200_0553:
         yaw_goal_tolerance: 3.15
         stateful: true
       FollowPath:
-        # Regulated Pure Pursuit on its own, forward and backward.  The a200 is a skid steer that does not turn on the
-        # spot -- that drags all four tires sideways, wears them and throws the wheel odometry's heading off -- and a
-        # narrow corridor it cannot turn in, it leaves backward.  The planner below hands it paths it can drive that
-        # way: arcs no tighter than its minimum turning radius, reversing segments where forward does not fit; RPP
-        # drives a cusp in the path as a change of direction.  A grid path that demanded a large change of direction
-        # left the Husky standing unless it turned on the spot first (2026-08-22: 0,06 m in 51 s, ABORTED); a path
-        # from the kinematic planner demands none.
-        plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+        # Regulated Pure Pursuit behind the rotation shim: where the path turns away by more than
+        # angular_dist_threshold, the shim first turns the base on the spot, collision-checked over
+        # simulate_ahead_time, then RPP follows forward.  Measured against MPPI (DiffDrive, footprint-checked, able to
+        # reverse) on the same goals in ArchitecTHOR's start corridor on 2026-09-28: the shim arrived in 29 s without
+        # a recovery; MPPI crawled at 0,1 m/s, its loop fell to 8 Hz, and it needed 62-94 s and 4-5 recoveries.
+        # Forward only: the Jazzy shim does not follow a reversing path, so the planner plans none, and a dead end is
+        # left by the BackUp recovery.
+        plugin: "nav2_rotation_shim_controller::RotationShimController"
+        primary_controller: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+        angular_dist_threshold: 0.785
+        forward_sampling_distance: 0.5
+        rotate_to_heading_angular_vel: 0.8
+        max_angular_accel: 1.0
+        simulate_ahead_time: 1.0
         desired_linear_vel: 0.4
         max_vel_x: 0.5              # the wheel controller clamps at 1.0
         max_vel_theta: 0.8          # the wheel controller clamps at 1.0
@@ -131,8 +124,8 @@ a200_0553:
         min_lookahead_dist: 0.3
         max_lookahead_dist: 0.9
         use_velocity_scaled_lookahead_dist: true
-        allow_reversing: true
-        # Off, and it has to be: RPP refuses it together with allow_reversing, and it is a turn on the spot.
+        allow_reversing: false
+        # Off: the shim turns to the path; RPP's own turn would only duplicate it.
         use_rotate_to_heading: false
         transform_tolerance: 0.2
 
@@ -288,24 +281,23 @@ a200_0553:
     ros__parameters:
       expected_planner_frequency: 20.0
       planner_plugins: ["GridBased"]
-      # Smac Hybrid-A* with Reeds-Shepp motion: paths the skid steer drives without turning on the spot -- arcs of
-      # at least minimum_turning_radius, forward and backward (FollowPath says why).  The id stays GridBased, which
-      # the behavior trees name.  It checks the footprint, not a circle, along the whole path.
+      # Smac State Lattice with Nav2's differential-drive primitives: arcs, straights and turns on the spot.  It checks
+      # the footprint, not a circle, along the whole path and through every turn in place -- a turn the rectangle
+      # does not fit in is not planned.  The id stays GridBased, which the behavior trees name.
       GridBased:
-        plugin: "nav2_smac_planner::SmacPlannerHybrid"
-        motion_model_for_search: "REEDS_SHEPP"
-        # 0,5 m: the tightest arc RPP drives at its desired 0,4 m/s within max_vel_theta 0,8 rad/s.
-        minimum_turning_radius: 0.5
-        # Backward only where forward does not fit, and no dithering between the two.
-        reverse_penalty: 2.0
-        change_penalty: 0.5
+        plugin: "nav2_smac_planner::SmacPlannerLattice"
+        # 5 cm, like the costmaps; 0,5 m: the tightest arc RPP drives at its desired 0,4 m/s within max_vel_theta.
+        lattice_filepath: "/opt/ros/jazzy/share/nav2_smac_planner/sample_primitives/\
+          5cm_resolution/0.5m_turning_radius/diff/output.json"
+        # Forward only, see FollowPath.  A turn on the spot costs more than an arc.
+        allow_reverse_expansion: false
+        rotation_penalty: 5.0
         # 0: a goal in an obstacle is refused.  With 0,5 NavFn planned to the nearest free cell instead -- a goal
         # under a dining table ended at the start, the base never moved, and the navigator reported the goal as
         # reached (2026-09-27, ManiSkill with the RS16).
         tolerance: 0.0
         allow_unknown: true
         max_planning_time: 5.0
-        angle_quantization_bins: 72
         smooth_path: true
 
   behavior_server:

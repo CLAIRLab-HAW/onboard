@@ -3,6 +3,18 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-09-28 — The base turns on the spot again
+
+- The planner is Smac State Lattice over Nav2's differential-drive primitives (5 cm, 0.5 m turning radius), forward
+  only, instead of Smac Hybrid-A* with Reeds-Shepp motion: it plans turns on the spot and checks the footprint
+  through them. The controller is the rotation shim in front of Regulated Pure Pursuit again, without
+  `allow_reversing`; the behavior trees have their `Spin` recovery back.
+- The progress checker is `PoseProgressChecker`: the simple one counted only distance, and a turn on the spot ran
+  into its 10 s.
+- MPPI (DiffDrive, footprint-checked, reversing) was tried first on the ManiSkill stack, in ArchitecTHOR's start
+  corridor: it turned on the spot, but at 0.1 m/s with its loop down to 8 Hz, 62-94 s and 4-5 recoveries per goal.
+  The shim reached the same goal in 29 s without a recovery; the controller takes 5-7 % of a core while driving.
+
 ## 2026-09-27 — The robot's own body out of the lidar
 
 - `clair.navigation.self_filter`: drops the RS16's points inside the robot's collision hulls
