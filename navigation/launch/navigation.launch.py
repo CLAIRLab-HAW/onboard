@@ -2,7 +2,8 @@
 
 localization:=none    static_transform_publisher supplies map ─▶ odom
 localization:=amcl    AMCL against the stored map (needs scans)
-localization:=slam    slam_toolbox maps and supplies map ─▶ odom itself
+localization:=slam    slam_toolbox maps and supplies map ─▶ odom itself, and the map -- no stored one then
+use_sim_time:=true    on the /clock of a simulator plant, whose sensors and TF it stamps
 
 The default is NONE, deliberately: as long as the sensor path delivers no scans, an AMCL in the graph publishes NO
 transform at all, the TF chain would stand still, and one would look for the fault in the costmaps.
@@ -14,7 +15,7 @@ import os
 
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetParameter
 
 from clair.navigation import wiring
 from launch import LaunchDescription
@@ -48,17 +49,14 @@ _LIFECYCLE_SETTLE_S = 8.0
 
 def _setup(context, *args, **kwargs):
     localization = LaunchConfiguration("localization").perform(context)
+    sim_time = LaunchConfiguration("use_sim_time").perform(context) == "true"
     map_file = LaunchConfiguration("map").perform(context)
 
     common = dict(namespace=wiring.NAMESPACE, output="screen", remappings=wiring.TF_REMAPS)
+    # SetParameter reaches every Node after it: a costmap on the wall clock drops a scan stamped by a simulator's
+    # /clock as too old, and slam_toolbox never maps.
     nodes = [
-        Node(
-            package="nav2_map_server",
-            executable="map_server",
-            name="map_server",
-            parameters=[PARAMS, {"yaml_filename": os.path.join(MAPS, map_file)}],
-            **common,
-        ),
+        SetParameter("use_sim_time", sim_time),
         Node(
             package="nav2_controller",
             executable="controller_server",
@@ -82,6 +80,20 @@ def _setup(context, *args, **kwargs):
     ]
 
     managed = list(_CORE_NODES)
+    # A stored map, except while slam_toolbox maps: two publishers on one map topic, and the costmap takes whichever
+    # came last.
+    if localization == "slam":
+        managed.remove("map_server")
+    else:
+        nodes.append(
+            Node(
+                package="nav2_map_server",
+                executable="map_server",
+                name="map_server",
+                parameters=[PARAMS, {"yaml_filename": os.path.join(MAPS, map_file)}],
+                **common,
+            )
+        )
 
     if localization == "amcl":
         nodes.append(Node(package="nav2_amcl", executable="amcl", name="amcl", parameters=[PARAMS], **common))
@@ -92,10 +104,18 @@ def _setup(context, *args, **kwargs):
                 package="slam_toolbox",
                 executable="async_slam_toolbox_node",
                 name="slam_toolbox",
-                parameters=[os.path.join(_HERE, "config", "slam_toolbox.yaml")],
-                **common,
+                # Jazzy's slam_toolbox is a lifecycle node: on its own it stays unconfigured, publishes no map and no
+                # map ─▶ odom, and every costmap waits for the frame (2026-09-27).  The manager brings it up first.
+                parameters=[os.path.join(_HERE, "config", "slam_toolbox.yaml"), {"use_lifecycle_manager": True}],
+                # It publishes the ABSOLUTE /map, and the costmap listens under the namespace -- the map arrived
+                # nowhere (2026-09-27).  The same bend as TF_REMAPS.
+                **{
+                    **common,
+                    "remappings": [*wiring.TF_REMAPS, ("/map", "map"), ("/map_metadata", "map_metadata")],
+                },
             )
         )
+        managed.insert(0, "slam_toolbox")
     else:
         # Identity map ─▶ odom. The robot therefore drifts against the map, because only the wheel odometry carries it
         # -- that is the deliberate state as long as there are no scans.
@@ -141,6 +161,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("localization", default_value="none", choices=["none", "amcl", "slam"]),
             DeclareLaunchArgument("map", default_value="leerer_raum.yaml"),
+            DeclareLaunchArgument("use_sim_time", default_value="false", choices=["true", "false"]),
             OpaqueFunction(function=_setup),
         ]
     )
