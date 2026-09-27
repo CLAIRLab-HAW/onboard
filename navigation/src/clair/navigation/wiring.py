@@ -29,6 +29,17 @@ def points_topic() -> str:
     return f"/{NAMESPACE}/sensors/lidar3d_0/points"
 
 
+def filtered_points_topic() -> str:
+    """The RS16's points without the robot's own body (:mod:`clair.navigation.self_filter`): what the costmaps and the
+    scan read, so neither takes the sensor arch or an arm reaching out for an obstacle."""
+    return f"/{NAMESPACE}/sensors/lidar3d_0/points_filtered"
+
+
+def description_topic() -> str:
+    """The robot's whole description (std_msgs/String, transient local), as robot_state_publisher publishes it."""
+    return f"/{NAMESPACE}/robot_description"
+
+
 def scan_topic() -> str:
     """2D scan derived from the cloud (sensor_msgs/LaserScan).
 

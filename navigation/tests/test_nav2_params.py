@@ -78,11 +78,12 @@ def test_every_cmd_vel_publisher_is_stamped(params, node):
 
 
 def test_both_costmaps_mark_and_clear_from_the_lidars_points(params):
-    """The RS16's own points, not the scan derived from them: a voxel layer sees the heights the scan's band drops."""
+    """The RS16's points, not the scan derived from them -- a voxel layer sees the heights the scan's band drops --
+    and without the robot's own body, which the arm reaching out would otherwise put ahead of it."""
     for name in ("local_costmap", "global_costmap"):
         layer = params[wiring.NAMESPACE][name][name]["ros__parameters"]["obstacle_layer"]
         sources = layer["observation_sources"].split()
-        assert {layer[s]["topic"] for s in sources} == {wiring.points_topic()}
+        assert {layer[s]["topic"] for s in sources} == {wiring.filtered_points_topic()}
         assert any(layer[s]["marking"] for s in sources) and any(layer[s]["clearing"] for s in sources)
 
 

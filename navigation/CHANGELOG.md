@@ -3,6 +3,15 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-09-27 — The robot's own body out of the lidar
+
+- `clair.navigation.self_filter`: drops the RS16's points inside the robot's collision hulls
+  (`clair.twin.body.RobotBody`, the live description on `wiring.description_topic()`, the links from TF) within 2.2 m
+  of the sensor, and publishes the rest on `wiring.filtered_points_topic()`. `lidar.launch.py` starts it, and
+  `pointcloud_to_laserscan` and both costmaps read the filtered points. In the ManiSkill stack all 214 points of the
+  sensor arch beside the RS16 went; the node takes 12.5 % of a core. Without `clair-twin[body]` it passes the points
+  through. `robot_body_filter` has no ROS 2 port (its `ros2` branch is the catkin package), hence this.
+
 ## 2026-09-27 — A spatio-temporal voxel layer in both costmaps
 
 - Both costmaps' `obstacle_layer` is `spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer`, fed by the RS16's points

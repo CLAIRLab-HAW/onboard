@@ -13,7 +13,7 @@ Every name comes from clair.navigation.wiring -- none of them is stated a second
 (tests/test_launch_files_do_not_restate_the_wiring.py).
 """
 
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -37,13 +37,20 @@ def _setup(context, *args, **kwargs):
             remappings=wiring.TF_REMAPS,
             output="screen",
         ),
+        # The points without the robot's own body (the arch beside the sensor, the arm reaching out): what the scan
+        # below and the costmaps read.  A python module, not an ament package -- hence ExecuteProcess.
+        ExecuteProcess(cmd=["python3", "-m", "clair.navigation.self_filter"], output="screen"),
         Node(
             package="pointcloud_to_laserscan",
             executable="pointcloud_to_laserscan_node",
             name="pointcloud_to_laserscan",
             namespace=wiring.NAMESPACE,
             parameters=[wiring.pointcloud_to_laserscan_params()],
-            remappings=[("cloud_in", wiring.points_topic()), ("scan", wiring.scan_topic()), *wiring.TF_REMAPS],
+            remappings=[
+                ("cloud_in", wiring.filtered_points_topic()),
+                ("scan", wiring.scan_topic()),
+                *wiring.TF_REMAPS,
+            ],
             output="screen",
         ),
     ]

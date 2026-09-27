@@ -12,6 +12,10 @@ platform **and** onboard on the real robot — same configuration, same driver.
 - **One driver for both sides.** `rslidar_sdk` (apt, `ros-jazzy-rslidar-sdk`)
   reads a PCAP recording in the mock and the device on the robot. The
   difference: `common.msg_source`.
+- **The robot's own body out of the points.** `self_filter` (`python3 -m clair.navigation.self_filter`) drops the
+  RS16's points inside the robot's collision hulls -- the sensor arch beside it, an arm reaching out -- and publishes
+  the rest on `…/lidar3d_0/points_filtered`, which the scan and the costmaps read. It needs `clair-twin[body]`;
+  without it, the points pass through unfiltered.
 - **Nav2** with switchable localization: `slam_toolbox` for mapping, AMCL for
   driving against a stored map.
 - **ROS-free core.** The decisions live in `src/clair/navigation/` and are

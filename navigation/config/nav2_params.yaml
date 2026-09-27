@@ -176,11 +176,11 @@ a200_0553:
           mapping_mode: false
           map_save_duration: 60.0
           observation_sources: points_mark points_clear
-          # The RS16's points themselves, from just above the floor to above the arm and the arch: what the robot
-          # would run into at any height.  Its own body stands inside the footprint, which the layer clears.
+          # The RS16's points without the robot's own body (self_filter), from just above the floor to above the arm
+          # and the arch: what the robot would run into at any height.
           points_mark:
             data_type: PointCloud2
-            topic: /a200_0553/sensors/lidar3d_0/points
+            topic: /a200_0553/sensors/lidar3d_0/points_filtered
             marking: true
             clearing: false
             obstacle_range: 8.0
@@ -197,7 +197,7 @@ a200_0553:
           points_clear:
             enabled: true
             data_type: PointCloud2
-            topic: /a200_0553/sensors/lidar3d_0/points
+            topic: /a200_0553/sensors/lidar3d_0/points_filtered
             marking: false
             clearing: true
             min_z: 0.2
@@ -248,11 +248,11 @@ a200_0553:
           mapping_mode: false
           map_save_duration: 60.0
           observation_sources: points_mark points_clear
-          # The RS16's points themselves, from just above the floor to above the arm and the arch: what the robot
-          # would run into at any height.  Its own body stands inside the footprint, which the layer clears.
+          # The RS16's points without the robot's own body (self_filter), from just above the floor to above the arm
+          # and the arch: what the robot would run into at any height.
           points_mark:
             data_type: PointCloud2
-            topic: /a200_0553/sensors/lidar3d_0/points
+            topic: /a200_0553/sensors/lidar3d_0/points_filtered
             marking: true
             clearing: false
             obstacle_range: 8.0
@@ -269,7 +269,7 @@ a200_0553:
           points_clear:
             enabled: true
             data_type: PointCloud2
-            topic: /a200_0553/sensors/lidar3d_0/points
+            topic: /a200_0553/sensors/lidar3d_0/points_filtered
             marking: false
             clearing: true
             min_z: 0.2
