@@ -3,6 +3,14 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-09-27 — A spatio-temporal voxel layer in both costmaps
+
+- Both costmaps' `obstacle_layer` is `spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer`, fed by the RS16's points
+  (marking to 8 m, 0.05-1.6 m high; clearing along its 360 x 30 degree frustum to 10 m), marks decaying after 10 s
+  locally and 15 s globally. The voxel layer kept a mark until a ray passed through it, which the RS16's 16 rings
+  seldom do: after some driving the global costmap on the ManiSkill stack was 0.8 % free, and clicked goals in the open
+  corridor came back "Goal was in lethal cost". The scan no longer feeds the costmaps; slam_toolbox still reads it.
+
 ## 2026-09-27 (the skid steer drives arcs and backs out, and does not turn on the spot)
 
 - The planner is Smac Hybrid-A* with Reeds-Shepp motion (`minimum_turning_radius` 0.5 m, reversing penalized),

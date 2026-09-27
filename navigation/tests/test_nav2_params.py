@@ -77,10 +77,13 @@ def test_every_cmd_vel_publisher_is_stamped(params, node):
     )
 
 
-def test_both_costmaps_use_the_derived_scan(params):
+def test_both_costmaps_mark_and_clear_from_the_lidars_points(params):
+    """The RS16's own points, not the scan derived from them: a voxel layer sees the heights the scan's band drops."""
     for name in ("local_costmap", "global_costmap"):
-        costmap = params[wiring.NAMESPACE][name][name]["ros__parameters"]
-        assert costmap["obstacle_layer"]["scan"]["topic"] == wiring.scan_topic()
+        layer = params[wiring.NAMESPACE][name][name]["ros__parameters"]["obstacle_layer"]
+        sources = layer["observation_sources"].split()
+        assert {layer[s]["topic"] for s in sources} == {wiring.points_topic()}
+        assert any(layer[s]["marking"] for s in sources) and any(layer[s]["clearing"] for s in sources)
 
 
 def test_the_footprint_covers_the_husky(params):
@@ -118,11 +121,20 @@ def test_both_costmaps_see_the_lidars_points_up_to_above_the_arm(params):
     """A tabletop stands above the scan's height band; only the points in a voxel layer keep it marked."""
     for name in ("local_costmap", "global_costmap"):
         layer = params[wiring.NAMESPACE][name][name]["ros__parameters"]["obstacle_layer"]
-        assert layer["plugin"] == "nav2_costmap_2d::VoxelLayer"
-        assert layer["points"]["topic"] == wiring.points_topic()
-        assert layer["points"]["min_obstacle_height"] > 0.0, "the floor is no obstacle"
-        assert layer["points"]["max_obstacle_height"] >= 1.2, "a tabletop meets the arm at ~0.75 m"
-        assert layer["z_resolution"] * layer["z_voxels"] >= layer["points"]["max_obstacle_height"]
+        assert layer["plugin"] == "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+        assert layer["points_mark"]["min_obstacle_height"] > 0.0, "the floor is no obstacle"
+        assert layer["points_mark"]["max_obstacle_height"] >= 1.2, "a tabletop meets the arm at ~0.75 m"
+
+
+def test_a_mark_the_lidar_no_longer_sees_decays(params):
+    """The RS16's 16 rings seldom pass through an old mark, so only decay clears most of them: 0.8 % of the global
+    costmap was free after some driving with a voxel layer that kept its marks (2026-09-27)."""
+    for name in ("local_costmap", "global_costmap"):
+        layer = params[wiring.NAMESPACE][name][name]["ros__parameters"]["obstacle_layer"]
+        assert layer["decay_model"] == 0 and 0.0 < layer["voxel_decay"] <= 30.0
+        clear = layer["points_clear"]
+        assert clear["model_type"] == 1, "the frustum of a 3D lidar, not of a depth camera"
+        assert clear["horizontal_fov_angle"] >= 6.28, "all the way around"
 
 
 def test_the_skid_steer_never_turns_on_the_spot_and_may_back_out(params):
