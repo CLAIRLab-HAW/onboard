@@ -3,6 +3,20 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-09-27 (the costmaps see tabletops; SLAM maps; a goal in an obstacle is refused)
+
+- Both costmaps' `obstacle_layer` is a `VoxelLayer` over the scan AND the RS16's points (0.05–1.6 m): a tabletop
+  above the scan's height band is an obstacle, and a scan ray under it no longer clears it.
+- The costmaps take the Husky's rectangle with 5 cm around it (`footprint`) instead of a 0.60 m circle, which put the
+  robot in its own inscribed cost in a dining corner.
+- NavFn's `tolerance` is 0: a goal inside an obstacle fails (`planning_failed`) instead of ending at the nearest free
+  cell -- which was the start, reported as a reached goal.
+- `navigation.launch.py`: `use_sim_time:=true` for a simulator plant; with `localization:=slam` no `map_server` (two
+  publishers on one map), slam_toolbox under the lifecycle manager (in Jazzy it is a lifecycle node and stayed
+  unconfigured) and its absolute `/map` remapped into the namespace.
+- `rslidar_config`: the RS16's sweep for a simulator (`RS16_RINGS_DEG`, `RS16_RATE_HZ`, `RS16_RANGE_MIN_M`,
+  `SIM_AZIMUTH_STEP_DEG`, `SIM_RANGE_MAX_M`).
+
 ## 2026-09-20 (the README names the package directory)
 
 - `README.md`: the ROS-free core lives in `src/clair/navigation/`, not `src/husky_navigation/`.

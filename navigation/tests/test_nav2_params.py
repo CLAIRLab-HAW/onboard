@@ -83,12 +83,17 @@ def test_both_costmaps_use_the_derived_scan(params):
         assert costmap["obstacle_layer"]["scan"]["topic"] == wiring.scan_topic()
 
 
-def test_the_robot_radius_covers_the_husky(params):
-    """The Husky is 0,99 m long and 0,67 m wide -- too small a radius lets
+def test_the_footprint_covers_the_husky(params):
+    """The Husky is 0,99 m long and 0,67 m wide -- too small a footprint lets
     Nav2 plan paths the robot does not fit through."""
+    import ast
+
     for name in ("local_costmap", "global_costmap"):
         costmap = params[wiring.NAMESPACE][name][name]["ros__parameters"]
-        assert costmap["robot_radius"] >= 0.55
+        corners = ast.literal_eval(costmap["footprint"])
+        xs, ys = [c[0] for c in corners], [c[1] for c in corners]
+        assert min(xs) <= -0.495 and max(xs) >= 0.495 and min(ys) <= -0.335 and max(ys) >= 0.335
+        assert "robot_radius" not in costmap, "a radius beside a footprint -- which one counts?"
 
 
 def test_the_costmaps_are_anchored_in_the_documented_frames(params):
@@ -107,3 +112,14 @@ def test_the_velocity_limits_do_not_exceed_the_controller(params):
     ctrl = _node(params, "controller_server")["FollowPath"]
     assert ctrl["max_vel_x"] <= 1.0
     assert ctrl["max_vel_theta"] <= 1.0
+
+
+def test_both_costmaps_see_the_lidars_points_up_to_above_the_arm(params):
+    """A tabletop stands above the scan's height band; only the points in a voxel layer keep it marked."""
+    for name in ("local_costmap", "global_costmap"):
+        layer = params[wiring.NAMESPACE][name][name]["ros__parameters"]["obstacle_layer"]
+        assert layer["plugin"] == "nav2_costmap_2d::VoxelLayer"
+        assert layer["points"]["topic"] == wiring.points_topic()
+        assert layer["points"]["min_obstacle_height"] > 0.0, "the floor is no obstacle"
+        assert layer["points"]["max_obstacle_height"] >= 1.2, "a tabletop meets the arm at ~0.75 m"
+        assert layer["z_resolution"] * layer["z_voxels"] >= layer["points"]["max_obstacle_height"]

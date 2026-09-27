@@ -25,6 +25,16 @@ MSG_SOURCE_PCAP = 3
 #: seconds, not in frames.
 PCAP_RATE = 1
 
+#: The RS16's sweep, for a simulator that casts one: 16 rings from -15° to +15°, 2° apart, 10 revolutions a second,
+#: a 0.2 m blind zone (RS-LiDAR-16 datasheet).
+RS16_RINGS_DEG = tuple(float(e) for e in range(-15, 16, 2))
+RS16_RATE_HZ = 10.0
+RS16_RANGE_MIN_M = 0.2
+#: What the simulator makes of it: 0.4° a shot rather than the device's 0.2° (14 400 raycasts, 21 ms a sweep in
+#: ManiSkill, 2026-09-27), and 30 m rather than 150 -- no room in a simulated house is larger.
+SIM_AZIMUTH_STEP_DEG = 0.4
+SIM_RANGE_MAX_M = 30.0
+
 TEMPLATE_PATH = Path(__file__).resolve().parents[3] / "config" / "rslidar_rs16.yaml"
 
 
