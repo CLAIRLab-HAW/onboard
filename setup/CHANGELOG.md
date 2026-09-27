@@ -7,6 +7,12 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-27 (the RS16 is in the description)
+
+- `robot.yaml`'s `lidar3d` block is switched on, at the pose of the RS16 in the sensor arch's own model
+  (`husky_sensor_arch.gltf`, the blue cylinder): `top_plate_rear_mount`, `xyz [0.051, 0.005, 0.505]`. Its yaw is not
+  in the model and stays 0 until R33 measures it.
+
 ## 2026-09-26 (the base's two teleop speeds stand in robot.yaml)
 
 `platform.extras.ros_parameters.teleop_twist_joy_node` states the joystick's normal and turbo speeds (0.4 m/s,

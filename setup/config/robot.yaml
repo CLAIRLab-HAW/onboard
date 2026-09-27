@@ -343,37 +343,38 @@ sensors:
 #          ip_port: 10940
 #          angle_min: -2.356
 #          angle_max: 2.356
-#  # The device is a RoboSense RS-LiDAR-16, mounted since 2026-08.
-#  # NOT ACTIVE YET: parent/xyz/rpy are unmeasured (R33 in ROBOTER-TODO.md).
-#  # Uncomment only with real values -- a guessed mounting location produces a
-#  # TF that looks plausible and puts the obstacles in the wrong place.  You
-#  # cannot see that in the picture.
-#  #
-#  # WHY 'velodyne_lidar' for a RoboSense device: clearpath_config knows exactly
-#  # three lidar3d models -- velodyne_lidar, ouster_os1, seyond_lidar (checked
-#  # 2026-08-22 in clearpath_config/sensors/types/lidars_3d.py, lines
-#  # 162/247/359) and no robosense.  The entry serves here ONLY as a carrier for
-#  # the link and the mesh, so that the mounting pose stands in THIS file (SSOT)
-#  # and the frame is canonically called 'lidar3d_0_laser' -- the same name
-#  # rslidar_sdk writes into every PointCloud2.
-#  #
-#  # launch_enabled: false is therefore MANDATORY, not taste: otherwise Clearpath
-#  # starts the velodyne_driver_node against a device that is not a Velodyne --
-#  # the packet formats of the RS16 and the VLP16 are not compatible.  The driver
-#  # is rslidar_sdk and is started by onboard/navigation (configuration:
-#  # config/rslidar_rs16.yaml, the same file for container and robot).  For the
-#  # same reason there is no ros_parameters block here.
-#  #
-#  # The mesh shows a VLP16 (Ø103x72 mm) instead of an RS16 (Ø109x80 mm).
-#  # Close enough for collision and visual checking; the model name stays wrong
-#  # nonetheless, and that is the price of this route.
-#  #
-#  # Design and reasoning:
-#  # docs/superpowers/specs/2026-08-22-nav2-rs16-design.md
-#  lidar3d:
-#    - model: velodyne_lidar
-#      urdf_enabled: true
-#      launch_enabled: false
-#      parent: top_plate_rear_mount     # R33: to be MEASURED, not guessed
-#      xyz: [0.0, 0.0, 0.0]             # R33
-#      rpy: [0.0, 0.0, 0.0]             # R33
+  # The device is a RoboSense RS-LiDAR-16 on the sensor arch, mounted since 2026-08.
+  # The pose is the arch's own model, not a guess: in husky_sensor_arch.gltf the
+  # RS16 is the blue cylinder, Ø105 x 95 mm, its base at x 0.051, y 0.005,
+  # z 0.505 in top_plate_rear_mount (read off the mesh 2026-09-27; y ~ 0 puts it
+  # on the arch's center line, as built).  Its yaw -- where the RS16's 0° points
+  # -- is not in the mesh; rpy 0 until R33 measures it on the robot.
+  #
+  # WHY 'velodyne_lidar' for a RoboSense device: clearpath_config knows exactly
+  # three lidar3d models -- velodyne_lidar, ouster_os1, seyond_lidar (checked
+  # 2026-08-22 in clearpath_config/sensors/types/lidars_3d.py, lines
+  # 162/247/359) and no robosense.  The entry serves here ONLY as a carrier for
+  # the link and the mesh, so that the mounting pose stands in THIS file (SSOT)
+  # and the frame is canonically called 'lidar3d_0_laser' -- the same name
+  # rslidar_sdk writes into every PointCloud2.
+  #
+  # launch_enabled: false is therefore MANDATORY, not taste: otherwise Clearpath
+  # starts the velodyne_driver_node against a device that is not a Velodyne --
+  # the packet formats of the RS16 and the VLP16 are not compatible.  The driver
+  # is rslidar_sdk and is started by onboard/navigation (configuration:
+  # config/rslidar_rs16.yaml, the same file for container and robot).  For the
+  # same reason there is no ros_parameters block here.
+  #
+  # The mesh shows a VLP16 (Ø103x72 mm) instead of an RS16 (Ø109x80 mm).
+  # Close enough for collision and visual checking; the model name stays wrong
+  # nonetheless, and that is the price of this route.
+  #
+  # Design and reasoning:
+  # docs/superpowers/specs/2026-08-22-nav2-rs16-design.md
+  lidar3d:
+    - model: velodyne_lidar
+      urdf_enabled: true
+      launch_enabled: false
+      parent: top_plate_rear_mount
+      xyz: [0.051, 0.005, 0.505]       # the arch model's RS16; the laser frame sits 37.7 mm above
+      rpy: [0.0, 0.0, 0.0]             # R33: the yaw is still to be measured
