@@ -7,6 +7,14 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-27 (the base's pose no longer steps at the MCU's 10 Hz)
+
+- The EKF fuses the wheel odometry's velocities (`vx`, `vy`, `vyaw`) and no longer its pose, and the diff drive
+  reports its linear speed with a variance of 1e-5 instead of 0.001. With the pose fused, the filter stood still
+  between two 10 Hz reports and then jumped -- up to 2.7 m/s in one 20 ms sample while the speed changed; the base
+  shook while driving and most of all while braking. Measured on the a200's MuJoCo stack: the largest jump fell to
+  0.16 m/s, the 95th percentile from 1.55 to 0.08 m/s.
+
 ## 2026-09-27 (the RS16 is in the description)
 
 - `robot.yaml`'s `lidar3d` block is switched on, at the pose of the RS16 in the sensor arch's own model

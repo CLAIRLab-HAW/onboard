@@ -51,6 +51,20 @@ platform:
       controller_manager:
         update_rate: 10 # mcu is slow so we give more time
         # cycle_time_error_threshold: 0.1
+      # The EKF fuses the wheel odometry's VELOCITIES, not its pose.  Clearpath's default fuses x, y and yaw as well,
+      # and with the MCU's 10 Hz the filter stood still between two reports and then jumped: the base moved in
+      # 10 Hz steps -- at 0.4 m/s 4 cm each, and up to 2 m/s in one 20 ms sample while its speed changed (measured
+      # 2026-09-27 on the a200's MuJoCo stack: the robot shook while driving and most of all while braking).  Fed
+      # velocities, it carries the pose on with them between two reports; the IMU adds the yaw rate as before.
+      ekf_node:
+        # x y z, roll pitch yaw, vx vy vz, vroll vpitch vyaw, ax ay az
+        odom0_config: [false, false, false, false, false, false, true, true, false,
+                       false, false, true, false, false, false]
+      # And it follows the wheels' linear speed closely: at the generated 0.001 the filter took some 70 % of a speed
+      # change per report and the pose still stepped while the speed changed.  The encoders measure the linear speed
+      # directly; the yaw rate keeps its 0.01, as a skid steer's wheels measure turning poorly and the IMU weighs in.
+      platform_velocity_controller:
+        twist_covariance_diagonal: [0.00001, 0.00001, 0.001, 0.001, 0.001, 0.01]
       # Asset allowlist of the foxglove_bridge.
       #
       # WHY THIS HAS TO STAND HERE AT ALL: the foxglove_bridge ships a correct
