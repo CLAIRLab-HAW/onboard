@@ -23,6 +23,7 @@ from launch import LaunchDescription
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PARAMS = os.path.join(_HERE, "config", "nav2_params.yaml")
 MAPS = os.path.join(_HERE, "maps")
+TREES = os.path.join(_HERE, "config", "behavior_trees")
 
 #: The nodes the lifecycle manager has to bring up -- in this order: first
 #: the map, then the costmaps, then whatever plans on them.
@@ -75,7 +76,20 @@ def _setup(context, *args, **kwargs):
             **common,
         ),
         Node(
-            package="nav2_bt_navigator", executable="bt_navigator", name="bt_navigator", parameters=[PARAMS], **common
+            package="nav2_bt_navigator",
+            executable="bt_navigator",
+            name="bt_navigator",
+            # Upstream's trees without the Spin recovery (config/behavior_trees says why).
+            parameters=[
+                PARAMS,
+                {
+                    "default_nav_to_pose_bt_xml": os.path.join(TREES, "navigate_to_pose_w_replanning_and_recovery.xml"),
+                    "default_nav_through_poses_bt_xml": os.path.join(
+                        TREES, "navigate_through_poses_w_replanning_and_recovery.xml"
+                    ),
+                },
+            ],
+            **common,
         ),
     ]
 

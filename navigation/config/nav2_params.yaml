@@ -116,32 +116,14 @@ a200_0553:
         yaw_goal_tolerance: 3.15
         stateful: true
       FollowPath:
-        # The shim turns the Husky onto the path direction BEFORE driving off
-        # and then hands over to RPP.  That is exactly what a skid-steer is
-        # good at, and exactly what was missing: with a goal that demanded a
-        # large change of direction the robot did not get away -- measured on
-        # 2026-08-22, goal (-2|2) from (1,93|1,78): all of 0,06 m travelled
-        # after 51 s, then ABORTED.  A goal straight ahead went through in
-        # 12 s in the same round.
-        #
-        # The shim is a wrapper: `primary_controller` takes over as soon as
-        # the angle falls below `angular_dist_threshold`, and reads its
-        # parameters from THIS block -- the RPP lines underneath therefore
-        # stay unchanged where they are.
-        plugin: "nav2_rotation_shim_controller::RotationShimController"
-        primary_controller: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-        angular_dist_threshold: 0.785
-        forward_sampling_distance: 0.5
-        # 0.8 rad/s, NOT the Nav2 default 1.8: the
-        # platform_velocity_controller clamps angular.z at 1.0, and
-        # max_acceleration likewise at 1.0 (see /clearpath/platform/config/
-        # control.yaml).  A shim that commands more than the drive can
-        # execute leaves the robot trailing its own setpoint -- and all the
-        # progress checker sees of that is that nothing is moving.
-        rotate_to_heading_angular_vel: 0.8
-        max_angular_accel: 1.0
-        simulate_ahead_time: 1.0
-        # --- from here on the primary_controller (RPP), unchanged ---
+        # Regulated Pure Pursuit on its own, forward and backward.  The a200 is a skid steer that does not turn on the
+        # spot -- that drags all four tires sideways, wears them and throws the wheel odometry's heading off -- and a
+        # narrow corridor it cannot turn in, it leaves backward.  The planner below hands it paths it can drive that
+        # way: arcs no tighter than its minimum turning radius, reversing segments where forward does not fit; RPP
+        # drives a cusp in the path as a change of direction.  A grid path that demanded a large change of direction
+        # left the Husky standing unless it turned on the spot first (2026-08-22: 0,06 m in 51 s, ABORTED); a path
+        # from the kinematic planner demands none.
+        plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
         desired_linear_vel: 0.4
         max_vel_x: 0.5              # the wheel controller clamps at 1.0
         max_vel_theta: 0.8          # the wheel controller clamps at 1.0
@@ -149,10 +131,9 @@ a200_0553:
         min_lookahead_dist: 0.3
         max_lookahead_dist: 0.9
         use_velocity_scaled_lookahead_dist: true
-        # The Husky is a skid-steer (four driven wheels, no steering) and can
-        # turn on the spot -- without this switch it drives arcs where it
-        # could turn.
-        use_rotate_to_heading: true
+        allow_reversing: true
+        # Off, and it has to be: RPP refuses it together with allow_reversing, and it is a turn on the spot.
+        use_rotate_to_heading: false
         transform_tolerance: 0.2
 
   local_costmap:
@@ -274,14 +255,25 @@ a200_0553:
     ros__parameters:
       expected_planner_frequency: 20.0
       planner_plugins: ["GridBased"]
+      # Smac Hybrid-A* with Reeds-Shepp motion: paths the skid steer drives without turning on the spot -- arcs of
+      # at least minimum_turning_radius, forward and backward (FollowPath says why).  The id stays GridBased, which
+      # the behavior trees name.  It checks the footprint, not a circle, along the whole path.
       GridBased:
-        plugin: "nav2_navfn_planner::NavfnPlanner"
-        # 0, not 0.5: a goal in an obstacle is refused.  With 0.5 NavFn planned to the nearest free cell instead --
-        # a goal under a dining table ended at the start, the base never moved, and the navigator reported the goal
-        # as reached (2026-09-27, ManiSkill with the RS16).
+        plugin: "nav2_smac_planner::SmacPlannerHybrid"
+        motion_model_for_search: "REEDS_SHEPP"
+        # 0,5 m: the tightest arc RPP drives at its desired 0,4 m/s within max_vel_theta 0,8 rad/s.
+        minimum_turning_radius: 0.5
+        # Backward only where forward does not fit, and no dithering between the two.
+        reverse_penalty: 2.0
+        change_penalty: 0.5
+        # 0: a goal in an obstacle is refused.  With 0,5 NavFn planned to the nearest free cell instead -- a goal
+        # under a dining table ended at the start, the base never moved, and the navigator reported the goal as
+        # reached (2026-09-27, ManiSkill with the RS16).
         tolerance: 0.0
-        use_astar: false
         allow_unknown: true
+        max_planning_time: 5.0
+        angle_quantization_bins: 72
+        smooth_path: true
 
   behavior_server:
     ros__parameters:

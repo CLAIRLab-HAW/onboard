@@ -3,6 +3,16 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-09-27 (the skid steer drives arcs and backs out, and does not turn on the spot)
+
+- The planner is Smac Hybrid-A* with Reeds-Shepp motion (`minimum_turning_radius` 0.5 m, reversing penalized),
+  instead of NavFn; the controller is Regulated Pure Pursuit with `allow_reversing` and without
+  `use_rotate_to_heading`, instead of the rotation shim in front of it, which turned the robot on the spot toward
+  the path. The behavior trees are upstream's without the `Spin` recovery (`config/behavior_trees`).
+- Measured on the a200's MuJoCo stack: a goal 1.5 m behind is reached backward, goals to the side by arcs with a
+  short reversing segment; of about 280 moving commands none turned on the spot, and the tightest radius was 0.21 m
+  once, at a change of direction, and otherwise at least 0.44 m.
+
 ## 2026-09-27 (the costmaps see tabletops; SLAM maps; a goal in an obstacle is refused)
 
 - Both costmaps' `obstacle_layer` is a `VoxelLayer` over the scan AND the RS16's points (0.05–1.6 m): a tabletop

@@ -123,3 +123,24 @@ def test_both_costmaps_see_the_lidars_points_up_to_above_the_arm(params):
         assert layer["points"]["min_obstacle_height"] > 0.0, "the floor is no obstacle"
         assert layer["points"]["max_obstacle_height"] >= 1.2, "a tabletop meets the arm at ~0.75 m"
         assert layer["z_resolution"] * layer["z_voxels"] >= layer["points"]["max_obstacle_height"]
+
+
+def test_the_skid_steer_never_turns_on_the_spot_and_may_back_out(params):
+    """The a200 drives arcs forward and backward and does not spin in place: the planner is kinematic (Reeds-Shepp),
+    the controller reverses and never rotates to a heading, and no recovery spins."""
+    import xml.etree.ElementTree as ET
+    from pathlib import Path
+
+    ns = params[wiring.NAMESPACE]
+    planner = ns["planner_server"]["ros__parameters"]["GridBased"]
+    assert planner["plugin"] == "nav2_smac_planner::SmacPlannerHybrid"
+    assert planner["motion_model_for_search"] == "REEDS_SHEPP"
+    follow = ns["controller_server"]["ros__parameters"]["FollowPath"]
+    assert follow["plugin"] == "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+    assert follow["allow_reversing"] is True and follow["use_rotate_to_heading"] is False
+    # The planner's tightest arc is one the controller can drive at its desired speed.
+    assert planner["minimum_turning_radius"] >= follow["desired_linear_vel"] / follow["max_vel_theta"] - 1e-9
+    trees = sorted((Path(__file__).resolve().parents[1] / "config" / "behavior_trees").glob("*.xml"))
+    assert len(trees) == 2
+    for tree in trees:
+        assert not [e for e in ET.parse(tree).getroot().iter() if e.tag == "Spin"], tree.name
