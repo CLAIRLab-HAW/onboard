@@ -512,7 +512,7 @@ Nothing changes on the robot until the file is rolled out, and then nothing move
 ## 2026-08-24 (Prosa auf Englisch, Dateinamen nachgezogen)
 
 Reiner Prosa- und Namenslauf nach den Code-Stil-Regeln der Workspace-
-`CLAUDE.md` (Stand 2026-08-24). **Kein Verhalten geändert** — die einzigen
+`../../AGENTS.md` (Stand 2026-08-24). **Kein Verhalten geändert** — die einzigen
 Ausnahmen stehen unten unter „Sichtbar am Gerät".
 
 - **Kommentare und Docstrings sind englisch.** Betroffen sind alle vier

@@ -115,7 +115,7 @@ versioning after [SemVer](https://semver.org/).
 
 - **`[tool.black]` carries no copy of the workspace rule any more.** The section itself is unchanged --
   `line-length = 120` and the same `force-exclude` -- but the rationale that stood verbatim in every sub-repo
-  is gone. Why the section has to exist is written down once: in the workspace `CLAUDE.md`, and in this file's
+  is gone. Why the section has to exist is written down once: in the workspace `../../AGENTS.md`, and in this file's
   2026-08-25 entry *Black formats this repo the same way from anywhere*.
 - **`authors` is indented four spaces**, like every other array in the file.
 - **`requires-python` is `>=3.11`.** `contract/robot-contract` and `apps/hrl` import `typing.Self` (PEP 673),
