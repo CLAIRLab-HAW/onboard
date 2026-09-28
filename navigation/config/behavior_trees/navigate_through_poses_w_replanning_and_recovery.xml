@@ -1,7 +1,9 @@
 <!--
   nav2_bt_navigator's navigate_through_poses_w_replanning_and_recovery.xml (Jazzy, Apache-2.0),
-  wrapped to 120 columns.  Everything as upstream; the planner id GridBased names the Smac State Lattice
-  planner in nav2_params.yaml.
+  wrapped to 120 columns.  Everything else as upstream; the planner id GridBased names the Smac State Lattice
+  planner in nav2_params.yaml. One change: the recoveries run on START_OCCUPIED (205) as well,
+  through AreErrorCodesPresent (WouldAPlannerRecoveryHelp ignores its list and keeps 200/207/208).
+  A robot parked against a table is freed by the BackUp, where upstream gave up at once.
 -->
 <root BTCPP_format="4" main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
@@ -46,7 +48,9 @@
       <Sequence>
         <Fallback>
           <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
-          <WouldAPlannerRecoveryHelp error_code="{compute_path_error_code}"/>
+          <AreErrorCodesPresent
+              error_code="{compute_path_error_code}"
+              error_codes_to_check="200;205;207;208"/>
         </Fallback>
         <ReactiveFallback name="RecoveryFallback">
           <GoalUpdated/>

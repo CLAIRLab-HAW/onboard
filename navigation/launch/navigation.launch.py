@@ -79,7 +79,7 @@ def _setup(context, *args, **kwargs):
             package="nav2_bt_navigator",
             executable="bt_navigator",
             name="bt_navigator",
-            # Upstream's trees without the Spin recovery (config/behavior_trees says why).
+            # Upstream's trees, recovering on START_OCCUPIED as well (config/behavior_trees says why).
             parameters=[
                 PARAMS,
                 {

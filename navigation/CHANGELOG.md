@@ -3,6 +3,14 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-09-28 — A start in inflated cost runs the recoveries
+
+- Both behavior trees gate their recoveries with `AreErrorCodesPresent` over 200/205/207/208 instead of upstream's
+  `WouldAPlannerRecoveryHelp`, which keeps 200/207/208 and ignores a given list. START_OCCUPIED (205) -- the robot
+  parked 15 cm in front of a table in ArchitecTHOR test-00, its footprint in the table's inflation -- aborted every
+  goal in 0.1 s without a recovery; now it spins, waits and backs up until it plans. Measured: the goal reached in
+  93 s after 8 recoveries.
+
 ## 2026-09-28 — The base turns on the spot again
 
 - The planner is Smac State Lattice over Nav2's differential-drive primitives (5 cm, 0.5 m turning radius), forward

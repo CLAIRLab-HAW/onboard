@@ -158,3 +158,6 @@ def test_the_base_turns_on_the_spot_and_counts_it_as_progress(params):
     assert len(trees) == 2
     for tree in trees:
         assert [e for e in ET.parse(tree).getroot().iter() if e.tag == "Spin"], tree.name
+        # A start in inflated cost (START_OCCUPIED, 205) runs the recoveries too: the BackUp frees it.
+        gates = [e for e in ET.parse(tree).getroot().iter() if e.get("error_codes_to_check")]
+        assert gates and all("205" in e.get("error_codes_to_check").split(";") for e in gates), tree.name
