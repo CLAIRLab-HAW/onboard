@@ -59,23 +59,9 @@
 
   <!-- ===== custom top assembly (replaces a200.sensor_arch) ===== -->
   <link name="husky_top_assembly">
-    <!-- INERTIAL.  Until now this link had collision geometry and no mass at all, and that is not the harmless
-         omission it looks like: `twinlink.urdf_mujoco._ensure_inertial` substitutes 0.1 kg for any link without
-         one, so both simulators have been carrying a half-metre portal frame as a tenth of a kilogram.
-
-         The volume is measured, the density is assumed, and the two are worth different amounts of trust.  2.3 L of
-         structure is R15's own figure from the mesh (2026-08-20, quoted in the collision comment below); 2700 kg/m^3
-         is the textbook density of the 6xxx aluminium profile the arch is built from, and NOT a measurement on this
-         arch.  2.3 L at that density is 6.21 kg.  Weighing it closes the assumption (R47).  The tensor distributes
-         the mass over the six collision boxes by volume, which is likewise not the true distribution but is one
-         anybody can recompute, with the box mode of tools/derive_link_inertia.py:
-
-             python3 ../onrobot-rg6/tools/derive_link_inertia.py (box-link mode)
-                 ../husky-extras/src/husky_extras_description/urdf/clearpath_extras.urdf.xacro \
-                 husky_top_assembly 6.21
-
-         What this is NOT good enough for is a claim about how the Husky tips; for that the arch goes on a scale.
-         What it IS good enough for is not lying to the simulator by a factor of 62. -->
+    <!-- R47: mass is estimated, not weighed: mesh volume 2.3 L (2026-08-20) at an assumed aluminum density
+         of 2700 kg/m^3 gives 6.21 kg. The inertia distributes this mass over the six collision boxes by volume;
+         recompute with onboard/rg6/tools/derive_link_inertia.py. Do not use it to claim tipping stability. -->
     <inertial>
       <origin xyz="0.093339 -0.311227 0.284882" rpy="0 0 0"/>
       <mass value="6.21"/>
@@ -94,32 +80,11 @@
       </geometry>
     </visual>
 
-    <!-- COLLISION (ROBOTER-TODO R15).  Until 2026-08-20 this link had ONLY a
-         <visual>: visible in the viewer, non-existent for move_group.  A path
-         could lead straight through the arch without the planner or
-         check_state_validity noticing.  The arch stands 0.772 m from the arm
-         base, the UR5 reaches 0.85 m - it is reachable.
-
-         NO overall bounding box.  The mesh fills its hull to only 2.4 %
-         (2.3 L of structure in a 91.3 L hull); a single box would have walled up
-         the whole rear and blocked legitimate paths.  Instead six boxes along the
-         actual structure - two portal legs, cross beam, sensor head, two feet
-         with a diagonal strut: 5.87 L together.  Recomputed: ALL 4560 mesh
-         vertices lie inside them.
-
-         The boxes stand in the MESH frame, which is why they carry the same
-         rpy="0 0 -1.5708" as the <visual> above.  Whoever changes a number
-         changes it in the mesh frame and does NOT rotate it by hand.
-
-         Cut off 2 mm above the foot (z starts at 0.002 instead of 0.000).  The
-         link origin sits at world z 0.2307 - exactly on the upper edge of
-         top_plate_link (0.2240..0.2307).  At z=0 the two bodies touch, and MoveIt
-         reads a touch as a PERMANENT COLLISION: the robot would be invalid in
-         every pose, and move_group would have planned nothing at all.  The 2 mm
-         are no loss of model - the top plate stands there, and it carries
-         collision geometry of its own.  The alternative would have been a
-         disable_collisions entry in the SRDF; that one is generated, and the cut
-         here keeps the change in ONE file. -->
+    <!-- R15 (2026-08-20): the arch is reachable (0.772 m from the arm base, UR5 reach 0.85 m).
+         Six boxes enclose all 4560 mesh vertices in 5.87 L; one hull box would obstruct the open portal
+         (2.3 L of structure in a 91.3 L hull). Coordinates remain in the mesh frame, with the visual's rotation.
+         The feet start 2 mm above top_plate_link: its upper surface and this link's origin are both at
+         world z=0.2307 m, and touching would make every MoveIt state invalid. The plate covers that gap. -->
     <collision>  <!-- portal leg, left -->
       <origin xyz="0.0500 -0.0475 0.2510" rpy="0 0 -1.5708"/>
       <geometry><box size="0.035 0.030 0.498"/></geometry>

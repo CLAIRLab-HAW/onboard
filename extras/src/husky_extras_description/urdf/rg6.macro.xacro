@@ -8,50 +8,18 @@
   <xacro:macro name="rg6_tool" params="parent">
 
     <!-- ===================== RG6 gripper at ${parent} ===================== -->
-    <!-- The model itself is vendored in the OTHER repo: rg6_description
-         (onrobot-rg6) carries the meshes, the macro and the measured rg6_v2.yaml,
-         and its LICENSE-THIRD-PARTY.md carries origin and changes of the
-         onrobot_description model (rg6_v2, MIT, INRIA).  What stands here is only
-         where the hand is bolted on.
-
-         NO mounting offset: the single_bracket screws straight onto the UR
-         flange (looked at on the device on 2026-08-19).  Its foot IS the coupling
-         face, 71 mm in diameter.  Between them lies only the 0.4 mm centring ring
-         of the flange, and that is a recess.
-
-         driver_joint pins the name the whole workspace knows:
-         rg6_finger_joint, 0 = open, positive = closed.  The dependent joints hang
-         on it by mimic.
-
-         NO rotation.  The OLD model needed rpy="0 0 -1.5708" here, and its own
-         comment said that was found by trial ("if still twisted, vary in steps of
-         90 degrees").  That number belonged to that mesh; carried over, the
-         gripper stood visibly twisted by 90 degrees on 2026-08-19.  Measured as
-         the opening direction of the fingers in the flange frame:
-           old model, rpy 0 0 -1.5708 -> [-1  0  0]   (this is how it looked right)
-           new model, rpy 0 0  0      -> [-1  0  0]   congruent
-           new model, rpy 0 0 -1.5708 -> [ 0 +1  0]   the 90 degrees
-         The opening axis alone does NOT decide this: it is a straight line,
-         [-1 0 0] and [+1 0 0] are the same one, and which finger is called "1" in
-         either model is arbitrary.  0 and 180 degrees are therefore not
-         distinguishable by it.  The owner saw on 2026-08-19 that 180 degrees are
-         missing without the rotation; hence pi.  Whoever wants it more precisely
-         measures at an ASYMMETRIC feature (cable outlet, safety switch). -->
+    <!-- The bracket sits directly on the flange, with no mounting offset (observed 2026-08-19).
+         The owner confirmed the half-turn on that date; the opening axis alone cannot distinguish 0 from pi.
+         Refine the rotation against an asymmetric feature such as the cable outlet.
+         rg6_finger_joint is 0 when open and positive when closed; dependent joints use mimic. -->
     <xacro:include filename="$(find rg6_description)/urdf/onrobot_rg_upstream.urdf.xacro"/>
     <xacro:onrobot_rg parent="${parent}" prefix="rg6_" model="rg6_v2"
                       driver_joint="rg6_finger_joint">
       <origin xyz="0 0 0" rpy="0 0 3.14159"/>
     </xacro:onrobot_rg>
 
-    <!-- Gripper TCP.  THE SAME physical point as in the old model: 210 mm above
-         the coupling face, at the start of the pad surface.  The new model puts its
-         grasp_frame 58.1 mm further forward (near the END of the pad); taking that
-         over would have moved the TCP silently and devalued every calibrated
-         quantity (descend_offset, floor_height, camera_xy_offset).  Deliberately
-         decided that way on 2026-08-19; where the TCP physically belongs is a
-         question of its own (ROBOTER-TODO R19/R23).
-         Expressed against grasp_frame, so that it hangs on the model geometry and
-         not on a free number again. -->
+    <!-- R19/R23: the calibrated TCP is 210 mm above the flange, at the start of the pads;
+         grasp_frame is 58.1 mm farther out (2026-08-19). Changing this offset invalidates TCP calibrations. -->
     <link name="rg6_hand_tcp"/>
     <joint name="rg6_hand_tcp_joint" type="fixed">
       <parent link="rg6_gripper_grasp_frame"/><child link="rg6_hand_tcp"/>

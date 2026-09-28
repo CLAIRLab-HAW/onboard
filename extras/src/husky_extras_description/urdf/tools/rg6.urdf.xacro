@@ -21,18 +21,8 @@
   <xacro:include filename="../rg6.macro.xacro"/>
   <xacro:rg6_tool parent="arm_0_tool0"/>
 
-  <!-- The old name, EXACTLY the old place.  rg6_onrobot_rg6_base_link is more
-       than a reference point for the SRDF patch and the MuJoCo scenes: robot.yaml
-       hangs the CAMERA on it (camera_0_joint, xyz 0.023/0/0.125,
-       rpy 0/-1.5708/-3.14).  Everything that moves or turns this link moves the
-       camera with it.
-
-       The first version hung it on rg6_gripper_body; that sits 56.1 mm above the
-       flange, which put the camera 56 mm too high AND turned along.  It therefore
-       hangs directly on arm_0_tool0 and reproduces the old rg6_tool0_to_base
-       exactly: origin at the flange, rpy 0 0 -1.5708.  That DECOUPLES it from the
-       gripper model; how the latter's mesh is turned is a separate question and
-       must not touch the camera any more. -->
+  <!-- robot.yaml mounts the camera on this frame. Keep it directly on the flange so changes to the
+       gripper mesh or body frame cannot move the calibrated camera mount. -->
   <link name="rg6_onrobot_rg6_base_link"/>
   <joint name="rg6_base_link_alias" type="fixed">
     <parent link="arm_0_tool0"/><child link="rg6_onrobot_rg6_base_link"/>
