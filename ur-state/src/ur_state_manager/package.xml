@@ -20,8 +20,7 @@
   <exec_depend>controller_manager_msgs</exec_depend>
   <exec_depend>controller_manager</exec_depend>
 
-  <!-- The suite in tests/ is plain pytest on the ROS-free decision modules (readiness, switching); the workspace
-       formats with black and runs no other linter, so the ament_copyright/flake8/pep257 boilerplate is not here. -->
+  <!-- Plain pytest covers the ROS-free readiness and switching decisions. -->
   <test_depend>python3-pytest</test_depend>
 
   <export>

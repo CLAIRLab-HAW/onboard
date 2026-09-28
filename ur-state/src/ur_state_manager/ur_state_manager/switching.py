@@ -81,7 +81,8 @@ def plan_switch(
         return SwitchPlan(
             (), (), f"Controller '{controller}' is not loaded - load it first via arm_controllers.launch.py"
         )
-    active_in_group = [c for c in exclusive if c in set(active)]
+    active = set(active)
+    active_in_group = [c for c in exclusive if c in active]
     deactivate = tuple(c for c in active_in_group if c != controller)
     activate = () if controller in active_in_group else (controller,)
     return SwitchPlan(activate, deactivate, None)

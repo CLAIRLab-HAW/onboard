@@ -69,6 +69,11 @@ def test_every_other_member_of_the_exclusive_group_goes_off():
     assert set(plan.deactivate) == {FREEDRIVE, FORWARD}
 
 
+def test_active_controller_iterator_preserves_every_incumbent():
+    active = ["joint_state_broadcaster", FREEDRIVE, FORWARD]
+    assert _plan("trajectory", iter(active)) == _plan("trajectory", active)
+
+
 def test_the_target_is_not_activated_twice_when_it_is_already_running():
     plan = _plan("trajectory", active=[TRAJECTORY, FREEDRIVE])
     assert plan.activate == ()
