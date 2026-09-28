@@ -358,6 +358,7 @@ private:
   // "in this simulation there is nothing to disturb".
   void publish_bridge_state()
   {
+    std::lock_guard<std::mutex> lk(mutex_);
     std::ostringstream os;
     os << std::fixed << std::setprecision(6)
        << "{\"width_m\": " << width_

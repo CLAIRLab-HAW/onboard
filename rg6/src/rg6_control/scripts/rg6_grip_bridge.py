@@ -96,6 +96,19 @@ def _clamp(value: float, lo: float, hi: float) -> float:
     return min(max(float(value), lo), hi)
 
 
+class _TimeoutTransport(xmlrpc.client.Transport):
+    """Apply the request timeout to XML-RPC's cached HTTP connection."""
+
+    def __init__(self, timeout_s: float) -> None:
+        super().__init__()
+        self._timeout_s = float(timeout_s)
+
+    def make_connection(self, host):
+        connection = super().make_connection(host)
+        connection.timeout = self._timeout_s
+        return connection
+
+
 class Rg6Client:
     """XML-RPC interface to the OnRobot URCap.
 
@@ -106,10 +119,8 @@ class Rg6Client:
     def __init__(self, url: str = DEFAULT_URL, tool_index: int = 0, timeout_s: float = 3.0) -> None:
         self._url = url
         self._tool = int(tool_index)
-        # Hard timeout: without it a dead endpoint holds the worker thread indefinitely, and with it the joint_states
-        # publisher.
-        transport = xmlrpc.client.Transport()
-        transport.timeout = float(timeout_s)
+        # Bound socket I/O so an unresponsive endpoint cannot hold the state poller indefinitely.
+        transport = _TimeoutTransport(timeout_s)
         self._proxy = xmlrpc.client.ServerProxy(url, transport=transport, allow_none=True)
         # ServerProxy is NOT thread safe: proxy and transport share ONE HTTP connection.  Two threads reach for it here
         # -- the grip worker and the state poller of the finger joint -- and without this lock their requests interleave
@@ -377,6 +388,7 @@ def _spawn_fake_urcap():
     srv.register_function(lambda t: state["grip"], "rg_get_grip_detected")
     srv.register_function(lambda t: 0, "rg_get_status")
     srv.register_function(lambda t: False, "rg_get_safety_failed")
+    srv.register_function(time.sleep, "delay")
     thread = threading.Thread(target=srv.serve_forever, daemon=True)
     thread.start()
     host, port = srv.server_address
@@ -410,6 +422,14 @@ def selftest() -> int:
             pass
         else:  # pragma: no cover
             raise AssertionError("dead endpoint should have raised Rg6Error")
+
+        slow = Rg6Client(url, timeout_s=0.01)
+        try:
+            slow._call("delay", 0.1)
+        except Rg6Error as exc:
+            assert isinstance(exc.__cause__, TimeoutError), exc
+        else:
+            raise AssertionError("an unresponsive endpoint should time out")
 
         # 5a. A result read IMMEDIATELY after rg_grip reports the width from
         #     BEFORE.  Measured over the wire on 2026-08-19: commanded 60 mm,
