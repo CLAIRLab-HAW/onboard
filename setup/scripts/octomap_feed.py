@@ -85,9 +85,8 @@ def selftest() -> int:
     assert len(pts) > 0.9 * (h / 2) * (w / 2) - (5 * w / 4), "too many points dropped"
     assert np.all(pts[:, 2] > 0.15) and np.all(pts[:, 2] < 2.5), "z-Band"
     # The principal point pixel must land on the optical axis (x=y=0, z=depth).
-    centre = depth_to_cloud(depth, K, stride=1)[
-        np.argmin(np.abs(depth_to_cloud(depth, K, stride=1)[:, :2]).sum(axis=1))
-    ]
+    full_cloud = depth_to_cloud(depth, K, stride=1)
+    centre = full_cloud[np.argmin(np.abs(full_cloud[:, :2]).sum(axis=1))]
     assert abs(centre[0]) < 1e-3 and abs(centre[1]) < 1e-3, "principal point"
     # The mm input (uint16) must scale identically.
     mm = (depth * 1000.0).astype(np.uint16)
@@ -107,8 +106,6 @@ def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if "--selftest" in argv:
         return selftest()
-
-    import struct  # noqa: F401  (documentation only: the layout is 3x float32)
 
     import rclpy
     from rclpy.executors import ExternalShutdownException

@@ -295,7 +295,7 @@ START_TOL="$START_TOL" \
 CHECK_START="$CHECK_START" \
 POSE_NAME="$POSE_NAME" \
 python3 - <<'PY'
-import os, sys
+import math, os, sys
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
@@ -345,13 +345,17 @@ while not latest and node.get_clock().now().nanoseconds < deadline:
     rclpy.spin_once(node, timeout_sec=0.2)
 
 if not latest:
+    if check:
+        fail(node, f"no actual pose on {state_top} - cannot verify the start pose. Use --from-any to drive anyway.")
     print(f"WARNING: no actual pose on {state_top} - start pose unchecked.", file=sys.stderr)
 else:
-    idx = {n: i for i, n in enumerate(latest["names"])}
-    cur = [latest["pos"][idx[n]] if n in idx else float("nan") for n in joints]
+    positions = dict(zip(latest["names"], latest["pos"]))
+    cur = [positions.get(n, float("nan")) for n in joints]
+    if check and not all(math.isfinite(c) for c in cur):
+        fail(node, "missing or invalid joint positions - cannot verify the start pose. Use --from-any to drive anyway.")
     print("[wakeup] actual pose: " + ", ".join(f"{v:+.3f}" for v in cur), flush=True)
     dev = [abs(c - p) for c, p in zip(cur, packed)]
-    worst = max(dev)
+    worst = max(dev) if all(math.isfinite(d) for d in dev) else float("inf")
     if worst > tol:
         bad = ", ".join(f"{joints[i]}={dev[i]:.2f}" for i in range(6) if dev[i] > tol)
         msg = (f"the arm does not stand in 'packed' (deviation up to {worst:.2f} rad: {bad}). "

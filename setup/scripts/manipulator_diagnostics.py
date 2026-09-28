@@ -70,8 +70,7 @@ OK, WARN, ERROR, STALE = 0, 1, 2, 3
 DISPLAY_KEY = "display"
 DISPLAY_INACTIVE = "inactive"
 
-Verdict = namedtuple("Verdict", "level message inactive")
-Verdict.__new__.__defaults__ = (False,)
+Verdict = namedtuple("Verdict", "level message inactive", defaults=(False,))
 
 
 def inactive(message):
