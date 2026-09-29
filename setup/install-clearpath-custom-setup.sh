@@ -1512,11 +1512,11 @@ if [ "$DO_CKPT" -eq 1 ]; then
             if command -v npm >/dev/null 2>&1 && command -v make >/dev/null 2>&1; then
                 echo ">>> No prebuilt dist/ - building on the robot (npm + make)"
                 sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
-                    "cd '$CKPT_WS' && make" || CKPT_OK=0
+                    "cd '$CKPT_WS' && npm ci --ignore-scripts && make" || CKPT_OK=0
             else
                 echo "    WARN: neither dist/ nor npm/make present."
                 echo "          Build it on a machine WITH the toolchain and bring the result over:"
-                echo "            git clone ${ONBOARD_REPO_URL} && cd onboard/cockpit-diagnostics && make"
+                echo "            git clone ${ONBOARD_REPO_URL} && cd onboard/cockpit-diagnostics && npm ci --ignore-scripts && make"
                 echo "            rsync -a dist/ ${REAL_USER}@<robot>:${CKPT_WS}/dist/"
                 echo "          Then run this installer again."
                 CKPT_OK=0

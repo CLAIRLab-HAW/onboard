@@ -9,6 +9,13 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `make` builds inside the onboard repository: the Cockpit files (`pkg/lib`, `test/common`) are archived from the
+  repository root, where git reads the pathspecs relative to the Cockpit tree; from this subdirectory it found none.
+- The build instructions run `npm ci --ignore-scripts` first. `package-lock.json` is versioned in onboard, so the
+  Makefile's stamp is always fresh and `make` alone never installs the dependencies (`esbuild-sass-plugin` missing).
+
 ## [0.2.0] - 2026-08-19
 
 - **Dem Greifer auf die URCap-Brücke gefolgt statt auf das stillgelegte

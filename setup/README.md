@@ -266,7 +266,7 @@ Three building blocks close the gap, all from the installer (optional steps):
 
    ```bash
    git clone https://github.com/CLAIRLab-HAW/onboard.git
-   cd onboard/cockpit-diagnostics && make
+   cd onboard/cockpit-diagnostics && npm ci --ignore-scripts && make
    rsync -a dist/ robot@<robot>:~/onboard/cockpit-diagnostics/dist/
    ```
 

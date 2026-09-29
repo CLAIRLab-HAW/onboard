@@ -215,6 +215,7 @@ Cockpit searches `~/.local/share/cockpit`, `/etc/cockpit`,
 `package.json`) for that to work — a different name shows up as a second menu entry instead.
 
 ```bash
+npm ci --ignore-scripts      # the lock is versioned here, so make alone never installs
 make
 sudo make install            # -> /usr/local/share/cockpit/ros2-diagnostics
 ```
@@ -228,7 +229,7 @@ a node toolchain on the robot: it prefers a prebuilt `dist/` in the checkout and
 `npm` and `make` happen to be present. The recommended flow is to build on a workstation and copy the result over:
 
 ```bash
-make && rsync -a dist/ robot@<robot>:~/onboard/cockpit-diagnostics/dist/
+npm ci --ignore-scripts && make && rsync -a dist/ robot@<robot>:~/onboard/cockpit-diagnostics/dist/
 ```
 
 (`dist/` is gitignored upstream. If you would rather have fully offline robot installs, drop that line from `.gitignore`

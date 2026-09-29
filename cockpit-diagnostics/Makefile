@@ -39,7 +39,9 @@ COCKPIT_REPO_TREE = '$(strip $(COCKPIT_REPO_COMMIT))^{tree}'
 $(COCKPIT_REPO_STAMP): Makefile
 	@git rev-list --quiet --objects $(COCKPIT_REPO_TREE) -- 2>/dev/null || \
 	    git fetch --no-tags --no-write-fetch-head --depth=1 $(COCKPIT_REPO_URL) $(COCKPIT_REPO_COMMIT)
-	git archive $(COCKPIT_REPO_TREE) -- $(COCKPIT_REPO_FILES) | tar x
+	# from the repository root: inside the onboard repository this package is a subdirectory, and git would read
+	# the pathspecs relative to it ("pathspec 'pkg/lib' did not match any files")
+	git -C "$$(git rev-parse --show-toplevel)" archive $(COCKPIT_REPO_TREE) -- $(COCKPIT_REPO_FILES) | tar x
 
 #
 # Build/Install/dist
