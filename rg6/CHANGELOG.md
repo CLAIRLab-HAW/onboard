@@ -8,7 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-29 (rg6_moveit_patch replaces its block under any wording)
+
+### Fixed
+
+- `rg6_moveit_patch` finds its SRDF block by the `onrobot-rg6:BEGIN` tag instead of the whole marker line. The
+  a200's `robot.srdf` still carried the block under the German marker text; the patch did not recognize it,
+  appended a second `gripper` group, refused with "appears more than once" on every boot and left the SRDF as it
+  was on 2026-09-09 -- `open` at 0.0 instead of the joint's lower limit 0.038.
+
 ## 2026-09-23 (rg6_control_sim drives a physics plant)
+
 
 - **Plant mode** of `rg6_control_sim` (`plant_command_topic`): the action and
   `rg6/bridge_state` stay as they are, but the jaws are a simulator's. The

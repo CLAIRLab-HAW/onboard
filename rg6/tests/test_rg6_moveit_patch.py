@@ -101,6 +101,25 @@ def test_the_patched_srdf_states_a_posture_inside_the_joint(tmp_path, args, limi
         assert limits["lower"] <= value <= limits["upper"], f"group_state '{name}' is outside the joint limits"
 
 
+def test_a_block_under_another_wording_is_replaced_not_doubled(tmp_path, args):
+    """The a200's SRDF on 2026-09-29: the block under the German marker, which the patch appended to a second time."""
+    srdf = tmp_path / "robot.srdf"
+    srdf.write_text(
+        FLAT_SRDF.replace(
+            "</robot>",
+            "    <!-- onrobot-rg6:BEGIN (rg6_moveit_patch; nicht von Hand editieren) -->\n"
+            '    <group name="gripper">\n        <joint name="rg6_finger_joint"/>\n    </group>\n'
+            "    <!-- onrobot-rg6:END -->\n</robot>",
+        )
+    )
+    assert patch.patch_srdf(str(srdf), args) is True
+
+    text = srdf.read_text()
+    assert [g.get("name") for g in ET.fromstring(text).findall("group")] == ["arm_0", "gripper"]
+    assert "nicht von Hand" not in text and patch.MARKER_BEGIN in text
+    assert patch.patch_srdf(str(srdf), args) is False, "a second run changes nothing"
+
+
 def test_an_explicit_angle_still_wins(tmp_path):
     """The argument is the escape hatch for a hand whose stop sits elsewhere; the default may not swallow it."""
     parsed = patch.build_parser().parse_args(["--angle-open", "0.5"])

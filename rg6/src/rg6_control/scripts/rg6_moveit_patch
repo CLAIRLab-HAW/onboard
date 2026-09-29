@@ -71,6 +71,10 @@ TAG = "rg6_moveit_patch"
 
 MARKER_BEGIN = "<!-- onrobot-rg6:BEGIN (rg6_moveit_patch; do not edit by hand) -->"
 MARKER_END = "<!-- onrobot-rg6:END -->"
+#: Our block, found by its tag and not by the prose after it: the a200's SRDF carried the same block under a
+#: German wording of that prose on 2026-09-29, and matching the whole marker made every boot append a second
+#: gripper group and give up.
+BLOCK_RX = re.compile(r"[ \t]*<!-- onrobot-rg6:BEGIN\b.*?-->.*?" + re.escape(MARKER_END) + r"\n?", re.DOTALL)
 
 # The driver joint's limits are DATA (rg6_description/config/rg6_v2.yaml), and the SRDF posture "open" has to be
 # the same number as the URDF limit it is measured against: MoveIt validates a named group_state against the joint
@@ -303,12 +307,9 @@ def patch_srdf(path, args):
     )
     block = f"    {MARKER_BEGIN}\n{fragment}\n    {MARKER_END}\n"
 
-    if MARKER_BEGIN in content:
+    if BLOCK_RX.search(content):
         # replace an existing block (update capability)
-        rx = re.compile(
-            r"[ \t]*" + re.escape(MARKER_BEGIN) + r".*?" + re.escape(MARKER_END) + r"\n?",
-            re.DOTALL)
-        new_content = rx.sub(block, content)
+        new_content = BLOCK_RX.sub(block, content)
         if new_content == content:
             log(f"SRDF: the RG6 block is already up to date ({path}).")
             return False
