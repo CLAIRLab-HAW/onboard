@@ -20,13 +20,15 @@ in the `--verify` manifest it belongs in `scripts/`; if it is not, somebody star
   is a symlink to the repo clone, so a `git pull` takes effect within seconds instead of only at the next boot. On a
   robot whose symlink still points at the old top-level path, the pull that moved the file leaves it dangling: run the
   installer once, it re-points the symlink and says that it did.
-- **8 services + 1 timer**, all with the prefix `clearpath-custom-*`.
+- **10 services + 1 timer**, all with the prefix `clearpath-custom-*`.
 - **A watchdog for a late arm power-up** and for a motion link that died while ExternalControl kept reporting it was
   "running".
 - **The RG6 gripper service** — `clearpath-custom-rg6-grip-bridge`, unit and wrapper. The node itself
   (`rg6_grip_bridge`, XML-RPC against the OnRobot URCap) belongs to [onrobot-rg6](../rg6/README.md), where its
   mock counterpart already sat; the installer rolls it out from that workspace as a root-owned copy, together with its
   linkage table.
+- **The phone as the robot's Bluetooth joystick** — a BlueZ agent that lets Echo for Android pair as an HID gamepad
+  inside a window the app opens, and nothing else.
 - **Manipulator diagnostics in Cockpit**: arm mode, control, joints, controllers and gripper as `diagnostic_msgs`, with
   an explicit state *out of service* instead of invented numbers.
 - **A boot patcher with four steps** — everything `robot.yaml` can express has moved there. Three of the four edit what
@@ -93,8 +95,8 @@ Afterwards enter the path it prints in `robot.yaml` at the arm (`kinematics_para
 All units the installer creates carry the prefix `clearpath-custom-*`
 (`clearpath-custom-rg6-grip-bridge`, `clearpath-custom-joint-states`,
 `clearpath-custom-ur-dashboard`, `clearpath-custom-ur-state-manager`,
-`clearpath-custom-manipulator-diagnostics`, `clearpath-custom-octomap-feed`,
-`clearpath-custom-manipulators-watchdog.service`/`.timer` and
+`clearpath-custom-manipulator-diagnostics`, `clearpath-custom-octomap-feed`, `clearpath-custom-lidar`,
+`clearpath-custom-bt-joy`, `clearpath-custom-manipulators-watchdog.service`/`.timer` and
 `clearpath-custom-setup`). The arm controllers are not a service of their own but part of `ur_state_manager.launch.py`
 (argument `load_arm_controllers`). Drop-ins on Clearpath's own units (`clearpath-manipulators.service.d/override.conf`)
 keep the name of their target unit, by systemd convention.
@@ -377,6 +379,35 @@ process (the candidate
 **and** remove the `move_group` block from `robot.yaml` (otherwise the updater keeps looking for a cloud nobody
 publishes). The change to robot.yaml takes effect immediately — `clearpath-robot-check` restarts the stack; the
 generated file is recreated on every boot anyway, and a `.bak` sits next to it.
+
+### `clearpath-custom-bt-joy.service` (the phone as Bluetooth joystick)
+
+Echo for Android can act as an HID gamepad whose reports land on the same `joy_linux` indices as the robot's own pad,
+so `joy_node` and `teleop_twist_joy` drive the base with the robot's speeds and deadman, without any network. The robot
+has Bluetooth (Intel AX200, `bluetooth.service` running) but no screen, so a pairing request waits for an agent that
+never answers. `scripts/bt_joy_pairing.py` (root-owned copy `/usr/local/bin/bt-joy-pairing`, running as the robot
+user) is that agent:
+
+* **`<ns>/bt_joy/open_pairing`** (`std_srvs/Trigger`) makes the adapter discoverable and pairable for 60 s and answers
+  with flat JSON (`address`, `name`, `window_s`). The app calls it over the bridge and bonds to that address. Outside
+  the window every pairing request is rejected.
+* **HID only.** `AuthorizeService` lets the HID profile through from a paired device and refuses everything else.
+* **Paired once, trusted after.** The phone is marked `Trusted` once the bond stands, so it reconnects whenever the
+  app offers the gamepad, with no window and no agent involved.
+
+The installer also writes `/etc/dbus-1/system.d/clearpath-custom-bt-joy.conf`, which lets the robot user talk to
+`org.bluez`.
+
+**On the phone:** Drive → Bluetooth → *Pair with robot* (while connected to the robot over WiFi) and confirm Android's
+pairing dialog. After that, opening Drive → Bluetooth is enough.
+
+**One pad at a time:** `joy_node` reads `/dev/input/js0` only (robot.yaml). The phone gets `js0` when no other pad is
+connected; with the Xbox pad switched on first, the phone becomes `js1` and does not drive.
+
+**Check:** `journalctl -u clearpath-custom-bt-joy -b`, `bluetoothctl devices Paired`, `ls -l /dev/input/js*`,
+`ros2 topic echo /a200_0553/joy_teleop/joy`. The live test is R62 in `ROBOTER-TODO.md`.
+
+**Rollback:** `sudo systemctl disable --now clearpath-custom-bt-joy`, delete the unit file and the D-Bus policy.
 
 ## Running Tests
 

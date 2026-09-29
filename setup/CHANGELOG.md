@@ -7,6 +7,15 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (the phone pairs as the Bluetooth joystick)
+
+### Added
+
+- `clearpath-custom-bt-joy.service` (`scripts/bt_joy_pairing.py`): a BlueZ agent plus `bt_joy/open_pairing`, so Echo
+  for Android pairs as the robot's HID gamepad without anyone at a shell. Pairing only inside the 60 s window the
+  service opens, only the HID profile from a paired device, and the paired phone is trusted so it reconnects by
+  itself. The installer writes a D-Bus policy that lets the robot user talk to `org.bluez`. Not yet on the robot: R62.
+
 ## 2026-09-29 (the octomap feed switches at runtime)
 
 - `octomap_feed.py` declares `enabled` (default true) and takes it at runtime: false stops the clouds without
