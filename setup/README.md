@@ -401,8 +401,10 @@ The installer also writes `/etc/dbus-1/system.d/clearpath-custom-bt-joy.conf`, w
 **On the phone:** Drive → Bluetooth → *Pair with robot* (while connected to the robot over WiFi) and confirm Android's
 pairing dialog. After that, opening Drive → Bluetooth is enough.
 
-**One pad at a time:** `joy_node` reads `/dev/input/js0` only (robot.yaml). The phone gets `js0` when no other pad is
-connected; with the Xbox pad switched on first, the phone becomes `js1` and does not drive.
+**Two pads side by side:** Clearpath's `joy_node` reads the Xbox pad as `/dev/input/xbox_pad` (robot.yaml), the
+service starts a second `joy_node` on `/dev/input/bt_joy` (any Bluetooth joystick but a PS4 pad) and a second
+`teleop_twist_joy` onto the same `joy_teleop/cmd_vel`. Both udev names come from the installer's managed block.
+`teleop_twist_joy` publishes only while its deadman is held, so whoever holds it drives.
 
 **Check:** `journalctl -u clearpath-custom-bt-joy -b`, `bluetoothctl devices Paired`, `ls -l /dev/input/js*`,
 `ros2 topic echo /a200_0553/joy_teleop/joy`. The live test is R62 in `ROBOTER-TODO.md`.

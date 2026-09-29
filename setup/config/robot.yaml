@@ -38,7 +38,9 @@ platform:
       path: /home/robot/onboard/extras/src/husky_extras_description/urdf/clearpath_extras.urdf.xacro
     ros_parameters:
       joy_node:
-        dev: /dev/input/js0 # needed due to custom BT receiver
+        # The Xbox 360 wireless receiver's pad under its own udev name (installer, managed udev block): js0 goes to
+        # whichever joystick appears first, and ds4drv's virtual pad or the phone took it (2026-09-29).
+        dev: /dev/input/xbox_pad
       # The base's two teleop speeds, LB normal and RB turbo. The same values the generator writes without this block
       # (measured in /etc/clearpath/platform/config/teleop_joy.yaml, 2026-09-26) -- stated here because the workstation
       # reads them from this file: the profile copies them (base.drive_speeds, test_ssot_parity) and the plan server

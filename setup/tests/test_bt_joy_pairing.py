@@ -5,7 +5,17 @@ from __future__ import annotations
 import json
 
 import pytest
-from bt_joy_pairing import HID_UUID, pairing_allowed, pairing_reply, selftest, service_allowed
+from bt_joy_pairing import (
+    BT_JOY_DEV,
+    HID_UUID,
+    JOY_NODE,
+    TELEOP_NODE,
+    pairing_allowed,
+    pairing_reply,
+    phone_teleop_params,
+    selftest,
+    service_allowed,
+)
 
 
 def test_pairing_only_inside_the_window():
@@ -36,3 +46,17 @@ def test_reply_carries_the_address_the_app_bonds_to():
 
 def test_selftest_passes():
     assert selftest() == 0
+
+
+def test_the_phone_teleop_takes_the_generated_parameters_on_its_own_device():
+    generated = {
+        "a200_0553": {
+            "teleop_twist_joy_node": {"ros__parameters": {"enable_button": 4, "scale_linear.x": 0.4}},
+            "joy_node": {"ros__parameters": {"deadzone": 0.1, "autorepeat_rate": 20.0, "dev": "/dev/input/js0"}},
+        }
+    }
+    params = phone_teleop_params(generated)["a200_0553"]
+    assert params[JOY_NODE]["ros__parameters"] == {"deadzone": 0.1, "autorepeat_rate": 20.0, "dev": BT_JOY_DEV}
+    assert params[TELEOP_NODE]["ros__parameters"] == {"enable_button": 4, "scale_linear.x": 0.4}
+    # The generated file stays untouched: Clearpath's joy_node keeps reading js0.
+    assert generated["a200_0553"]["joy_node"]["ros__parameters"]["dev"] == "/dev/input/js0"

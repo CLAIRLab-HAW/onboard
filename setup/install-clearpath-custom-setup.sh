@@ -659,8 +659,16 @@ SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ATTRS{seria
 # Custom rule for FTDI Serial-to-USB adapter (UM7)
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ATTRS{serial}=="A908RWEO", SYMLINK+="clearpath/um7", MODE="0666"
 
-# Joystick mapping to prevent adding too many devices
-KERNEL=="js*", SUBSYSTEM=="input", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="0719", SYMLINK+="input/js0", MODE="0666"
+# The Xbox 360 wireless receiver's pad as input/xbox_pad, which robot.yaml's joy_node reads.  A name of its own, not
+# js0: js0 goes to whichever joystick appears first -- ds4drv's virtual pad or the phone.
+KERNEL=="js*", SUBSYSTEM=="input", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="0719", SYMLINK+="input/xbox_pad", MODE="0666"
+
+# A Bluetooth joystick (HID bus 0005) as input/bt_joy, which clearpath-custom-bt-joy's joy_node reads: Echo for
+# Android as the robot's gamepad.  The PS4 pad (Sony, 054C) is ds4drv's, which re-emits it on js0 -- skipped, or it
+# would drive twice.
+KERNEL=="js*", SUBSYSTEM=="input", KERNELS=="0005:054C:*", GOTO="bt_joy_end"
+KERNEL=="js*", SUBSYSTEM=="input", KERNELS=="0005:*", SYMLINK+="input/bt_joy", MODE="0666"
+LABEL="bt_joy_end"
 # <<< clearpath-custom-setup (managed) <<<
 UDEV_EOF
 
@@ -692,6 +700,7 @@ if [ "$DO_UDEV" -eq 1 ]; then
     rm -f "$tmp_udev"
     udevadm control --reload-rules
     udevadm trigger --subsystem-match=tty
+    udevadm trigger --subsystem-match=input
     echo "    udev rules set and reloaded."
 else
     echo ">>> udev rules: skipped."

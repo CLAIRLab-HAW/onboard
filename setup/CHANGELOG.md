@@ -7,6 +7,23 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (the phone and the Xbox pad drive side by side)
+
+### Fixed
+
+- The Xbox pad is `/dev/input/xbox_pad` (udev) and robot.yaml's `joy_node` reads that instead of `js0`. `js0` went to
+  whichever joystick appeared first: on the a200 ds4drv was running again and its virtual pad held `js0`, so the Xbox
+  pad landed on `js1` and was not read, and a connected phone would not have been either.
+- `bt_joy_pairing` trusts a device when it accepts its HID connection. With a `NoInputNoOutput` agent the kernel
+  accepts a Just Works pairing without asking the agent, so the trust at pairing time never happened and the phone
+  paired but was refused (measured on the a200). The pairable window remains the gate.
+
+### Added
+
+- `clearpath-custom-bt-joy` starts the phone's own `joy_node` on `/dev/input/bt_joy` (udev: a Bluetooth joystick that
+  is not a PS4 pad) and its own `teleop_twist_joy` onto `joy_teleop/cmd_vel`, with the generated `teleop_joy.yaml`'s
+  parameters. `teleop_twist_joy` publishes only while its deadman is held, so the two pads do not fight.
+
 ## 2026-09-29 (the phone pairs as the Bluetooth joystick)
 
 ### Added
