@@ -7,6 +7,12 @@ how it embeds into the onboard stack in
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-09-29 (one log call site per severity)
+
+- The controller release's report uses two call sites instead of one bound method picked by the outcome: rclpy fixes
+  a call site's severity at its first call and raises on another -- plan-server's arm worker died on exactly that
+  the same day. Not yet on the robot: R68.
+
 ## 2026-09-02 (one shape for the `__main__` block)
 
 - **`if __name__ == "__main__":` now ends in `raise SystemExit(main())`** -- the single form the workspace

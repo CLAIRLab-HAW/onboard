@@ -438,8 +438,12 @@ class StateManager(Node):
             self.get_logger().warn("controller release: timeout - continuing.")
             return
         res = fut.result()
-        log = self.get_logger().info if res.success else self.get_logger().warn
-        log(f"controller release before the mode cycle: {res.message}")
+        # Two call sites: rclpy fixes a call site's severity at its first call and raises on another (plan-server's
+        # arm_ops died on exactly that, 2026-09-29).
+        if res.success:
+            self.get_logger().info(f"controller release before the mode cycle: {res.message}")
+        else:
+            self.get_logger().warn(f"controller release before the mode cycle: {res.message}")
 
     def _verify_ready(self, timeout):
         """After a 'successful' SetMode, check whether the arm is REALLY ready.
