@@ -72,7 +72,8 @@
 # The repo URL (ONBOARD_REPO_URL) sits in the configuration block below; a fork
 # changes it there.
 #
-# Idempotent: runnable any number of times, and it installs no package.
+# Idempotent: runnable any number of times.  The only packages it installs are
+# the RS16's, and only while apt would add nothing but new packages.
 #
 # NOT here: the UR kinematics calibration.  It is tools/ur-calibrate.sh --
 # see the section further down that says why.
@@ -749,7 +750,8 @@ if [ "$DO_NETPLAN" -eq 1 ]; then
     fi
     install -m 0600 "$tmp_np" "$NETPLAN_FILE"
     command -v netplan >/dev/null 2>&1 && { netplan generate || echo "    WARN: netplan generate problem"; }
-    echo "    netplan written (mode 0600). 'sudo netplan apply' is NOT automatic."
+    echo "    netplan written (mode 0600). It takes effect at the next boot, or with 'sudo netplan apply'"
+    echo "    (that re-establishes enp6s0 and drops the UR5's link for a moment -- with the arm at rest)."
 else
     echo "    netplan: skipped."
 fi
@@ -824,8 +826,10 @@ fi
 # packages (the UR stack has to match the ur_client_library ABI) on a robot
 # whose UR stack is pinned, and it needs a powered arm -- a measurement
 # procedure, not an installation step.  Inside the installer, `-y` answered
-# that apt question with "yes" without anyone seeing it.  Since it left, this
-# installer installs no package at all: it writes files and units.
+# that apt question with "yes" without anyone seeing it.  The RS16 block below
+# installs its two packages, but simulates first and refuses whenever apt would
+# remove, downgrade or upgrade anything already installed -- so `-y` cannot move
+# the pinned UR stack.
 
 # --- build rg6 (as the real user, not root) ---------------------------------
 DO_RG6=1
@@ -1307,23 +1311,41 @@ else
 fi
 
 # --- RS16 lidar (optional) ---------------------------------------------------
-# rslidar_sdk and pointcloud_to_laserscan are apt packages, and this installer installs none: without them the
-# unit would fail every five seconds, so it is only written while both are there.  The self filter runs without
-# clair-twin[body] on the robot and passes the points through (R63).
+# rslidar_sdk and pointcloud_to_laserscan come from apt.  They are installed only while a simulation shows nothing
+# but new packages: on 2026-09-29 that was 3 new (both plus ros-jazzy-rslidar-msg), 0 upgraded, 0 removed, all
+# from the pinned ROS snapshot.  Anything else leaves apt alone and the unit unwritten -- a unit without its driver
+# would fail every five seconds.  The self filter runs without clair-twin[body] on the robot and passes the points
+# through (R63).
+LIDAR_APT=(ros-jazzy-rslidar-sdk ros-jazzy-pointcloud-to-laserscan)
+lidar_missing() {
+    local pkg missing=""
+    for pkg in rslidar_sdk pointcloud_to_laserscan; do
+        ls -d /opt/ros/*/share/"$pkg" >/dev/null 2>&1 || missing="${missing} ${pkg}"
+    done
+    printf '%s' "$missing"
+}
 DO_LIDAR=1
 if [ -f "$LIDAR_UNIT_PATH" ]; then
     confirm ">>> ${LIDAR_UNIT} is already installed. Update?" || DO_LIDAR=0
 else
-    confirm ">>> Install the RS16 lidar service (points, filtered points and the 2D scan)?" || DO_LIDAR=0
+    confirm ">>> Install the RS16 lidar service (points, filtered points, 2D scan; apt: ${LIDAR_APT[*]})?" \
+        || DO_LIDAR=0
 fi
 if [ "$DO_LIDAR" -eq 1 ]; then
-    LIDAR_MISSING=""
-    for _pkg in rslidar_sdk pointcloud_to_laserscan; do
-        ls -d /opt/ros/*/share/"$_pkg" >/dev/null 2>&1 || LIDAR_MISSING="${LIDAR_MISSING} ${_pkg}"
-    done
+    if [ -n "$(lidar_missing)" ]; then
+        echo ">>> apt: ${LIDAR_APT[*]} (simulated first)"
+        _sim="$(apt-get -s install "${LIDAR_APT[@]}" 2>/dev/null || true)"
+        if grep -qE '^Remv |^Inst [^ ]+ \[|DOWNGRADED' <<<"$_sim"; then
+            echo "    WARN: apt would remove, downgrade or upgrade an installed package - nothing installed:"
+            grep -E '^(Remv|Inst) ' <<<"$_sim" | sed 's/^/          /'
+        else
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-upgrade "${LIDAR_APT[@]}" \
+                || echo "    WARN: apt-get install failed."
+        fi
+    fi
+    LIDAR_MISSING="$(lidar_missing)"
     if [ -n "$LIDAR_MISSING" ]; then
         echo "    WARN: not installed:${LIDAR_MISSING} - lidar service skipped."
-        echo "          sudo apt install ros-jazzy-rslidar-sdk ros-jazzy-pointcloud-to-laserscan"
     elif [ ! -f "${NAV_WS}/launch/lidar.launch.py" ]; then
         echo "    WARN: ${NAV_WS}/launch/lidar.launch.py is missing (onboard not cloned?) - lidar service skipped."
     else

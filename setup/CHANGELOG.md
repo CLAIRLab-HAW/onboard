@@ -7,6 +7,17 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (the RS16 block installs its packages)
+
+### Changed
+
+- The RS16 block installs `ros-jazzy-rslidar-sdk` and `ros-jazzy-pointcloud-to-laserscan` when they are missing. It
+  simulates first and installs only while apt would add nothing but new packages (`--no-upgrade`); a `Remv`, an
+  upgrade of an installed package or a downgrade leaves apt alone, so `-y` cannot move the pinned UR stack. On the
+  a200 the simulation was 3 new, 0 upgraded, 0 removed. These are the only packages the installer installs.
+- The netplan message says when the file takes effect: at the next boot, or with `sudo netplan apply`, which
+  re-establishes `enp6s0` and drops the UR5's link for a moment.
+
 ## 2026-09-29 (the RS16 as a boot service)
 
 ### Added
