@@ -38,14 +38,14 @@ import sys
 import time
 from pathlib import Path
 
-# The bridge lives in the onrobot-rg6 workspace (rg6_control), this is a tool of this repo, and the deployed copy
+# The bridge lives in the rg6 workspace (rg6_control), this is a tool of setup/, and the deployed copy
 # under /usr/local/bin/rg6-grip-bridge is not importable by name (hyphens, no .py).  So the import has to be said
 # out loud rather than left to the layout, and it has to work in both places this tool is run: out of the checkout
 # on the workstation, and next to the built workspace on the robot.
 _BRIDGE_DIRS = (
-    Path(__file__).resolve().parents[2] / "onrobot-rg6/src/rg6_control/scripts",  # workspace checkout
-    Path.home() / "onrobot-rg6/src/rg6_control/scripts",  # the robot's clone
-    Path.home() / "onrobot-rg6/install/rg6_control/lib/rg6_control",  # its install space
+    Path(__file__).resolve().parents[2] / "rg6/src/rg6_control/scripts",  # the checkout this tool sits in
+    Path.home() / "onboard/rg6/src/rg6_control/scripts",  # the robot's clone
+    Path.home() / "onboard/rg6/install/rg6_control/lib/rg6_control",  # its install space
 )
 for _dir in _BRIDGE_DIRS:
     if (_dir / "rg6_grip_bridge.py").is_file():
@@ -54,7 +54,7 @@ for _dir in _BRIDGE_DIRS:
 else:  # no break
     raise SystemExit(
         "rg6_grip_bridge.py found in none of:\n  " + "\n  ".join(str(d) for d in _BRIDGE_DIRS) + "\n"
-        "It belongs to the onrobot-rg6 workspace -- clone/build it, or run this tool from the checkout."
+        "It belongs to the rg6 workspace -- clone/build onboard, or run this tool from the checkout."
     )
 
 from rg6_grip_bridge import Rg6Client, Rg6Error, await_settled  # noqa: E402

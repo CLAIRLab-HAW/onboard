@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
 
+## 2026-09-29 (the robot builds this package in its onboard clone)
+
+- `robot.yaml` addresses the extras file under `/home/robot/onboard/extras/src` and sources
+  `/home/robot/onboard/extras/install`; `tests/test_extras_urdf.py` pins both, the README and the xacro header name
+  them, and the build command is `cd ~/onboard/extras && colcon build`.
+
 ## 2026-09-23 (the changer's holder is a link of its own)
 
 - **`smartshift_holder`**: the tool holder is a 30 mm link below a 35 mm

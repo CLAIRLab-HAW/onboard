@@ -54,9 +54,18 @@ After installing the Clearpath software stack
 in your own user directory:
 
 ```bash
-wget -c https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/install-clearpath-custom-setup.sh
-bash -e install-clearpath-custom-setup.sh
+git clone https://github.com/CLAIRLab-HAW/onboard.git ~/onboard
+bash ~/onboard/setup/install-clearpath-custom-setup.sh
 ```
+
+Everything the installer builds or deploys comes out of that one clone: `robot.yaml` and the deployed scripts from
+`setup/`, the colcon workspaces `rg6/`, `extras/` and `ur-state/`, the Cockpit pages from `cockpit-diagnostics/` and
+`cockpit-tools/`. A later run pulls the clone (`--ff-only`, the branch that is checked out) before it builds.
+
+**Coming from the single-repo layout** (`~/husky-custom-setup`, `~/onrobot-rg6`, `~/husky-extras`, …): the first
+run re-points the `/etc/clearpath/robot.yaml` symlink at `~/onboard/setup/config/robot.yaml`, and
+`clearpath-robot-check` restarts the stack on that change — arm driver included. After `--verify` is green the old
+clones are unused and can go.
 
 The installer is interactive and asks before every optional part (`[y/N]`, or
 `-y` to say yes to everything). `--verify` checks read-only whether the deployed copies still match the checkout, and
@@ -256,9 +265,9 @@ Three building blocks close the gap, all from the installer (optional steps):
    (the robot stays toolchain-free):
 
    ```bash
-   git clone https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics.git
-   cd cockpit-ros2-diagnostics && make
-   rsync -a dist/ robot@<robot>:~/cockpit-ros2-diagnostics/dist/
+   git clone https://github.com/CLAIRLab-HAW/onboard.git
+   cd onboard/cockpit-diagnostics && make
+   rsync -a dist/ robot@<robot>:~/onboard/cockpit-diagnostics/dist/
    ```
 
 **Verification after install + reboot (checklist):**
@@ -301,7 +310,7 @@ page's own `install.sh`, which is where the list of files belonging to the packa
 list and hashes the deployed directory file by file:
 
 ```
-  DEVIATION        /usr/local/share/cockpit/robot-tools    ◀─ /home/robot/cockpit-robot-tools
+  DEVIATION        /usr/local/share/cockpit/robot-tools    ◀─ /home/robot/onboard/cockpit-tools
                    └─ index.js status.js
 ```
 

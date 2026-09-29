@@ -120,10 +120,11 @@ in `index.js` then applies, currently `10.42.42.159`. A different network
 No build. The package is plain vanilla JS against `cockpit.js` and is copied
 exactly as it lies here — on the robot it needs neither node nor npm.
 
+On the robot the [installer](../setup/README.md) runs this package's `install.sh` out of the onboard clone. By
+hand:
+
 ```bash
-# from the workstation:
-rsync -a onboard/cockpit-tools/ robot@10.42.42.159:~/cockpit-robot-tools/
-ssh robot@10.42.42.159 'sudo ~/cockpit-robot-tools/install.sh'
+ssh robot@10.42.42.159 'sudo ~/onboard/cockpit-tools/install.sh'
 ```
 
 The target is `/usr/local/share/cockpit/robot-tools` — the same level as the
@@ -132,7 +133,7 @@ packages do not interfere with each other. Afterwards reload
 `http://<robot>:9090` in the browser; the menu entry is called
 **Robot tools**.
 
-Removal: `sudo ~/cockpit-robot-tools/install.sh --uninstall`.
+Removal: `sudo ~/onboard/cockpit-tools/install.sh --uninstall`.
 
 ## Usage
 

@@ -11,7 +11,7 @@ what a move breaks:
 * ``robot.yaml`` addresses this file by ABSOLUTE path and lists the workspace it is installed from.  Two numbers
   in a foreign repo, and if either stops matching, the next boot generates a robot without extras.
 
-The last one reaches into ``husky-custom-setup``.  That is deliberate and follows the workspace convention: a repo
+The last one reaches into ``setup/``.  That is deliberate and follows the workspace convention: a repo
 checked out on its own cannot know where its siblings are and skips, but inside a workspace a missing file FAILS rather
 than skipping quietly.
 """
@@ -33,9 +33,9 @@ TOOLS = sorted((EXTRAS.parent / "tools").glob("*.urdf.xacro"))
 XACROS = sorted((REPO / "src").rglob("*.xacro"))
 
 #: The absolute path robot.yaml addresses this file by, and the workspace it sources.  The robot's own layout
-#: (/home/robot/<repo>), which the offboard container reproduces with a symlink.
-ROBOT_EXTRAS_PATH = f"/home/robot/husky-extras/src/{PACKAGE}/urdf/clearpath_extras.urdf.xacro"
-ROBOT_WORKSPACE = "/home/robot/husky-extras/install/setup.bash"
+#: (/home/robot/onboard/<dir>), which the offboard container reproduces with a symlink.
+ROBOT_EXTRAS_PATH = f"/home/robot/onboard/extras/src/{PACKAGE}/urdf/clearpath_extras.urdf.xacro"
+ROBOT_WORKSPACE = "/home/robot/onboard/extras/install/setup.bash"
 
 
 def _workspace_root() -> Path | None:
@@ -133,7 +133,7 @@ def test_the_package_installs_the_two_directories_the_uris_resolve_through():
 
 
 def test_robot_yaml_addresses_this_file_and_sources_this_workspace():
-    """The SSOT in husky-custom-setup, and the seam this move actually turns on."""
+    """The SSOT in setup/, and the seam this move actually turns on."""
     import yaml
 
     robot_yaml = yaml.safe_load(_sibling("onboard/setup/config/robot.yaml").read_text(encoding="utf-8"))

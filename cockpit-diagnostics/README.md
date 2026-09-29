@@ -136,8 +136,8 @@ small bridge node has to translate them into `diagnostic_msgs` and publish onto 
 
 For the a200-0553 (UR5 CB3 + OnRobot RG6) that node is
 [
-`manipulator_diagnostics.py`](https://github.com/CLAIRLab-HAW/husky-custom-setup/blob/main/scripts/manipulator_diagnostics.py)
-in `husky-custom-setup`, which also installs it as a boot service and registers the matching aggregator analyzers. To
+`manipulator_diagnostics.py`](../setup/scripts/manipulator_diagnostics.py)
+in `setup/`, whose installer also installs it as a boot service and registers the matching aggregator analyzers. To
 feed the panel from a different arm or gripper, publish the same status names and value keys — the panel needs nothing
 else.
 
@@ -223,12 +223,12 @@ To go back to the packaged version, remove that directory; no apt operation is n
 apt updates of
 `cockpit-ros2-diagnostics` have no visible effect — rebase the fork when you want them.
 
-On the a200-0553 the `husky-custom-setup` installer does this as an optional step. It deliberately does **not** install
+On the a200-0553 the [installer](../setup/README.md) does this as an optional step. It deliberately does **not** install
 a node toolchain on the robot: it prefers a prebuilt `dist/` in the checkout and only builds on the robot if
 `npm` and `make` happen to be present. The recommended flow is to build on a workstation and copy the result over:
 
 ```bash
-make && rsync -a dist/ robot@<robot>:~/cockpit-ros2-diagnostics/dist/
+make && rsync -a dist/ robot@<robot>:~/onboard/cockpit-diagnostics/dist/
 ```
 
 (`dist/` is gitignored upstream. If you would rather have fully offline robot installs, drop that line from `.gitignore`

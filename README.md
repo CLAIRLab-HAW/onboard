@@ -14,10 +14,11 @@ the only reason they sit together — they share a deployment target, not a depe
 | [`cockpit-diagnostics/`](cockpit-diagnostics/README.md) | `cockpit-ros2-diagnostics` | A Cockpit plugin: the robot's ROS 2 diagnostics as a web panel. |
 | [`cockpit-tools/`](cockpit-tools/README.md) | `cockpit-robot-tools` | A Cockpit page for the recurring manual tasks — today one card: start and stop the offboard `lite` container, with its VNC address. |
 
-**The robot does not know about this directory.** On the machine the checkouts sit directly under
-`/home/robot/` — `/home/robot/husky-extras`, `/home/robot/onrobot-rg6` — which is the robot user's home and has
-nothing to do with this layer. What the consolidation changes for the robot is filed as **R57** in
-[ROBOTER-TODO.md](../ROBOTER-TODO.md); until that is carried out, nothing here reaches it.
+**On the robot this repository is one clone, `/home/robot/onboard`.** The [installer](setup/README.md) clones or
+pulls it, builds `rg6/`, `extras/` and `ur-state/` in place and points `/etc/clearpath/robot.yaml` at
+`setup/config/robot.yaml`, whose absolute paths name exactly those directories. Until the installer runs there once,
+the robot still sources the old single-repo clones under `/home/robot/` (**R57** in
+[ROBOTER-TODO.md](../ROBOTER-TODO.md)).
 
 ## Running tests
 

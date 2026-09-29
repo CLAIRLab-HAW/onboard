@@ -189,9 +189,11 @@ The complete safety handling now lives in `robot_state_helper` (called from
 
 ## Installation
 
+On the robot the [installer](../setup/README.md) builds it in the onboard clone and installs the boot service. By
+hand:
+
 ```bash
-git clone https://github.com/CLAIRLab-HAW/ur-state-manager.git
-cd ur-state-manager
+cd ~/onboard/ur-state
 colcon build --packages-select ur_state_manager
 source install/setup.bash
 ```

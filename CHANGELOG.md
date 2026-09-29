@@ -6,6 +6,13 @@ next to its README, and those entries are not repeated here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the
 versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-09-29 (the robot runs this repository as one clone)
+
+- The installer (`setup/`, see its CHANGELOG) clones `~/onboard` and builds and deploys every package out of it.
+  The README says so, and the install notes of `ur-state/`, `cockpit-tools/` and `cockpit-diagnostics/` point at
+  `~/onboard/<dir>` and the installer instead of their former repositories; the path example in the RG6's upstream
+  xacro header follows.
+
 ## 2026-09-17 (the workflow runs on dev, from the real workspace root)
 
 - `.github/workflows/ci.yml` triggers on `dev` as well as `main`. Its `python` job checks out the root repository and the other six at the branch the run is for and runs `uv sync` from the one

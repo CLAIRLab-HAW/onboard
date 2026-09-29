@@ -7,6 +7,25 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (the installer runs on the one onboard clone)
+
+### Changed
+
+- **`install-clearpath-custom-setup.sh` clones or pulls `~/onboard` once** and takes everything from it:
+  `robot.yaml` and the deployed scripts from `setup/`, the colcon builds in `rg6/`, `extras/` and `ur-state/`, the
+  Cockpit pages from `cockpit-diagnostics/` and `cockpit-tools/`. The six single-repo clones
+  (`~/husky-custom-setup`, `~/onrobot-rg6`, `~/husky-extras`, `~/ur-state-manager`, `~/cockpit-ros2-diagnostics`,
+  `~/cockpit-robot-tools`) and their URLs are gone; `repo_file` falls back to `onboard`'s `main` (`setup/`). The
+  per-workspace questions ask "rebuild?" instead of "git pull + rebuild?", the ur-state one keys on its unit.
+- **`config/robot.yaml`** names `/home/robot/onboard/rg6/install`, `/home/robot/onboard/extras/install` and the extras
+  xacro under `/home/robot/onboard/extras/src`. The first installer run re-points `/etc/clearpath/robot.yaml`, and
+  `clearpath-robot-check` restarts the stack (R57).
+- `--verify` looks for the Cockpit page next to the installer at `../cockpit-tools`, where the checkout has it.
+- `tools/rg6_stroke_survey.py` finds the bridge at `rg6/` in the checkout and under `~/onboard/rg6` on the robot;
+  the start script's `robot.yaml` candidate is `~/onboard/setup/config/robot.yaml`.
+- README: installation is a `git clone` of `onboard` plus the installer out of it, with a note on coming from the
+  single-repo layout.
+
 ## 2026-09-27 (why the octomap stands in base_link)
 
 - The comment on `octomap_frame` and the README give the actual reason: Jazzy's `move_group` builds the occupancy map in

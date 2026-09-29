@@ -3,10 +3,11 @@
 # All-in-one installer for the Clearpath a200-0553 custom setup + OnRobot RG6.
 #
 # Does all of this in one go, in this order ("optional" = it asks first):
-#   - robot.yaml: clone the repo and point /etc/clearpath/robot.yaml at it as a
-#     SYMLINK (the official Clearpath way). FIRST, because everything this
-#     installer deploys is resolved against that checkout. No network dependency
-#     in the boot path, reproducible, and a 'git pull' takes effect immediately
+#   - clone the onboard repo to ~/onboard (or pull it) and point
+#     /etc/clearpath/robot.yaml at its setup/config/robot.yaml as a SYMLINK (the
+#     official Clearpath way). FIRST, because everything this installer builds or
+#     deploys is resolved against that one checkout. No network dependency in the
+#     boot path, reproducible, and a 'git pull' takes effect immediately
 #     (clearpath-robot-check md5sums the file every second).
 #   - boot service clearpath-custom-setup: patches the generated configs on
 #     EVERY boot (realsense mesh uris, arm joint_states bus, rg6 srdf)
@@ -15,10 +16,10 @@
 #   - sysctl 10-ur-reserved-ports.conf: takes the UR driver ports 50001-50004 out
 #     of the ephemeral range, so nothing else can occupy them before the driver
 #   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
-#   - clone + build onrobot-rg6 via git (colcon), plus root-owned copies of
+#   - build ~/onboard/rg6 (colcon), plus root-owned copies of
 #     rg6_moveit_patch (boot service) and rg6_grip_bridge.py + its linkage
 #     table (the gripper service) under /usr/local/bin
-#   - clone + build husky-extras via git (colcon): the URDF extras robot.yaml
+#   - build ~/onboard/extras (colcon): the URDF extras robot.yaml
 #     addresses under platform.extras.urdf and lists as a workspace
 #   - root-owned copies of urdf_physics_patch, sensor_mesh_uri_patch and
 #     ride_height_patch (all this repo) under /usr/local/bin, likewise for the
@@ -26,8 +27,8 @@
 #   - optional: clearpath-custom-ur-dashboard.service: starts the ur_robot_driver
 #     dashboard_client (power_on/brake_release/unlock_protective_stop/restart_safety)
 #     at boot
-#   - optional: clearpath-custom-ur-state-manager.service: clones + builds
-#     ur-state-manager and starts the state manager
+#   - optional: clearpath-custom-ur-state-manager.service: builds
+#     ~/onboard/ur-state and starts the state manager
 #     (prepare/recover/ensure_ready/power_off) at boot
 #     (including the extra controller --inactive + ur_controller_mode_manager --
 #     part of the same launch, no separate arm-controllers unit)
@@ -49,7 +50,7 @@
 #     the OnRobot URCap and publishes the finger joint plus the gripper state
 #   - optional: the cockpit-ros2-diagnostics fork with the manipulator panel to
 #     /usr/local/share/cockpit (shadows the apt plugin under /usr/share)
-#   - optional: the cockpit-robot-tools page "Roboter-Werkzeuge" to
+#   - optional: the cockpit-tools page "Roboter-Werkzeuge" to
 #     /usr/local/share/cockpit (offboard-lite container + VNC; a menu entry
 #     of its own, it shadows nothing)
 #
@@ -68,9 +69,8 @@
 #                                                     the checkout, changes
 #                                                     nothing, needs no root
 #
-# The five repo URLs (onrobot-rg6, ur-state-manager, husky-custom-setup,
-# cockpit-ros2-diagnostics, cockpit-robot-tools) sit in the configuration
-# block below; a fork changes them there.
+# The repo URL (ONBOARD_REPO_URL) sits in the configuration block below; a fork
+# changes it there.
 #
 # Idempotent: runnable any number of times, and it installs no package.
 #
@@ -80,13 +80,10 @@
 set -euo pipefail
 
 # ---- configuration ---------------------------------------------------------
-RG6_REPO_URL="https://github.com/CLAIRLab-HAW/onrobot-rg6.git"
-# The a200-0553's URDF extras (sensor arch, ArUco marker, and where the RG6 is bolted onto the UR5 flange).
-# robot.yaml addresses a file of this workspace under platform.extras.urdf and lists it under
-# system.ros2.workspaces -- so without it the generator run produces a robot WITHOUT extras, and the arm
-# comes up bare.  It has a repo of its own: none of it is a gripper part.
-EXTRAS_REPO_URL="https://github.com/CLAIRLab-HAW/husky-extras.git"
-USM_REPO_URL="https://github.com/CLAIRLab-HAW/ur-state-manager.git"
+# ONE clone carries everything this installer builds or deploys: setup/ (this installer, robot.yaml, the
+# deployed scripts), rg6/, extras/, ur-state/, cockpit-diagnostics/ and cockpit-tools/.  Until 2026-09-03 these
+# were six repos, each cloned on its own under ~/ (R57).
+ONBOARD_REPO_URL="https://github.com/CLAIRLab-HAW/onboard.git"
 # UR control box + manipulators namespace: ONE source for dashboard, watchdog
 # and calibration (the section variables below derive from these).
 ARM_ROBOT_IP="192.168.131.40"
@@ -124,7 +121,7 @@ SENSOR_MESH_URI_PATCH_BIN="${BIN_DIR}/sensor-mesh-uri-patch"
 # copied into the offboard container from this repo, for the same reason as the mesh URI fix.
 RIDE_HEIGHT_PATCH_BIN="${BIN_DIR}/ride-height-patch"
 
-# THREE files live in onrobot-rg6, not in this repo, and each can be taken either from a built workspace or
+# THREE files live in the rg6 workspace, not in setup/, and each can be taken either from a built workspace or
 # straight from the sources: rg6_moveit_patch (the SRDF patch), rg6_grip_bridge.py (the gripper driver) and its
 # linkage table.  One resolver rather than three candidate lists: a second copy of the same two paths is exactly
 # the drift --verify exists to catch.
@@ -174,17 +171,15 @@ MD_UNIT_PATH="/etc/systemd/system/${MD_UNIT}"
 # then the original is active again (no apt needed).
 # The directory name MUST be 'ros2-diagnostics' (package.json "name"),
 # otherwise it does not shadow but appears as a second menu entry.
-CKPT_REPO_URL="https://github.com/CLAIRLab-HAW/cockpit-ros2-diagnostics.git"
 CKPT_PKG_DIR="/usr/local/share/cockpit/ros2-diagnostics"
 
-# Cockpit page "Roboter-Werkzeuge" (cockpit-robot-tools): starts and stops the
+# Cockpit page "Roboter-Werkzeuge" (cockpit-tools): starts and stops the
 # offboard-lite container, shows its state as a colored ball and puts the VNC
 # address next to it.  Same /usr/local reasoning as the fork above, but a
 # DIFFERENT package name -- 'robot-tools' exists under no apt package, so this
 # one shadows nothing and is simply a menu entry of its own.
 # Static files, no build: no npm, no make, no dist/ -- which is why this block
 # never needs a toolchain on the robot, unlike the fork above.
-CRT_REPO_URL="https://github.com/CLAIRLab-HAW/cockpit-robot-tools.git"
 # The prefix is handed to the page's own install.sh, which appends
 # share/cockpit/robot-tools itself -- so the target it writes and the target
 # --verify measures are ONE value, not two that agree today.
@@ -201,7 +196,7 @@ UR_DASH_NS="${MANIP_NS}"
 UR_DASH_ROBOT_IP="${ARM_ROBOT_IP}"
 
 # ur-state-manager: prepare/recover/ensure_ready/power_off services for the arm.
-# Cloned + built (like onrobot-rg6) and started by a boot service. Needs the
+# Built (like rg6) and started by a boot service. Needs the
 # dashboard_client (clearpath-custom-ur-dashboard.service) -> starts the launch with start_dashboard_client:=false.
 USM_WRAPPER="${BIN_DIR}/ur-state-manager.sh"
 USM_UNIT="clearpath-custom-ur-state-manager.service"
@@ -209,7 +204,7 @@ USM_UNIT_PATH="/etc/systemd/system/${USM_UNIT}"
 
 # joint-states: robot-wide joint_state_aggregator (/a200_0553/joint_states)
 # plus relays of the clean arm/gripper source topics back onto the
-# platform/joint_states bus (for RSP + move_group). Uses the onrobot-rg6
+# platform/joint_states bus (for RSP + move_group). Uses the rg6
 # workspace (rg6_control joint_states.launch.py), no build of its own.
 JS_WRAPPER="${BIN_DIR}/joint-states.sh"
 JS_UNIT="clearpath-custom-joint-states.service"
@@ -245,7 +240,6 @@ WD_MANIP_DROPIN="${WD_MANIP_DROPIN_DIR}/override.conf"
 
 # robot.yaml: the git repo is the single source of truth. /etc/clearpath/robot.yaml
 # is a symlink onto the clone, so a 'git pull' takes effect immediately.
-SETUP_REPO_URL="https://github.com/CLAIRLab-HAW/husky-custom-setup.git"
 ROBOT_YAML_PATH="/etc/clearpath/robot.yaml"
 #: The versioned original, the symlink target.  Repo-relative under config/,
 #: next to the other two files that are data rather than code.
@@ -306,14 +300,15 @@ prune_backups() {
 # The real user (for the workspace build), not root:
 REAL_USER="${SUDO_USER:-robot}"
 USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
-RG6_WS="${USER_HOME}/onrobot-rg6"
-EXTRAS_WS="${USER_HOME}/husky-extras"   # the path robot.yaml names; do not move without moving it there
-USM_WS="${USER_HOME}/ur-state-manager"
-SETUP_WS="${USER_HOME}/husky-custom-setup"   # versioned robot.yaml (symlink target)
-# The Cockpit page "Roboter-Werkzeuge" -- up here with the other workspaces and
-# NOT next to its block further down, because --verify reads it and exits long
-# before that point.
-CRT_WS="${USER_HOME}/cockpit-robot-tools"
+# Every workspace is a directory of the one clone.  Up here and NOT next to their blocks further down, because
+# --verify reads SETUP_WS, RG6_WS and CRT_WS and exits long before those blocks.
+ONBOARD_WS="${USER_HOME}/onboard"
+SETUP_WS="${ONBOARD_WS}/setup"   # versioned robot.yaml (symlink target)
+RG6_WS="${ONBOARD_WS}/rg6"
+EXTRAS_WS="${ONBOARD_WS}/extras"   # the path robot.yaml names; do not move without moving it there
+USM_WS="${ONBOARD_WS}/ur-state"
+CKPT_WS="${ONBOARD_WS}/cockpit-diagnostics"
+CRT_WS="${ONBOARD_WS}/cockpit-tools"   # the Cockpit page "Roboter-Werkzeuge"
 
 # Find a file of THIS repo.  The installer does NOT necessarily run out of the
 # checkout -- it is called standalone, and then "$(dirname "$0")" is an
@@ -340,7 +335,7 @@ repo_file() {
     # a machine that has wget but no curl is exactly the machine that gets here.
     # Insisting on curl made repo_file fail silently there.
     tmp="$(mktemp)"
-    url="https://raw.githubusercontent.com/CLAIRLab-HAW/husky-custom-setup/refs/heads/main/${rel}"
+    url="https://raw.githubusercontent.com/CLAIRLab-HAW/onboard/refs/heads/main/setup/${rel}"
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL --connect-timeout 5 --max-time 30 "$url" -o "$tmp" && {
             printf '%s\n' "$tmp"; return 0; }
@@ -368,7 +363,7 @@ require_repo_file() {
         echo "ERROR: ${rel} is required, and none of the three sources had it:" >&2
         echo "       - not next to this script ($(dirname "$0"))" >&2
         echo "       - not in the checkout (${SETUP_WS})" >&2
-        echo "       - and github.com/CLAIRLab-HAW/husky-custom-setup (main) did" >&2
+        echo "       - and github.com/CLAIRLab-HAW/onboard (main, setup/) did" >&2
         echo "         not serve it -- unreachable, or the file is not on main yet." >&2
         echo "       Clone the repo and run the installer out of it, or push the" >&2
         echo "       file to main first." >&2
@@ -425,10 +420,8 @@ verify_deployments() {
         printf "  %-16s %-46s ◀─ %s\n" "$status" "$dst" "${src:-${rel} (not found)}"
     done
 
-    # rg6_moveit_patch comes from the onrobot-rg6 workspace, not from this repo -- its own resolver, otherwise the
-    # manifest run above would never find it.
-    # The three files that come from the onrobot-rg6 workspace instead of from this repo -- their own resolver,
-    # otherwise the manifest run above would never find them.
+    # The three files that come from the rg6 workspace instead of from setup/ -- their own resolver, otherwise the
+    # manifest run above would never find them.
     for entry in "rg6_moveit_patch|${RG6_MOVEIT_PATCH_BIN}" \
                  "rg6_grip_bridge.py|${RG6_BRIDGE_BIN}" \
                  "rg6_finger_kinematics.json|${BIN_DIR}/rg6_finger_kinematics.json"; do
@@ -445,7 +438,7 @@ verify_deployments() {
         else
             status="DEVIATION"; rc=1
         fi
-        printf "  %-16s %-46s ◀─ %s\n" "$status" "$dst" "${src:-onrobot-rg6 workspace (not built)}"
+        printf "  %-16s %-46s ◀─ %s\n" "$status" "$dst" "${src:-${RG6_WS} (not built)}"
     done
 
     # The Cockpit page "Roboter-Werkzeuge" is its own repo with its own
@@ -460,11 +453,10 @@ verify_deployments() {
     # behind the checkout (8252 B against 9534 B) and nothing said so -- the
     # page looked installed and was old (ROBOTER-TODO archive, R28).
     #
-    # The first candidate covers the workspace layout (onboard/setup
-    # next to onboard/cockpit-tools), the second the robot, where the
-    # installer sits in ~/husky-custom-setup and both paths coincide.
+    # The first candidate is the checkout the installer runs out of (setup/ next
+    # to cockpit-tools/), the second the robot's clone for a standalone run.
     local crt_src="" crt_files="" crt_bad="" f
-    for candidate in "$(dirname "$0")/../cockpit-robot-tools" "$CRT_WS"; do
+    for candidate in "$(dirname "$0")/../cockpit-tools" "$CRT_WS"; do
         [ -f "${candidate}/install.sh" ] && { crt_src="$candidate"; break; }
     done
     if [ ! -d "$CRT_PKG_DIR" ]; then
@@ -493,7 +485,7 @@ verify_deployments() {
         fi
     fi
     printf "  %-16s %-46s ◀─ %s\n" "$status" "$CRT_PKG_DIR" \
-           "${crt_src:-cockpit-robot-tools (not found)}"
+           "${crt_src:-${CRT_WS} (not found)}"
     if [ -n "$crt_bad" ]; then
         printf "  %-16s %s\n" "" "└─ ${crt_bad}"
     fi
@@ -510,13 +502,12 @@ if [ "$DO_VERIFY" -eq 1 ]; then
     verify_deployments && exit 0 || exit 1
 fi
 
-CKPT_WS="${USER_HOME}/cockpit-ros2-diagnostics"
-
-# --- robot.yaml: clone the repo (SSOT) + symlink -- FIRST -------------------
-# FIRST, because repo_file resolves against ${SETUP_WS}: the patcher, the
-# watchdog and the four deployed scripts all come out of this checkout.  Ahead
-# of it, only "next to the script" or the network can answer, and a wget of the
-# single installer file has no "next to the script".
+# --- clone onboard + robot.yaml symlink -- FIRST -----------------------------
+# FIRST, because every block below resolves against this checkout: repo_file
+# reads ${SETUP_WS}, the colcon builds run in ${RG6_WS}, ${EXTRAS_WS} and
+# ${USM_WS}, the Cockpit blocks install out of it.  Ahead of it, only "next to
+# the script" or the network can answer, and a wget of the single installer
+# file has no "next to the script".
 # Clearpath intends robot.yaml to be kept under version control and placed at
 # /etc/clearpath/robot.yaml as a SYMLINK (the customization package concept). No
 # network dependency in the boot path, reproducible, and a 'git pull' takes effect
@@ -524,12 +515,14 @@ CKPT_WS="${USER_HOME}/cockpit-ros2-diagnostics"
 # /etc/clearpath/robot.yaml every second and restarts the stack on a change
 # (md5sum follows the symlink).
 ROBOT_YAML_SRC="${SETUP_WS}/${ROBOT_YAML_REL}"
-echo ">>> robot.yaml: repo clone + symlink (${ROBOT_YAML_SRC} ─▶ ${ROBOT_YAML_PATH})"
-if [ -d "${SETUP_WS}/.git" ]; then
-    sudo -u "$REAL_USER" git -C "$SETUP_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
+echo ">>> onboard to ${ONBOARD_WS} (user ${REAL_USER})"
+if [ -d "${ONBOARD_WS}/.git" ]; then
+    sudo -u "$REAL_USER" git -C "$ONBOARD_WS" pull --ff-only \
+        || echo "    WARN: git pull failed, using the existing state"
 else
-    sudo -u "$REAL_USER" git clone "$SETUP_REPO_URL" "$SETUP_WS" || echo "    WARN: git clone failed"
+    sudo -u "$REAL_USER" git clone "$ONBOARD_REPO_URL" "$ONBOARD_WS" || echo "    WARN: git clone failed"
 fi
+echo ">>> robot.yaml: symlink (${ROBOT_YAML_SRC} ─▶ ${ROBOT_YAML_PATH})"
 if [ -f "${ROBOT_YAML_SRC}" ]; then
     if [ -L "$ROBOT_YAML_PATH" ] && [ "$(readlink -f "$ROBOT_YAML_PATH")" = "$(readlink -f "${ROBOT_YAML_SRC}")" ]; then
         echo "    symlink already correct - no change."
@@ -560,11 +553,6 @@ if [ -f "${ROBOT_YAML_SRC}" ]; then
     fi
 else
     echo "    WARN: ${ROBOT_YAML_SRC} missing - symlink NOT set, the existing file stays."
-fi
-
-if [ "$RG6_REPO_URL" = "REPLACE_WITH_GIT_URL" ]; then
-    echo "ERROR: set RG6_REPO_URL at the top of this script to the git URL of onrobot-rg6."
-    exit 1
 fi
 
 # --- boot service clearpath-custom-setup: the config patcher ----------------
@@ -824,19 +812,13 @@ fi
 # that apt question with "yes" without anyone seeing it.  Since it left, this
 # installer installs no package at all: it writes files and units.
 
-# --- clone + build onrobot-rg6 (as the real user, not root) ----------------
+# --- build rg6 (as the real user, not root) ---------------------------------
 DO_RG6=1
-if [ -d "${RG6_WS}/.git" ]; then
-    confirm ">>> onrobot-rg6 exists in ${RG6_WS}. git pull + rebuild?" || DO_RG6=0
+if [ -d "${RG6_WS}/install" ]; then
+    confirm ">>> rg6 is built in ${RG6_WS}. Rebuild?" || DO_RG6=0
 fi
 if [ "$DO_RG6" -eq 1 ]; then
-    echo ">>> onrobot-rg6 to ${RG6_WS} (user ${REAL_USER})"
-    if [ -d "${RG6_WS}/.git" ]; then
-        sudo -u "$REAL_USER" git -C "$RG6_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
-    else
-        sudo -u "$REAL_USER" git clone "$RG6_REPO_URL" "$RG6_WS"
-    fi
-    echo ">>> Building the workspace (colcon)"
+    echo ">>> Building ${RG6_WS} (colcon, user ${REAL_USER})"
     # rg6_description = gripper model + meshes; rg6_control = the gripper on BOTH stages (rg6_grip_bridge for the
     # real one, rg6_control_sim for the container mock), the joint_state helper nodes and rg6_moveit_patch.
     #
@@ -845,7 +827,7 @@ if [ "$DO_RG6" -eq 1 ]; then
     # starts the relay out of the same workspace.  The second patch tool, urdf_physics_patch, is a script of THIS
     # repo and needs none of this build.
     #
-    # These two are the whole workspace -- onrobot-rg6 ships no interface
+    # These two are the whole workspace -- rg6 ships no interface
     # package.  The bridge publishes its state as flat JSON on rg6/bridge_state,
     # so a reader needs std_msgs and nothing else.  Cross-checked on the robot on
     # 2026-08-24: <ns>/rg6/state does not exist, only bridge_state.
@@ -853,33 +835,24 @@ if [ "$DO_RG6" -eq 1 ]; then
         "source /etc/clearpath/setup.bash && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_control" \
         || echo "    WARN: colcon build failed - without rg6_description the gripper is missing from the URDF, without rg6_control the joint-states relay."
 else
-    echo ">>> onrobot-rg6: skipped (the existing state stays)."
+    echo ">>> rg6: skipped (the existing build stays)."
 fi
 
-# --- clone + build husky-extras (as the real user, not root) ---------------
+# --- build extras (as the real user, not root) ------------------------------
 # The SECOND workspace robot.yaml lists, and it hangs on the first: the extras file instantiates the RG6 macro
 # out of rg6_description, so it is built after it.  A pure data package (urdf/ + meshes/), so the build is a
 # copy into install/ and takes no measurable time.
 DO_EXTRAS=1
-if [ -d "${EXTRAS_WS}/.git" ]; then
-    confirm ">>> husky-extras exists in ${EXTRAS_WS}. git pull + rebuild?" || DO_EXTRAS=0
+if [ -d "${EXTRAS_WS}/install" ]; then
+    confirm ">>> extras is built in ${EXTRAS_WS}. Rebuild?" || DO_EXTRAS=0
 fi
 if [ "$DO_EXTRAS" -eq 1 ]; then
-    echo ">>> husky-extras to ${EXTRAS_WS} (user ${REAL_USER})"
-    if [ -d "${EXTRAS_WS}/.git" ]; then
-        sudo -u "$REAL_USER" git -C "$EXTRAS_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
-    else
-        sudo -u "$REAL_USER" git clone "$EXTRAS_REPO_URL" "$EXTRAS_WS" \
-            || echo "    WARN: clone failed - the robot then generates a URDF WITHOUT the sensor arch, the marker and the gripper."
-    fi
-    if [ -d "${EXTRAS_WS}/src" ]; then
-        echo ">>> Building the workspace (colcon)"
-        sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
-            "source /etc/clearpath/setup.bash && cd '$EXTRAS_WS' && colcon build --packages-select husky_extras_description" \
-            || echo "    WARN: colcon build failed - package://husky_extras_description stays unresolvable (arch without a mesh)."
-    fi
+    echo ">>> Building ${EXTRAS_WS} (colcon, user ${REAL_USER})"
+    sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
+        "source /etc/clearpath/setup.bash && cd '$EXTRAS_WS' && colcon build --packages-select husky_extras_description" \
+        || echo "    WARN: colcon build failed - package://husky_extras_description stays unresolvable (arch without a mesh)."
 else
-    echo ">>> husky-extras: skipped (the existing state stays)."
+    echo ">>> extras: skipped (the existing build stays)."
 fi
 
 # --- install the three patch tools as root-owned copies ---------------------
@@ -893,8 +866,8 @@ fi
 # root-owned copies: they only change through another installer run.
 #
 # They differ in WHERE they come from, and only there. rg6_moveit_patch is a
-# file of the onrobot-rg6 workspace (rg6_tool_src), so it is installed here on
-# its own. The other two are scripts of THIS repo and take the same route as
+# file of the rg6 workspace (rg6_tool_src), so it is installed here on
+# its own. The other two are scripts of setup/ and take the same route as
 # every other one here (repo_file: next to the installer, then the checkout,
 # then main) -- hence one function for both, further down.
 
@@ -917,7 +890,7 @@ if [ -n "$RG6_PATCH_SRC" ]; then
 elif [ -f "$RG6_MOVEIT_PATCH_BIN" ]; then
     echo ">>> rg6_moveit_patch: no usable workspace tool - the existing copy ${RG6_MOVEIT_PATCH_BIN} stays."
 else
-    echo "    WARN: rg6_moveit_patch not found (is onrobot-rg6 cloned/built?) - it is inactive at boot until the installer runs again with the workspace present."
+    echo "    WARN: rg6_moveit_patch not found (is ${RG6_WS} built?) - it is inactive at boot until the installer runs again with the workspace present."
 fi
 
 # Every script of THIS repo that lands under /usr/local/bin takes the same route, so it takes the same function:
@@ -1027,24 +1000,18 @@ else
     echo ">>> UR dashboard_client: skipped."
 fi
 
-# --- clone + build ur-state-manager + boot service (optional) --------------
-# prepare/recover/ensure_ready/power_off services for the arm. Like onrobot-rg6:
-# clone + build as the real user, then start it via systemd. Needs the
+# --- build ur-state + boot service (optional) -------------------------------
+# prepare/recover/ensure_ready/power_off services for the arm. Like rg6: build
+# as the real user, then start it via systemd. Needs the
 # dashboard_client (clearpath-custom-ur-dashboard.service) -> launch with start_dashboard_client:=false.
 DO_USM=1
-if [ -d "${USM_WS}/.git" ]; then
-    confirm ">>> ur-state-manager exists in ${USM_WS}. git pull + rebuild + update the service?" || DO_USM=0
+if [ -f "$USM_UNIT_PATH" ]; then
+    confirm ">>> ${USM_UNIT} is already installed. Rebuild ${USM_WS} + update the service?" || DO_USM=0
 else
-    confirm ">>> Install ur-state-manager (prepare/recover services; clones + builds + boot service)?" || DO_USM=0
+    confirm ">>> Install ur-state-manager (prepare/recover services; builds ${USM_WS} + boot service)?" || DO_USM=0
 fi
 if [ "$DO_USM" -eq 1 ]; then
-    echo ">>> ur-state-manager to ${USM_WS} (user ${REAL_USER})"
-    if [ -d "${USM_WS}/.git" ]; then
-        sudo -u "$REAL_USER" git -C "$USM_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
-    else
-        sudo -u "$REAL_USER" git clone "$USM_REPO_URL" "$USM_WS"
-    fi
-    echo ">>> Building the workspace (colcon)"
+    echo ">>> Building ${USM_WS} (colcon, user ${REAL_USER})"
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
         "source /etc/clearpath/setup.bash && cd '$USM_WS' && colcon build --packages-select ur_state_manager" \
         || echo "    WARN: colcon build failed - ${USM_UNIT} only runs after a successful build."
@@ -1345,8 +1312,8 @@ if [ "$DO_MD" -eq 1 ]; then
         cat > "$MD_WRAPPER" <<EOF
 #!/usr/bin/env bash
 # UR5 + OnRobot RG6 as diagnostic_msgs for the Clearpath diagnostic_aggregator.
-# No onrobot-rg6 overlay needed: the gripper state arrives as JSON from the
-# bridge (rg6/bridge_state), so std_msgs is enough -- onrobot-rg6 ships no
+# No rg6 overlay needed: the gripper state arrives as JSON from the
+# bridge (rg6/bridge_state), so std_msgs is enough -- rg6 ships no
 # interface package at all.
 source /etc/clearpath/setup.bash
 exec python3 ${MD_BIN} --ros-args \\
@@ -1421,7 +1388,7 @@ else
 fi
 
 if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
-    # From the onrobot-rg6 workspace, not from this repo: the bridge is the DRIVER half of the gripper, whose mock
+    # From the rg6 workspace, not from setup/: the bridge is the DRIVER half of the gripper, whose mock
     # half (rg6_control_sim) has always been in rg6_control -- same action, same bridge_state fields, same linkage
     # table.  What belongs here is what surrounds it: this unit, its wrapper, and the root-owned copy below.
     if ! RG6_SRC="$(rg6_tool_src rg6_grip_bridge.py)" || [ -z "$RG6_SRC" ]; then
@@ -1441,7 +1408,7 @@ if [ "$DO_RG6_BRIDGE" -eq 1 ]; then
     # from the robot (git asks for credentials) -- a dependency that prevents the
     # roll-out secures nothing.
     # The file is generated from the GENERATED URDF, see
-    # onrobot-rg6/tools/derive_finger_kinematics.py, and it travels WITH the
+    # rg6/tools/derive_finger_kinematics.py, and it travels WITH the
     # bridge out of that same workspace.  Without it the node does not start:
     # with no kinematics it can neither publish the finger joint nor translate
     # a GripperCommand goal into a width.  It lands next to the bridge because
@@ -1526,12 +1493,10 @@ if [ "$DO_CKPT" -eq 1 ]; then
     if ! dpkg -s cockpit-bridge >/dev/null 2>&1; then
         echo "    WARN: cockpit-bridge is not installed - the plugin only becomes visible after Cockpit is installed."
     fi
-    echo ">>> cockpit-ros2-diagnostics (fork) to ${CKPT_WS} (user ${REAL_USER})"
     CKPT_OK=1
-    if [ -d "${CKPT_WS}/.git" ]; then
-        sudo -u "$REAL_USER" git -C "$CKPT_WS" pull --ff-only || echo "    WARN: git pull failed, using the existing state"
-    else
-        sudo -u "$REAL_USER" git clone "$CKPT_REPO_URL" "$CKPT_WS" || CKPT_OK=0
+    if [ ! -d "$CKPT_WS" ]; then
+        echo "    WARN: ${CKPT_WS} is missing (onboard not cloned?)."
+        CKPT_OK=0
     fi
     if [ "$CKPT_OK" -eq 1 ]; then
         # Prefers a prebuilt dist/ from the checkout. The build needs nodejs+npm
@@ -1547,7 +1512,7 @@ if [ "$DO_CKPT" -eq 1 ]; then
             else
                 echo "    WARN: neither dist/ nor npm/make present."
                 echo "          Build it on a machine WITH the toolchain and bring the result over:"
-                echo "            git clone ${CKPT_REPO_URL} && cd cockpit-ros2-diagnostics && make"
+                echo "            git clone ${ONBOARD_REPO_URL} && cd onboard/cockpit-diagnostics && make"
                 echo "            rsync -a dist/ ${REAL_USER}@<robot>:${CKPT_WS}/dist/"
                 echo "          Then run this installer again."
                 CKPT_OK=0
@@ -1573,7 +1538,7 @@ else
 fi
 
 # --- Cockpit page "Roboter-Werkzeuge" (optional) ---------------------------
-# cockpit-robot-tools: starts and stops the offboard-lite container, shows its
+# cockpit-tools: starts and stops the offboard-lite container, shows its
 # state as a colored ball and puts the VNC address next to it.  Unlike the fork
 # above this shadows nothing -- there is no apt package called 'robot-tools',
 # so it is simply an additional menu entry.
@@ -1597,21 +1562,8 @@ if [ "$DO_CRT" -eq 1 ]; then
     if ! dpkg -s cockpit-bridge >/dev/null 2>&1; then
         echo "    WARN: cockpit-bridge is not installed - the page only becomes visible after Cockpit is installed."
     fi
-    echo ">>> cockpit-robot-tools to ${CRT_WS} (user ${REAL_USER})"
     CRT_OK=1
-    if [ -d "${CRT_WS}/.git" ]; then
-        sudo -u "$REAL_USER" git -C "$CRT_WS" pull --ff-only \
-            || echo "    WARN: git pull failed, using the existing state"
-    elif [ -d "$CRT_WS" ]; then
-        # A directory without .git is how the page reached the robot before this
-        # block existed: rsync'd from the workstation.  Installable, but nothing
-        # keeps it current -- say so instead of silently deploying whatever age
-        # it happens to have.
-        echo "    WARN: ${CRT_WS} is not a git checkout (rsync'd?) - installing the state that lies there."
-    else
-        sudo -u "$REAL_USER" git clone "$CRT_REPO_URL" "$CRT_WS" || CRT_OK=0
-    fi
-    if [ "$CRT_OK" -eq 1 ] && [ ! -f "${CRT_WS}/install.sh" ]; then
+    if [ ! -f "${CRT_WS}/install.sh" ]; then
         echo "    WARN: ${CRT_WS}/install.sh is missing - page not installed."
         CRT_OK=0
     fi

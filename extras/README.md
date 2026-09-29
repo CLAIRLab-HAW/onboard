@@ -13,7 +13,7 @@ Clearpath generator pulls it in through `robot.yaml`:
 platform:
   extras:
     urdf:
-      path: /home/robot/husky-extras/src/husky_extras_description/urdf/clearpath_extras.urdf.xacro
+      path: /home/robot/onboard/extras/src/husky_extras_description/urdf/clearpath_extras.urdf.xacro
 ```
 
 **Why this is a repo of its own.** Every link here hangs on a frame that only
@@ -70,18 +70,18 @@ macro, the gripper package includes nothing from here.
 
 ## Installation
 
-The robot clones and builds it like the gripper workspace; the installer of
-[husky-custom-setup](../setup/README.md) does that, and
-`robot.yaml` lists the result under `system.ros2.workspaces`.
+The robot builds it in its onboard clone like the gripper workspace; the
+[installer](../setup/README.md) does that, and `robot.yaml` lists the result
+under `system.ros2.workspaces`.
 
 ```bash
-cd ~/husky-extras && colcon build --packages-select husky_extras_description
+cd ~/onboard/extras && colcon build --packages-select husky_extras_description
 ```
 
 In the offboard container the package comes out of the build context and is
 built into `/opt/husky-extras` (the `extras-build` stage), so the image tag is
 the state of the checkout it was built from; the entrypoint symlinks
-`/home/robot/husky-extras` onto it, so the absolute paths from `robot.yaml`
+`/home/robot/onboard/extras` onto it, so the absolute paths from `robot.yaml`
 resolve there as well.
 
 ## Usage

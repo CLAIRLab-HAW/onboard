@@ -5,7 +5,7 @@
       platform:
         extras:
           urdf:
-            path: /home/robot/husky-extras/src/husky_extras_description/urdf/clearpath_extras.urdf.xacro
+            path: /home/robot/onboard/extras/src/husky_extras_description/urdf/clearpath_extras.urdf.xacro
 
   Hangs ONLY new links/joints onto frames the generator has already produced:
     - arm_0_tool0         = UR5 tool frame (ROS-Industrial all-zeros)  -> the end effector (tools/, RG6 by default)

@@ -197,7 +197,7 @@ else
     "${SCRIPT_DIR}/../robot.yaml"
     "${SCRIPT_DIR}/robot.yaml"
     "${HOME:-/home/robot}/robot.yaml"
-    "${HOME:-/home/robot}/husky-custom-setup/robot.yaml"
+    "${HOME:-/home/robot}/onboard/setup/config/robot.yaml"
   )
   for cand in "${YAML_CANDIDATES[@]}"; do
     [ -n "$cand" ] && [ -r "$cand" ] || continue
