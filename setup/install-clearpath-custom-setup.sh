@@ -42,6 +42,8 @@
 #     (/a200_0553/joint_states) plus the relays back onto the platform bus
 #   - optional: clearpath-custom-octomap-feed.service: throttled depth ->
 #     PointCloud2 for MoveIt's occupancy map monitor
+#   - optional: clearpath-custom-lidar.service: the RS16 (rslidar_sdk, self filter,
+#     pointcloud_to_laserscan) out of ~/onboard/navigation, once both apt packages are there
 #   - optional: clearpath-custom-manipulator-diagnostics.service: UR5 + RG6 as
 #     diagnostic_msgs for the Clearpath aggregator (Cockpit, diagnostics_agg)
 #   - clearpath-custom-rg6-grip-bridge.service: commands the RG6 over XML-RPC to
@@ -147,6 +149,13 @@ OCTO_FEED_BIN="${BIN_DIR}/octomap-feed"
 OCTO_WRAPPER="${BIN_DIR}/octomap-feed.sh"
 OCTO_UNIT="clearpath-custom-octomap-feed.service"
 OCTO_UNIT_PATH="/etc/systemd/system/${OCTO_UNIT}"
+
+# RS16 sensor path: rslidar_sdk + self filter + pointcloud_to_laserscan, i.e. onboard/navigation's
+# launch/lidar.launch.py -- run straight out of the checkout, with the same config/rslidar_rs16.yaml the container
+# mock renders.  Read-only: nothing in it commands the base or the arm.
+LIDAR_WRAPPER="${BIN_DIR}/lidar.sh"
+LIDAR_UNIT="clearpath-custom-lidar.service"
+LIDAR_UNIT_PATH="/etc/systemd/system/${LIDAR_UNIT}"
 
 # Manipulator diagnostics: translates UR mode/safety/external control and the
 # RG6 state into diagnostic_msgs and publishes them on the /diagnostics topic
@@ -307,6 +316,7 @@ EXTRAS_WS="${ONBOARD_WS}/extras"   # the path robot.yaml names; do not move with
 USM_WS="${ONBOARD_WS}/ur-state"
 CKPT_WS="${ONBOARD_WS}/cockpit-diagnostics"
 CRT_WS="${ONBOARD_WS}/cockpit-tools"   # the Cockpit page "Roboter-Werkzeuge"
+NAV_WS="${ONBOARD_WS}/navigation"
 # The colcon builds see ROS and nothing else.  /etc/clearpath/setup.bash also sources the workspaces robot.yaml
 # lists, and colcon writes every workspace sourced at build time into the new install/setup.sh as an underlay: on
 # 2026-09-29 ~/onboard/rg6 chained itself and the retired ~/onrobot-rg6 that way, both on AMENT_PREFIX_PATH.
@@ -1296,6 +1306,59 @@ else
     echo ">>> Octomap feed: skipped."
 fi
 
+# --- RS16 lidar (optional) ---------------------------------------------------
+# rslidar_sdk and pointcloud_to_laserscan are apt packages, and this installer installs none: without them the
+# unit would fail every five seconds, so it is only written while both are there.  The self filter runs without
+# clair-twin[body] on the robot and passes the points through (R63).
+DO_LIDAR=1
+if [ -f "$LIDAR_UNIT_PATH" ]; then
+    confirm ">>> ${LIDAR_UNIT} is already installed. Update?" || DO_LIDAR=0
+else
+    confirm ">>> Install the RS16 lidar service (points, filtered points and the 2D scan)?" || DO_LIDAR=0
+fi
+if [ "$DO_LIDAR" -eq 1 ]; then
+    LIDAR_MISSING=""
+    for _pkg in rslidar_sdk pointcloud_to_laserscan; do
+        ls -d /opt/ros/*/share/"$_pkg" >/dev/null 2>&1 || LIDAR_MISSING="${LIDAR_MISSING} ${_pkg}"
+    done
+    if [ -n "$LIDAR_MISSING" ]; then
+        echo "    WARN: not installed:${LIDAR_MISSING} - lidar service skipped."
+        echo "          sudo apt install ros-jazzy-rslidar-sdk ros-jazzy-pointcloud-to-laserscan"
+    elif [ ! -f "${NAV_WS}/launch/lidar.launch.py" ]; then
+        echo "    WARN: ${NAV_WS}/launch/lidar.launch.py is missing (onboard not cloned?) - lidar service skipped."
+    else
+        echo ">>> Installing ${LIDAR_WRAPPER} + ${LIDAR_UNIT}"
+        cat > "$LIDAR_WRAPPER" <<EOF
+#!/usr/bin/env bash
+# RS16: rslidar_sdk + self filter + pointcloud_to_laserscan (onboard/navigation/launch/lidar.launch.py).
+source /etc/clearpath/setup.bash
+export PYTHONPATH="${NAV_WS}/src\${PYTHONPATH:+:\$PYTHONPATH}"
+exec ros2 launch ${NAV_WS}/launch/lidar.launch.py
+EOF
+        chmod 0755 "$LIDAR_WRAPPER"
+
+        cat > "$LIDAR_UNIT_PATH" <<EOF
+[Unit]
+Description=RS16 lidar: rslidar_sdk + self filter + pointcloud_to_laserscan
+After=clearpath-platform.service
+Wants=clearpath-platform.service
+PartOf=clearpath-robot.service
+
+[Service]
+User=${REAL_USER}
+ExecStart=${LIDAR_WRAPPER}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        chmod 0644 "$LIDAR_UNIT_PATH"
+    fi
+else
+    echo ">>> RS16 lidar: skipped."
+fi
+
 # --- manipulator diagnostics (optional) ------------------------------------
 # UR mode/safety/external control + RG6 state -> diagnostic_msgs on the
 # /diagnostics topic of the Clearpath aggregator. The matching aggregator
@@ -1587,6 +1650,7 @@ systemctl enable --now "$UNIT_NAME" "$JS_UNIT"
 # Watchdog: enable + start the TIMER (the .service is the oneshot check it triggers).
 [ -f "$WD_TIMER_PATH" ] && systemctl enable --now "$WD_TIMER"
 [ -f "$OCTO_UNIT_PATH" ] && systemctl enable --now "$OCTO_UNIT"
+[ -f "$LIDAR_UNIT_PATH" ] && systemctl enable --now "$LIDAR_UNIT"
 [ -f "$MD_UNIT_PATH" ] && systemctl enable --now "$MD_UNIT"
 # Start the bridge IMMEDIATELY too, not only on the next boot: without it
 # rg6_finger_joint is missing from /joint_states, and until the reboot move_group
@@ -1599,6 +1663,7 @@ VERIFY_UNITS=("$UNIT_PATH" "$JS_UNIT_PATH")
 [ -f "$USM_UNIT_PATH" ] && VERIFY_UNITS+=("$USM_UNIT_PATH")
 [ -f "$WD_UNIT_PATH" ] && VERIFY_UNITS+=("$WD_UNIT_PATH" "$WD_TIMER_PATH")
 [ -f "$OCTO_UNIT_PATH" ] && VERIFY_UNITS+=("$OCTO_UNIT_PATH")
+[ -f "$LIDAR_UNIT_PATH" ] && VERIFY_UNITS+=("$LIDAR_UNIT_PATH")
 [ -f "$MD_UNIT_PATH" ] && VERIFY_UNITS+=("$MD_UNIT_PATH")
 [ -f "$RG6_BRIDGE_UNIT_PATH" ] && VERIFY_UNITS+=("$RG6_BRIDGE_UNIT_PATH")
 systemd-analyze verify "${VERIFY_UNITS[@]}" && echo "    units OK."
@@ -1634,6 +1699,8 @@ echo "  ${URDF_PHYSICS_PATCH_BIN}   : root-owned copy of scripts/urdf_physics_pa
 echo "  ${SENSOR_MESH_URI_PATCH_BIN}: root-owned copy of scripts/sensor_mesh_uri_patch.py (same; offboard too)"
 [ -f "$OCTO_UNIT_PATH" ] && \
 echo "  ${OCTO_UNIT}   : depth─▶PointCloud2 for MoveIt's octomap (the move_group sensor parameters come from robot.yaml)"
+[ -f "$LIDAR_UNIT_PATH" ] && \
+echo "  ${LIDAR_UNIT}  : RS16 points, filtered points and the 2D scan (onboard/navigation's lidar.launch.py)"
 [ -f "$MD_UNIT_PATH" ] && \
 echo "  ${MD_UNIT} : UR5 + RG6 ─▶ diagnostic_msgs (the analyzers come from robot.yaml)"
 [ -f "$RG6_BRIDGE_UNIT_PATH" ] && \
@@ -1655,6 +1722,8 @@ echo "  journalctl -u ${USM_UNIT} -b"
 echo "  journalctl -t manipulators-watchdog -b   # + 'systemctl list-timers ${WD_TIMER}'"
 [ -f "$OCTO_UNIT_PATH" ] && \
 echo "  journalctl -u ${OCTO_UNIT} -b"
+[ -f "$LIDAR_UNIT_PATH" ] && \
+echo "  journalctl -u ${LIDAR_UNIT} -b   # + 'ros2 topic hz /a200_0553/sensors/lidar3d_0/points'"
 [ -f "$MD_UNIT_PATH" ] && \
 echo "  journalctl -u ${MD_UNIT} -b   # + 'ros2 topic echo ${MANIP_NS%/manipulators}/diagnostics_agg'"
 [ -f "$RG6_BRIDGE_UNIT_PATH" ] && \

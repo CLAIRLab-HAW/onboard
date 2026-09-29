@@ -7,6 +7,16 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (the RS16 as a boot service)
+
+### Added
+
+- **`clearpath-custom-lidar.service`** (optional): runs `onboard/navigation`'s `launch/lidar.launch.py` out of
+  `~/onboard/navigation` with `src/` on `PYTHONPATH` -- `rslidar_sdk` on the device, the self filter,
+  `pointcloud_to_laserscan`. The unit is only written while `ros-jazzy-rslidar-sdk` and
+  `ros-jazzy-pointcloud-to-laserscan` are installed; the installer names the `apt` line otherwise. Checked on the
+  robot: the config renders from the checkout to `msg_source 1`, RS16, 6699/7788, `/a200_0553/sensors/lidar3d_0/points`.
+
 ## 2026-09-29 (enp6s0 answers the RS16)
 
 ### Added
