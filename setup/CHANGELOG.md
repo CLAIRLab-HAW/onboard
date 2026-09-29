@@ -7,6 +7,14 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (enp6s0 answers the RS16)
+
+### Added
+
+- The netplan block gives `enp6s0` a second address, `192.168.1.102/24`, next to `192.168.131.10/24`. The RS16 sits
+  at its factory `192.168.1.200` behind the switch it shares with the UR5 and sends to `192.168.1.102`; without the
+  address it asked "who-has 192.168.1.102" every 2 s and sent nothing.
+
 ## 2026-09-29 (the RTDE recipe is read out of the checkout)
 
 ### Changed

@@ -719,8 +719,12 @@ network:
       dhcp6: false
       addresses:
         - 192.168.131.10/24
+        - 192.168.1.102/24
       link-local: [ ]
 NETPLAN_EOF
+# 192.168.1.102 is where the RS16 sends, as it left the factory: on 2026-09-29 it sat at 192.168.1.200 behind the
+# same switch as the UR5 and asked every 2 s "who-has 192.168.1.102" (tcpdump on enp6s0).  The second address on
+# enp6s0 answers that without touching the sensor's own configuration.
 DO_NETPLAN=1
 if [ -f "$NETPLAN_FILE" ] && cmp -s "$tmp_np" "$NETPLAN_FILE"; then
     echo "    netplan already up to date - no change."
