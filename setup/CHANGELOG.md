@@ -7,6 +7,16 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (the colcon builds see ROS and nothing else)
+
+### Fixed
+
+- The installer builds `rg6/`, `extras/` and `ur-state/` with `/opt/ros/jazzy/setup.bash` sourced instead of
+  `/etc/clearpath/setup.bash`. colcon writes every workspace sourced at build time into the new `install/setup.sh`
+  as an underlay; on the a200 `~/onboard/rg6` chained itself and the retired `~/onrobot-rg6` and `~/husky-extras`,
+  which stayed on `AMENT_PREFIX_PATH`. A test build on the robot against ROS alone chains no workspace under
+  `/home/robot`.
+
 ## 2026-09-29 (the installer runs on the one onboard clone)
 
 ### Changed

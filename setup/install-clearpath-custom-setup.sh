@@ -309,6 +309,10 @@ EXTRAS_WS="${ONBOARD_WS}/extras"   # the path robot.yaml names; do not move with
 USM_WS="${ONBOARD_WS}/ur-state"
 CKPT_WS="${ONBOARD_WS}/cockpit-diagnostics"
 CRT_WS="${ONBOARD_WS}/cockpit-tools"   # the Cockpit page "Roboter-Werkzeuge"
+# The colcon builds see ROS and nothing else.  /etc/clearpath/setup.bash also sources the workspaces robot.yaml
+# lists, and colcon writes every workspace sourced at build time into the new install/setup.sh as an underlay: on
+# 2026-09-29 ~/onboard/rg6 chained itself and the retired ~/onrobot-rg6 that way, both on AMENT_PREFIX_PATH.
+ROS_SETUP="/opt/ros/jazzy/setup.bash"
 
 # Find a file of THIS repo.  The installer does NOT necessarily run out of the
 # checkout -- it is called standalone, and then "$(dirname "$0")" is an
@@ -832,7 +836,7 @@ if [ "$DO_RG6" -eq 1 ]; then
     # so a reader needs std_msgs and nothing else.  Cross-checked on the robot on
     # 2026-08-24: <ns>/rg6/state does not exist, only bridge_state.
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
-        "source /etc/clearpath/setup.bash && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_control" \
+        "source '$ROS_SETUP' && cd '$RG6_WS' && colcon build --packages-select rg6_description rg6_control" \
         || echo "    WARN: colcon build failed - without rg6_description the gripper is missing from the URDF, without rg6_control the joint-states relay."
 else
     echo ">>> rg6: skipped (the existing build stays)."
@@ -849,7 +853,7 @@ fi
 if [ "$DO_EXTRAS" -eq 1 ]; then
     echo ">>> Building ${EXTRAS_WS} (colcon, user ${REAL_USER})"
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
-        "source /etc/clearpath/setup.bash && cd '$EXTRAS_WS' && colcon build --packages-select husky_extras_description" \
+        "source '$ROS_SETUP' && cd '$EXTRAS_WS' && colcon build --packages-select husky_extras_description" \
         || echo "    WARN: colcon build failed - package://husky_extras_description stays unresolvable (arch without a mesh)."
 else
     echo ">>> extras: skipped (the existing build stays)."
@@ -1013,7 +1017,7 @@ fi
 if [ "$DO_USM" -eq 1 ]; then
     echo ">>> Building ${USM_WS} (colcon, user ${REAL_USER})"
     sudo -u "$REAL_USER" env HOME="$USER_HOME" bash -lc \
-        "source /etc/clearpath/setup.bash && cd '$USM_WS' && colcon build --packages-select ur_state_manager" \
+        "source '$ROS_SETUP' && cd '$USM_WS' && colcon build --packages-select ur_state_manager" \
         || echo "    WARN: colcon build failed - ${USM_UNIT} only runs after a successful build."
 
     echo ">>> Installing ${USM_WRAPPER} + ${USM_UNIT}"
