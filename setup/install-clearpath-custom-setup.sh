@@ -44,8 +44,6 @@
 #     PointCloud2 for MoveIt's occupancy map monitor
 #   - optional: clearpath-custom-manipulator-diagnostics.service: UR5 + RG6 as
 #     diagnostic_msgs for the Clearpath aggregator (Cockpit, diagnostics_agg)
-#   - rtde_input_recipe_no_tool.txt into the home directory: without it the UR
-#     driver does not start alongside the OnRobot URCap
 #   - clearpath-custom-rg6-grip-bridge.service: commands the RG6 over XML-RPC to
 #     the OnRobot URCap and publishes the finger joint plus the gripper state
 #   - optional: the cockpit-ros2-diagnostics fork with the manipulator panel to
@@ -402,7 +400,6 @@ verify_deployments() {
         "${URDF_PHYSICS_PATCH_BIN}|scripts/urdf_physics_patch.py"
         "${SENSOR_MESH_URI_PATCH_BIN}|scripts/sensor_mesh_uri_patch.py"
         "${RIDE_HEIGHT_PATCH_BIN}|scripts/ride_height_patch.py"
-        "${USER_HOME}/rtde_input_recipe_no_tool.txt|config/rtde_input_recipe_no_tool.txt"
     )
     echo "=== --verify: rolled-out copies against the checkout ==="
     for entry in "${MANIFEST[@]}"; do
@@ -1356,25 +1353,11 @@ fi
 # The prerequisite for the ur_robot_driver to start alongside the OnRobot URCap
 # at all: the URCap is an RTDE client itself and occupies
 # tool_digital_output_mask, otherwise the driver dies during the RTDE setup with
-# "controlled by another RTDE client". robot.yaml points FIXEDLY at
-# /home/robot/rtde_input_recipe_no_tool.txt -- if the file is missing after a
-# reinstall, the driver does not start, and without any hint at it.
-RTDE_RECIPE_DST="${USER_HOME}/rtde_input_recipe_no_tool.txt"
-if RTDE_RECIPE_SRC="$(repo_file config/rtde_input_recipe_no_tool.txt)"; then
-    if [ "$RTDE_RECIPE_SRC" -ef "$RTDE_RECIPE_DST" ]; then
-        # Source and target are the same file -- this happens when the installer
-        # runs out of ${USER_HOME}.  install(1) then aborts, and with set -e it
-        # takes the whole run along.  There is simply nothing to do here.
-        echo ">>> RTDE recipe is already in place (${RTDE_RECIPE_DST})"
-    else
-        install -m 0644 -o "$REAL_USER" -g "$REAL_USER" \
-            "$RTDE_RECIPE_SRC" "$RTDE_RECIPE_DST"
-        echo ">>> RTDE recipe ─▶ ${RTDE_RECIPE_DST}  (from ${RTDE_RECIPE_SRC})"
-    fi
-else
-    echo "    WARN: config/rtde_input_recipe_no_tool.txt neither local nor retrievable -"
-    echo "          the UR driver does NOT start without it."
-fi
+# "controlled by another RTDE client". robot.yaml reads the file straight out of
+# the checkout, so nothing is copied -- but a checkout without it is a driver
+# that does not start, and without any hint at it.
+RTDE_RECIPE="${SETUP_WS}/config/rtde_input_recipe_no_tool.txt"
+[ -f "$RTDE_RECIPE" ] || echo "    WARN: ${RTDE_RECIPE} is missing - the UR driver does NOT start without it."
 
 # --- RG6 gripper bridge (XML-RPC to the OnRobot URCap) --------------------
 # The recipe above takes the tool DO path out: ROS can no longer set a tool DO,
@@ -1632,8 +1615,6 @@ echo "  ${UNIT_NAME} : patches the configs on every boot"
 echo "  ${ROBOT_YAML_PATH} ─▶ ${ROBOT_YAML_SRC} (symlink, SSOT in the repo)"
 echo "  ${JS_UNIT}           : joint_state_aggregator + legacy bus relays"
 echo "  ${SYSCTL_UR_PORTS} : UR driver ports 50001-50004 out of the ephemeral range"
-[ -f "$RTDE_RECIPE_DST" ] && \
-echo "  ${RTDE_RECIPE_DST} : RTDE input recipe without the tool DO (the UR driver needs it next to the URCap)"
 [ -f "$UR_DASH_UNIT_PATH" ] && \
 echo "  ${UR_DASH_UNIT}           : starts the ur_robot_driver dashboard_client"
 [ -f "$USM_UNIT_PATH" ] && \

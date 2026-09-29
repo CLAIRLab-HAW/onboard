@@ -293,7 +293,7 @@ manipulators:
       # Consequence of this line: ROS can no longer set a tool DO or the tool
       # voltage -- the tool I/O belongs to the URCap, the arm belongs to ROS.
       # To go back to a tool-DO driver: remove the line AND disable the URCap.
-      input_recipe_filename: "/home/robot/rtde_input_recipe_no_tool.txt"
+      input_recipe_filename: "/home/robot/onboard/setup/config/rtde_input_recipe_no_tool.txt"
       poses:
         - name: packed
           joints: [-0.000695530568258107, -3.1283000151263636, 2.8355469703674316, -3.193974320088522, 1.5455983877182007, -8.374849428349762e-05]

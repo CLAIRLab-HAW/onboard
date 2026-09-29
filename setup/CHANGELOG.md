@@ -7,6 +7,14 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (the RTDE recipe is read out of the checkout)
+
+### Changed
+
+- `robot.yaml`'s `input_recipe_filename` names `/home/robot/onboard/setup/config/rtde_input_recipe_no_tool.txt`, the
+  versioned file itself. The installer no longer copies it to `~/rtde_input_recipe_no_tool.txt` and `--verify` no
+  longer hashes that copy; the installer warns when the checkout lacks the file.
+
 ## 2026-09-29 (the colcon builds see ROS and nothing else)
 
 ### Fixed
