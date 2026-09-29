@@ -7,6 +7,18 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (the arm after a reboot)
+
+### Fixed
+
+- The arm was not operable after a reboot. The UR driver had died at boot (its `ros2_control_node` started while
+  the CB3 still reported "SafetySetup has not been confirmed yet" and exited on an unparseable package), and the
+  manipulators watchdog meant to restart it hung in its health check: the ros2 CLI of the 2026-09-29 snapshot
+  (rmw_zenoh 0.2.10, ros2cli 0.32.12) ignores the SIGTERM of `timeout` -- a `timeout 3` ran 97.9 s. Every
+  `timeout` around a ros2 call in the watchdog, `wakeup.sh` and `shutdown.sh` now carries `-k 5`, and the two tools
+  read exit 137 (killed) as a timeout too; `wakeup.sh` had hung the same way in its `prepare` call.
+  `tests/test_ros2_timeouts.py` refuses a `timeout` without `-k` around ros2 in any script here.
+
 ## 2026-09-29 (ds4drv masked)
 
 ### Added

@@ -166,8 +166,10 @@ call_trigger() {
   # inside the substitution and `rc=$?` afterwards: that reads the status of
   # the assignment (always 0), which would make the 124 branch dead code.
   local out rc=0
-  out="$(timeout "$((secs + 15))" ros2 service call "$srv" std_srvs/srv/Trigger 2>&1)" || rc=$?
-  if [ "$rc" -eq 124 ]; then
+  # -k 5: the ros2 CLI (rmw_zenoh 0.2.10, ros2cli 0.32.12) ignores timeout's SIGTERM -- a `timeout 3` ran 97.9 s
+  # (measured on the robot 2026-09-29); SIGKILL after 5 s more, and timeout then exits 137 instead of 124.
+  out="$(timeout -k 5 "$((secs + 15))" ros2 service call "$srv" std_srvs/srv/Trigger 2>&1)" || rc=$?
+  if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
     warn "${label}: timeout - service ${srv} not reachable."
     return 1
   fi

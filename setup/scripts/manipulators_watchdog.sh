@@ -51,15 +51,17 @@ RPR_TIMEOUT="${WD_RPR_TIMEOUT:-6}"      # s: wait for the latched value
 RESEND_STATE="/run/manipulators-watchdog.resend"
 RESEND_COOLDOWN="${WD_RESEND_COOLDOWN:-60}"  # s: do not spam at the timer rate
 
-# Run a ROS command as RUN_USER in the same graph.
+# Run a ROS command as RUN_USER in the same graph. Every ros2 call runs under `timeout -k 5`: the ros2 CLI (rmw_zenoh
+# 0.2.10, ros2cli 0.32.12) ignores timeout's SIGTERM, a `timeout 3` ran 97.9 s (robot, 2026-09-29), and a watchdog
+# stuck in its health check never restarted the UR driver that had died at boot.
 ros_cmd() { sudo -u "$RUN_USER" env HOME="$RUN_HOME" bash -lc "source /etc/clearpath/setup.bash && $*"; }
 
 # --- helpers: mode/safety query and trigger calls (all via the dashboard) ---
-robot_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_robot_mode' ur_dashboard_msgs/srv/GetRobotMode" 2>&1 | grep -oE 'Robotmode: [A-Z_]+' | head -1; }
-safety_mode() { ros_cmd "timeout 10 ros2 service call '${DASH_NS}/get_safety_mode' ur_dashboard_msgs/srv/GetSafetyMode" 2>&1 | grep -oE 'Safetymode: [A-Z_]+' | head -1; }
+robot_mode() { ros_cmd "timeout -k 5 10 ros2 service call '${DASH_NS}/get_robot_mode' ur_dashboard_msgs/srv/GetRobotMode" 2>&1 | grep -oE 'Robotmode: [A-Z_]+' | head -1; }
+safety_mode() { ros_cmd "timeout -k 5 10 ros2 service call '${DASH_NS}/get_safety_mode' ur_dashboard_msgs/srv/GetSafetyMode" 2>&1 | grep -oE 'Safetymode: [A-Z_]+' | head -1; }
 call_trigger() {  # $1 service path, $2 timeout(s); 0 = success=True
     local svc="$1" t="${2:-12}"
-    ros_cmd "timeout ${t} ros2 service call '${svc}' std_srvs/srv/Trigger" 2>&1 | grep -q 'success=True'
+    ros_cmd "timeout -k 5 ${t} ros2 service call '${svc}' std_srvs/srv/Trigger" 2>&1 | grep -q 'success=True'
 }
 
 
@@ -75,7 +77,7 @@ call_trigger() {  # $1 service path, $2 timeout(s); 0 = success=True
 # powering. Gate: only when the operator has already brought the arm to RUNNING and
 # no safety fault is pending.
 ensure_external_control() {
-    ros_cmd "timeout ${RPR_TIMEOUT} ros2 topic echo --once --qos-durability transient_local '${RPR_TOPIC}'" 2>/dev/null \
+    ros_cmd "timeout -k 5 ${RPR_TIMEOUT} ros2 topic echo --once --qos-durability transient_local '${RPR_TOPIC}'" 2>/dev/null \
         | grep -q 'data: true' && return 0
     if [ "$DRY_RUN" = "1" ]; then
         log "DRY_RUN=1 -> external control is not up; would have sent resend_robot_program."
@@ -102,7 +104,7 @@ ensure_external_control() {
     log "the arm is RUNNING and the JSC streams, but external control is not running (robot_program_running != true) -> resend_robot_program. NO driver restart, no powering."
     if call_trigger "${RESEND_SVC}" 20; then
         sleep 3
-        if ros_cmd "timeout ${RPR_TIMEOUT} ros2 topic echo --once --qos-durability transient_local '${RPR_TOPIC}'" 2>/dev/null | grep -q 'data: true'; then
+        if ros_cmd "timeout -k 5 ${RPR_TIMEOUT} ros2 topic echo --once --qos-durability transient_local '${RPR_TOPIC}'" 2>/dev/null | grep -q 'data: true'; then
             log "external control active again."
         else
             log "resend sent, robot_program_running not true yet - the next run checks again (cooldown ${RESEND_COOLDOWN}s)."
@@ -125,7 +127,7 @@ fi
 #    NOT a sufficient signal (controller side, stays true with a dead PC-side motion
 #    link). The grace timeout is generous: after a manipulators restart the JSC
 #    takes up to ~15s -> only >JS_TIMEOUT without a message means really dead.
-if ros_cmd "timeout ${JS_TIMEOUT} ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
+if ros_cmd "timeout -k 5 ${JS_TIMEOUT} ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
     ensure_external_control    # the JSC read path is ok - but is the write path up too?
     exit 0
 fi
@@ -134,7 +136,7 @@ fi
 # takes effect after an apt update. Without this branch the watchdog would read
 # silence on a PERFECTLY HEALTHY robot and restart the driver permanently at the
 # cooldown rate. The health signal is "arm joints arrive" - on whichever bus.
-if ros_cmd "timeout ${JS_TIMEOUT} ros2 topic echo --once '${PLATFORM_JS_TOPIC}'" 2>/dev/null \
+if ros_cmd "timeout -k 5 ${JS_TIMEOUT} ros2 topic echo --once '${PLATFORM_JS_TOPIC}'" 2>/dev/null \
      | grep -q 'arm_0_shoulder_pan_joint'; then
     log "WARN: arm joints arrive on ${PLATFORM_JS_TOPIC} instead of ${JS_TOPIC} -> the stock patch move_arm_joint_states does NOT take effect (apt update?). The motion link is HEALTHY, no recovery. Check: journalctl -t clearpath-custom-setup -b"
     exit 0
@@ -220,7 +222,7 @@ fi
 #     JSC becomes active quickly.
 ok=""
 for _ in $(seq 1 "${RPR_WAIT}"); do
-    if ros_cmd "timeout 6 ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
+    if ros_cmd "timeout -k 5 6 ros2 topic echo --once '${JS_TOPIC}'" >/dev/null 2>&1; then
         ok=1; break
     fi
     sleep 1
