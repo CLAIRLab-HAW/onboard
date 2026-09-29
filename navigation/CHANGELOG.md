@@ -3,6 +3,12 @@
 Format after [Keep a Changelog](https://keepachangelog.com/),
 versioning after [SemVer](https://semver.org/).
 
+## 2026-09-29 — The self filter runs without clair-log
+
+- `self_filter` falls back to `logging.basicConfig` when `clair.log` is not importable. On the robot `clair-log` and
+  `clair-twin` are private repositories and not cloned; the filter died on that import, and `pointcloud_to_laserscan`
+  behind it got no points. Now it starts and passes the points through unfiltered (R63).
+
 ## 2026-09-28 — A start in inflated cost runs the recoveries
 
 - Both behavior trees gate their recoveries with `AreErrorCodesPresent` over 200/205/207/208 instead of upstream's

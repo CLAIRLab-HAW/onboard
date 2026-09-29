@@ -79,10 +79,14 @@ def main() -> None:
     from std_msgs.msg import String
     from tf2_ros import Buffer, TransformException, TransformListener
 
-    from clair.log import console
     from clair.navigation import wiring
 
-    console.setup()
+    try:
+        from clair.log import console
+
+        console.setup()
+    except ImportError:  # the robot: clair-log is a private repository and is not cloned there (2026-09-29)
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
         from clair.twin.body import RobotBody
     except ImportError as exc:  # a robot without clair-twin[body]: the chain must not lose its scan over it
