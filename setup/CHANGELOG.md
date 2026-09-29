@@ -7,6 +7,14 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (ds4drv masked)
+
+### Added
+
+- An optional installer step masks `ds4drv.service`. The robot drives with the Xbox pad; ds4drv had been disabled
+  once and was running again, its virtual pad holding `js0`. Masked rather than disabled, so a package update or an
+  enable cannot bring it back.
+
 ## 2026-09-29 (the phone and the Xbox pad drive side by side)
 
 ### Fixed

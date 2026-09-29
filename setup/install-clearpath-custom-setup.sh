@@ -46,6 +46,8 @@
 #     pointcloud_to_laserscan) out of ~/onboard/navigation, once both apt packages are there
 #   - optional: clearpath-custom-manipulator-diagnostics.service: UR5 + RG6 as
 #     diagnostic_msgs for the Clearpath aggregator (Cockpit, diagnostics_agg)
+#   - optional: mask ds4drv.service (a PS4 pad driver this robot does not use;
+#     its virtual pad takes a joystick slot and it came back after being disabled)
 #   - optional: clearpath-custom-bt-joy.service: the BlueZ agent that lets Echo
 #     for Android pair as the robot's Bluetooth joystick (HID only, inside a
 #     window the app opens over bt_joy/open_pairing), plus its D-Bus policy
@@ -1459,6 +1461,23 @@ EOF
     fi
 else
     echo ">>> Manipulator diagnostics: skipped."
+fi
+
+# --- ds4drv masked (optional) ------------------------------------------------
+# The a200 is driven with an Xbox pad (robot.yaml controller: logitech, udev
+# input/xbox_pad); ds4drv is Clearpath's PS4 pad driver.  It was disabled here
+# once and ran again on 2026-09-29, with its virtual pad holding js0 -- masked,
+# not disabled, so a package update or another enable cannot start it.
+# Undo: 'sudo systemctl unmask ds4drv && sudo systemctl enable --now ds4drv'.
+if systemctl list-unit-files ds4drv.service >/dev/null 2>&1 \
+        && [ "$(systemctl is-enabled ds4drv.service 2>/dev/null || true)" != "masked" ]; then
+    if confirm ">>> Mask ds4drv (PS4 pad driver; this robot drives with the Xbox pad)?"; then
+        systemctl disable --now ds4drv.service || true
+        systemctl mask ds4drv.service
+        echo "    ds4drv stopped and masked."
+    else
+        echo ">>> ds4drv: left as it is."
+    fi
 fi
 
 # --- Bluetooth joystick pairing (optional) ----------------------------------

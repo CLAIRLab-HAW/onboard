@@ -409,6 +409,10 @@ service starts a second `joy_node` on `/dev/input/bt_joy` (any Bluetooth joystic
 **Check:** `journalctl -u clearpath-custom-bt-joy -b`, `bluetoothctl devices Paired`, `ls -l /dev/input/js*`,
 `ros2 topic echo /a200_0553/joy_teleop/joy`. The live test is R62 in `ROBOTER-TODO.md`.
 
+**ds4drv is masked** (installer, optional step): it is Clearpath's PS4 pad driver, this robot drives with the Xbox
+pad, and its virtual pad took a joystick slot. It had been disabled once and ran again, hence masked. Undo:
+`sudo systemctl unmask ds4drv && sudo systemctl enable --now ds4drv`.
+
 **Rollback:** `sudo systemctl disable --now clearpath-custom-bt-joy`, delete the unit file and the D-Bus policy.
 
 ## Running Tests
