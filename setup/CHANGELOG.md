@@ -7,6 +7,13 @@ the versioning [Semantic Versioning](https://semver.org/).
 
 
 
+## 2026-09-29 (the octomap feed switches at runtime)
+
+- `octomap_feed.py` declares `enabled` (default true) and takes it at runtime: false stops the clouds without
+  stopping the service, which the panel's live octomap switch sets over the graph -- systemctl on the robot wants a
+  sudo password. Off, the feed publishes nothing (no empty cloud: an empty octree slows every plan); the switch clears
+  move_group's octree itself. Not yet on the robot: R68.
+
 ## 2026-09-29 (the RS16 block installs its packages)
 
 ### Changed

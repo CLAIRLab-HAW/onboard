@@ -50,7 +50,7 @@ def depth_to_cloud(
     """Depth image ─▶ (N, 3) float32 points in the OPTICAL camera frame.
 
     ROS optical convention (REP 103): x right, y down, z forward -- ``x = (u-cx)/fx * z``, ``y = (v-cy)/fy * z``.
-    ``depth`` in metres (float) or millimetres (uint16, converted).  Invalid pixels and those outside ``[min_depth,
+    ``depth`` in meters (float) or millimeters (uint16, converted).  Invalid pixels and those outside ``[min_depth,
     max_depth]`` are dropped.
     """
     if depth.dtype == np.uint16:
@@ -86,8 +86,8 @@ def selftest() -> int:
     assert np.all(pts[:, 2] > 0.15) and np.all(pts[:, 2] < 2.5), "z-Band"
     # The principal point pixel must land on the optical axis (x=y=0, z=depth).
     full_cloud = depth_to_cloud(depth, K, stride=1)
-    centre = full_cloud[np.argmin(np.abs(full_cloud[:, :2]).sum(axis=1))]
-    assert abs(centre[0]) < 1e-3 and abs(centre[1]) < 1e-3, "principal point"
+    center = full_cloud[np.argmin(np.abs(full_cloud[:, :2]).sum(axis=1))]
+    assert abs(center[0]) < 1e-3 and abs(center[1]) < 1e-3, "principal point"
     # The mm input (uint16) must scale identically.
     mm = (depth * 1000.0).astype(np.uint16)
     pts_mm = depth_to_cloud(mm, K, stride=2)
@@ -108,6 +108,7 @@ def main(argv=None) -> int:
         return selftest()
 
     import rclpy
+    from rcl_interfaces.msg import SetParametersResult
     from rclpy.executors import ExternalShutdownException
     from rclpy.node import Node
     from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
@@ -139,6 +140,12 @@ def main(argv=None) -> int:
             # Far clip 2.5 m cuts BEFORE the move_group updater (robot.yaml max_range, same value) and before the
             # driver's clip_distance 3.0 -- it is the effective range of the dense layer.
             self.max_depth = float(self.declare_parameter("max_depth", 2.5).value)
+            # The panel's octomap switch on the real robot: `ros2 param set /octomap_feed enabled false` stops the
+            # clouds without systemctl, which the robot allows only with a sudo password.  Off, the feed publishes
+            # nothing -- no empty cloud: an empty octree makes every plan slow (see _tick) -- and whoever switched it
+            # off clears move_group's octree (octomap_clear.py beside up.sh).
+            self.enabled = bool(self.declare_parameter("enabled", True).value)
+            self.add_on_set_parameters_callback(self._on_parameters)
 
             self._depth = None  # last depth message (raw data)
             self._K = None
@@ -157,6 +164,13 @@ def main(argv=None) -> int:
                 f"z {self.min_depth:.2f}..{self.max_depth:.2f} m"
             )
 
+        def _on_parameters(self, parameters: list) -> SetParametersResult:
+            for parameter in parameters:
+                if parameter.name == "enabled":
+                    self.enabled = bool(parameter.value)
+                    self.get_logger().info(f"octomap_feed: {'on' if self.enabled else 'off'}")
+            return SetParametersResult(successful=True)
+
         def _on_depth(self, msg: Image) -> None:
             self._depth = msg
 
@@ -165,7 +179,7 @@ def main(argv=None) -> int:
 
         def _tick(self) -> None:
             msg, K = self._depth, self._K
-            if msg is None or K is None:
+            if msg is None or K is None or not self.enabled:
                 return
             stamp = (msg.header.stamp.sec, msg.header.stamp.nanosec)
             if stamp == self._published_stamp:
