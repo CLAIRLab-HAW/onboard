@@ -2,8 +2,8 @@
 
 The URDF extras of the **a200-0553**: everything this particular robot has that
 neither Clearpath's own description nor a component package knows about — the
-sensor arch on the top plate, the ArUco marker, and the end effector on the UR5
-flange: the OnRobot RG6, or in the offboard mock another tool.
+sensor arch on the top plate and the end effector on the UR5 flange: the
+OnRobot RG6, or in the offboard mock another tool.
 
 One file is the entry,
 `src/husky_extras_description/urdf/clearpath_extras.urdf.xacro`, and the
@@ -47,7 +47,6 @@ macro, the gripper package includes nothing from here.
   every tool carries (the key holder as an alias where its camera sits), and
   `rg6_hand_tcp`, the RG6's TCP that every calibrated quantity is expressed
   against.
-- **The ArUco marker**, visual only — and explicitly unsurveyed (R48).
 - **The tools as macros**, `urdf/rg6.macro.xacro` and
   `urdf/key_holder.macro.xacro`: each hangs on a given `parent`. The a200's tool
   files call them on `arm_0_tool0`; MARWIN 5 calls them behind its tool changer.

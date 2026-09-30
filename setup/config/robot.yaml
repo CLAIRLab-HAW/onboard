@@ -16,7 +16,7 @@ system:
     #
     # TWO of them, both directories of the one onboard clone the installer builds: rg6 describes the COMPONENT
     # (the RG6 model, its macro and the measured rg6_v2.yaml), extras describes THIS ROBOT's assembly (sensor
-    # arch, ArUco marker, and where the hand is bolted onto the UR5 flange).  platform.extras.urdf.path below
+    # arch, and where the hand is bolted onto the UR5 flange).  platform.extras.urdf.path below
     # names a file from the second, which includes a macro from the first -- so both have to be listed, and a
     # missing extras build is not a mesh that fails to draw but a generator run that dies on the include.
     workspaces:

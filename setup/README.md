@@ -456,7 +456,7 @@ compile.
 - [onrobot-rg6](../rg6/README.md) — gripper model, MoveIt patch, and the gripper on both stages
   (`rg6_grip_bridge`, `rg6_control_sim`); one of the two workspaces `robot.yaml` lists, and the source of three files
   this installer deploys
-- [husky-extras](../extras/README.md) — the a200-0553's URDF extras (sensor arch, ArUco marker, RG6 mounting), the
+- [husky-extras](../extras/README.md) — the a200-0553's URDF extras (sensor arch, RG6 mounting), the
   other one; `robot.yaml`
   addresses its file under `platform.extras.urdf`
 - [ur-state-manager](../ur-state/README.md) — arm state and controller modes

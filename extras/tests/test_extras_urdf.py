@@ -102,9 +102,13 @@ def test_the_gripper_macro_is_included_from_the_package_that_owns_it():
     )
 
 
-@pytest.mark.parametrize("name", ["aruco_marker", "husky_top_assembly"])
-def test_the_platform_keeps_the_links_the_stack_addresses_by_name(extras_text, name):
-    assert f'<link name="{name}"' in extras_text
+def test_the_platform_keeps_the_links_the_stack_addresses_by_name(extras_text):
+    assert '<link name="husky_top_assembly"' in extras_text
+
+
+def test_the_platform_carries_no_aruco_marker(extras_text):
+    """The marker was never surveyed (its frame and offset were placed); it left the model rather than mislead."""
+    assert "aruco" not in extras_text.lower()
 
 
 @pytest.mark.parametrize("path", TOOLS, ids=lambda p: p.name)

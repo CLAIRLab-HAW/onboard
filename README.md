@@ -7,7 +7,7 @@ the only reason they sit together — they share a deployment target, not a depe
 | Directory | Was | What it is |
 |---|---|---|
 | [`setup/`](setup/README.md) | `husky-custom-setup` | The installer, the per-boot patcher, the boot services, the UR5 calibration — and **`robot.yaml`, the single source of truth** every other layer reads. |
-| [`extras/`](extras/README.md) | `husky-extras` | This robot's URDF extras: sensor arch, ArUco marker, RG6 on the UR5 flange. One xacro, pulled in by the Clearpath generator through `robot.yaml`. |
+| [`extras/`](extras/README.md) | `husky-extras` | This robot's URDF extras: sensor arch, RG6 on the UR5 flange. One xacro, pulled in by the Clearpath generator through `robot.yaml`. |
 | [`rg6/`](rg6/README.md) | `onrobot-rg6` | The RG6 gripper: the measured `rg6_v2` description, the MoveIt patch, the `joint_states` plumbing and the container mock. The real gripper is driven by this package's `rg6_grip_bridge` over the URCap's XML-RPC. |
 | [`ur-state/`](ur-state/README.md) | `ur-state-manager` | Arm state (`prepare`, `recover`, `power_off`) and the controller-mode manager. |
 | [`navigation/`](navigation/README.md) | `husky-navigation` | The RS-LiDAR-16 sensor path and Nav2 — the same configuration in the container mock and on the robot. |

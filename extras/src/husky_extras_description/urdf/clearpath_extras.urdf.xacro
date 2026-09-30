@@ -10,7 +10,6 @@
   Hangs ONLY new links/joints onto frames the generator has already produced:
     - arm_0_tool0         = UR5 tool frame (ROS-Industrial all-zeros)  -> the end effector (tools/, RG6 by default)
     - top_plate_rear_mount = frame the sensor arch stands on
-    - top_plate_front_mount = frame the ArUco marker sits on (TODO: adjust)
 
   WHY THIS IS ITS OWN PACKAGE.  Everything here is THIS ROBOT's assembly, not a
   component: it names frames that only exist once the Clearpath generator has
@@ -29,26 +28,6 @@
   package:// meshes belong.
 -->
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
-
-  <material name="white"><color rgba="0.9137 0.9137 0.9137 1.0"/></material>
-
-  <!-- =========================== ArUco marker =========================== -->
-  <!-- R48: neither the parent frame nor the offset has been measured on the
-       robot.  Both numbers below are placed, not surveyed, and the marker is
-       visual only (no collision, no mass), so nothing plans against it; what it
-       misleads is a human reading the viewer, and any pose estimation that
-       trusts the frame. -->
-  <link name="aruco_marker">
-    <visual>
-      <geometry><box size="0.11 0.11 0.001"/></geometry>
-      <material name="white"/>
-    </visual>
-  </link>
-  <joint name="aruco_to_base" type="fixed">
-    <parent link="top_plate_front_mount"/>          <!-- R48: unverified frame -->
-    <child link="aruco_marker"/>
-    <origin rpy="0 0 0" xyz="-0.062 -0.142 0"/>  <!-- R48: unverified offset -->
-  </joint>
 
   <!-- ======================= end effector at arm_0_tool0 ======================= -->
   <!-- One file per tool under tools/, chosen by end_effector (rg6 when nothing is said, as on the robot); the
