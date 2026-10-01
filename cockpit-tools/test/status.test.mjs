@@ -129,7 +129,8 @@ const FALLBACK = '10.42.42.159';
 
 test('normally the address Cockpit was opened under applies', () => {
     assert.equal(resolveHost({ locationHost: '10.42.42.159', fallback: FALLBACK }), '10.42.42.159');
-    assert.equal(resolveHost({ locationHost: 'husky.vysion.cloud', fallback: FALLBACK }), 'husky.vysion.cloud');
+    const netbird = 'husky-155-35.vysion.cloud';
+    assert.equal(resolveHost({ locationHost: netbird, fallback: FALLBACK }), netbird);
 });
 
 test('over a Cockpit jump host the target machine counts, not the address bar', () => {
