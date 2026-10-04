@@ -62,6 +62,12 @@ platform:
         # x y z, roll pitch yaw, vx vy vz, vroll vpitch vyaw, ax ay az
         odom0_config: [false, false, false, false, false, false, true, true, false,
                        false, false, true, false, false, false]
+        # The IMU only with its yaw rate.  Clearpath's default fuses its x acceleration as well, and the a200's UM7
+        # reports gravity on -y while its orientation says a -90 deg pitch: after the gravity removal ~+9.9 m/s^2 stay
+        # in x, and odom->base_link ran 11 cm ahead and back every 0.1 s at standstill (measured 2026-09-29, R66).
+        # With odom0 on velocities alone (above) nothing pulls that back, so the two go out together.
+        imu0_config: [false, false, false, false, false, false, false, false, false,
+                      false, false, true, false, false, false]
       # And it follows the wheels' linear speed closely: at the generated 0.001 the filter took some 70 % of a speed
       # change per report and the pose still stepped while the speed changed.  The encoders measure the linear speed
       # directly; the yaw rate keeps its 0.01, as a skid steer's wheels measure turning poorly and the IMU weighs in.
