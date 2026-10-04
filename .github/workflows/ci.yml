@@ -112,7 +112,7 @@ jobs:
       - name: own suites
         run: >
           uv run pytest onboard/setup onboard/extras onboard/rg6 onboard/ur-state onboard/navigation -q
-          -m 'not e2e_mock and not e2e_container and not e2e_container_nav and not e2e_container_maniskill
+          -m 'not e2e_container and not e2e_container_nav and not e2e_container_maniskill
           and not needs_recording and not slow_sim'
 
       - name: robot.yaml against the a200_0553 profile
