@@ -7,6 +7,14 @@ how it embeds into the onboard stack in
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 the versioning [Semantic Versioning](https://semver.org/).
 
+## 2026-10-05 (the controller loader asks the service, not the CLI)
+
+- **`arm_controllers.launch.py` queries `<cm>/list_controllers` with `ros2 service call`** instead of
+  `ros2 control list_controllers`. `ros2controlcli` is not installed on the robot and stays out (owner decision), so
+  the wait loop ran 120 s against "invalid choice: 'control'" and the loader died with exit 1 on every boot -- the
+  extra controllers from `extra_controllers.yaml` never reached the arm's controller_manager (R68). Dry-run against
+  the robot's CM on 2026-10-05: missing controllers spawn, loaded ones are skipped.
+
 ## 2026-09-29 (one log call site per severity)
 
 - The controller release's report uses two call sites instead of one bound method picked by the outcome: rclpy fixes

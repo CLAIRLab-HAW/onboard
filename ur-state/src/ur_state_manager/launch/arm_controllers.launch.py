@@ -27,9 +27,15 @@ So the difference is the **re-spawning of already loaded** controllers, not the 
 state does not help: the component reports 'label=active' even at POWER_OFF -- 'active' only means "the driver reads
 via RTDE".)
 
-Hence: first query 'ros2 control list_controllers', then spawn only the missing ones. If everything is already there,
+Hence: first ask the CM's list_controllers service, then spawn only the missing ones. If everything is already there,
 nothing happens -- the restart becomes a no-op instead of a crash. Sequential rather than parallel, so that the query
 does not collide with our own spawns.
+
+The query is a plain 'ros2 service call', NOT 'ros2 control list_controllers': ros2controlcli is deliberately absent
+on the robot and stays out (owner decision 2026-10-05: installing it once broke the stack; apt-history shows it
+removed together with ros2-control). With the CLI the wait loop ran its 60 x 2 s against "invalid choice:
+'control'" and the loader died with exit 1 on every boot -- measured on 2026-10-05, start 10:45:56, death 10:47:56
+(R68). The spawner is part of controller_manager and needs no CLI.
 """
 
 from launch import LaunchDescription
@@ -62,16 +68,23 @@ ACTIVE="__ACTIVE__"
 INACTIVE="__INACTIVE__"
 TAG="arm_controllers"
 
+# The loaded controller names, one per line; fails while the CM does not answer. 'ros2 service call' waits for the
+# service forever, hence the timeout (an answer took 1.2 s on 2026-10-05).
+list_loaded() {
+    out="$(timeout 10 ros2 service call "$CM/list_controllers" \
+        controller_manager_msgs/srv/ListControllers 2>/dev/null)" || return 1
+    printf '%s\n' "$out" | grep -oE "ControllerState\(name='[A-Za-z0-9_]+'" | cut -d"'" -f2
+}
+
 # 1) Wait for the controller_manager (boot: the CM only comes up).
 LOADED=""
 for i in $(seq 1 60); do
-    if out="$(ros2 control list_controllers -c "$CM" 2>/dev/null)"; then
-        LOADED="$(printf '%s\n' "$out" | awk '{print $1}')"
+    if LOADED="$(list_loaded)"; then
         break
     fi
     sleep 2
 done
-if [ -z "$LOADED" ] && ! ros2 control list_controllers -c "$CM" >/dev/null 2>&1; then
+if [ -z "$LOADED" ] && ! list_loaded >/dev/null; then
     echo "$TAG: controller_manager $CM not reachable - no extra controllers loaded." >&2
     exit 1
 fi
