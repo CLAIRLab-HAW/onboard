@@ -86,9 +86,11 @@ def test_the_odometry_overturns_the_world_and_the_imu_pulls_the_ekf_back(sim_sta
 
 
 def test_one_switch_makes_the_sim_plant_exact_and_errant_again(sim_stack):
-    """``up.sh --sim-errors off|on`` on the running stack: the flag, stack-report and the RS16's ranges follow.
+    """``up.sh --sim-errors off|on`` on the running stack: the flag, the RS16's ranges and the D435's depth follow.
     Measured 2026-10-06 on the MuJoCo stack: each ray's range scattered by 0.027 m on, 5e-7 m off."""
     _copy("sim_lidar.py")
+    _copy("sim_depth.py")
+    camera = RobotProfile.load("a200_0553").sim.camera
     before = _errors_on()
     try:
         for on in (False, True):
@@ -99,5 +101,13 @@ def test_one_switch_makes_the_sim_plant_exact_and_errant_again(sim_stack):
             # Ten sweeps' standard deviation runs about 8 % under sigma.
             expected = noise_m * 0.92 if on else 0.0
             assert lidar["median_range_std_m"] == pytest.approx(expected, abs=0.005), on
+            depth = json.loads(_exec("source ros-env; python3 /tmp/sim_depth.py 2>/dev/null"))
+            assert depth["encoding"] == "16UC1", "the RealSense driver's millimeters, whatever the simulator rendered"
+            assert depth["valid_share"] > 0.2, "the camera sees something to measure"
+            z_m = depth["median_depth_m"]
+            sigma_m = z_m**2 * camera.subpixel_rms_px / (camera.depth_focal_px * camera.depth_baseline_m)
+            # On: the stereo error at that distance, give or take the millimeter steps; off: the render, steady.
+            expected = 0.92 * sigma_m if on else 0.0
+            assert depth["median_depth_std_m"] == pytest.approx(expected, abs=max(0.0015, 0.4 * sigma_m)), (on, depth)
     finally:
         _switch(before)
