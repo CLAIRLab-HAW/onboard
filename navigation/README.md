@@ -48,7 +48,15 @@ something to correct; the RS16's ranges err by 3 cm. `up.sh --sim-errors off` ma
 `imu-sim` publishes the UM7 on `sensors/imu_0/data` from the world's motion, and the container's EKF fuses its yaw
 rate. Clearpath's generator leaves the `imu0` topic out whenever `robot.yaml` carries `ekf_node` extras, which ours
 do (R66), so the container adds it for the sim plants — **the robot's generated `localization.yaml` lacks it too**
-(R66). The ground truth is on `/sim/base_truth` and, with ManiSkill, the world's root on `/sim/base_pose`; neither
+(R66).
+
+**Standing still, the sim's scan turns against the map; the robot's does not, yet.** The EKF weighs the UM7's yaw
+rate about 9 000 times the wheels' (the driver's `angular_velocity_stdev` against the diff drive's twist covariance),
+so at standstill it integrates the gyro's zeroed residual (`sim.imu.gyro_zeroed_residual_rad_s`, an assumption until
+R75) — measured 5.6·10⁻⁵ rad/s, 3.2° after 13 minutes. `slam_toolbox` matches a scan only after 0.3 m or 0.3 rad of
+odometry travel, so meanwhile `map→odom` stands and the scan turns against the map, until the drift itself reaches
+0.3 rad. The robot's EKF fuses no IMU today (R66) and so has no such drift; once `imu0` is wired there, it has the
+sim's. The ground truth is on `/sim/base_truth` and, with ManiSkill, the world's root on `/sim/base_pose`; neither
 reaches Nav2.
 
 ## Frames — the robot sits in the floor, and that is not one
