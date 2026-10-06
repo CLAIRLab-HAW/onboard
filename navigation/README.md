@@ -36,17 +36,19 @@ passes `localization:=slam` to a sim plant with the lidar on; everything else ge
 | Where | `odom→base_link` (EKF input) | `map→odom` | Obstacles in the costmaps |
 |---|---|---|---|
 | plain mock (`plant:=mock`) | mock wheels | static identity | none, synthetic map |
-| sim plant, lidar on (the default) | mock wheels | `slam_toolbox` | the cast RS16 |
-| sim plant, `--no-lidar` | mock wheels | static identity | none |
-| real robot | wheel encoders + UM7 yaw rate | — (Nav2 not started) | — |
+| sim plant, lidar on (the default) | mock wheels + sim UM7 yaw rate | `slam_toolbox` | the cast RS16 |
+| sim plant, `--no-lidar` | mock wheels + sim UM7 yaw rate | static identity | none |
+| real robot | wheel encoders (UM7 meant, not wired: R66) | — (Nav2 not started) | — |
 
-**The sim's odometry cannot be wrong, by construction.** The mock wheels (`mock_components/GenericSystem`) integrate
-the commanded velocities exactly, and the world follows `platform/odom/filtered` (ManiSkill's `follow_base`,
-MuJoCo's `BaseFollowerPlugin`) rather than the odometry following the world. So there is no skid-steer error and no
-drift; only a collision, which resets the base to its last clear pose, leaves an offset that SLAM has to absorb. The
-container's EKF fuses `platform/odom` alone: the generated `localization.yaml` carries `imu0_config` but no `imu0`
-topic, and nothing publishes `sensors/imu_0/data`. What the robot's EKF does with the UM7 (R66) and how far its
-`wheel_separation_multiplier` is off (R37) is therefore not testable in the container.
+**The sim's odometry errs as the robot's does.** The mock wheels (`mock_components/GenericSystem`) turn exactly as
+commanded, and the world does not follow the odometry but `base-truth`, which moves the body for the same wheel speeds
+with the robot profile's skid steer (`sim.base.true_separation_multiplier`, 1.875 × 1.10 until R37 measures it). So
+the diff drive's odometry turns 10 % too far, and SLAM has something to correct; `up.sh --exact-base` makes the two
+agree. `imu-sim` publishes the UM7 on `sensors/imu_0/data` from the world's motion, and the container's EKF fuses its
+yaw rate. Clearpath's generator leaves the `imu0` topic out whenever `robot.yaml` carries `ekf_node` extras, which ours
+do (R66), so the container adds it for the sim plants — **the robot's generated `localization.yaml` lacks it too**
+(R66). The ground truth is on `/sim/base_truth` and, with ManiSkill, the world's root on `/sim/base_pose`; neither
+reaches Nav2.
 
 ## Frames — the robot sits in the floor, and that is not one
 
