@@ -51,19 +51,53 @@ def test_only_the_plant_reads_the_ground_truth(sim_stack):
         assert readers <= PLANT_NODES, f"{topic} is read outside the plant: {readers - PLANT_NODES}"
 
 
+def _copy(script: str) -> None:
+    subprocess.run(["docker", "cp", str(Path(__file__).with_name(script)), f"{CONTAINER}:/tmp/{script}"], check=True)
+
+
+def _errors_on() -> bool:
+    return _exec("cat /tmp/clair-sim-errors 2>/dev/null").strip() != "SIM_ERRORS=off"
+
+
+def _switch(on: bool) -> None:
+    root = Path(__file__).resolve().parents[3]
+    subprocess.run([str(root / "deploy/stack/bin/up.sh"), "--sim-errors", "on" if on else "off"], check=True)
+
+
 def test_the_odometry_overturns_the_world_and_the_imu_pulls_the_ekf_back(sim_stack, exclusive_base):
-    """Measured 2026-10-06 on the MuJoCo stack, two turns: wheels / truth 1.1003, EKF / truth 0.9937, the still IMU's
-    z scattered by 3.8e-4 rad/s."""
-    subprocess.run(
-        ["docker", "cp", str(Path(__file__).with_name("sim_spin.py")), f"{CONTAINER}:/tmp/sim_spin.py"], check=True
-    )
-    log = _exec("grep -m1 'the base.s truth on' /tmp/mock.log")
-    true_m, odometry_m = (float(v) for v in re.search(r"multiplier ([\d.]+) \(the odometry's ([\d.]+)\)", log).groups())
+    """With the errors on the wheels' odometry overturns the world by the slipping skid steer, and the IMU's yaw rate
+    pulls the EKF back onto it; off, all three agree.  Measured 2026-10-06 on the MuJoCo stack, one turn each: on
+    1.040, 1.117, 1.089 against EKF 1.001, 1.001, 1.000; off 0.9997."""
+    _copy("sim_spin.py")
     result = json.loads(_exec("source ros-env; python3 /tmp/sim_spin.py 1 2>/dev/null"))
-    expected = true_m / odometry_m
-    assert result["wheels_over_truth"] == pytest.approx(expected, rel=0.01)
-    if expected != 1.0:
-        # The IMU's yaw rate outweighs the wheels' (the driver's 1.1e-6 against the diff drive's 0.01).
-        assert abs(result["ekf_over_truth"] - 1.0) < abs(expected - 1.0) / 3
+    if not _errors_on():
+        assert result["wheels_over_truth"] == pytest.approx(1.0, abs=0.01)
+        assert result["ekf_over_truth"] == pytest.approx(1.0, abs=0.01)
+        return
+    log = _exec("grep -m1 'the base.s truth on' /tmp/mock.log")
+    mean, sigma, odometry = (
+        float(v) for v in re.search(r"multiplier ([\d.]+) \+/- ([\d.]+) \(the odometry's ([\d.]+)\)", log).groups()
+    )
+    assert result["wheels_over_truth"] == pytest.approx(mean / odometry, abs=4 * sigma / odometry)
+    # The IMU's yaw rate outweighs the wheels' (the driver's 1.1e-6 against the diff drive's 0.01).
+    assert abs(result["ekf_over_truth"] - 1.0) < 0.02
     imu = RobotProfile.load("a200_0553").sim.imu
     assert result["imu_still"]["std_z_rad_s"] == pytest.approx(imu.gyro_noise_rad_s_sqrt_hz / 0.05**0.5, rel=0.3)
+
+
+def test_one_switch_makes_the_sim_plant_exact_and_errant_again(sim_stack):
+    """``up.sh --sim-errors off|on`` on the running stack: the flag, stack-report and the RS16's ranges follow.
+    Measured 2026-10-06 on the MuJoCo stack: each ray's range scattered by 0.027 m on, 5e-7 m off."""
+    _copy("sim_lidar.py")
+    before = _errors_on()
+    try:
+        for on in (False, True):
+            _switch(on)
+            assert _errors_on() is on
+            lidar = json.loads(_exec("source ros-env; python3 /tmp/sim_lidar.py 2>/dev/null"))
+            noise_m = RobotProfile.load("a200_0553").sim.lidar.range_noise_m
+            # Ten sweeps' standard deviation runs about 8 % under sigma.
+            expected = noise_m * 0.92 if on else 0.0
+            assert lidar["median_range_std_m"] == pytest.approx(expected, abs=0.005), on
+    finally:
+        _switch(before)

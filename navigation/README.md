@@ -43,9 +43,10 @@ passes `localization:=slam` to a sim plant with the lidar on; everything else ge
 **The sim's odometry errs as the robot's does.** The mock wheels (`mock_components/GenericSystem`) turn exactly as
 commanded, and the world does not follow the odometry but `base-truth`, which moves the body for the same wheel speeds
 with the robot profile's skid steer (`sim.base.true_separation_multiplier`, 1.875 × 1.10 until R37 measures it). So
-the diff drive's odometry turns 10 % too far, and SLAM has something to correct; `up.sh --exact-base` makes the two
-agree. `imu-sim` publishes the UM7 on `sensors/imu_0/data` from the world's motion, and the container's EKF fuses its
-yaw rate. Clearpath's generator leaves the `imu0` topic out whenever `robot.yaml` carries `ekf_node` extras, which ours
+the diff drive's odometry turns 10 % too far, the slip scatters about that by the profile's sigmas, and SLAM has
+something to correct; the RS16's ranges err by 3 cm. `up.sh --sim-errors off` makes the sim plant exact, live.
+`imu-sim` publishes the UM7 on `sensors/imu_0/data` from the world's motion, and the container's EKF fuses its yaw
+rate. Clearpath's generator leaves the `imu0` topic out whenever `robot.yaml` carries `ekf_node` extras, which ours
 do (R66), so the container adds it for the sim plants — **the robot's generated `localization.yaml` lacks it too**
 (R66). The ground truth is on `/sim/base_truth` and, with ManiSkill, the world's root on `/sim/base_pose`; neither
 reaches Nav2.
