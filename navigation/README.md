@@ -9,36 +9,44 @@ platform **and** onboard on the real robot — same configuration, same driver.
 
 ## Features
 
-- **One driver for both sides.** `rslidar_sdk` (apt, `ros-jazzy-rslidar-sdk`)
-  reads a PCAP recording in the mock and the device on the robot. The
-  difference: `common.msg_source`.
+- **One driver for the real sensor.** `rslidar_sdk` (apt, `ros-jazzy-rslidar-sdk`) reads the device on the robot and
+  the recording `data/recordings/rs16_labor.pcap` in the container; the difference is `common.msg_source`. A sim
+  plant (ManiSkill, MuJoCo) casts the RS16 in its world instead and publishes on the same topic, so the chain behind
+  the points is the same.
 - **The robot's own body out of the points.** `self_filter` (`python3 -m clair.navigation.self_filter`) drops the
   RS16's points inside the robot's collision hulls -- the sensor arch beside it, an arm reaching out -- and publishes
   the rest on `…/lidar3d_0/points_filtered`, which the scan and the costmaps read. It needs `clair-twin[body]`;
   without it, the points pass through unfiltered.
-- **Nav2** with switchable localization: `slam_toolbox` for mapping, AMCL for
-  driving against a stored map.
+- **Nav2** with switchable localization (`localization:=none|slam|amcl`): a static identity `map→odom`,
+  `slam_toolbox` while mapping, or AMCL against a stored map.
 - **ROS-free core.** The decisions live in `src/clair/navigation/` and are
   testable without ROS; the launch files import them.
 
 ## Status
 
-**Nav2 drives in the container mock against a synthetic map.** Evidenced, not
-claimed: a `NavigateToPose` over 1 m ends with `SUCCEEDED`, and the EKF
-odometry before and after confirms the distance.
+**Nav2 drives in the container, not yet on the robot.** Evidenced, not claimed: on the plain mock a
+`NavigateToPose` over 1 m ends with `SUCCEEDED`, and the EKF odometry before and after confirms the distance; on the
+ManiSkill stack it reaches goals around the furniture of an ArchitecTHOR scene (see the CHANGELOG). On the robot the
+RS16 chain runs as a service of the installer (`lidar.launch.py`, scans at 10.6 Hz), but `nav` has no start path
+there and there is no map of the lab yet (R36).
 
-**The sensor path is built and configured, but never driven.** What is
-missing is the RS16 recording (an R item in `ROBOTER-TODO.md`); the
-corresponding tests skip themselves with a named cause. Until then:
+**Localization is wheel odometry everywhere; what corrects it depends on where it runs.** `start_nav` in `clair.stack`
+passes `localization:=slam` to a sim plant with the lidar on; everything else gets the launch default `none`.
 
-- `map→odom` comes from a `static_transform_publisher` (identity), not from
-  AMCL. An AMCL without scans publishes *no* transform at all.
-- Localization rests on wheel odometry alone — the robot drifts against the
-  map.
-- The costmap has **no** obstacles.
+| Where | `odom→base_link` (EKF input) | `map→odom` | Obstacles in the costmaps |
+|---|---|---|---|
+| plain mock (`plant:=mock`) | mock wheels | static identity | none, synthetic map |
+| sim plant, lidar on (the default) | mock wheels | `slam_toolbox` | the cast RS16 |
+| sim plant, `--no-lidar` | mock wheels | static identity | none |
+| real robot | wheel encoders + UM7 yaw rate | — (Nav2 not started) | — |
 
-So the sentence is not "Nav2 runs", but: *Nav2 drives in the mock against a
-map; the sensor chain is waiting for a recording.*
+**The sim's odometry cannot be wrong, by construction.** The mock wheels (`mock_components/GenericSystem`) integrate
+the commanded velocities exactly, and the world follows `platform/odom/filtered` (ManiSkill's `follow_base`,
+MuJoCo's `BaseFollowerPlugin`) rather than the odometry following the world. So there is no skid-steer error and no
+drift; only a collision, which resets the base to its last clear pose, leaves an offset that SLAM has to absorb. The
+container's EKF fuses `platform/odom` alone: the generated `localization.yaml` carries `imu0_config` but no `imu0`
+topic, and nothing publishes `sensors/imu_0/data`. What the robot's EKF does with the UM7 (R66) and how far its
+`wheel_separation_multiplier` is off (R37) is therefore not testable in the container.
 
 ## Frames — the robot sits in the floor, and that is not one
 
