@@ -61,23 +61,19 @@ reaches Nav2.
 
 ## Frames — the robot sits in the floor, and that is not one
 
-In RViz and Foxglove the Husky visibly stands **13.2 cm below** the map's
+In RViz and Foxglove the Husky visibly stands **10.1 cm below** the map's
 ground plane. That looks like a broken URDF and is not one:
 
 ```
-base_link → base_footprint    z = −0.13228     (URDF)
-wheel axle → base_link        z = +0.03282     (URDF)
-wheel radius                      0.1651       (control.yaml)
-                              0.03282 − 0.1651 = −0.13228   ✓ exact
+base_link → base_footprint    z = −0.101       (URDF, ride-height patch)
+wheel axle → base_link        z = +0.033       (URDF)
+loaded wheel radius               0.134        (hubs 13–14 cm above the floor)
+                              0.033 − 0.134 = −0.101   ✓
 odom      → base_link         z =  0.000       (EKF)
-map       → base_footprint    z = −0.132       ← hence
+map       → base_footprint    z = −0.101       ← hence
 ```
 
-So `base_footprint` is defined **correctly** — exactly where the wheels touch
-the ground. The offset arises one level up: the EKF runs with
-`base_link_frame: base_link` and `two_d_mode: True` and thereby pins
-`base_link` to z = 0 of the odometry plane, although in the URDF base_link
-sits 13.2 cm above the ground.
+So `base_footprint` is defined **correctly** — exactly where the loaded wheels touch the ground.
 
 That is Clearpath's convention from the generated `localization.yaml`. It is
 not settable via `robot.yaml` (which only carries `enable_ekf: true`), and
@@ -88,20 +84,17 @@ yaw.
 Two places where it does count after all:
 
 - **Height bands are measured from `base_link`, not from the ground.**
-  `pointcloud_to_laserscan` filters with `min_height: -0.10`; that is 3.2 cm
-  above the ground, not 10 cm below it. It is written down in
+  `pointcloud_to_laserscan` filters with `min_height: -0.07`; that is 3 cm
+  above the ground, not 7 cm below it. It is written down in
   `clair.navigation.wiring` together with this calculation.
-- **A ground plane as a collision object at `map` z = 0 would sit 13.2 cm too
+- **A ground plane as a collision object at `map` z = 0 would sit 10.1 cm too
   high** — in the middle of the robot. Anyone adding one for the arm puts it
   on `base_footprint`.
 
-`test_the_ground_frame_matches_the_wheel_geometry` nails down the URDF side:
-it checks that `base_footprint` matches the wheel axle **and** the
-`wheel_radius` from `control.yaml`. Neither source knows about the other; if
-they diverge (when switching to outdoor wheels, say), not only the rendering
-is wrong but the odometry too — and nobody reports that. Whether the radius
-matches the *real* rotation is something the mock cannot check in principle:
-see R37.
+`test_the_ground_frame_and_the_odometry_carry_the_measured_wheel` pins the two radii of the same tire, both
+measured on the robot (R58): the LOADED one (0.134 m) between axle and `base_footprint`, and the ROLLING one
+(0.1477 m, a 2.515 m run against 17.026 rad of wheel turn) that `robot.yaml` gives the DiffDriveController as
+`wheel_radius` in place of Clearpath's nominal 0.1651. Whoever changes the wheels measures both again.
 
 ## Tech Stack
 

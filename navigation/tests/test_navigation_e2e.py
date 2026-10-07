@@ -249,22 +249,18 @@ def test_the_controller_actually_receives_odometry(container):
     assert sample.strip(), f"{full} has a publisher but delivers no data."
 
 
-def test_the_ground_frame_matches_the_wheel_geometry(container):
-    """base_footprint has to sit where the wheels touch the ground.
+def test_the_ground_frame_and_the_odometry_carry_the_measured_wheel(container):
+    """base_footprint sits on the LOADED radius below the axle, the odometry reckons with the ROLLING radius.
 
-    The probe joins two sources that know nothing of each other: the URDF (wheel axle, base_footprint) and control.yaml
-    (wheel_radius, with which the DiffDriveController computes the odometry).  If they do not match, either the
-    rendering is wrong or -- worse -- the odometry, and the latter shows up nowhere.  Whoever switches to outdoor
-    wheels, say, and updates only one of the two places gets a failure here instead of a silent driving error.
-
-    Measured on 2026-08-22: wheel axle +0,03282 above base_link, wheel radius 0,1651, base_footprint at -0,13228 --
-    exactly the difference.
+    Two different radii of the same tire, measured on the a200-0553 on 2026-10-07 (R58): the hubs stand 13-14 cm above
+    the floor under the UR5 -- the ground reference, 0.134 m, which the ride-height patch puts into the URDF and the
+    closed gripper on the floor confirmed (2026-09-01) -- and a 2.515 m run turned the wheels by 17.026 rad, a rolling
+    radius of 0.1477 m, which robot.yaml gives the DiffDriveController. Whoever changes the wheels updates both.
 
     What is NOT checked is whether base_footprint lies on the odom plane: the EKF runs with
-    ``base_link_frame: base_link`` and ``two_d_mode: True``, so it pins base_link to z=0.  The whole robot therefore
-    stands 13,2 cm below the ground plane of the map, which is visible in RViz and Foxglove and looks like a fault.  It
-    is Clearpath's convention out of the generated localization.yaml, not settable via robot.yaml, and inconsequential
-    for Nav2 -- only x, y and yaw count there.
+    ``base_link_frame: base_link`` and ``two_d_mode: True``, so it pins base_link to z=0.  It is Clearpath's
+    convention out of the generated localization.yaml, not settable via robot.yaml, and inconsequential for Nav2 --
+    only x, y and yaw count there.
     """
 
     def _z(parent: str, child: str) -> float:
@@ -284,11 +280,9 @@ def test_the_ground_frame_matches_the_wheel_geometry(container):
         _exec("grep -m1 'wheel_radius:' /clearpath/platform/config/control.yaml | tr -d ' ' | cut -d: -f2").strip()
     )
 
-    expected = axle_z - radius
-    assert abs(footprint_z - expected) < 0.005, (
-        f"base_footprint sits at {footprint_z:.5f}, but the wheels touch the "
-        f"ground at {expected:.5f} (axle {axle_z:.5f} minus wheel radius "
-        f"{radius} from control.yaml). URDF and wheel controller reckon with "
-        f"different wheels -- then the odometry is wrong by the same factor "
-        f"too, and nobody reports that."
+    assert abs(axle_z - footprint_z - 0.134) < 0.005, (
+        f"base_footprint sits {axle_z - footprint_z:.4f} m below the axle; the loaded tire measured 0.134 m"
+    )
+    assert radius == pytest.approx(0.1477), (
+        f"control.yaml reckons with wheel_radius {radius}, the rolling one is 0.1477"
     )

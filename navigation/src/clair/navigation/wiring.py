@@ -67,10 +67,10 @@ def pointcloud_to_laserscan_params() -> dict:
     return {
         "target_frame": BASE_FRAME,
         "transform_tolerance": 0.05,
-        # Band around the driving plane: everything between 10 cm below and 50 cm above base_link.  base_link sits
-        # 13,228 cm above the ground (the URDF puts base_footprint at z=-0.13228 underneath it), so the band starts
-        # just above the ground.
-        "min_height": -0.10,
+        # Band around the driving plane: everything between 7 cm below and 50 cm above base_link.  base_link sits
+        # 10.1 cm above the ground (base_footprint at z=-0.101, the loaded tires measured on the robot, R58), so the
+        # band starts 3 cm above the floor.
+        "min_height": -0.07,
         "max_height": 0.50,
         "angle_min": -3.141592653589793,
         "angle_max": 3.141592653589793,
