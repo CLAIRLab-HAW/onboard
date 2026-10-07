@@ -279,6 +279,11 @@ def atomic_write(path, content):
         with os.fdopen(fd, "w") as f:
             f.write(content)
         shutil.copymode(path, tmp)
+        # The file keeps its owner: written as root (the installer's run), a root-owned robot.srdf is one the
+        # Clearpath generator, running as the robot user, can no longer replace at boot (2026-10-07).
+        st = os.stat(path)
+        if os.geteuid() == 0:
+            os.chown(tmp, st.st_uid, st.st_gid)
         os.replace(tmp, path)
     except Exception:
         if os.path.exists(tmp):

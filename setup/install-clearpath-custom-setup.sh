@@ -613,7 +613,10 @@ if [ -f "${ROBOT_YAML_SRC}" ]; then
             [ "${SKIP_SYMLINK:-0}" = "1" ] || cp -a "$ROBOT_YAML_PATH" "${ROBOT_YAML_PATH}.pre-symlink.$(date +%Y%m%d%H%M%S)"
         fi
         if [ "${SKIP_SYMLINK:-0}" != "1" ]; then
-            install -d -m 0755 "$(dirname "$ROBOT_YAML_PATH")"
+            # Owned by the user the Clearpath generators run as (clearpath-robot.service: User=robot): as root's, the
+            # generator could not write /etc/clearpath/package.xml, generate_semantic_description died at every boot,
+            # and move_group ran on the robot.srdf of 2026-09-29 for a week (2026-10-07).
+            install -d -m 0755 -o "$REAL_USER" -g "$REAL_USER" "$(dirname "$ROBOT_YAML_PATH")"
             ln -sfn "${ROBOT_YAML_SRC}" "$ROBOT_YAML_PATH"
             echo "    symlink set: ${ROBOT_YAML_PATH} ─▶ ${ROBOT_YAML_SRC}"
         fi
