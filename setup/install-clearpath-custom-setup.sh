@@ -299,6 +299,13 @@ if [ "$DO_VERIFY" -eq 0 ] && [ "$(id -u)" -ne 0 ]; then
     exec sudo -- bash "$0" "$@"
 fi
 
+# unit_exists NAME -> 0 when systemd knows the unit. Not "systemctl list-unit-files | grep -q": under pipefail grep -q
+# leaves at its first match, systemctl dies of SIGPIPE and the pipeline counts as failed -- htpdate stayed enabled
+# behind exactly that test (2026-10-07).
+unit_exists() {
+    systemctl cat "$1" >/dev/null 2>&1
+}
+
 # confirm "question" -> 0 (yes) / 1 (no).
 #   -y            -> always yes
 #   no console    -> no (non-interactive, overwrite nothing) -> does NOT hang
@@ -617,7 +624,7 @@ fi
 
 # --- boot service clearpath-custom-setup: the config patcher ----------------
 DO_BOOT=1
-if systemctl list-unit-files | grep -q "^${UNIT_NAME}" && [ -f "$PY_PATH" ]; then
+if unit_exists "$UNIT_NAME" && [ -f "$PY_PATH" ]; then
     confirm ">>> clearpath-custom-setup is already installed. Update?" || DO_BOOT=0
 fi
 if [ "$DO_BOOT" -eq 1 ]; then
@@ -828,11 +835,11 @@ else
 fi
 if [ "$DO_NETWORKD" -eq 1 ]; then
     echo ">>> Disabling systemd-networkd in favour of NetworkManager"
-    if systemctl list-unit-files | grep -q '^NetworkManager\.service'; then
+    if unit_exists NetworkManager.service; then
         systemctl enable NetworkManager.service 2>/dev/null || true
     fi
     for u in systemd-networkd.service systemd-networkd.socket systemd-networkd-wait-online.service; do
-        if systemctl list-unit-files | grep -q "^${u}"; then
+        if unit_exists "$u"; then
             systemctl disable "$u" 2>/dev/null || true
             echo "    disabled: $u"
         fi
@@ -886,7 +893,8 @@ if [ "$DO_CHRONY" -eq 1 ]; then
     if ! dpkg -s chrony >/dev/null 2>&1; then
         echo ">>> apt: chrony (simulated first)"
         _sim="$(apt-get -s install chrony 2>/dev/null || true)"
-        if grep -E '^Remv |^Inst [^ ]+ \[|DOWNGRADED' <<<"$_sim" | grep -qv '^Remv systemd-timesyncd '; then
+        _risky="$(grep -E '^Remv |^Inst [^ ]+ \[|DOWNGRADED' <<<"$_sim" | grep -v '^Remv systemd-timesyncd ' || true)"
+        if [ -n "$_risky" ]; then
             echo "    WARN: apt would remove, downgrade or upgrade more than systemd-timesyncd - nothing installed:"
             grep -E '^(Remv|Inst) ' <<<"$_sim" | sed 's/^/          /'
         else
@@ -899,7 +907,7 @@ if [ "$DO_CHRONY" -eq 1 ]; then
         printf '%s\n' "# Written by install-clearpath-custom-setup.sh (R69): the NTP server this network passes." \
             "server ntp.haw-hamburg.de iburst prefer" > "$CHRONY_SOURCES"
         chmod 0644 "$CHRONY_SOURCES"
-        if systemctl list-unit-files | grep -q '^htpdate\.service'; then
+        if unit_exists htpdate.service; then
             systemctl disable --now htpdate.service 2>/dev/null || true
             echo "    htpdate: disabled"
         fi
