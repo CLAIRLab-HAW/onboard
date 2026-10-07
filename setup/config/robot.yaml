@@ -73,6 +73,11 @@ platform:
       # directly; the yaw rate keeps its 0.01, as a skid steer's wheels measure turning poorly and the IMU weighs in.
       platform_velocity_controller:
         twist_covariance_diagonal: [0.00001, 0.00001, 0.001, 0.001, 0.001, 0.01]
+        # The ROLLING radius of the mounted tires, not Clearpath's nominal 0.1651 (13 inch): a straight run of 2.515 m
+        # on a folding rule turned the wheels by 17.026 rad, and the odometry reported 2.811 m (2026-10-07, R58).
+        # Tape: 29-30 cm across unloaded, the hubs 13-14 cm above the floor loaded -- the loaded radius is the
+        # ground reference (ride_height_patch), this one the odometry's and the commanded speed's.
+        wheel_radius: 0.1477
       # Asset allowlist of the foxglove_bridge.
       #
       # WHY THIS HAS TO STAND HERE AT ALL: the foxglove_bridge ships a correct
