@@ -406,5 +406,10 @@ sensors:
       urdf_enabled: true
       launch_enabled: false
       parent: top_plate_rear_mount
-      xyz: [0.051, 0.005, 0.505]       # the arch model's RS16; the laser frame sits 37.7 mm above
-      rpy: [0.0, 0.0, 0.0]             # R33: the yaw is still to be measured
+      # Measured on the robot 2026-10-07: the RS16 sits on a 10 mm 3D-printed spacer on the arch (owner) and leans
+      # forward. Phone inclinometer on the RS16's top against the top plate: pitch -7.50 vs +0.46 deg along, +1.235 vs
+      # +1.60 deg across -> pitch +8.0 deg (towards the arm), roll -0.37 deg; the lidar's own walls agree (fore/aft
+      # walls lean 8.1-9.5 deg, side walls -1.9..+0.4 deg). The floor plane was no reference: the RS16 sees floor only
+      # behind and to the left. Yaw 0 per R33 (2026-09-29).
+      xyz: [0.051, 0.005, 0.515]       # the arch model's RS16 + the 10 mm spacer; the laser frame sits 37.7 mm above
+      rpy: [-0.0065, 0.140, 0.0]       # roll -0.37 deg, pitch +8.0 deg
