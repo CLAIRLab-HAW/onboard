@@ -14,6 +14,7 @@
 #   - udev rules (/etc/udev/rules.d/99-husky.rules), netplan (/etc/netplan/01-netcfg.yaml),
 #     disable systemd-networkd (NetworkManager), WiFi power save off
 #     (/etc/NetworkManager/conf.d/zz-clair-wifi-powersave-off.conf)
+#   - optional: chrony against ntp.haw-hamburg.de in place of htpdate/systemd-timesyncd (R69)
 #   - sysctl 10-ur-reserved-ports.conf: takes the UR driver ports 50001-50004 out
 #     of the ephemeral range, so nothing else can occupy them before the driver
 #   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
@@ -867,6 +868,50 @@ for dev in /sys/class/net/wl*; do
         echo "    WARN: iw could not switch ${dev##*/} - it takes effect at the next connection."
     fi
 done
+
+# --- time sync: chrony against the HAW's NTP server ------------------------
+# The clock ran on htpdate (HTTP Date headers): 312 PPM of drift, a correction of ~1 s every 30 min, 241 ms behind
+# the Mac on 2026-09-29 and 107 ms ahead on 2026-10-05 (R69). NTP to the public pools is blocked in this network,
+# from the robot and the Mac alike; ntp.haw-hamburg.de answers (2026-10-07: 19 ms round trip). chrony replaces
+# systemd-timesyncd (apt removes it, the one removal allowed here) and htpdate is switched off -- two daemons steering
+# one clock fight. Ubuntu's chrony.conf reads sources.d and keeps its pools as a fallback outside the HAW.
+CHRONY_SOURCES="/etc/chrony/sources.d/clair-haw.sources"
+DO_CHRONY=1
+if [ -f "$CHRONY_SOURCES" ]; then
+    confirm ">>> chrony is already set to ntp.haw-hamburg.de. Update?" || DO_CHRONY=0
+else
+    confirm ">>> Sync the clock with chrony against ntp.haw-hamburg.de (apt: chrony; htpdate off)?" || DO_CHRONY=0
+fi
+if [ "$DO_CHRONY" -eq 1 ]; then
+    if ! dpkg -s chrony >/dev/null 2>&1; then
+        echo ">>> apt: chrony (simulated first)"
+        _sim="$(apt-get -s install chrony 2>/dev/null || true)"
+        if grep -E '^Remv |^Inst [^ ]+ \[|DOWNGRADED' <<<"$_sim" | grep -qv '^Remv systemd-timesyncd '; then
+            echo "    WARN: apt would remove, downgrade or upgrade more than systemd-timesyncd - nothing installed:"
+            grep -E '^(Remv|Inst) ' <<<"$_sim" | sed 's/^/          /'
+        else
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-upgrade chrony \
+                || echo "    WARN: apt-get install failed."
+        fi
+    fi
+    if dpkg -s chrony >/dev/null 2>&1; then
+        install -d -m 0755 /etc/chrony/sources.d
+        printf '%s\n' "# Written by install-clearpath-custom-setup.sh (R69): the NTP server this network passes." \
+            "server ntp.haw-hamburg.de iburst prefer" > "$CHRONY_SOURCES"
+        chmod 0644 "$CHRONY_SOURCES"
+        if systemctl list-unit-files | grep -q '^htpdate\.service'; then
+            systemctl disable --now htpdate.service 2>/dev/null || true
+            echo "    htpdate: disabled"
+        fi
+        systemctl enable --now chrony.service 2>/dev/null || true
+        chronyc reload sources >/dev/null 2>&1 || true
+        echo "    chrony: $(systemctl is-active chrony.service); 'chronyc tracking' shows the offset once synced."
+    else
+        echo "    WARN: chrony is not installed - the clock stays with htpdate."
+    fi
+else
+    echo ">>> chrony: skipped."
+fi
 
 # --- GRUB: fast boot (hide the menu, boot the 1st option directly) ---------
 # Optional and OFF by default: a hidden menu makes recovery harder (it still
