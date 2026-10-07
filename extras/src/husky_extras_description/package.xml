@@ -4,7 +4,8 @@
   <name>husky_extras_description</name>
   <version>0.1.0</version>
   <description>
-    URDF extras of the a200-0553: the sensor arch and the mounting of the OnRobot RG6 on the UR5 flange. Pulled in by the Clearpath generator through robot.yaml (platform.extras.urdf.path); it hangs
+    URDF extras of the a200-0553: the sensor arch and the mounting of the OnRobot RG6 on the UR5 flange.
+    Pulled in by the Clearpath generator through robot.yaml (platform.extras.urdf.path); it hangs
     links onto frames the generator has already produced and describes no component of its own.
   </description>
   <maintainer email="hannes.voss@haw-hamburg.de">Hannes Voss</maintainer>

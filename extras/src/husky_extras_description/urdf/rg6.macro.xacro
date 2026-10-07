@@ -13,8 +13,7 @@
          Refine the rotation against an asymmetric feature such as the cable outlet.
          rg6_finger_joint is 0 when open and positive when closed; dependent joints use mimic. -->
     <xacro:include filename="$(find rg6_description)/urdf/onrobot_rg_upstream.urdf.xacro"/>
-    <xacro:onrobot_rg parent="${parent}" prefix="rg6_" model="rg6_v2"
-                      driver_joint="rg6_finger_joint">
+    <xacro:onrobot_rg parent="${parent}" prefix="rg6_" model="rg6_v2" driver_joint="rg6_finger_joint">
       <origin xyz="0 0 0" rpy="0 0 3.14159"/>
     </xacro:onrobot_rg>
 
