@@ -12,7 +12,8 @@
 #   - boot service clearpath-custom-setup: patches the generated configs on
 #     EVERY boot (realsense mesh uris, arm joint_states bus, rg6 srdf)
 #   - udev rules (/etc/udev/rules.d/99-husky.rules), netplan (/etc/netplan/01-netcfg.yaml),
-#     disable systemd-networkd (NetworkManager)
+#     disable systemd-networkd (NetworkManager), WiFi power save off
+#     (/etc/NetworkManager/conf.d/99-clair-wifi-powersave-off.conf)
 #   - sysctl 10-ur-reserved-ports.conf: takes the UR driver ports 50001-50004 out
 #     of the ephemeral range, so nothing else can occupy them before the driver
 #   - optional: speed up the GRUB boot (hide the menu, GRUB_TIMEOUT=0)
@@ -838,6 +839,30 @@ if [ "$DO_NETWORKD" -eq 1 ]; then
 else
     echo ">>> systemd-networkd: skipped."
 fi
+
+# --- WiFi power save off -----------------------------------------------------
+# Ubuntu's default-wifi-powersave-on.conf (wifi.powersave = 3) lets the WiFi card sleep between beacons; the access
+# point then holds every frame for it until the next one. Measured 2026-10-07 on HAWAX5: the panel's 30 Hz teleop
+# twists reached the gateway in bunches with gaps of 104-267 ms, past the gateway's 0.25 s feed, and Servo stopped
+# and started the arm. 99- sorts after the default and wins; 2 = disable.
+NM_POWERSAVE="/etc/NetworkManager/conf.d/99-clair-wifi-powersave-off.conf"
+echo ">>> Writing ${NM_POWERSAVE}"
+install -d -m 0755 /etc/NetworkManager/conf.d
+cat > "$NM_POWERSAVE" <<'NM_EOF'
+# Written by install-clearpath-custom-setup.sh: no WiFi power save, or teleop and joint states arrive in bunches.
+[connection]
+wifi.powersave = 2
+NM_EOF
+chmod 0644 "$NM_POWERSAVE"
+# NetworkManager reads it at the next connection; the cards that are up now are switched at once.
+for dev in /sys/class/net/wl*; do
+    [ -e "$dev" ] || continue
+    if iw dev "${dev##*/}" set power_save off 2>/dev/null; then
+        echo "    ${dev##*/}: $(iw dev "${dev##*/}" get power_save)"
+    else
+        echo "    WARN: iw could not switch ${dev##*/} - it takes effect at the next connection."
+    fi
+done
 
 # --- GRUB: fast boot (hide the menu, boot the 1st option directly) ---------
 # Optional and OFF by default: a hidden menu makes recovery harder (it still
