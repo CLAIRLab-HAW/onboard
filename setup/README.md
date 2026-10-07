@@ -89,8 +89,11 @@ It stands apart because it does two things an installer should not do without be
 stack is deliberately pinned, and it needs a powered arm. Inside the installer, `-y` answered that apt question without
 anyone seeing it. Run it in a maintenance window and test the manipulator afterwards.
 
-Afterwards enter the path it prints in `robot.yaml` at the arm (`kinematics_parameters_file`) and regenerate —
-`robot.yaml` is hand maintained, the script does not touch it.
+It writes `config/ur5_a200_0553_calibration.yaml` in the checkout, the file `robot.yaml` names at the arm
+(`kinematics_parameters_file`) and the UR driver reads straight out of the clone, like the RTDE recipe next to it:
+`git diff` compares the new measurement with the committed one, a commit makes it the arm's, and it takes effect when
+the Clearpath stack restarts. `--verify` reports both files as `MISSING` when the clone lacks them and as
+`NOT-GENERATED` while `/etc/clearpath/robot.urdf.xacro` still names another path.
 
 All units the installer creates carry the prefix `clearpath-custom-*`
 (`clearpath-custom-rg6-grip-bridge`, `clearpath-custom-joint-states`,

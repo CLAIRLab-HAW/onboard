@@ -29,9 +29,10 @@
 #   bash tools/ur-calibrate.sh --robot-ip 192.168.131.40 --out ~/ur5.yaml
 #   bash tools/ur-calibrate.sh --skip-apt          # the UR stack is already right
 #
-# Afterwards enter the file in robot.yaml at the arm and regenerate (reboot):
-#   kinematics_parameters_file: "<the path printed at the end>"
-# robot.yaml is NOT touched here -- it is hand maintained.
+# By default it overwrites config/ur5_a200_0553_calibration.yaml in this checkout, the file robot.yaml names as
+# kinematics_parameters_file: `git diff` then compares the new measurement with the committed one, and a commit
+# makes it the arm's.  It takes effect when the Clearpath stack restarts (reboot).  With --out somewhere else,
+# robot.yaml has to name that file instead -- it is hand maintained, nothing here touches it.
 
 set -euo pipefail
 
@@ -53,7 +54,7 @@ done
 # environment, and the file belongs to them afterwards.
 REAL_USER="${SUDO_USER:-robot}"
 USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
-OUT_FILE="${OUT_FILE:-${USER_HOME}/ur5_a200_0553_calibration.yaml}"
+OUT_FILE="${OUT_FILE:-$(cd "$(dirname "$0")/.." && pwd)/config/ur5_a200_0553_calibration.yaml}"
 
 if [ "$(id -u)" -ne 0 ] && [ "$SKIP_APT" -eq 0 ]; then
     echo "Need root privileges for apt-get - restarting via sudo ..."
@@ -79,16 +80,6 @@ if ! ping -c1 -W2 "$ROBOT_IP" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Keep the previous measurement: a calibration is a measurement, and a fresh one
-# that turns out worse should be comparable against what stood before.
-if [ -f "$OUT_FILE" ]; then
-    cp -a "$OUT_FILE" "${OUT_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-    # Keep only the five newest backups; never fatal (empty glob) -> safe under set -e.
-    # shellcheck disable=SC2012  # sorting by mtime is the point; the names are
-    # our own timestamps, so there is nothing for `find` to handle better.
-    ls -1t "${OUT_FILE}".bak.* 2>/dev/null | tail -n "+6" | xargs -r rm -f -- || true
-fi
-
 echo ">>> Calibrating the UR arm (${ROBOT_IP}) ─▶ ${OUT_FILE}"
 echo "    Note: on 'Could not connect' the driver may occupy the interface ─▶"
 echo "          'sudo systemctl stop clearpath-manipulators.service', then retry."
@@ -103,8 +94,8 @@ fi
 if "${RUN_AS[@]}" "$CALIB_CMD"; then
     chown "$REAL_USER":"$REAL_USER" "$OUT_FILE" 2>/dev/null || true
     echo "    Calibration saved: ${OUT_FILE}"
-    echo "    ─▶ Enter it in robot.yaml at the arm and regenerate (reboot):"
-    echo "         kinematics_parameters_file: \"${OUT_FILE}\""
+    echo "    ─▶ robot.yaml has to name it as kinematics_parameters_file (the checkout's file it does);"
+    echo "       compare with 'git diff', commit, and restart the Clearpath stack (reboot)."
 else
     echo "    WARN: calibration failed (arm on/reachable? interface free?)."
     exit 1

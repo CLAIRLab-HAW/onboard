@@ -143,6 +143,14 @@ rg6_tool_src() {
     return 0
 }
 
+# The files the UR arm reads by path, one per line, as <robot.yaml> names them: the kinematics calibration and the
+# RTDE input recipe.  Both live in the checkout and are read straight out of it, so nothing is copied -- and the
+# paths come out of robot.yaml instead of being spelled here a second time.
+arm_files() {
+    sed -En 's/^[[:space:]-]*(kinematics_parameters_file|input_recipe_filename):[[:space:]]*"?([^"[:space:]#]+).*/\2/p' \
+        "$1"
+}
+
 # Octomap feed (step 2 of the HRL obstacle architecture): throttled
 # depth->PointCloud2 source for MoveIt's occupancy map monitor, so that
 # move_group also avoids UNTRACKED obstacles (the dense voxel layer; the
@@ -516,6 +524,28 @@ verify_deployments() {
            "${crt_src:-${CRT_WS} (not found)}"
     if [ -n "$crt_bad" ]; then
         printf "  %-16s %s\n" "" "└─ ${crt_bad}"
+    fi
+
+    # The arm's files are not copies but read where they are, so there is nothing to hash: each has to exist, and
+    # the generated description has to name it.  The Clearpath generator rewrites robot.urdf.xacro only when the
+    # stack starts, so after a path change in robot.yaml it names the old file until then (NOT-GENERATED).
+    local ry="" xacro="/etc/clearpath/robot.urdf.xacro" arm_file
+    for candidate in "$(dirname "$0")/${ROBOT_YAML_REL}" "${SETUP_WS}/${ROBOT_YAML_REL}"; do
+        [ -f "$candidate" ] && { ry="$candidate"; break; }
+    done
+    if [ -z "$ry" ]; then
+        printf "  %-16s %-46s ◀─ %s\n" "SOURCE-MISSING" "(the arm's files)" "${ROBOT_YAML_REL} (not found)"; rc=1
+    else
+        while IFS= read -r arm_file; do
+            if [ ! -f "$arm_file" ]; then
+                status="MISSING"; rc=1
+            elif ! grep -qF "\"${arm_file}\"" "$xacro" 2>/dev/null; then
+                status="NOT-GENERATED"; rc=1
+            else
+                status="OK"
+            fi
+            printf "  %-16s %-46s ◀─ %s\n" "$status" "$arm_file" "$ry"
+        done < <(arm_files "$ry")
     fi
 
     if [ "$rc" -eq 0 ]; then
@@ -1543,15 +1573,15 @@ else
     echo ">>> Bluetooth joystick pairing: skipped."
 fi
 
-# --- RTDE input recipe without the tool DO ---------------------------------
-# The prerequisite for the ur_robot_driver to start alongside the OnRobot URCap
-# at all: the URCap is an RTDE client itself and occupies
-# tool_digital_output_mask, otherwise the driver dies during the RTDE setup with
-# "controlled by another RTDE client". robot.yaml reads the file straight out of
-# the checkout, so nothing is copied -- but a checkout without it is a driver
-# that does not start, and without any hint at it.
-RTDE_RECIPE="${SETUP_WS}/config/rtde_input_recipe_no_tool.txt"
-[ -f "$RTDE_RECIPE" ] || echo "    WARN: ${RTDE_RECIPE} is missing - the UR driver does NOT start without it."
+# --- the arm's files: kinematics calibration and RTDE recipe ----------------
+# robot.yaml reads both straight out of the checkout (arm_files), so nothing is copied -- but a missing one stops
+# the arm without any hint at it.  Without the calibration the UR xacro cannot expand the description at all.
+# Without the recipe (the standard one minus the tool DO) the ur_robot_driver dies during the RTDE setup next to the
+# OnRobot URCap, which is an RTDE client itself and occupies tool_digital_output_mask ("controlled by another RTDE
+# client").
+while IFS= read -r _arm_file; do
+    [ -f "$_arm_file" ] || echo "    WARN: ${_arm_file} (robot.yaml names it) missing - the UR driver does NOT start."
+done < <(arm_files "$ROBOT_YAML_SRC")
 
 # --- RG6 gripper bridge (XML-RPC to the OnRobot URCap) --------------------
 # The recipe above takes the tool DO path out: ROS can no longer set a tool DO,

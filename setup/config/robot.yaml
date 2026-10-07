@@ -280,9 +280,9 @@ manipulators:
     - model: universal_robots
       parent: top_plate_front_mount
       # Measured 2026-09-01 against the real vehicle: the front-mount-to-arm-base
-      # offset reads 107 mm on the plate, not the 120 modelled. The arm bolts
+      # offset reads 107 mm on the plate, not the 120 modeled. The arm bolts
       # flat onto the plate, so z stays 0 here -- the ~31 mm the whole vehicle
-      # sits lower (tape measure ~330 mm vs. 363 modelled, tyre squish under the
+      # sits lower (tape measure ~330 mm vs. 363 modeled, tyre squish under the
       # UR mass) is the RIDE HEIGHT and must not be hidden in this joint; it
       # lives in ride_height_patch.
       xyz: [-0.107, 0.0, 0.0]
@@ -290,7 +290,11 @@ manipulators:
       ur_type: ur5
       robot_ip: 192.168.131.40
       headless_mode: true
-      kinematics_parameters_file: "/home/robot/ur5_a200_0553_calibration.yaml" # "$(find ur_description)/config/ur5/default_kinematics.yaml"
+      # This arm's factory calibration (DH offsets, tools/ur-calibrate.sh writes it), read straight out of the
+      # checkout like the recipe below. The UR xacro loads it whenever the description is expanded, so a missing
+      # file is no model at all, not a nominal one; the nominal values are
+      # "$(find ur_description)/config/ur5/default_kinematics.yaml".
+      kinematics_parameters_file: "/home/robot/onboard/setup/config/ur5_a200_0553_calibration.yaml"
       # RTDE input recipe without tool_digital_output_mask/tool_digital_output.
       # The OnRobot URCap is an RTDE client itself and occupies these two input
       # variables; RTDE allows only ONE writing client per input variable. With
