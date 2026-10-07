@@ -16,3 +16,6 @@ dist/
 # same reason as the artifacts above: until 2026-09-03 only deploy/offboard and offboard-base
 # ignored the name, so any other tree that grew a .env would have committed it.
 .env
+
+# macOS Finder metadata
+.DS_Store
